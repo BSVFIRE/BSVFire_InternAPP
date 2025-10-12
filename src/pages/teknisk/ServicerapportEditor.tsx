@@ -1,0 +1,491 @@
+import { useState, useEffect } from 'react'
+import { ArrowLeft, Save, Eye } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+
+interface Servicerapport {
+  id: string
+  anlegg_id: string
+  anlegg_navn?: string
+  ordre_id?: string
+  rapport_dato: string
+  tekniker_navn: string
+  header: string
+  rapport_innhold: string
+  created_at: string
+  updated_at: string
+}
+
+interface Anlegg {
+  id: string
+  anleggsnavn: string
+  kundenr: string
+  adresse?: string
+  postnr?: string
+  poststed?: string
+  customer?: {
+    navn: string
+  }
+}
+
+interface AnleggDetails {
+  anleggsnavn: string
+  adresse: string
+  postnr: string
+  poststed: string
+  kunde_navn: string
+  kontaktperson_navn?: string
+  kontaktperson_telefon?: string
+  kontaktperson_epost?: string
+}
+
+interface Ansatt {
+  id: string
+  navn: string
+}
+
+interface ServicerapportEditorProps {
+  rapport: Servicerapport
+  onSave: (rapport: Servicerapport) => Promise<Servicerapport>
+  onCancel: () => void
+}
+
+export function ServicerapportEditor({ rapport, onSave, onCancel }: ServicerapportEditorProps) {
+  const [formData, setFormData] = useState<Servicerapport>(rapport)
+  const [anlegg, setAnlegg] = useState<Anlegg[]>([])
+  const [filteredAnlegg, setFilteredAnlegg] = useState<Anlegg[]>([])
+  const [anleggSok, setAnleggSok] = useState('')
+  const [ansatte, setAnsatte] = useState<Ansatt[]>([])
+  const [anleggDetails, setAnleggDetails] = useState<AnleggDetails | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    loadAnlegg()
+    loadAnsatte()
+  }, [])
+
+  useEffect(() => {
+    if (formData.anlegg_id && anlegg.length > 0) {
+      loadAnleggDetails(formData.anlegg_id)
+    } else {
+      setAnleggDetails(null)
+    }
+  }, [formData.anlegg_id, anlegg])
+
+  useEffect(() => {
+    // Filter anlegg based on search
+    if (anleggSok.trim() === '') {
+      setFilteredAnlegg(anlegg)
+    } else {
+      const searchLower = anleggSok.toLowerCase()
+      const filtered = anlegg.filter(a => 
+        a.anleggsnavn.toLowerCase().includes(searchLower)
+      )
+      setFilteredAnlegg(filtered)
+    }
+  }, [anleggSok, anlegg])
+
+  async function loadAnlegg() {
+    try {
+      const { data, error } = await supabase
+        .from('anlegg')
+        .select('id, anleggsnavn, kundenr')
+        .order('anleggsnavn')
+
+      if (error) throw error
+      const anleggData = data || []
+      setAnlegg(anleggData)
+      setFilteredAnlegg(anleggData)
+    } catch (error) {
+      console.error('Feil ved lasting av anlegg:', error)
+    }
+  }
+
+  async function loadAnsatte() {
+    try {
+      const { data, error } = await supabase
+        .from('ansatte')
+        .select('id, navn')
+        .order('navn')
+
+      if (error) throw error
+      setAnsatte(data || [])
+    } catch (error) {
+      console.error('Feil ved lasting av ansatte:', error)
+    }
+  }
+
+  async function loadAnleggDetails(anleggId: string) {
+    try {
+      console.log('Loading anlegg details for:', anleggId)
+      
+      const { data: anleggData, error: anleggError } = await supabase
+        .from('anlegg')
+        .select('anleggsnavn, adresse, postnummer, poststed, kundenr')
+        .eq('id', anleggId)
+        .single()
+
+      console.log('Anlegg data:', anleggData, 'Error:', anleggError)
+
+      if (anleggError) {
+        console.error('Error loading anlegg:', anleggError)
+        // Vis i det minste anleggsnavnet fra dropdown
+        const selectedAnlegg = anlegg.find(a => a.id === anleggId)
+        if (selectedAnlegg) {
+          setAnleggDetails({
+            anleggsnavn: selectedAnlegg.anleggsnavn,
+            adresse: '',
+            postnr: '',
+            poststed: '',
+            kunde_navn: ''
+          })
+        }
+        return
+      }
+
+      // Hent primær kontaktperson for anlegget (ikke kritisk hvis det feiler)
+      const { data: kontaktData, error: kontaktError } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .select(`
+          kontaktpersoner:kontaktperson_id (
+            navn,
+            telefon,
+            epost
+          )
+        `)
+        .eq('anlegg_id', anleggId)
+        .eq('primar', true)
+        .maybeSingle()
+
+      console.log('Kontakt data:', kontaktData, 'Error:', kontaktError)
+
+      // Hent kundenavn separat
+      let kundeNavn = ''
+      if (anleggData.kundenr) {
+        const { data: kundeData } = await supabase
+          .from('customer')
+          .select('navn')
+          .eq('id', anleggData.kundenr)
+          .single()
+        kundeNavn = kundeData?.navn || ''
+      }
+
+      const details: AnleggDetails = {
+        anleggsnavn: anleggData.anleggsnavn || '',
+        adresse: anleggData.adresse || '',
+        postnr: anleggData.postnummer || '',
+        poststed: anleggData.poststed || '',
+        kunde_navn: kundeNavn,
+        kontaktperson_navn: (kontaktData?.kontaktpersoner as any)?.navn,
+        kontaktperson_telefon: (kontaktData?.kontaktpersoner as any)?.telefon,
+        kontaktperson_epost: (kontaktData?.kontaktpersoner as any)?.epost
+      }
+
+      console.log('Setting anlegg details:', details)
+      setAnleggDetails(details)
+    } catch (error) {
+      console.error('Feil ved lasting av anleggsdetaljer:', error)
+      // Vis i det minste anleggsnavnet
+      const selectedAnlegg = anlegg.find(a => a.id === anleggId)
+      if (selectedAnlegg) {
+        setAnleggDetails({
+          anleggsnavn: selectedAnlegg.anleggsnavn,
+          adresse: '',
+          postnr: '',
+          poststed: '',
+          kunde_navn: ''
+        })
+      }
+    }
+  }
+
+  function handleChange(field: keyof Servicerapport, value: string) {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      // Lagre rapporten først og få tilbake den lagrede rapporten med ID
+      const savedRapport = await onSave(formData)
+      
+      // Generer og lagre PDF til storage
+      if (savedRapport.anlegg_id && savedRapport.id) {
+        const { generateServicerapportPDF } = await import('./ServicerapportPDF')
+        const result = await generateServicerapportPDF(savedRapport, true)
+        if (result.success) {
+          alert('✅ Servicerapport lagret og PDF generert!')
+        }
+      }
+    } catch (error) {
+      console.error('Feil ved lagring/generering:', error)
+      alert('Kunne ikke lagre servicerapport')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (showPreview) {
+    return (
+      <div className="space-y-6">
+        {/* Preview Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowPreview(false)}
+              className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-400" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">Forhåndsvisning</h1>
+              <p className="text-gray-400">Slik vil rapporten se ut</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Preview Content */}
+        <div className="card max-w-4xl mx-auto bg-white text-black p-8">
+          {/* Header */}
+          <div className="border-b-2 border-gray-300 pb-4 mb-6">
+            <h1 className="text-2xl font-bold mb-4">{formData.header || 'Servicerapport'}</h1>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-semibold">Anlegg:</span>{' '}
+                {anlegg.find(a => a.id === formData.anlegg_id)?.anleggsnavn || 'Ikke valgt'}
+              </div>
+              <div>
+                <span className="font-semibold">Dato:</span>{' '}
+                {new Date(formData.rapport_dato).toLocaleDateString('nb-NO')}
+              </div>
+              <div>
+                <span className="font-semibold">Tekniker:</span> {formData.tekniker_navn || 'Ikke angitt'}
+              </div>
+            </div>
+          </div>
+
+          {/* Report Content */}
+          <div className="prose prose-sm max-w-none">
+            <div className="whitespace-pre-wrap">{formData.rapport_innhold || 'Ingen innhold ennå...'}</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onCancel}
+            className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-400" />
+          </button>
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              {rapport.id ? 'Rediger servicerapport' : 'Ny servicerapport'}
+            </h1>
+            <p className="text-gray-400">Fyll ut informasjon og rapportinnhold</p>
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Header Section */}
+        <div className="card">
+          <h2 className="text-xl font-semibold text-white mb-4">Header</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Rapporttittel *
+              </label>
+              <input
+                type="text"
+                value={formData.header}
+                onChange={(e) => handleChange('header', e.target.value)}
+                className="input w-full"
+                placeholder="F.eks. Årlig service brannalarmanlegg"
+                required
+              />
+            </div>
+
+            {/* Anlegg */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Anlegg <span className="text-red-500">*</span>
+              </label>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Søk etter anlegg..."
+                  value={anleggSok}
+                  onChange={(e) => setAnleggSok(e.target.value)}
+                  className="input"
+                />
+                <select
+                  value={formData.anlegg_id}
+                  onChange={(e) => handleChange('anlegg_id', e.target.value)}
+                  className="input"
+                  required
+                  size={Math.min(filteredAnlegg.length + 1, 10)}
+                >
+                  <option value="">Velg anlegg ({filteredAnlegg.length} av {anlegg.length})</option>
+                  {filteredAnlegg.slice(0, 100).map((a) => (
+                    <option key={a.id} value={a.id}>{a.anleggsnavn}</option>
+                  ))}
+                  {filteredAnlegg.length > 100 && (
+                    <option disabled>... og {filteredAnlegg.length - 100} flere (søk for å begrense)</option>
+                  )}
+                </select>
+                {filteredAnlegg.length === 0 && anleggSok && (
+                  <p className="text-sm text-yellow-400 mt-1">⚠️ Ingen anlegg funnet for "{anleggSok}"</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Dato *
+              </label>
+              <input
+                type="date"
+                value={formData.rapport_dato}
+                onChange={(e) => handleChange('rapport_dato', e.target.value)}
+                className="input w-full"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Tekniker *
+              </label>
+              <select
+                value={formData.tekniker_navn}
+                onChange={(e) => handleChange('tekniker_navn', e.target.value)}
+                className="input w-full"
+                required
+              >
+                <option value="">Velg tekniker</option>
+                {ansatte.map((ansatt) => (
+                  <option key={ansatt.id} value={ansatt.navn}>
+                    {ansatt.navn}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Anleggsdetaljer */}
+        {anleggDetails && (
+          <div className="card bg-blue-500/5 border-blue-500/20">
+            <h2 className="text-xl font-semibold text-white mb-4">Anleggsdetaljer</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Kunde</label>
+                <p className="text-white">{anleggDetails.kunde_navn || 'Ikke angitt'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Anlegg</label>
+                <p className="text-white">{anleggDetails.anleggsnavn}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Adresse</label>
+                <p className="text-white">
+                  {anleggDetails.adresse || 'Ikke angitt'}
+                  {anleggDetails.postnr && anleggDetails.poststed && (
+                    <><br />{anleggDetails.postnr} {anleggDetails.poststed}</>
+                  )}
+                </p>
+              </div>
+              {anleggDetails.kontaktperson_navn && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">Kontaktperson</label>
+                  <p className="text-white">{anleggDetails.kontaktperson_navn}</p>
+                  {anleggDetails.kontaktperson_telefon && (
+                    <p className="text-sm text-gray-400">{anleggDetails.kontaktperson_telefon}</p>
+                  )}
+                  {anleggDetails.kontaktperson_epost && (
+                    <p className="text-sm text-gray-400">{anleggDetails.kontaktperson_epost}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Report Content Section */}
+        <div className="card">
+          <h2 className="text-xl font-semibold text-white mb-4">Rapportinnhold</h2>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Rapport tekst *
+            </label>
+            <textarea
+              value={formData.rapport_innhold}
+              onChange={(e) => handleChange('rapport_innhold', e.target.value)}
+              className="input w-full font-mono"
+              rows={20}
+              placeholder="Skriv rapportinnholdet her...
+
+Eksempel:
+1. INNLEDNING
+   - Formål med service
+   - Dato og tid for utførelse
+
+2. UTFØRT ARBEID
+   - Beskrivelse av utførte arbeider
+   - Komponenter som er kontrollert
+
+3. FUNN OG OBSERVASJONER
+   - Eventuelle avvik
+   - Anbefalinger
+
+4. KONKLUSJON
+   - Oppsummering
+   - Neste service"
+              required
+            />
+            <p className="text-sm text-gray-400 mt-2">
+              Tips: Bruk linjeskift for å strukturere rapporten. Teksten vil vises som du skriver den.
+            </p>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="btn-secondary"
+          >
+            Avbryt
+          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowPreview(true)}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <Eye className="w-5 h-5" />
+              Forhåndsvisning
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Save className="w-5 h-5" />
+              {loading ? 'Lagrer og genererer...' : 'Lagre og generer rapport'}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  )
+}
