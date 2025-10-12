@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 export function PlaceholderKontroll() {
   const navigate = useNavigate()
-  const { type, anleggId } = useParams()
+  const { type } = useParams()
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">

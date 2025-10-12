@@ -239,7 +239,6 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
             <tbody>
               {filteredStyringer.map(({ key, navn, icon }) => {
                 const isActive = localStyringer[key]?.aktiv || false
-                const status = localStyringer[key]?.status || ''
                 
                 return (
                   <tr key={key} className={`border-t border-gray-800 ${isActive ? 'bg-primary/5' : ''}`}>

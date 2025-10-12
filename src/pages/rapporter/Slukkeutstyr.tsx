@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Shield, Search, Building2 } from 'lucide-react'
+import { ArrowLeft, Shield, Building2 } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { BrannslukkereView } from './slukkeutstyr/BrannslukkereView'
 import { BrannslangerView } from './slukkeutstyr/BrannslangerView'

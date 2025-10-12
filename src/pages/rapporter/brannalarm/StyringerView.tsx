@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Check, AlertCircle, Eye, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Check } from 'lucide-react'
 import { BrannalarmStyring } from '../Brannalarm'
 
 interface StyringerViewProps {
