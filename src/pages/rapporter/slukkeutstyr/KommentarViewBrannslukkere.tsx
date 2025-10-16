@@ -16,9 +16,10 @@ interface KommentarViewProps {
   anleggId: string
   kundeNavn: string
   anleggNavn: string
+  onBack: () => void
 }
 
-export function KommentarViewBrannslukkere({ anleggId, kundeNavn, anleggNavn }: KommentarViewProps) {
+export function KommentarViewBrannslukkere({ anleggId, kundeNavn: _kundeNavn, anleggNavn: _anleggNavn, onBack }: KommentarViewProps) {
   const { user } = useAuthStore()
   const [kommentarer, setKommentarer] = useState<Kommentar[]>([])
   const [loading, setLoading] = useState(false)

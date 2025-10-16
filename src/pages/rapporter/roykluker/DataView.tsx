@@ -96,7 +96,7 @@ const klassifiseringOptions = [
 ]
 
 export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
-  const { user } = useAuthStore()
+  const { user: _user } = useAuthStore()
   const [sentraler, setSentraler] = useState<RoyklukeSentral[]>([])
   const [selectedSentral, setSelectedSentral] = useState<string>('')
   const [data, setData] = useState<RoyklukeData | null>(null)

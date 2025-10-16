@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, FileDown, MessageSquare } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, FileDown } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BrannslangerPreview } from '../BrannslangerPreview'
@@ -195,7 +195,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
     setAntallNye(1)
   }
 
-  async function autoSave() {
+  async function _autoSave() {
     // Ikke autolagre hvis vi nettopp lastet data eller er i loading-state
     if (loading || slanger.length === 0) return
 

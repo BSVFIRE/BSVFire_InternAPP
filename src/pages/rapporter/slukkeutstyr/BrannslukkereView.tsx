@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, FileDown, MessageSquare } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, FileDown } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BrannslukkerPreview } from '../BrannslukkerPreview'
@@ -81,7 +81,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [pendingChanges, setPendingChanges] = useState(0)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const _saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const localStorageKey = `brannslukkere_offline_${anleggId}`
   const [editingStatusIndex, setEditingStatusIndex] = useState<number | null>(null)
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
@@ -152,7 +152,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
     }
   }
 
-  async function autoSave() {
+  async function _autoSave() {
     // Ikke autolagre hvis vi nettopp lastet data eller er i loading-state
     if (loading || slukkere.length === 0) return
 
@@ -827,7 +827,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   const ok = slukkere.filter(s => 
     s.status?.includes('OK') || s.status?.includes('OK Byttet') || s.status?.includes('Byttet ved kontroll')
   ).length
-  const ikkeKontrollert = slukkere.filter(s => 
+  const _ikkeKontrollert = slukkere.filter(s => 
     s.status?.includes('Ikke funnet') || s.status?.includes('Ikke tilkomst')
   ).length
   const avvik = slukkere.filter(s => 

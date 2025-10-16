@@ -12,13 +12,14 @@ interface Kommentar {
   created_at?: string
 }
 
-interface KommentarViewProps {
+interface KommentarViewBrannslanger {
   anleggId: string
   kundeNavn: string
   anleggNavn: string
+  onBack: () => void
 }
 
-export function KommentarViewBrannslanger({ anleggId, kundeNavn, anleggNavn }: KommentarViewProps) {
+export function KommentarViewBrannslanger({ anleggId, kundeNavn: _kundeNavn, anleggNavn: _anleggNavn, onBack }: KommentarViewBrannslanger) {
   const { user } = useAuthStore()
   const [kommentarer, setKommentarer] = useState<Kommentar[]>([])
   const [loading, setLoading] = useState(false)
