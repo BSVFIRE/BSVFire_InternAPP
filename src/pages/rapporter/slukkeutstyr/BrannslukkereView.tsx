@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, FileDown } from 'lucide-react'
 import jsPDF from 'jspdf'
@@ -81,7 +81,6 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [pendingChanges, setPendingChanges] = useState(0)
-  const _saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const localStorageKey = `brannslukkere_offline_${anleggId}`
   const [editingStatusIndex, setEditingStatusIndex] = useState<number | null>(null)
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
@@ -152,60 +151,6 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
     }
   }
 
-  async function _autoSave() {
-    // Ikke autolagre hvis vi nettopp lastet data eller er i loading-state
-    if (loading || slukkere.length === 0) return
-
-    // Hvis offline, lagre til localStorage
-    if (!navigator.onLine) {
-      saveToLocalStorage()
-      return
-    }
-
-    try {
-      setSaving(true)
-
-      for (const slukker of slukkere) {
-        if (slukker.id) {
-          // Update eksisterende
-          const { error } = await supabase
-            .from('anleggsdata_brannslukkere')
-            .update(slukker)
-            .eq('id', slukker.id)
-          
-          if (error) throw error
-        } else if (slukker.apparat_nr || slukker.plassering) {
-          // Insert nye (kun hvis de har data)
-          const { error } = await supabase
-            .from('anleggsdata_brannslukkere')
-            .insert([{ ...slukker, anlegg_id: anleggId }])
-          
-          if (error) throw error
-        }
-      }
-
-      setLastSaved(new Date())
-      // Fjern offline data hvis lagring var vellykket
-      localStorage.removeItem(localStorageKey)
-      setPendingChanges(0)
-    } catch (error) {
-      console.error('Feil ved autolagring:', error)
-      // Ved feil, lagre til localStorage som backup
-      saveToLocalStorage()
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  function saveToLocalStorage() {
-    try {
-      localStorage.setItem(localStorageKey, JSON.stringify(slukkere))
-      setPendingChanges(slukkere.length)
-      setLastSaved(new Date())
-    } catch (error) {
-      console.error('Feil ved lagring til localStorage:', error)
-    }
-  }
 
   async function syncOfflineData() {
     const stored = localStorage.getItem(localStorageKey)
@@ -826,9 +771,6 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   const totalt = slukkere.length
   const ok = slukkere.filter(s => 
     s.status?.includes('OK') || s.status?.includes('OK Byttet') || s.status?.includes('Byttet ved kontroll')
-  ).length
-  const _ikkeKontrollert = slukkere.filter(s => 
-    s.status?.includes('Ikke funnet') || s.status?.includes('Ikke tilkomst')
   ).length
   const avvik = slukkere.filter(s => 
     s.status?.some(st => !['OK', 'OK Byttet', 'Byttet ved kontroll', 'Ikke funnet', 'Ikke tilkomst'].includes(st))
@@ -1481,6 +1423,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
         anleggId={anleggId}
         kundeNavn={kundeNavn}
         anleggNavn={anleggNavn}
+        onBack={() => {}}
       />
     </div>
   )

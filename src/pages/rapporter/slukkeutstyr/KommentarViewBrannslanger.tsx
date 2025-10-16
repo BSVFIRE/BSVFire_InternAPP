@@ -19,7 +19,7 @@ interface KommentarViewBrannslanger {
   onBack: () => void
 }
 
-export function KommentarViewBrannslanger({ anleggId, kundeNavn: _kundeNavn, anleggNavn: _anleggNavn, onBack }: KommentarViewBrannslanger) {
+export function KommentarViewBrannslanger({ anleggId, kundeNavn: _kundeNavn, anleggNavn: _anleggNavn, onBack: _onBack }: KommentarViewBrannslanger) {
   const { user } = useAuthStore()
   const [kommentarer, setKommentarer] = useState<Kommentar[]>([])
   const [loading, setLoading] = useState(false)

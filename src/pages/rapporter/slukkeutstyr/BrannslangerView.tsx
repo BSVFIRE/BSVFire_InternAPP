@@ -195,84 +195,6 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
     setAntallNye(1)
   }
 
-  async function _autoSave() {
-    // Ikke autolagre hvis vi nettopp lastet data eller er i loading-state
-    if (loading || slanger.length === 0) return
-
-    // Hvis offline, lagre til localStorage
-    if (!navigator.onLine) {
-      saveToLocalStorage()
-      return
-    }
-
-    try {
-      setSaving(true)
-
-      for (const slange of slanger) {
-        // Fjern status fra dataToSave - vi bruker kun type_avvik
-        const { status, ...dataUtenStatus } = slange
-        
-        const dataToSave = {
-          ...dataUtenStatus,
-          type_avvik: Array.isArray(slange.type_avvik) && slange.type_avvik.length > 0
-            ? slange.type_avvik
-            : null  // NULL hvis ingen avvik (= OK)
-        }
-
-        if (slange.id) {
-          // Update eksisterende
-          const { error } = await supabase
-            .from('anleggsdata_brannslanger')
-            .update(dataToSave)
-            .eq('id', slange.id)
-          
-          if (error) {
-            console.error('Feil ved oppdatering:', error, 'Data:', dataToSave)
-            throw error
-          }
-        } else if (slange.slangenummer || slange.plassering) {
-          // Insert nye (kun hvis de har data)
-          const { data: insertedData, error } = await supabase
-            .from('anleggsdata_brannslanger')
-            .insert([{ ...dataToSave, anlegg_id: anleggId }])
-            .select()
-          
-          if (error) throw error
-          
-          // Oppdater lokal state med ny id
-          if (insertedData && insertedData.length > 0) {
-            const nyeSlanger = [...slanger]
-            const index = nyeSlanger.findIndex(s => s === slange)
-            if (index !== -1) {
-              nyeSlanger[index] = { ...nyeSlanger[index], id: insertedData[0].id }
-              setSlanger(nyeSlanger)
-            }
-          }
-        }
-      }
-
-      setLastSaved(new Date())
-      // Fjern offline data hvis lagring var vellykket
-      localStorage.removeItem(localStorageKey)
-      setPendingChanges(0)
-    } catch (error) {
-      console.error('Feil ved autolagring:', error)
-      // Ved feil, lagre til localStorage som backup
-      saveToLocalStorage()
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  function saveToLocalStorage() {
-    try {
-      localStorage.setItem(localStorageKey, JSON.stringify(slanger))
-      setPendingChanges(slanger.length)
-      setLastSaved(new Date())
-    } catch (error) {
-      console.error('Feil ved lagring til localStorage:', error)
-    }
-  }
 
   async function syncOfflineData() {
     const stored = localStorage.getItem(localStorageKey)
@@ -1524,6 +1446,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         anleggId={anleggId}
         kundeNavn={kundeNavn}
         anleggNavn={anleggNavn}
+        onBack={() => {}}
       />
     </div>
   )
