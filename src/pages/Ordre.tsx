@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { Plus, Search, ClipboardList, Building2, User, Eye, Trash2, Calendar, Edit, CheckCircle, FileText } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
+import { ORDRE_STATUSER, ORDRE_STATUS_COLORS } from '@/lib/constants'
 
 interface Ordre {
   id: string
@@ -13,6 +14,7 @@ interface Ordre {
   kommentar: string | null
   status: string
   opprettet_dato: string
+  sist_oppdatert: string | null
   tekniker_id: string | null
   kontrolltype: string[] | null
 }
@@ -30,13 +32,6 @@ interface OrdreMedAnleggKunde extends Ordre {
 }
 
 type SortOption = 'dato_nyeste' | 'dato_eldste' | 'status' | 'kunde' | 'anlegg' | 'tekniker'
-
-const statusColors: Record<string, string> = {
-  'Ventende': 'bg-yellow-900/30 text-yellow-400 border-yellow-800',
-  'Pågående': 'bg-blue-900/30 text-blue-400 border-blue-800',
-  'Fullført': 'bg-green-900/30 text-green-400 border-green-800',
-  'Fakturert': 'bg-gray-900/30 text-gray-400 border-gray-800',
-}
 
 interface Tekniker {
   id: string
@@ -155,7 +150,10 @@ export function Ordre() {
       // Oppdater ordre til Fullført
       const { error: ordreError } = await supabase
         .from('ordre')
-        .update({ status: 'Fullført' })
+        .update({ 
+          status: ORDRE_STATUSER.FULLFORT,
+          sist_oppdatert: new Date().toISOString()
+        })
         .eq('id', avsluttDialog.ordreId)
 
       if (ordreError) throw ordreError
@@ -181,7 +179,7 @@ export function Ordre() {
               status: 'Ikke påbegynt',
               prioritet: 'Høy',
               beskrivelse: `Faktura for ordre: ${ordreData.type}`,
-              created_at: new Date().toISOString()
+              opprettet_dato: new Date().toISOString()
             }])
 
           if (oppgaveError) throw oppgaveError
@@ -241,7 +239,7 @@ export function Ordre() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-400">Laster ordre...</p>
+          <p className="text-gray-400 dark:text-gray-400">Laster ordre...</p>
         </div>
       </div>
     )
@@ -251,8 +249,8 @@ export function Ordre() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Ordre</h1>
-          <p className="text-gray-400">Administrer serviceordre</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Ordre</h1>
+          <p className="text-gray-400 dark:text-gray-400">Administrer serviceordre</p>
         </div>
         <div className="card bg-red-900/20 border-red-800">
           <div className="flex items-start gap-3">
@@ -305,19 +303,19 @@ export function Ordre() {
       {/* Avslutt Ordre Dialog */}
       {avsluttDialog.open && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-200 border border-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold text-white mb-4">Avslutt ordre</h2>
+          <div className="bg-dark-200 border border-gray-200 dark:border-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Avslutt ordre</h2>
             
             <div className="space-y-4">
               <div>
-                <p className="text-gray-300 mb-3">Er ordren fakturert?</p>
+                <p className="text-gray-500 dark:text-gray-300 mb-3">Er ordren fakturert?</p>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setErFakturert(true)}
                     className={`flex-1 py-2 px-4 rounded-lg border transition-all ${
                       erFakturert === true
-                        ? 'bg-green-600 border-green-600 text-white'
-                        : 'bg-dark-100 border-gray-700 text-gray-300 hover:border-green-600'
+                        ? 'bg-green-600 border-green-600 text-gray-900 dark:text-white'
+                        : 'bg-dark-100 border-gray-700 text-gray-500 dark:text-gray-300 hover:border-green-600'
                     }`}
                   >
                     Ja
@@ -326,8 +324,8 @@ export function Ordre() {
                     onClick={() => setErFakturert(false)}
                     className={`flex-1 py-2 px-4 rounded-lg border transition-all ${
                       erFakturert === false
-                        ? 'bg-red-600 border-red-600 text-white'
-                        : 'bg-dark-100 border-gray-700 text-gray-300 hover:border-red-600'
+                        ? 'bg-red-600 border-red-600 text-gray-900 dark:text-white'
+                        : 'bg-dark-100 border-gray-700 text-gray-500 dark:text-gray-300 hover:border-red-600'
                     }`}
                   >
                     Nei
@@ -337,7 +335,7 @@ export function Ordre() {
 
               {erFakturert === false && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
                     Fakturaansvarlig <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -351,7 +349,7 @@ export function Ordre() {
                       <option key={t.id} value={t.id}>{t.navn}</option>
                     ))}
                   </select>
-                  <p className="text-sm text-gray-400 mt-2">
+                  <p className="text-sm text-gray-400 dark:text-gray-400 mt-2">
                     En fakturaoppgave vil bli opprettet og tildelt valgt tekniker
                   </p>
                 </div>
@@ -381,8 +379,8 @@ export function Ordre() {
         {/* Header */}
         <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Ordre</h1>
-          <p className="text-gray-400">Administrer serviceordre</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Ordre</h1>
+          <p className="text-gray-400 dark:text-gray-400">Administrer serviceordre</p>
         </div>
         <button
           onClick={() => {
@@ -400,7 +398,7 @@ export function Ordre() {
       <div className="card">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-400" />
             <input
               type="text"
               placeholder="Søk etter ordre, kunde, anlegg..."
@@ -416,10 +414,9 @@ export function Ordre() {
               className="input"
             >
               <option value="alle">Alle statuser</option>
-              <option value="Ventende">Ventende</option>
-              <option value="Pågående">Pågående</option>
-              <option value="Fullført">Fullført</option>
-              <option value="Fakturert">Fakturert</option>
+              {Object.values(ORDRE_STATUSER).map(status => (
+                <option key={status} value={status}>{status}</option>
+              ))}
             </select>
           </div>
           <div className="md:w-48">
@@ -462,8 +459,8 @@ export function Ordre() {
               <ClipboardList className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Totalt ordre</p>
-              <p className="text-2xl font-bold text-white">{ordre.length}</p>
+              <p className="text-gray-400 dark:text-gray-400 text-sm">Totalt ordre</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{ordre.length}</p>
             </div>
           </div>
         </div>
@@ -473,9 +470,9 @@ export function Ordre() {
               <Calendar className="w-6 h-6 text-yellow-500" />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Ventende</p>
-              <p className="text-2xl font-bold text-white">
-                {ordre.filter(o => o.status === 'Ventende').length}
+              <p className="text-gray-400 dark:text-gray-400 text-sm">Ventende</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {ordre.filter(o => o.status === ORDRE_STATUSER.VENTENDE).length}
               </p>
             </div>
           </div>
@@ -486,9 +483,9 @@ export function Ordre() {
               <ClipboardList className="w-6 h-6 text-blue-500" />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Pågående</p>
-              <p className="text-2xl font-bold text-white">
-                {ordre.filter(o => o.status === 'Pågående').length}
+              <p className="text-gray-400 dark:text-gray-400 text-sm">Pågående</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {ordre.filter(o => o.status === ORDRE_STATUSER.PAGAENDE).length}
               </p>
             </div>
           </div>
@@ -499,9 +496,9 @@ export function Ordre() {
               <ClipboardList className="w-6 h-6 text-green-500" />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Fullført</p>
-              <p className="text-2xl font-bold text-white">
-                {ordre.filter(o => o.status === 'Fullført').length}
+              <p className="text-gray-400 dark:text-gray-400 text-sm">Fullført</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {ordre.filter(o => o.status === ORDRE_STATUSER.FULLFORT).length}
               </p>
             </div>
           </div>
@@ -510,10 +507,10 @@ export function Ordre() {
 
       {/* Ordre Liste */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-800">
-          <h2 className="text-lg font-semibold text-white">
+        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Ordreliste
-            <span className="ml-2 text-sm text-gray-400 font-normal">
+            <span className="ml-2 text-sm text-gray-400 dark:text-gray-400 font-normal">
               ({sortedOrdre.length} {sortedOrdre.length === 1 ? 'ordre' : 'ordre'})
             </span>
           </h2>
@@ -521,8 +518,8 @@ export function Ordre() {
         
         {sortedOrdre.length === 0 ? (
           <div className="text-center py-12">
-            <ClipboardList className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">
+            <ClipboardList className="w-12 h-12 text-gray-500 dark:text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-400 dark:text-gray-400">
               {searchTerm || filterStatus !== 'alle' ? 'Ingen ordre funnet' : 'Ingen ordre registrert ennå'}
             </p>
           </div>
@@ -530,22 +527,22 @@ export function Ordre() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-800">
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Ordrenr</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Type</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Kunde</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Anlegg</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Tekniker</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Opprettet</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Handlinger</th>
+                <tr className="border-b border-gray-200 dark:border-gray-800">
+                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Ordrenr</th>
+                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Type</th>
+                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Kunde</th>
+                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Anlegg</th>
+                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Tekniker</th>
+                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Status</th>
+                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Opprettet</th>
+                  <th className="text-right py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Handlinger</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedOrdre.map((ordre) => (
                   <tr
                     key={ordre.id}
-                    className="border-b border-gray-800 hover:bg-dark-100 transition-colors"
+                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors"
                   >
                     <td className="py-3 px-4">
                       <span className="text-primary font-mono font-medium text-sm">
@@ -558,7 +555,7 @@ export function Ordre() {
                           <ClipboardList className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                          <p className="text-white font-medium">{ordre.type}</p>
+                          <p className="text-gray-900 dark:text-white font-medium">{ordre.type}</p>
                           {ordre.kontrolltype && ordre.kontrolltype.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
                               {ordre.kontrolltype.slice(0, 2).map((type, idx) => (
@@ -567,7 +564,7 @@ export function Ordre() {
                                 </span>
                               ))}
                               {ordre.kontrolltype.length > 2 && (
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-gray-400 dark:text-gray-500">
                                   +{ordre.kontrolltype.length - 2}
                                 </span>
                               )}
@@ -576,31 +573,31 @@ export function Ordre() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-gray-300">
+                    <td className="py-3 px-4 text-gray-500 dark:text-gray-300">
                       {ordre.customer.navn}
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-2 text-gray-300">
-                        <Building2 className="w-4 h-4 text-gray-500" />
+                      <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
+                        <Building2 className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                         {ordre.anlegg.anleggsnavn}
                       </div>
                     </td>
                     <td className="py-3 px-4">
                       {ordre.tekniker ? (
-                        <div className="flex items-center gap-2 text-gray-300">
-                          <User className="w-4 h-4 text-gray-500" />
+                        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
+                          <User className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                           <span title={ordre.tekniker.navn}>{getInitials(ordre.tekniker.navn)}</span>
                         </div>
                       ) : (
-                        <span className="text-gray-500">Ikke tildelt</span>
+                        <span className="text-gray-400 dark:text-gray-500">Ikke tildelt</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`badge ${statusColors[ordre.status] || 'badge-info'}`}>
+                      <span className={`badge ${ORDRE_STATUS_COLORS[ordre.status] || 'badge-info'}`}>
                         {ordre.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-gray-300 text-sm">
+                    <td className="py-3 px-4 text-gray-500 dark:text-gray-300 text-sm">
                       {formatDate(ordre.opprettet_dato)}
                     </td>
                     <td className="py-3 px-4">
@@ -618,7 +615,7 @@ export function Ordre() {
                             className={`p-2 rounded-lg transition-colors ${
                               (ordre as any).har_servicerapport 
                                 ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10' 
-                                : 'text-gray-400 hover:text-purple-400 hover:bg-purple-500/10'
+                                : 'text-gray-400 dark:text-gray-400 hover:text-purple-400 hover:bg-purple-500/10'
                             }`}
                             title={(ordre as any).har_servicerapport ? "Servicerapport opprettet" : "Opprett servicerapport"}
                           >
@@ -630,7 +627,7 @@ export function Ordre() {
                             setSelectedOrdre(ordre)
                             setViewMode('view')
                           }}
-                          className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                           title="Vis detaljer"
                         >
                           <Eye className="w-4 h-4" />
@@ -640,7 +637,7 @@ export function Ordre() {
                             setSelectedOrdre(ordre)
                             setViewMode('edit')
                           }}
-                          className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 dark:text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
                           title="Rediger"
                         >
                           <Edit className="w-4 h-4" />
@@ -648,7 +645,7 @@ export function Ordre() {
                         {ordre.status !== 'Fullført' && ordre.status !== 'Fakturert' && (
                           <button
                             onClick={() => avsluttOrdre(ordre.id)}
-                            className="p-2 text-gray-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-colors"
+                            className="p-2 text-gray-400 dark:text-gray-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-colors"
                             title="Avslutt ordre"
                           >
                             <CheckCircle className="w-4 h-4" />
@@ -656,7 +653,7 @@ export function Ordre() {
                         )}
                         <button
                           onClick={() => deleteOrdre(ordre.id)}
-                          className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 dark:text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Slett"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -718,7 +715,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
   const [kanRedigereKundeAnlegg, setKanRedigereKundeAnlegg] = useState(!ordre)
 
   const ordretyper = ['Service', 'Kontroll', 'Reparasjon', 'Installasjon', 'Befaring']
-  const statuser = ['Ventende', 'Pågående', 'Fullført', 'Fakturert']
+  const statuser = Object.values(ORDRE_STATUSER)
 
   useEffect(() => {
     loadData()
@@ -821,7 +818,10 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
       if (ordre) {
         const { error } = await supabase
           .from('ordre')
-          .update(dataToSave)
+          .update({
+            ...dataToSave,
+            sist_oppdatert: new Date().toISOString(),
+          })
           .eq('id', ordre.id)
 
         if (error) throw error
@@ -846,7 +846,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
             status: 'Ikke påbegynt',
             prioritet: 'Høy',
             beskrivelse: `Faktura for ordre: ${formData.type}`,
-            created_at: new Date().toISOString()
+            opprettet_dato: new Date().toISOString()
           }])
 
         if (oppgaveError) throw oppgaveError
@@ -880,19 +880,19 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
       {/* Faktura Dialog */}
       {showFakturaDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-200 border border-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold text-white mb-4">Fullføre ordre</h2>
+          <div className="bg-dark-200 border border-gray-200 dark:border-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Fullføre ordre</h2>
             
             <div className="space-y-4">
               <div>
-                <p className="text-gray-300 mb-3">Er ordren fakturert?</p>
+                <p className="text-gray-500 dark:text-gray-300 mb-3">Er ordren fakturert?</p>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setErFakturert(true)}
                     className={`flex-1 py-2 px-4 rounded-lg border transition-all ${
                       erFakturert === true
-                        ? 'bg-green-600 border-green-600 text-white'
-                        : 'bg-dark-100 border-gray-700 text-gray-300 hover:border-green-600'
+                        ? 'bg-green-600 border-green-600 text-gray-900 dark:text-white'
+                        : 'bg-dark-100 border-gray-700 text-gray-500 dark:text-gray-300 hover:border-green-600'
                     }`}
                   >
                     Ja
@@ -901,8 +901,8 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
                     onClick={() => setErFakturert(false)}
                     className={`flex-1 py-2 px-4 rounded-lg border transition-all ${
                       erFakturert === false
-                        ? 'bg-red-600 border-red-600 text-white'
-                        : 'bg-dark-100 border-gray-700 text-gray-300 hover:border-red-600'
+                        ? 'bg-red-600 border-red-600 text-gray-900 dark:text-white'
+                        : 'bg-dark-100 border-gray-700 text-gray-500 dark:text-gray-300 hover:border-red-600'
                     }`}
                   >
                     Nei
@@ -912,7 +912,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
 
               {erFakturert === false && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
                     Fakturaansvarlig <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -926,7 +926,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
                       <option key={t.id} value={t.id}>{t.navn}</option>
                     ))}
                   </select>
-                  <p className="text-sm text-gray-400 mt-2">
+                  <p className="text-sm text-gray-400 dark:text-gray-400 mt-2">
                     En fakturaoppgave vil bli opprettet og tildelt valgt tekniker
                   </p>
                 </div>
@@ -960,10 +960,10 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
       <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             {ordre ? 'Rediger ordre' : 'Ny ordre'}
           </h1>
-          <p className="text-gray-400">
+          <p className="text-gray-400 dark:text-gray-400">
             {ordre ? 'Oppdater ordreinformasjon' : 'Opprett ny serviceordre'}
           </p>
         </div>
@@ -973,7 +973,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Ordretype */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Ordretype <span className="text-red-500">*</span>
             </label>
             <select
@@ -991,7 +991,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
 
           {/* Status */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Status <span className="text-red-500">*</span>
             </label>
             <select
@@ -1009,7 +1009,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
           {/* Kunde */}
           <div className="md:col-span-2">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-300">
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300">
                 Kunde <span className="text-red-500">*</span>
               </label>
               {ordre && !kanRedigereKundeAnlegg && (
@@ -1024,7 +1024,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
               )}
             </div>
             {ordre && !kanRedigereKundeAnlegg ? (
-              <div className="input bg-dark-100 text-white">
+              <div className="input bg-dark-100 text-gray-900 dark:text-white">
                 {kundeNavn}
               </div>
             ) : (
@@ -1062,23 +1062,23 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
 
           {/* Anlegg */}
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Anlegg <span className="text-red-500">*</span>
             </label>
             {ordre && !kanRedigereKundeAnlegg ? (
-              <div className="input bg-dark-100 text-white">
+              <div className="input bg-dark-100 text-gray-900 dark:text-white">
                 {anleggNavn}
               </div>
             ) : !formData.kundenr ? (
-              <div className="input bg-dark-100 text-gray-500 cursor-not-allowed">
+              <div className="input bg-dark-100 text-gray-400 dark:text-gray-500 cursor-not-allowed">
                 Velg kunde først
               </div>
             ) : anlegg.length === 0 ? (
-              <div className="input bg-dark-100 text-gray-500">
+              <div className="input bg-dark-100 text-gray-400 dark:text-gray-500">
                 Ingen anlegg funnet for denne kunden
               </div>
             ) : anlegg.length === 1 ? (
-              <div className="input bg-dark-100 text-white">
+              <div className="input bg-dark-100 text-gray-900 dark:text-white">
                 {anlegg[0].anleggsnavn} (automatisk valgt)
               </div>
             ) : (
@@ -1112,7 +1112,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
 
           {/* Tekniker */}
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Tekniker
             </label>
             <select
@@ -1130,7 +1130,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
           {/* Kontrolltyper */}
           {tilgjengeligeKontrolltyper.length > 0 && (
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-300 mb-3">
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-3">
                 Kontrolltyper
               </label>
               <div className="flex flex-wrap gap-3">
@@ -1141,8 +1141,8 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
                     onClick={() => toggleKontrolltype(type)}
                     className={`px-4 py-2 rounded-lg border transition-all ${
                       formData.kontrolltype.includes(type)
-                        ? 'bg-primary border-primary text-white'
-                        : 'bg-dark-100 border-gray-700 text-gray-300 hover:border-primary'
+                        ? 'bg-primary border-primary text-gray-900 dark:text-white'
+                        : 'bg-dark-100 border-gray-700 text-gray-500 dark:text-gray-300 hover:border-primary'
                     }`}
                   >
                     {type}
@@ -1154,7 +1154,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
 
           {/* Kommentar */}
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Kommentar
             </label>
             <textarea
@@ -1167,7 +1167,7 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 pt-4 border-t border-gray-800">
+        <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
           <button
             type="submit"
             disabled={saving}
@@ -1220,7 +1220,10 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
       // Oppdater ordre til Fullført
       const { error: ordreError } = await supabase
         .from('ordre')
-        .update({ status: 'Fullført' })
+        .update({ 
+          status: 'Fullført',
+          sist_oppdatert: new Date().toISOString()
+        })
         .eq('id', ordre.id)
 
       if (ordreError) throw ordreError
@@ -1238,7 +1241,7 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
             status: 'Ikke påbegynt',
             prioritet: 'Høy',
             beskrivelse: `Faktura for ordre: ${ordre.type}`,
-            created_at: new Date().toISOString()
+            opprettet_dato: new Date().toISOString()
           }])
 
         if (oppgaveError) throw oppgaveError
@@ -1258,19 +1261,19 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
       {/* Avslutt Dialog */}
       {showAvsluttDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-200 border border-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold text-white mb-4">Avslutt ordre</h2>
+          <div className="bg-dark-200 border border-gray-200 dark:border-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Avslutt ordre</h2>
             
             <div className="space-y-4">
               <div>
-                <p className="text-gray-300 mb-3">Er ordren fakturert?</p>
+                <p className="text-gray-500 dark:text-gray-300 mb-3">Er ordren fakturert?</p>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setErFakturert(true)}
                     className={`flex-1 py-2 px-4 rounded-lg border transition-all ${
                       erFakturert === true
-                        ? 'bg-green-600 border-green-600 text-white'
-                        : 'bg-dark-100 border-gray-700 text-gray-300 hover:border-green-600'
+                        ? 'bg-green-600 border-green-600 text-gray-900 dark:text-white'
+                        : 'bg-dark-100 border-gray-700 text-gray-500 dark:text-gray-300 hover:border-green-600'
                     }`}
                   >
                     Ja
@@ -1279,8 +1282,8 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
                     onClick={() => setErFakturert(false)}
                     className={`flex-1 py-2 px-4 rounded-lg border transition-all ${
                       erFakturert === false
-                        ? 'bg-red-600 border-red-600 text-white'
-                        : 'bg-dark-100 border-gray-700 text-gray-300 hover:border-red-600'
+                        ? 'bg-red-600 border-red-600 text-gray-900 dark:text-white'
+                        : 'bg-dark-100 border-gray-700 text-gray-500 dark:text-gray-300 hover:border-red-600'
                     }`}
                   >
                     Nei
@@ -1290,7 +1293,7 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
 
               {erFakturert === false && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
                     Fakturaansvarlig <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -1304,7 +1307,7 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
                       <option key={t.id} value={t.id}>{t.navn}</option>
                     ))}
                   </select>
-                  <p className="text-sm text-gray-400 mt-2">
+                  <p className="text-sm text-gray-400 dark:text-gray-400 mt-2">
                     En fakturaoppgave vil bli opprettet og tildelt valgt tekniker
                   </p>
                 </div>
@@ -1334,12 +1337,12 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold text-white">{ordre.type}</h1>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{ordre.type}</h1>
               <span className="text-primary font-mono font-medium text-lg">
                 {ordre.ordre_nummer}
               </span>
             </div>
-            <p className="text-gray-400">{ordre.customer.navn} - {ordre.anlegg.anleggsnavn}</p>
+            <p className="text-gray-400 dark:text-gray-400">{ordre.customer.navn} - {ordre.anlegg.anleggsnavn}</p>
           </div>
           <div className="flex items-center gap-3">
             {ordre.status !== 'Fullført' && ordre.status !== 'Fakturert' && (
@@ -1364,33 +1367,33 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-white mb-4">Ordreinformasjon</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Ordreinformasjon</h2>
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-gray-400 mb-1">Type</p>
-                <p className="text-white">{ordre.type}</p>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Type</p>
+                <p className="text-gray-900 dark:text-white">{ordre.type}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-400 mb-1">Status</p>
-                <span className={`badge ${statusColors[ordre.status] || 'badge-info'}`}>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Status</p>
+                <span className={`badge ${ORDRE_STATUS_COLORS[ordre.status] || 'badge-info'}`}>
                   {ordre.status}
                 </span>
               </div>
               <div>
-                <p className="text-sm text-gray-400 mb-1">Kunde</p>
-                <p className="text-white">{ordre.customer.navn}</p>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Kunde</p>
+                <p className="text-gray-900 dark:text-white">{ordre.customer.navn}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-400 mb-1">Anlegg</p>
-                <p className="text-white">{ordre.anlegg.anleggsnavn}</p>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Anlegg</p>
+                <p className="text-gray-900 dark:text-white">{ordre.anlegg.anleggsnavn}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-400 mb-1">Tekniker</p>
-                <p className="text-white">{ordre.tekniker?.navn || 'Ikke tildelt'}</p>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Tekniker</p>
+                <p className="text-gray-900 dark:text-white">{ordre.tekniker?.navn || 'Ikke tildelt'}</p>
               </div>
               {ordre.kontrolltype && ordre.kontrolltype.length > 0 && (
                 <div>
-                  <p className="text-sm text-gray-400 mb-2">Kontrolltyper</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-400 mb-2">Kontrolltyper</p>
                   <div className="flex flex-wrap gap-2">
                     {ordre.kontrolltype.map((type, idx) => (
                       <span key={idx} className="badge badge-info">
@@ -1402,8 +1405,8 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
               )}
               {ordre.kommentar && (
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Kommentar</p>
-                  <p className="text-white">{ordre.kommentar}</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Kommentar</p>
+                  <p className="text-gray-900 dark:text-white">{ordre.kommentar}</p>
                 </div>
               )}
             </div>
@@ -1412,12 +1415,18 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
 
         <div className="space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-white mb-4">Metadata</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Metadata</h2>
             <div className="space-y-3">
               <div>
-                <p className="text-sm text-gray-400 mb-1">Opprettet</p>
-                <p className="text-white text-sm">{formatDate(ordre.opprettet_dato)}</p>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Opprettet</p>
+                <p className="text-gray-900 dark:text-white text-sm">{formatDate(ordre.opprettet_dato)}</p>
               </div>
+              {ordre.sist_oppdatert && (
+                <div>
+                  <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Sist oppdatert</p>
+                  <p className="text-gray-900 dark:text-white text-sm">{formatDate(ordre.sist_oppdatert)}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

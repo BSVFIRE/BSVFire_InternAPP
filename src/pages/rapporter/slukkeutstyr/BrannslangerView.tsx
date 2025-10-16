@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, FileDown } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, FileDown, MessageSquare } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BrannslangerPreview } from '../BrannslangerPreview'
 import { useAuthStore } from '@/store/authStore'
+import { KommentarViewBrannslanger } from './KommentarViewBrannslanger'
 
 interface Brannslange {
   id?: string
@@ -18,9 +19,8 @@ interface Brannslange {
   produksjonsaar?: string | null
   sistekontroll?: string | null
   trykktest?: string | null
-  status?: string[] | null
+  status?: string | null
   type_avvik?: string[] | null
-  avvik?: string | null
 }
 
 interface BrannslangerViewProps {
@@ -109,21 +109,15 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       syncOfflineData()
     }
 
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [anleggId])
-
-  // Autolagring med debounce
-  useEffect(() => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
     }
 
-    saveTimeoutRef.current = setTimeout(() => {
-      autoSave()
-    }, 3000) // 3 sekunder debounce
+    // AUTOLAGRING DEAKTIVERT - forårsaker duplikater
+    // Set new timeout
+    // saveTimeoutRef.current = setTimeout(() => {
+    //   autoSave()
+    // }, 3000) // 3 sekunder debounce
 
     return () => {
       if (saveTimeoutRef.current) {
@@ -143,15 +137,25 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
 
       if (error) throw error
       
-      // Konverter status fra string til array hvis nødvendig
+      console.log('Lastet inn fra database:', data?.length, 'brannslanger')
+      
+      // Konverter status og type_avvik fra database format
       const processedData = (data || []).map(slange => ({
         ...slange,
-        status: Array.isArray(slange.status) 
-          ? slange.status 
-          : slange.status 
-            ? [slange.status] 
-            : []
+        status: Array.isArray(slange.status) && slange.status.length > 0
+          ? slange.status[0]  // Ta første element hvis array
+          : slange.status || 'OK',  //Eller bruk string direkte
+        type_avvik: Array.isArray(slange.type_avvik)
+          ? slange.type_avvik
+          : []
       }))
+      
+      // Sjekk for duplikater
+      const ids = processedData.map(s => s.id)
+      const uniqueIds = new Set(ids)
+      if (ids.length !== uniqueIds.size) {
+        console.error('ADVARSEL: Duplikate IDer funnet i database!')
+      }
       
       setSlanger(processedData)
     } catch (error) {
@@ -163,9 +167,18 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   }
 
   function leggTilNye() {
-    const nyeSlanger: Brannslange[] = Array.from({ length: antallNye }, () => ({
+    // Finn høyeste nummer
+    let hoyesteNummer = 0
+    slanger.forEach(s => {
+      const num = parseInt(s.slangenummer || '0')
+      if (!isNaN(num) && num > hoyesteNummer) {
+        hoyesteNummer = num
+      }
+    })
+
+    const nyeSlanger: Brannslange[] = Array.from({ length: antallNye }, (_, index) => ({
       anlegg_id: anleggId,
-      slangenummer: '',
+      slangenummer: String(hoyesteNummer + index + 1),
       plassering: '',
       etasje: '',
       produsent: '',
@@ -174,9 +187,8 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       produksjonsaar: '',
       sistekontroll: '',
       trykktest: '',
-      status: [],
-      type_avvik: [],
-      avvik: ''
+      status: 'OK',
+      type_avvik: []
     }))
 
     setSlanger([...slanger, ...nyeSlanger])
@@ -197,14 +209,14 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       setSaving(true)
 
       for (const slange of slanger) {
-        // Konverter status array til string (første element) for databasen
+        // Fjern status fra dataToSave - vi bruker kun type_avvik
+        const { status, ...dataUtenStatus } = slange
+        
         const dataToSave = {
-          ...slange,
-          status: Array.isArray(slange.status) && slange.status.length > 0
-            ? slange.status[0]
-            : slange.status && slange.status.length > 0
-              ? slange.status[0]
-              : 'OK'
+          ...dataUtenStatus,
+          type_avvik: Array.isArray(slange.type_avvik) && slange.type_avvik.length > 0
+            ? slange.type_avvik
+            : null  // NULL hvis ingen avvik (= OK)
         }
 
         if (slange.id) {
@@ -214,14 +226,28 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
             .update(dataToSave)
             .eq('id', slange.id)
           
-          if (error) throw error
+          if (error) {
+            console.error('Feil ved oppdatering:', error, 'Data:', dataToSave)
+            throw error
+          }
         } else if (slange.slangenummer || slange.plassering) {
           // Insert nye (kun hvis de har data)
-          const { error } = await supabase
+          const { data: insertedData, error } = await supabase
             .from('anleggsdata_brannslanger')
             .insert([{ ...dataToSave, anlegg_id: anleggId }])
+            .select()
           
           if (error) throw error
+          
+          // Oppdater lokal state med ny id
+          if (insertedData && insertedData.length > 0) {
+            const nyeSlanger = [...slanger]
+            const index = nyeSlanger.findIndex(s => s === slange)
+            if (index !== -1) {
+              nyeSlanger[index] = { ...nyeSlanger[index], id: insertedData[0].id }
+              setSlanger(nyeSlanger)
+            }
+          }
         }
       }
 
@@ -291,33 +317,58 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   async function lagreAlle() {
     try {
       setLoading(true)
+      
+      // Deaktiver autolagring midlertidig
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
 
       for (const slange of slanger) {
-        // Konverter status array til string (første element) for databasen
+        // Skip tomme rader uten data
+        if (!slange.id && !slange.slangenummer && !slange.plassering) {
+          continue
+        }
+        
+        // Fjern status fra dataToSave - vi bruker kun type_avvik
+        const { status, ...dataUtenStatus } = slange
+        
         const dataToSave = {
-          ...slange,
-          status: Array.isArray(slange.status) && slange.status.length > 0
-            ? slange.status[0]
-            : slange.status && slange.status.length > 0
-              ? slange.status[0]
-              : 'OK'
+          ...dataUtenStatus,
+          type_avvik: Array.isArray(slange.type_avvik) && slange.type_avvik.length > 0
+            ? slange.type_avvik
+            : null  // NULL hvis ingen avvik (= OK)
         }
         
         if (slange.id) {
           // Update eksisterende
-          await supabase
+          console.log('Oppdaterer slange med ID:', slange.id, 'Nr:', slange.slangenummer)
+          const { error } = await supabase
             .from('anleggsdata_brannslanger')
             .update(dataToSave)
             .eq('id', slange.id)
+          
+          if (error) {
+            console.error('Feil ved oppdatering:', error, 'Data:', dataToSave)
+            throw error
+          }
         } else if (slange.slangenummer || slange.plassering) {
           // Insert nye (kun hvis de har data)
-          await supabase
+          console.log('Setter inn ny slange, Nr:', slange.slangenummer)
+          const { data: insertedData, error } = await supabase
             .from('anleggsdata_brannslanger')
             .insert([{ ...dataToSave, anlegg_id: anleggId }])
+            .select()
+          
+          if (error) {
+            console.error('Feil ved innsetting:', error, 'Data:', dataToSave)
+            throw error
+          }
+          console.log('Ny slange satt inn med ID:', insertedData?.[0]?.id)
         }
       }
 
       alert('Alle brannslanger lagret!')
+      // Last inn på nytt fra databasen for å få riktig state
       await loadSlanger()
     } catch (error) {
       console.error('Feil ved lagring:', error)
@@ -348,41 +399,56 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
     try {
       setLoading(true)
 
-      // Hent primær kontaktperson for anlegget
-      const { data: kontaktData, error: kontaktError } = await supabase
-        .from('kontaktperson')
-        .select('*')
-        .eq('anleggsnr', anleggId)
-        .eq('primaer', true)
+      // Hent kontaktperson via junction table (samme metode som røykluker)
+      const { data: kontaktResult } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .select(`
+          kontaktpersoner!inner(
+            navn,
+            telefon,
+            epost
+          )
+        `)
+        .eq('anlegg_id', anleggId)
+        .eq('primar', true)
         .maybeSingle()
-
-      if (kontaktError) {
-        console.error('Feil ved henting av kontaktperson:', kontaktError)
-      }
+      
+      const kontaktData = Array.isArray(kontaktResult?.kontaktpersoner) 
+        ? kontaktResult.kontaktpersoner[0] 
+        : kontaktResult?.kontaktpersoner
 
       // Hent innlogget bruker (tekniker) data
       const { data: tekniker, error: teknikerError } = await supabase
         .from('ansatte')
-        .select('navn, telefon, epost')
-        .eq('bruker_id', user?.id)
+        .select('navn, telefon, epost, gronn_sertifikat_nummer')
+        .eq('epost', user?.email)
         .maybeSingle()
 
       if (teknikerError) {
         console.error('Feil ved henting av tekniker:', teknikerError)
       }
 
+      // Hent kommentarer for anlegget
+      const { data: kommentarer } = await supabase
+        .from('kommentar_brannslanger')
+        .select('*')
+        .eq('anlegg_id', anleggId)
+        .order('created_at', { ascending: false })
+
       const doc = new jsPDF()
       let yPos = 20
 
-      // Logo
+      // Logo - bruk fetch for å laste bildet
       try {
-        const logoImg = new Image()
-        logoImg.src = '/bsv-logo.png'
-        await new Promise((resolve, reject) => {
-          logoImg.onload = resolve
-          logoImg.onerror = reject
+        const response = await fetch('/bsv-logo.png')
+        const blob = await response.blob()
+        const reader = new FileReader()
+        const base64 = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
         })
-        doc.addImage(logoImg, 'PNG', 20, yPos, 40, 15)
+        doc.addImage(base64, 'PNG', 20, yPos, 40, 15)
         yPos += 25
       } catch (error) {
         console.error('Kunne ikke laste logo:', error)
@@ -400,74 +466,249 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       doc.text('RAPPORT - BRANNSLANGER', 20, yPos)
       yPos += 12
 
-      // Anleggsinformasjon
+      // Anleggsinformasjon - Profesjonell layout
+      doc.setDrawColor(220, 220, 220)
+      doc.setLineWidth(0.3)
+      doc.setFillColor(250, 250, 250)
+      doc.rect(17, yPos, 85, 28, 'FD')
+      
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(100, 100, 100)
+      doc.text('KUNDE', 20, yPos + 5)
       doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text(kundeNavn, 20, yPos + 10)
+      
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(100, 100, 100)
+      doc.text('ANLEGG', 20, yPos + 16)
+      doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Kunde: ${kundeNavn}`, 20, yPos)
-      yPos += 6
-      doc.text(`Anlegg: ${anleggNavn}`, 20, yPos)
-      yPos += 6
+      doc.setTextColor(0, 0, 0)
+      doc.text(anleggNavn, 20, yPos + 21)
       
       const idag = new Date()
-      doc.text(`Dato: ${idag.toLocaleDateString('nb-NO')}`, 20, yPos)
-      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Kontrollert: ${idag.toLocaleDateString('nb-NO')}`, 20, yPos + 26)
       
-      // Neste kontroll (12 måneder fram)
+      // Neste kontroll boks
+      doc.setFillColor(254, 249, 195)
+      doc.rect(104, yPos, 91, 28, 'FD')
+      
       const nesteKontroll = new Date(idag)
       nesteKontroll.setMonth(nesteKontroll.getMonth() + 12)
-      doc.text(`Neste kontroll: ${nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' })}`, 20, yPos)
-      yPos += 10
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(100, 100, 100)
+      doc.text('NESTE KONTROLL', 107, yPos + 5)
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(202, 138, 4)
+      doc.text(nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }).toUpperCase(), 107, yPos + 14)
+      
+      yPos += 32
 
-      // Kontaktperson og tekniker
+      // Kontaktpersoner - To kolonner
+      const colWidth = 85
+      let leftCol = 17
+      let rightCol = 104
+      
       if (kontaktData?.navn) {
+        doc.setDrawColor(220, 220, 220)
+        doc.setFillColor(250, 250, 250)
+        doc.rect(leftCol, yPos, colWidth, 24, 'FD')
+        
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(100, 100, 100)
+        doc.text('KONTAKTPERSON', leftCol + 3, yPos + 5)
+        
         doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
-        doc.text('Kontaktperson:', 20, yPos)
+        doc.setTextColor(0, 0, 0)
+        doc.text(kontaktData.navn, leftCol + 3, yPos + 11)
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        yPos += 5
-        doc.text(kontaktData.navn, 20, yPos)
+        let infoY = yPos + 15
         if (kontaktData.telefon) {
-          yPos += 4
-          doc.text(`Tlf: ${kontaktData.telefon}`, 20, yPos)
+          doc.text(`Tlf: ${kontaktData.telefon}`, leftCol + 3, infoY)
+          infoY += 4
         }
         if (kontaktData.epost) {
-          yPos += 4
-          doc.text(`E-post: ${kontaktData.epost}`, 20, yPos)
+          doc.text(`E-post: ${kontaktData.epost}`, leftCol + 3, infoY)
         }
-        yPos += 8
       }
 
       if (tekniker?.navn) {
+        doc.setFillColor(240, 253, 244)
+        doc.rect(rightCol, yPos, colWidth + 6, 24, 'FD')
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
-        doc.text('Tekniker:', 20, yPos)
+        doc.setTextColor(100, 100, 100)
+        doc.text('UTFØRT AV', rightCol + 3, yPos + 5)
+        
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(22, 163, 74)
+        doc.text(tekniker.navn, rightCol + 3, yPos + 11)
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        yPos += 5
-        doc.text(tekniker.navn, 20, yPos)
+        doc.setTextColor(0, 0, 0)
+        let infoY = yPos + 15
         if (tekniker.telefon) {
-          yPos += 4
-          doc.text(`Tlf: ${tekniker.telefon}`, 20, yPos)
+          doc.text(`Tlf: ${tekniker.telefon}`, rightCol + 3, infoY)
+          infoY += 4
         }
-        if (tekniker.epost) {
-          yPos += 4
-          doc.text(`E-post: ${tekniker.epost}`, 20, yPos)
+        if (tekniker.gronn_sertifikat_nummer) {
+          doc.text(`Sertifikat: ${tekniker.gronn_sertifikat_nummer}`, rightCol + 3, infoY)
         }
-        yPos += 8
       }
+      
+      doc.setTextColor(0, 0, 0)
+      yPos += 28
 
-      // Statistikk
+      // Beregn trykktest-statistikk
+      const currentYear = new Date().getFullYear()
+      const trykktestVedKontroll = slanger.filter(s => {
+        const year = parseInt(s.trykktest || '0')
+        return year === currentYear
+      }).length
+      const trykktestVedNeste = slanger.filter(s => {
+        const year = parseInt(s.trykktest || '0')
+        return year === currentYear - 4
+      }).length
+      const maaTrykktestes = slanger.filter(s => {
+        const year = parseInt(s.trykktest || '0')
+        return year > 0 && year <= currentYear - 5
+      }).length
+
+      // Statistikk - Profesjonell layout
+      doc.setFillColor(41, 128, 185)
+      doc.rect(15, yPos, 180, 8, 'F')
+      doc.setTextColor(255, 255, 255)
       doc.setFontSize(12)
       doc.setFont('helvetica', 'bold')
-      doc.text('STATISTIKK', 20, yPos)
-      yPos += 6
-      doc.setFontSize(10)
+      doc.text('STATISTIKK', 20, yPos + 5.5)
+      doc.setTextColor(0, 0, 0)
+      yPos += 12
+      
+      // Status-seksjon
+      const boxWidth = 43
+      const boxHeight = 22
+      let xPos = 17
+      
+      // Totalt
+      doc.setDrawColor(200, 200, 200)
+      doc.setLineWidth(0.5)
+      doc.setFillColor(248, 250, 252)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(41, 128, 185)
+      doc.text(totalt.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Totalt antall: ${totalt}`, 20, yPos)
+      doc.setTextColor(100, 100, 100)
+      doc.text('TOTALT', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // OK
+      xPos += boxWidth + 2
+      doc.setFillColor(240, 253, 244)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(22, 163, 74)
+      doc.text(ok.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('OK', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Ikke kontrollert
+      xPos += boxWidth + 2
+      doc.setFillColor(249, 250, 251)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(107, 114, 128)
+      doc.text(ikkeKontrollert.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('IKKE KONTR.', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Avvik
+      xPos += boxWidth + 2
+      doc.setFillColor(254, 242, 242)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(220, 38, 38)
+      doc.text(avvik.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('AVVIK', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Trykktest-seksjon
+      yPos += boxHeight + 6
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(60, 60, 60)
+      doc.text('Trykktest', 17, yPos)
       yPos += 5
-      doc.text(`OK: ${ok}`, 20, yPos)
-      yPos += 5
-      doc.text(`Må trykktestes: ${trykktestNaa}`, 20, yPos)
-      yPos += 5
-      doc.text(`Lekkasje: ${lekkasje}`, 20, yPos)
+      
+      xPos = 17
+      const wideBoxWidth = 58
+      
+      // Trykktest ved kontroll
+      doc.setFillColor(240, 253, 244)
+      doc.rect(xPos, yPos, wideBoxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(22, 163, 74)
+      doc.text(trykktestVedKontroll.toString(), xPos + wideBoxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('VED KONTROLL', xPos + wideBoxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Ved neste kontroll
+      xPos += wideBoxWidth + 2
+      doc.setFillColor(254, 249, 195)
+      doc.rect(xPos, yPos, wideBoxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(202, 138, 4)
+      doc.text(trykktestVedNeste.toString(), xPos + wideBoxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('VED NESTE', xPos + wideBoxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Må trykktestes
+      xPos += wideBoxWidth + 2
+      doc.setFillColor(254, 242, 242)
+      doc.rect(xPos, yPos, wideBoxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(220, 38, 38)
+      doc.text(maaTrykktestes.toString(), xPos + wideBoxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('MÅ TRYKKTESTES', xPos + wideBoxWidth/2, yPos + 18, { align: 'center' })
+      
+      doc.setTextColor(0, 0, 0)
+      yPos += boxHeight + 8
 
       // Ny side for tabell
       doc.addPage()
@@ -494,13 +735,135 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
           s.produksjonsaar || '-',
           s.sistekontroll || '-',
           s.trykktest || '-',
-          s.status?.[0] || 'OK'
+          // Bestem status basert på type_avvik
+          (() => {
+            if (!Array.isArray(s.type_avvik) || s.type_avvik.length === 0 || s.type_avvik.includes('OK')) {
+              return 'OK'
+            }
+            const ikkeKontrollert = s.type_avvik.filter(a => a === 'Ikke tilkomst' || a === 'Ikke funnet')
+            if (ikkeKontrollert.length > 0 && ikkeKontrollert.length === s.type_avvik.length) {
+              return ikkeKontrollert.join(', ')
+            }
+            return s.type_avvik.join(', ')
+          })()
         ]),
         styles: { fontSize: 8 },
         headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 8 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { left: 10, right: 10, bottom: 25 },
+        margin: { left: 10, right: 10, bottom: 30 },
       })
+
+      // Kommentarer seksjon - på ny side hvis det finnes kommentarer
+      if (kommentarer && kommentarer.length > 0) {
+        doc.addPage()
+        yPos = 20
+
+        // Kommentarer header med bakgrunn
+        doc.setFillColor(13, 110, 253) // Blue color for brannslanger
+        doc.rect(15, yPos - 5, 180, 12, 'F')
+        doc.setFontSize(16)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(255, 255, 255)
+        doc.text('KOMMENTARER', 20, yPos + 3)
+        doc.setTextColor(0, 0, 0)
+        yPos += 15
+
+        // Gå gjennom hver kommentar
+        kommentarer.forEach((kommentar) => {
+          // Sjekk om vi trenger ny side
+          if (yPos > 250) {
+            doc.addPage()
+            yPos = 20
+          }
+
+          // Kommentar boks
+          doc.setDrawColor(200, 200, 200)
+          doc.setLineWidth(0.3)
+          doc.setFillColor(250, 250, 250)
+          
+          // Beregn høyde basert på tekst
+          const kommentarTekst = kommentar.kommentar || ''
+          const textLines = doc.splitTextToSize(kommentarTekst, 170)
+          const boxHeight = 12 + (textLines.length * 4)
+          
+          doc.rect(15, yPos, 180, boxHeight, 'FD')
+          
+          // Kommentar header (navn og dato)
+          doc.setFontSize(9)
+          doc.setFont('helvetica', 'bold')
+          doc.text(kommentar.opprettet_av || 'Ukjent', 20, yPos + 5)
+          
+          // Dato
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8)
+          doc.setTextColor(100, 100, 100)
+          const kommentarDato = kommentar.opprettet_dato || kommentar.created_at
+          let datoTekst = 'Ukjent dato'
+          if (kommentarDato) {
+            try {
+              const d = new Date(kommentarDato)
+              datoTekst = d.toLocaleDateString('nb-NO', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })
+            } catch {
+              datoTekst = kommentarDato
+            }
+          }
+          doc.text(datoTekst, 190, yPos + 5, { align: 'right' })
+          doc.setTextColor(0, 0, 0)
+          
+          // Kommentar tekst
+          yPos += 9
+          doc.setFontSize(9)
+          doc.setFont('helvetica', 'normal')
+          doc.text(textLines, 20, yPos)
+          
+          yPos += boxHeight - 9 + 5 // Mellomrom til neste kommentar
+        })
+      }
+
+      // Legg til footer på alle sider
+      const pageCount = (doc as any).internal.getNumberOfPages()
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        const footerY = pageHeight - 20
+        
+        // Linje over footer
+        doc.setDrawColor(200, 200, 200)
+        doc.setLineWidth(0.5)
+        doc.line(20, footerY - 5, pageWidth - 20, footerY - 5)
+        
+        // Firmanavn (blå og bold)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 102, 204)
+        doc.text('Brannteknisk Service og Vedlikehold AS', 20, footerY)
+        
+        // Org.nr, e-post og telefon
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(100, 100, 100)
+        doc.text('Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600', 20, footerY + 4)
+        
+        // Adresse
+        doc.text('Adresse: Sælenveien 44, 5151 Straumsgrend', 20, footerY + 8)
+        
+        // Generert dato (lys grå)
+        doc.setFontSize(7)
+        doc.setTextColor(150, 150, 150)
+        const genererDato = new Date().toLocaleDateString('nb-NO') + ' ' + new Date().toLocaleTimeString('nb-NO')
+        doc.text(`Generert: ${genererDato}`, 20, footerY + 13)
+        
+        // Sidetall (høyre side)
+        doc.setFontSize(8)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`Side ${i} av ${pageCount}`, pageWidth - 20, footerY, { align: 'right' })
+      }
 
       const pdfBlob = doc.output('blob')
       const fileName = `Rapport_Brannslanger_${new Date().getFullYear()}_${anleggNavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
@@ -530,7 +893,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
     }
   }
 
-  function handleStatusChange(index: number, status: string) {
+  function handleStatusChange(index: number, avvik: string) {
     // Finn den faktiske slangen i sortedSlanger
     const slange = sortedSlanger[index]
     if (!slange) return
@@ -540,12 +903,14 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
     if (originalIndex === -1) return
 
     const nyeSlanger = [...slanger]
-    const currentStatus = nyeSlanger[originalIndex].status || []
+    const currentAvvik = nyeSlanger[originalIndex].type_avvik || []
     
-    if (currentStatus.includes(status)) {
-      nyeSlanger[originalIndex].status = currentStatus.filter((s: string) => s !== status)
+    if (currentAvvik.includes(avvik)) {
+      // Fjern avviket
+      nyeSlanger[originalIndex].type_avvik = currentAvvik.filter((a: string) => a !== avvik)
     } else {
-      nyeSlanger[originalIndex].status = [...currentStatus, status]
+      // Legg til avviket
+      nyeSlanger[originalIndex].type_avvik = [...currentAvvik, avvik]
     }
     
     setSlanger(nyeSlanger)
@@ -577,13 +942,23 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
     }
   })
 
-  // Beregn statistikk
+  // Beregn statistikk basert på type_avvik
   const totalt = slanger.length
-  const ok = slanger.filter(s => s.status?.includes('OK')).length
-  const trykktestNaa = slanger.filter(s => s.status?.includes('Må trykktestes')).length
-  const lekkasje = slanger.filter(s => 
-    s.status?.some((st: string) => st.includes('Lekkasje'))
+  const ok = slanger.filter(s => 
+    !Array.isArray(s.type_avvik) || s.type_avvik.length === 0 || s.type_avvik.includes('OK')
   ).length
+  const ikkeKontrollert = slanger.filter(s => {
+    if (!Array.isArray(s.type_avvik) || s.type_avvik.length === 0) return false
+    // Kun "Ikke kontrollert" hvis ALLE avvik er "Ikke funnet" eller "Ikke tilkomst"
+    const ikkeKontrollertAvvik = s.type_avvik.filter(a => a === 'Ikke funnet' || a === 'Ikke tilkomst')
+    return ikkeKontrollertAvvik.length > 0 && ikkeKontrollertAvvik.length === s.type_avvik.length
+  }).length
+  const avvik = slanger.filter(s => {
+    if (!Array.isArray(s.type_avvik) || s.type_avvik.length === 0 || s.type_avvik.includes('OK')) return false
+    // Avvik hvis det finnes andre avvik enn "Ikke kontrollert"
+    const ikkeKontrollertAvvik = s.type_avvik.filter(a => a === 'Ikke funnet' || a === 'Ikke tilkomst')
+    return ikkeKontrollertAvvik.length !== s.type_avvik.length
+  }).length
 
   // Vis forhåndsvisning hvis PDF er generert
   if (previewPdf) {
@@ -676,7 +1051,11 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedSlanger.map((slange, index) => (
+                  {sortedSlanger.map((slange, index) => {
+                    // Finn den faktiske indexen i original slanger array
+                    const originalIndex = slanger.findIndex(s => s.id ? s.id === slange.id : s === slange)
+                    
+                    return (
                     <tr
                       key={slange.id || `new-${index}`}
                       className="border-b border-gray-800 hover:bg-dark-200 transition-colors"
@@ -691,7 +1070,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                             value={slange.slangenummer || ''}
                             onChange={(e) => {
                               const nyeSlanger = [...slanger]
-                              nyeSlanger[index].slangenummer = e.target.value
+                              nyeSlanger[originalIndex].slangenummer = e.target.value
                               setSlanger(nyeSlanger)
                             }}
                             className="input py-1 px-2 text-sm w-full"
@@ -705,7 +1084,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           value={slange.plassering || ''}
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
-                            nyeSlanger[index].plassering = e.target.value
+                            nyeSlanger[originalIndex].plassering = e.target.value
                             setSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -717,7 +1096,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           value={slange.etasje || ''}
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
-                            nyeSlanger[index].etasje = e.target.value
+                            nyeSlanger[originalIndex].etasje = e.target.value
                             setSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -735,7 +1114,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           value={slange.produsent || ''}
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
-                            nyeSlanger[index].produsent = e.target.value
+                            nyeSlanger[originalIndex].produsent = e.target.value
                             setSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -747,7 +1126,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           value={slange.modell || ''}
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
-                            nyeSlanger[index].modell = e.target.value
+                            nyeSlanger[originalIndex].modell = e.target.value
                             setSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -764,7 +1143,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           value={slange.brannklasse || ''}
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
-                            nyeSlanger[index].brannklasse = e.target.value
+                            nyeSlanger[originalIndex].brannklasse = e.target.value
                             setSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -782,7 +1161,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           value={slange.produksjonsaar || ''}
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
-                            nyeSlanger[index].produksjonsaar = e.target.value
+                            nyeSlanger[originalIndex].produksjonsaar = e.target.value
                             setSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -795,7 +1174,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           value={slange.sistekontroll || ''}
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
-                            nyeSlanger[index].sistekontroll = e.target.value
+                            nyeSlanger[originalIndex].sistekontroll = e.target.value
                             setSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -808,7 +1187,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           value={slange.trykktest || ''}
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
-                            nyeSlanger[index].trykktest = e.target.value
+                            nyeSlanger[originalIndex].trykktest = e.target.value
                             setSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -820,17 +1199,21 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           onClick={() => setEditingStatusIndex(index)}
                           className="flex flex-wrap gap-1 hover:bg-dark-200 p-2 rounded transition-colors w-full text-left"
                         >
-                          {slange.status && slange.status.length > 0 ? (
-                            slange.status.map((st) => (
+                          {slange.type_avvik && slange.type_avvik.length > 0 ? (
+                            slange.type_avvik.map((avvik: string) => (
                               <span
-                                key={st}
-                                className="px-2 py-1 bg-primary/20 text-primary rounded text-xs"
+                                key={avvik}
+                                className={`px-2 py-1 rounded text-xs ${
+                                  avvik === 'OK' 
+                                    ? 'bg-green-500/20 text-green-400' 
+                                    : 'bg-red-500/20 text-red-400'
+                                }`}
                               >
-                                {st}
+                                {avvik}
                               </span>
                             ))
                           ) : (
-                            <span className="text-gray-500 text-xs">Klikk for å velge status</span>
+                            <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">OK</span>
                           )}
                         </button>
                       </td>
@@ -848,7 +1231,8 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -860,15 +1244,18 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
               <div className="bg-dark-100 rounded-lg p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
                 <h3 className="text-xl font-bold text-white mb-4">Velg status</h3>
                 <div className="grid grid-cols-2 gap-2 mb-6">
-                  {statusAlternativer.map((status) => {
-                    const isSelected = sortedSlanger[editingStatusIndex]?.status?.includes(status)
+                  {statusAlternativer.map((avvik) => {
+                    const isSelected = sortedSlanger[editingStatusIndex]?.type_avvik?.includes(avvik)
+                    const isOK = avvik === 'OK'
                     return (
                       <button
-                        key={status}
-                        onClick={() => handleStatusChange(editingStatusIndex, status)}
+                        key={avvik}
+                        onClick={() => handleStatusChange(editingStatusIndex, avvik)}
                         className={`px-4 py-3 rounded-lg text-sm transition-colors text-left ${
                           isSelected
-                            ? 'bg-primary text-white'
+                            ? isOK 
+                              ? 'bg-green-500 text-white' 
+                              : 'bg-primary text-white'
                             : 'bg-dark-200 text-gray-400 hover:bg-dark-300'
                         }`}
                       >
@@ -882,7 +1269,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                               </svg>
                             )}
                           </div>
-                          <span>{status}</span>
+                          <span>{avvik}</span>
                         </div>
                       </button>
                     )
@@ -983,13 +1370,13 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
           <p className="text-sm text-gray-400 mb-1">OK</p>
           <p className="text-2xl font-bold text-green-400">{ok}</p>
         </div>
-        <div className="card bg-yellow-500/10 border-yellow-500/20">
-          <p className="text-sm text-gray-400 mb-1">Trykktest</p>
-          <p className="text-2xl font-bold text-yellow-400">{trykktestNaa}</p>
+        <div className="card bg-gray-500/10 border-gray-500/20">
+          <p className="text-sm text-gray-400 mb-1">Ikke kontrollert</p>
+          <p className="text-2xl font-bold text-gray-400">{ikkeKontrollert}</p>
         </div>
         <div className="card bg-red-500/10 border-red-500/20">
-          <p className="text-sm text-gray-400 mb-1">Lekkasje</p>
-          <p className="text-2xl font-bold text-red-400">{lekkasje}</p>
+          <p className="text-sm text-gray-400 mb-1">Avvik</p>
+          <p className="text-2xl font-bold text-red-400">{avvik}</p>
         </div>
       </div>
 
@@ -1105,23 +1492,23 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
               <td className="py-3 px-4 text-gray-300">{slange.brannklasse || '-'}</td>
               <td className="py-3 px-4 text-gray-300">{slange.produksjonsaar || '-'}</td>
               <td className="py-3 px-4">
-                {slange.status && slange.status.length > 0 ? (
+                {slange.type_avvik && slange.type_avvik.length > 0 ? (
                   <div className="flex flex-wrap gap-1">
-                    {slange.status.map((st) => (
+                    {slange.type_avvik.map((avvik: string) => (
                       <span
-                        key={st}
+                        key={avvik}
                         className={`px-2 py-1 rounded text-xs ${
-                          st === 'OK' ? 'bg-green-500/20 text-green-400' :
-                          st.includes('Lekkasje') ? 'bg-red-500/20 text-red-400' :
-                          'bg-yellow-500/20 text-yellow-400'
+                          avvik === 'OK' 
+                            ? 'bg-green-500/20 text-green-400' 
+                            : 'bg-red-500/20 text-red-400'
                         }`}
                       >
-                        {st}
+                        {avvik}
                       </span>
                     ))}
                   </div>
                 ) : (
-                  <span className="text-gray-500">-</span>
+                  <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">OK</span>
                 )}
               </td>
             </tr>
@@ -1131,6 +1518,13 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
           </div>
         )}
       </div>
+
+      {/* Kommentarer seksjon */}
+      <KommentarViewBrannslanger
+        anleggId={anleggId}
+        kundeNavn={kundeNavn}
+        anleggNavn={anleggNavn}
+      />
     </div>
   )
 }

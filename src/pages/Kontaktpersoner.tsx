@@ -11,6 +11,7 @@ interface Kontaktperson {
   telefon: string | null
   rolle: string | null
   opprettet_dato: string
+  sist_oppdatert: string | null
 }
 
 interface AnleggKontaktperson {
@@ -145,7 +146,7 @@ export function Kontaktpersoner() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-400">Laster kontaktpersoner...</p>
+          <p className="text-gray-400 dark:text-gray-400">Laster kontaktpersoner...</p>
         </div>
       </div>
     )
@@ -155,8 +156,8 @@ export function Kontaktpersoner() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Kontaktpersoner</h1>
-          <p className="text-gray-400">Administrer kontaktpersoner</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Kontaktpersoner</h1>
+          <p className="text-gray-400 dark:text-gray-400">Administrer kontaktpersoner</p>
         </div>
         <div className="card bg-red-900/20 border-red-800">
           <div className="flex items-start gap-3">
@@ -200,8 +201,8 @@ export function Kontaktpersoner() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Kontaktpersoner</h1>
-          <p className="text-gray-400">Administrer kontaktpersoner på tvers av anlegg</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Kontaktpersoner</h1>
+          <p className="text-gray-400 dark:text-gray-400">Administrer kontaktpersoner på tvers av anlegg</p>
         </div>
       </div>
 
@@ -209,7 +210,7 @@ export function Kontaktpersoner() {
       <div className="card">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-400" />
             <input
               type="text"
               placeholder="Søk etter navn, e-post, telefon, rolle eller anlegg..."
@@ -241,8 +242,8 @@ export function Kontaktpersoner() {
               <User className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Totalt kontakter</p>
-              <p className="text-2xl font-bold text-white">{kontaktpersoner.length}</p>
+              <p className="text-gray-400 dark:text-gray-400 text-sm">Totalt kontakter</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{kontaktpersoner.length}</p>
             </div>
           </div>
         </div>
@@ -252,8 +253,8 @@ export function Kontaktpersoner() {
               <Mail className="w-6 h-6 text-green-500" />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Med e-post</p>
-              <p className="text-2xl font-bold text-white">
+              <p className="text-gray-400 dark:text-gray-400 text-sm">Med e-post</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {kontaktpersoner.filter(k => k.epost).length}
               </p>
             </div>
@@ -265,8 +266,8 @@ export function Kontaktpersoner() {
               <Phone className="w-6 h-6 text-blue-500" />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Med telefon</p>
-              <p className="text-2xl font-bold text-white">
+              <p className="text-gray-400 dark:text-gray-400 text-sm">Med telefon</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {kontaktpersoner.filter(k => k.telefon).length}
               </p>
             </div>
@@ -276,10 +277,10 @@ export function Kontaktpersoner() {
 
       {/* Kontaktperson Liste */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-800">
-          <h2 className="text-lg font-semibold text-white">
+        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Kontaktpersonliste
-            <span className="ml-2 text-sm text-gray-400 font-normal">
+            <span className="ml-2 text-sm text-gray-400 dark:text-gray-400 font-normal">
               ({sortedKontakter.length} {sortedKontakter.length === 1 ? 'person' : 'personer'})
             </span>
           </h2>
@@ -287,8 +288,8 @@ export function Kontaktpersoner() {
         
         {sortedKontakter.length === 0 ? (
           <div className="text-center py-12">
-            <User className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">
+            <User className="w-12 h-12 text-gray-500 dark:text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-400 dark:text-gray-400">
               {searchTerm ? 'Ingen kontaktpersoner funnet' : 'Ingen kontaktpersoner registrert ennå'}
             </p>
           </div>
@@ -296,19 +297,19 @@ export function Kontaktpersoner() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-800">
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Navn</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Rolle</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Kontakt</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Anlegg</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Handlinger</th>
+                <tr className="border-b border-gray-200 dark:border-gray-800">
+                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Navn</th>
+                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Rolle</th>
+                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Kontakt</th>
+                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Anlegg</th>
+                  <th className="text-right py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Handlinger</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedKontakter.map((kontakt) => (
                   <tr
                     key={kontakt.id}
-                    className="border-b border-gray-800 hover:bg-dark-100 transition-colors"
+                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors"
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -316,7 +317,7 @@ export function Kontaktpersoner() {
                           <User className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                          <p className="text-white font-medium">{kontakt.navn}</p>
+                          <p className="text-gray-900 dark:text-white font-medium">{kontakt.navn}</p>
                         </div>
                       </div>
                     </td>
@@ -324,25 +325,25 @@ export function Kontaktpersoner() {
                       {kontakt.rolle ? (
                         <span className="badge badge-info">{kontakt.rolle}</span>
                       ) : (
-                        <span className="text-gray-500">-</span>
+                        <span className="text-gray-400 dark:text-gray-500">-</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
                       <div className="space-y-1">
                         {kontakt.epost && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
-                            <Mail className="w-3 h-3 text-gray-500" />
+                          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
+                            <Mail className="w-3 h-3 text-gray-400 dark:text-gray-500" />
                             {kontakt.epost}
                           </div>
                         )}
                         {kontakt.telefon && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
-                            <Phone className="w-3 h-3 text-gray-500" />
+                          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
+                            <Phone className="w-3 h-3 text-gray-400 dark:text-gray-500" />
                             {kontakt.telefon}
                           </div>
                         )}
                         {!kontakt.epost && !kontakt.telefon && (
-                          <span className="text-gray-500">-</span>
+                          <span className="text-gray-400 dark:text-gray-500">-</span>
                         )}
                       </div>
                     </td>
@@ -354,18 +355,18 @@ export function Kontaktpersoner() {
                               {anlegg.primar && (
                                 <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
                               )}
-                              <Building2 className="w-3 h-3 text-gray-500" />
-                              <span className="text-gray-300">{anlegg.anlegg.anleggsnavn}</span>
+                              <Building2 className="w-3 h-3 text-gray-400 dark:text-gray-500" />
+                              <span className="text-gray-500 dark:text-gray-300">{anlegg.anlegg.anleggsnavn}</span>
                             </div>
                           ))}
                           {kontakt.anlegg.length > 2 && (
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-gray-400 dark:text-gray-500">
                               +{kontakt.anlegg.length - 2} flere
                             </p>
                           )}
                         </div>
                       ) : (
-                        <span className="text-gray-500">Ingen anlegg</span>
+                        <span className="text-gray-400 dark:text-gray-500">Ingen anlegg</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
@@ -375,14 +376,14 @@ export function Kontaktpersoner() {
                             setSelectedKontakt(kontakt)
                             setViewMode('view')
                           }}
-                          className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                           title="Vis detaljer"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => deleteKontaktperson(kontakt.id)}
-                          className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 dark:text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Slett"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -411,8 +412,8 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">{kontakt.navn}</h1>
-          <p className="text-gray-400">{kontakt.rolle || 'Ingen rolle'}</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{kontakt.navn}</h1>
+          <p className="text-gray-400 dark:text-gray-400">{kontakt.rolle || 'Ingen rolle'}</p>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={onClose} className="btn-secondary">
@@ -424,29 +425,29 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-white mb-4">Kontaktinformasjon</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kontaktinformasjon</h2>
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-gray-400 mb-1">E-post</p>
-                <p className="text-white">{kontakt.epost || '-'}</p>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">E-post</p>
+                <p className="text-gray-900 dark:text-white">{kontakt.epost || '-'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-400 mb-1">Telefon</p>
-                <p className="text-white">{kontakt.telefon || '-'}</p>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Telefon</p>
+                <p className="text-gray-900 dark:text-white">{kontakt.telefon || '-'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-400 mb-1">Rolle</p>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Rolle</p>
                 {kontakt.rolle ? (
                   <span className="badge badge-info">{kontakt.rolle}</span>
                 ) : (
-                  <span className="text-gray-500">Ingen rolle</span>
+                  <span className="text-gray-400 dark:text-gray-500">Ingen rolle</span>
                 )}
               </div>
             </div>
           </div>
 
           <div className="card">
-            <h2 className="text-xl font-bold text-white mb-4">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
               Tilknyttede anlegg ({kontakt.anlegg.length})
             </h2>
             {kontakt.anlegg.length > 0 ? (
@@ -459,7 +460,7 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
                     <div className="flex items-center gap-3">
                       <Building2 className="w-5 h-5 text-primary" />
                       <div>
-                        <p className="text-white font-medium">{anlegg.anlegg.anleggsnavn}</p>
+                        <p className="text-gray-900 dark:text-white font-medium">{anlegg.anlegg.anleggsnavn}</p>
                       </div>
                     </div>
                     {anlegg.primar && (
@@ -472,19 +473,25 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-400">Ingen tilknyttede anlegg</p>
+              <p className="text-gray-400 dark:text-gray-400">Ingen tilknyttede anlegg</p>
             )}
           </div>
         </div>
 
         <div className="space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-white mb-4">Metadata</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Metadata</h2>
             <div className="space-y-3">
               <div>
-                <p className="text-sm text-gray-400 mb-1">Opprettet</p>
-                <p className="text-white text-sm">{formatDate(kontakt.opprettet_dato)}</p>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Opprettet</p>
+                <p className="text-gray-900 dark:text-white text-sm">{formatDate(kontakt.opprettet_dato)}</p>
               </div>
+              {kontakt.sist_oppdatert && (
+                <div>
+                  <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Sist oppdatert</p>
+                  <p className="text-gray-900 dark:text-white text-sm">{formatDate(kontakt.sist_oppdatert)}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

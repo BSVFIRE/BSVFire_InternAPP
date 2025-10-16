@@ -332,13 +332,23 @@ export function Nodlys({ onBack }: NodlysProps) {
         .eq('id', anleggData.kundenr)
         .single()
 
-      // Hent primær kontaktperson
-      const { data: primaerKontakt } = await supabase
-        .from('kontaktperson')
-        .select('*')
-        .eq('anleggsnr', selectedAnlegg)
-        .eq('primaer', true)
-        .single()
+      // Hent kontaktperson via junction table
+      const { data: kontaktResult } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .select(`
+          kontaktpersoner!inner(
+            navn,
+            telefon,
+            epost
+          )
+        `)
+        .eq('anlegg_id', selectedAnlegg)
+        .eq('primar', true)
+        .maybeSingle()
+      
+      const primaerKontakt = Array.isArray(kontaktResult?.kontaktpersoner) 
+        ? kontaktResult.kontaktpersoner[0] 
+        : kontaktResult?.kontaktpersoner
 
       // Hent tekniker-info fra ansatte-tabellen
       const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -346,7 +356,7 @@ export function Nodlys({ onBack }: NodlysProps) {
         .from('ansatte')
         .select('navn, telefon, epost')
         .eq('epost', authUser?.email)
-        .single()
+        .maybeSingle()
 
       // Generer PDF
       const doc = new jsPDF()
@@ -355,16 +365,37 @@ export function Nodlys({ onBack }: NodlysProps) {
       
       // Funksjon for å legge til footer på hver side
       const addFooter = (pageNum: number) => {
+        const footerY = pageHeight - 20
+        
+        // Linje over footer
+        doc.setDrawColor(200, 200, 200)
+        doc.setLineWidth(0.5)
+        doc.line(20, footerY - 5, pageWidth - 20, footerY - 5)
+        
+        // Firmanavn (blå og bold)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 102, 204)
+        doc.text('Brannteknisk Service og Vedlikehold AS', 20, footerY)
+        
+        // Org.nr, e-post og telefon
         doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        doc.setTextColor(100)
+        doc.setTextColor(100, 100, 100)
+        doc.text('Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600', 20, footerY + 4)
         
-        // Footer info
-        const footerY = pageHeight - 15
-        doc.text('Brannteknisk Service og Vedlikehold AS', pageWidth / 2, footerY, { align: 'center' })
-        doc.text('Sælenveien 44, 5151 Straumsgrend | 900 46 600 | mail@bsvfire.no', pageWidth / 2, footerY + 4, { align: 'center' })
+        // Adresse
+        doc.text('Adresse: Sælenveien 44, 5151 Straumsgrend', 20, footerY + 8)
         
-        // Sidetall
+        // Generert dato (lys grå)
+        doc.setFontSize(7)
+        doc.setTextColor(150, 150, 150)
+        const genererDato = new Date().toLocaleDateString('nb-NO') + ' ' + new Date().toLocaleTimeString('nb-NO')
+        doc.text(`Generert: ${genererDato}`, 20, footerY + 13)
+        
+        // Sidetall (høyre side)
+        doc.setFontSize(8)
+        doc.setTextColor(100, 100, 100)
         doc.text(`Side ${pageNum}`, pageWidth - 20, footerY, { align: 'right' })
         
         // Reset farge
@@ -419,66 +450,69 @@ export function Nodlys({ onBack }: NodlysProps) {
         doc.text('Adresse:', 20, yPos)
         doc.setFont('helvetica', 'normal')
         doc.text(`${anleggData.adresse}, ${anleggData.postnummer || ''} ${anleggData.poststed || ''}`, 50, yPos)
-        yPos += 10
-      } else {
-        yPos += 3
-      }
-
-      // Primær kontaktperson
-      if (primaerKontakt) {
-        doc.setFont('helvetica', 'bold')
-        doc.text('Kontaktperson:', 20, yPos)
-        doc.setFont('helvetica', 'normal')
-        doc.text(primaerKontakt.navn || '-', 60, yPos)
-        yPos += 7
-
-        if (primaerKontakt.telefon) {
-          doc.setFont('helvetica', 'bold')
-          doc.text('Telefon:', 20, yPos)
-          doc.setFont('helvetica', 'normal')
-          doc.text(primaerKontakt.telefon, 60, yPos)
-          yPos += 7
-        }
-
-        if (primaerKontakt.epost) {
-          doc.setFont('helvetica', 'bold')
-          doc.text('E-post:', 20, yPos)
-          doc.setFont('helvetica', 'normal')
-          doc.text(primaerKontakt.epost, 60, yPos)
-          yPos += 7
-        }
-
-        yPos += 3
-      }
-
-      // Tekniker info
-      doc.setFont('helvetica', 'bold')
-      doc.text('Tekniker:', 20, yPos)
-      doc.setFont('helvetica', 'normal')
-      doc.text(tekniker?.navn || authUser?.email || '-', 50, yPos)
-      yPos += 7
-
-      if (tekniker?.telefon) {
-        doc.setFont('helvetica', 'bold')
-        doc.text('Telefon:', 20, yPos)
-        doc.setFont('helvetica', 'normal')
-        doc.text(tekniker.telefon, 50, yPos)
         yPos += 7
       }
 
-      if (tekniker?.epost) {
-        doc.setFont('helvetica', 'bold')
-        doc.text('E-post:', 20, yPos)
-        doc.setFont('helvetica', 'normal')
-        doc.text(tekniker.epost, 50, yPos)
-        yPos += 7
-      }
+      yPos += 2
 
+      // Dato
       doc.setFont('helvetica', 'bold')
       doc.text('Dato:', 20, yPos)
       doc.setFont('helvetica', 'normal')
-      doc.text(new Date().toLocaleDateString('nb-NO'), 50, yPos)
-      yPos += 15
+      const idag = new Date()
+      doc.text(idag.toLocaleDateString('nb-NO'), 50, yPos)
+      yPos += 7
+
+      // Neste kontroll (12 måneder fram)
+      const nesteKontroll = new Date(idag)
+      nesteKontroll.setMonth(nesteKontroll.getMonth() + 12)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Neste kontroll:', 20, yPos)
+      doc.setFont('helvetica', 'normal')
+      doc.text(nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }), 50, yPos)
+      yPos += 10
+
+      // Kontaktperson
+      if (primaerKontakt?.navn) {
+        doc.setFontSize(11)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Kontaktperson:', 20, yPos)
+        doc.setFont('helvetica', 'normal')
+        yPos += 5
+        doc.text(primaerKontakt.navn, 20, yPos)
+        yPos += 4
+        if (primaerKontakt.telefon) {
+          doc.text(`Tlf: ${primaerKontakt.telefon}`, 20, yPos)
+          yPos += 4
+        }
+        if (primaerKontakt.epost) {
+          doc.text(`E-post: ${primaerKontakt.epost}`, 20, yPos)
+          yPos += 4
+        }
+        yPos += 4
+      }
+
+      // Utført av
+      if (tekniker?.navn) {
+        doc.setFontSize(11)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Utført av:', 20, yPos)
+        doc.setFont('helvetica', 'normal')
+        yPos += 5
+        doc.text(tekniker.navn, 20, yPos)
+        yPos += 4
+        if (tekniker.telefon) {
+          doc.text(`Tlf: ${tekniker.telefon}`, 20, yPos)
+          yPos += 4
+        }
+        if (tekniker.epost) {
+          doc.text(`E-post: ${tekniker.epost}`, 20, yPos)
+          yPos += 4
+        }
+        yPos += 4
+      }
+
+      yPos += 5
 
       // Oppsummering
       const totalt = nodlysListe.length

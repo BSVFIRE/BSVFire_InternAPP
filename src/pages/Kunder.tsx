@@ -100,7 +100,7 @@ export function Kunder() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-400">Laster kunder...</p>
+          <p className="text-gray-500 dark:text-gray-400">Laster kunder...</p>
         </div>
       </div>
     )
@@ -110,8 +110,8 @@ export function Kunder() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Kunder</h1>
-          <p className="text-gray-400">Administrer kunderegisteret</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Kunder</h1>
+          <p className="text-gray-500 dark:text-gray-400">Administrer kunderegisteret</p>
         </div>
         <div className="card bg-red-900/20 border-red-800">
           <div className="flex items-start gap-3">
@@ -166,8 +166,8 @@ export function Kunder() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Kunder</h1>
-          <p className="text-gray-400">Administrer kunderegisteret</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Kunder</h1>
+          <p className="text-gray-500 dark:text-gray-400">Administrer kunderegisteret</p>
         </div>
         <button
           onClick={() => {
@@ -185,7 +185,7 @@ export function Kunder() {
       <div className="card">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
             <input
               type="text"
               placeholder="Søk etter kunde, org.nr eller poststed..."
@@ -218,8 +218,8 @@ export function Kunder() {
               <Building className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Totalt kunder</p>
-              <p className="text-2xl font-bold text-white">{kunder.length}</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Totalt kunder</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{kunder.length}</p>
             </div>
           </div>
         </div>
@@ -229,8 +229,8 @@ export function Kunder() {
               <Mail className="w-6 h-6 text-green-500" />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Med e-post</p>
-              <p className="text-2xl font-bold text-white">
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Med e-post</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {kunder.filter(k => k.epost).length}
               </p>
             </div>
@@ -242,8 +242,8 @@ export function Kunder() {
               <Phone className="w-6 h-6 text-blue-500" />
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Med telefon</p>
-              <p className="text-2xl font-bold text-white">
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Med telefon</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {kunder.filter(k => k.telefon).length}
               </p>
             </div>
@@ -253,10 +253,10 @@ export function Kunder() {
 
       {/* Kunde Liste */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-800">
-          <h2 className="text-lg font-semibold text-white">
+        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Kundeliste
-            <span className="ml-2 text-sm text-gray-400 font-normal">
+            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400 font-normal">
               ({sortedKunder.length} {sortedKunder.length === 1 ? 'kunde' : 'kunder'})
             </span>
           </h2>
@@ -264,8 +264,8 @@ export function Kunder() {
         
         {sortedKunder.length === 0 ? (
           <div className="text-center py-12">
-            <Building className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">
+            <Building className="w-12 h-12 text-gray-500 dark:text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400">
               {searchTerm ? 'Ingen kunder funnet' : 'Ingen kunder registrert ennå'}
             </p>
           </div>
@@ -273,20 +273,20 @@ export function Kunder() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-800">
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Navn</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Org.nr</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Sted</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Kontakt</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Opprettet</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Handlinger</th>
+                <tr className="border-b border-gray-200 dark:border-gray-800">
+                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Navn</th>
+                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Org.nr</th>
+                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Sted</th>
+                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Kontakt</th>
+                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Opprettet</th>
+                  <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Handlinger</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedKunder.map((kunde) => (
                   <tr
                     key={kunde.id}
-                    className="border-b border-gray-800 hover:bg-dark-100 transition-colors"
+                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors"
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -294,46 +294,46 @@ export function Kunder() {
                           <Building className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                          <p className="text-white font-medium">{kunde.navn}</p>
+                          <p className="text-gray-900 dark:text-white font-medium">{kunde.navn}</p>
                           {kunde.adresse && (
-                            <p className="text-sm text-gray-400">{kunde.adresse}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{kunde.adresse}</p>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-gray-300">
+                    <td className="py-3 px-4 text-gray-500 dark:text-gray-300">
                       {kunde.organisasjonsnummer || '-'}
                     </td>
                     <td className="py-3 px-4">
                       {kunde.poststed ? (
-                        <div className="flex items-center gap-2 text-gray-300">
-                          <MapPin className="w-4 h-4 text-gray-500" />
+                        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
+                          <MapPin className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                           {kunde.postnummer} {kunde.poststed}
                         </div>
                       ) : (
-                        <span className="text-gray-500">-</span>
+                        <span className="text-gray-400 dark:text-gray-500">-</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
                       <div className="space-y-1">
                         {kunde.telefon && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
-                            <Phone className="w-3 h-3 text-gray-500" />
+                          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
+                            <Phone className="w-3 h-3 text-gray-400 dark:text-gray-500" />
                             {kunde.telefon}
                           </div>
                         )}
                         {kunde.epost && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
-                            <Mail className="w-3 h-3 text-gray-500" />
+                          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
+                            <Mail className="w-3 h-3 text-gray-400 dark:text-gray-500" />
                             {kunde.epost}
                           </div>
                         )}
                         {!kunde.telefon && !kunde.epost && (
-                          <span className="text-gray-500">-</span>
+                          <span className="text-gray-400 dark:text-gray-500">-</span>
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-gray-300 text-sm">
+                    <td className="py-3 px-4 text-gray-500 dark:text-gray-300 text-sm">
                       {formatDate(kunde.opprettet_dato)}
                     </td>
                     <td className="py-3 px-4">
@@ -343,7 +343,7 @@ export function Kunder() {
                             setSelectedKunde(kunde)
                             setViewMode('view')
                           }}
-                          className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                           title="Vis detaljer"
                         >
                           <Eye className="w-4 h-4" />
@@ -353,14 +353,14 @@ export function Kunder() {
                             setSelectedKunde(kunde)
                             setViewMode('edit')
                           }}
-                          className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
                           title="Rediger"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => deleteKunde(kunde.id)}
-                          className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Slett"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -523,10 +523,10 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             {kunde ? 'Rediger kunde' : 'Ny kunde'}
           </h1>
-          <p className="text-gray-400">
+          <p className="text-gray-500 dark:text-gray-400">
             {kunde ? 'Oppdater kundeinformasjon' : 'Registrer ny kunde'}
           </p>
         </div>
@@ -537,19 +537,19 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
         <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <ExternalLink className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-semibold text-white">Søk i Brønnøysundregistrene</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Søk i Brønnøysundregistrene</h3>
           </div>
-          <p className="text-sm text-gray-400 mb-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             Søk etter bedrift eller organisasjonsnummer for å automatisk fylle ut kundeinformasjon
           </p>
 
           {/* Search by name */}
           <div className="relative" ref={resultsRef}>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Søk etter bedriftsnavn
             </label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
               <input
                 type="text"
                 value={searchQuery}
@@ -572,16 +572,16 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
                       key={company.organisasjonsnummer}
                       type="button"
                       onClick={() => fillFormFromCompany(company)}
-                      className="w-full text-left px-4 py-3 hover:bg-primary/10 border-b border-gray-800 last:border-b-0 transition-colors"
+                      className="w-full text-left px-4 py-3 hover:bg-primary/10 border-b border-gray-200 dark:border-gray-800 last:border-b-0 transition-colors"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-white truncate">{company.navn}</p>
-                          <p className="text-sm text-gray-400 mt-1">
+                          <p className="font-medium text-gray-900 dark:text-white truncate">{company.navn}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                             Org.nr: {formatOrgNumber(company.organisasjonsnummer)}
                           </p>
                           {address.poststed && (
-                            <p className="text-sm text-gray-500 mt-1">
+                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
                               {address.postnummer} {address.poststed}
                             </p>
                           )}
@@ -596,7 +596,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
 
             {showResults && searchResults.length === 0 && !searching && searchQuery.length >= 2 && (
               <div className="absolute z-10 w-full mt-2 bg-dark-200 border border-gray-700 rounded-lg shadow-xl p-4">
-                <p className="text-gray-400 text-sm text-center">Ingen bedrifter funnet</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm text-center">Ingen bedrifter funnet</p>
               </div>
             )}
           </div>
@@ -604,7 +604,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
           {/* Search by org number */}
           <div className="flex gap-2">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
                 Eller søk med organisasjonsnummer
               </label>
               <input
@@ -642,7 +642,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
         {/* Manual Input Form */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Kundenavn <span className="text-red-500">*</span>
             </label>
             <input
@@ -656,7 +656,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Organisasjonsnummer
             </label>
             <input
@@ -669,7 +669,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Telefon
             </label>
             <input
@@ -682,7 +682,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               E-post
             </label>
             <input
@@ -695,7 +695,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Adresse
             </label>
             <input
@@ -708,7 +708,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Postnummer
             </label>
             <input
@@ -721,7 +721,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Poststed
             </label>
             <input
@@ -734,7 +734,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 pt-4 border-t border-gray-800">
+        <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
           <button
             type="submit"
             disabled={saving}
@@ -767,8 +767,8 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">{kunde.navn}</h1>
-          <p className="text-gray-400">Kundedetaljer</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{kunde.navn}</h1>
+          <p className="text-gray-500 dark:text-gray-400">Kundedetaljer</p>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={onEdit} className="btn-primary flex items-center gap-2">
@@ -784,29 +784,29 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-white mb-4">Kontaktinformasjon</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kontaktinformasjon</h2>
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-gray-400 mb-1">Organisasjonsnummer</p>
-                <p className="text-white">{kunde.organisasjonsnummer || '-'}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Organisasjonsnummer</p>
+                <p className="text-gray-900 dark:text-white">{kunde.organisasjonsnummer || '-'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-400 mb-1">Telefon</p>
-                <p className="text-white">{kunde.telefon || '-'}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Telefon</p>
+                <p className="text-gray-900 dark:text-white">{kunde.telefon || '-'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-400 mb-1">E-post</p>
-                <p className="text-white">{kunde.epost || '-'}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">E-post</p>
+                <p className="text-gray-900 dark:text-white">{kunde.epost || '-'}</p>
               </div>
             </div>
           </div>
 
           <div className="card">
-            <h2 className="text-xl font-bold text-white mb-4">Adresse</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Adresse</h2>
             <div className="space-y-2">
-              <p className="text-white">{kunde.adresse || '-'}</p>
+              <p className="text-gray-900 dark:text-white">{kunde.adresse || '-'}</p>
               {kunde.postnummer && kunde.poststed && (
-                <p className="text-white">{kunde.postnummer} {kunde.poststed}</p>
+                <p className="text-gray-900 dark:text-white">{kunde.postnummer} {kunde.poststed}</p>
               )}
             </div>
           </div>
@@ -814,16 +814,16 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
 
         <div className="space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-white mb-4">Metadata</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Metadata</h2>
             <div className="space-y-3">
               <div>
-                <p className="text-sm text-gray-400 mb-1">Opprettet</p>
-                <p className="text-white text-sm">{formatDate(kunde.opprettet_dato)}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Opprettet</p>
+                <p className="text-gray-900 dark:text-white text-sm">{formatDate(kunde.opprettet_dato)}</p>
               </div>
               {kunde.sist_oppdatert && (
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Sist oppdatert</p>
-                  <p className="text-white text-sm">{formatDate(kunde.sist_oppdatert)}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Sist oppdatert</p>
+                  <p className="text-gray-900 dark:text-white text-sm">{formatDate(kunde.sist_oppdatert)}</p>
                 </div>
               )}
             </div>

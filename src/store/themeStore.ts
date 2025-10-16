@@ -8,8 +8,14 @@ interface ThemeState {
   setTheme: (theme: Theme) => void
 }
 
+// Hent tema fra localStorage eller bruk 'dark' som standard
+const getInitialTheme = (): Theme => {
+  const savedTheme = localStorage.getItem('bsv-theme')
+  return (savedTheme === 'light' || savedTheme === 'dark') ? savedTheme : 'dark'
+}
+
 export const useThemeStore = create<ThemeState>((set) => ({
-  theme: 'dark',
+  theme: getInitialTheme(),
   toggleTheme: () =>
     set((state) => {
       const newTheme = state.theme === 'dark' ? 'light' : 'dark'

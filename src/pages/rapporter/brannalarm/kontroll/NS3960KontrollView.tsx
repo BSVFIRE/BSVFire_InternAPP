@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Save, Search, CheckCircle, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Save, Search, CheckCircle, AlertTriangle, WifiOff, Wifi } from 'lucide-react'
+import { useOfflineStatus, useOfflineQueue } from '@/hooks/useOffline'
+import { cacheData, getCachedData } from '@/lib/offline'
 
 interface KontrollpunktData {
   kontrollpunkt_navn: string
@@ -49,6 +51,9 @@ const KONTROLLPUNKTER_BY_CATEGORY = {
 }
 
 export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, kontrollId, onBack, onShowRapport }: NS3960KontrollViewProps) {
+  const { isOnline, isSyncing } = useOfflineStatus()
+  const { queueInsert, queueUpdate } = useOfflineQueue()
+  
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [autoSaving, setAutoSaving] = useState(false)
@@ -107,6 +112,28 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
     try {
       setLoading(true)
       console.log('Laster NS3960 data for anlegg:', anleggId)
+      
+      // Try to load from cache first if offline
+      if (!isOnline) {
+        const cachedData = getCachedData<any>(`ns3960_kontroll_${anleggId}`)
+        if (cachedData) {
+          console.log('📦 Laster data fra cache (offline)')
+          setAnleggsNavn(cachedData.anleggsNavn || initialAnleggsNavn)
+          setLeverandor(cachedData.leverandor || '')
+          setSentraltype(cachedData.sentraltype || '')
+          setMerknader(cachedData.merknader || '')
+          setHarFeil(cachedData.harFeil || false)
+          setFeilKommentar(cachedData.feilKommentar || '')
+          setHarUtkoblinger(cachedData.harUtkoblinger || false)
+          setUtkoblingKommentar(cachedData.utkoblingKommentar || '')
+          setCurrentKontrollId(cachedData.kontrollId)
+          if (cachedData.data) {
+            setData(cachedData.data)
+          }
+          setLoading(false)
+          return
+        }
+      }
 
       // Hent anleggsnavn
       const { data: anleggData, error: anleggError } = await supabase
@@ -172,7 +199,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           const { data: ansatt } = await supabase
             .from('ansatte')
             .select('id')
-            .eq('bruker_id', user?.id)
+            .eq('epost', user?.email)
             .maybeSingle()
           
           console.log('Ansatt-ID:', ansatt?.id)
@@ -266,6 +293,27 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           })
           setData(newData)
         }
+        
+        // Cache data for offline use
+        cacheData(`ns3960_kontroll_${anleggId}`, {
+          kontrollId: idToUse,
+          anleggsNavn,
+          leverandor,
+          sentraltype,
+          merknader: kontrollData?.merknader || '',
+          harFeil: kontrollData?.har_feil || false,
+          feilKommentar: kontrollData?.feil_kommentar || '',
+          harUtkoblinger: kontrollData?.har_utkoblinger || false,
+          utkoblingKommentar: kontrollData?.utkobling_kommentar || '',
+          data: kontrollpunkter ? Object.fromEntries(
+            kontrollpunkter.map(p => [p.kontrollpunkt_navn, {
+              kontrollpunkt_navn: p.kontrollpunkt_navn,
+              status: p.status,
+              avvik: p.avvik || false,
+              kommentar: p.kommentar || '',
+            }])
+          ) : data
+        })
       } else {
         console.log('Ingen kontrollId, starter ny kontroll')
       }
@@ -285,6 +333,62 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
     }
 
     setSaving(true)
+    
+    // Save to cache immediately for offline access
+    cacheData(`ns3960_kontroll_${anleggId}`, {
+      kontrollId: currentKontrollId,
+      anleggsNavn,
+      leverandor,
+      sentraltype,
+      merknader,
+      harFeil,
+      feilKommentar,
+      harUtkoblinger,
+      utkoblingKommentar,
+      data
+    })
+    
+    // If offline, queue changes for later sync
+    if (!isOnline) {
+      console.log('📴 Offline - lagrer lokalt og legger i synkroniseringskø')
+      
+      // Queue kontroll update
+      queueUpdate('anleggsdata_kontroll', {
+        id: currentKontrollId,
+        merknader,
+        har_feil: harFeil,
+        feil_kommentar: feilKommentar,
+        har_utkoblinger: harUtkoblinger,
+        utkobling_kommentar: utkoblingKommentar,
+        updated_at: new Date().toISOString(),
+      })
+      
+      // Queue brannalarm data update
+      queueUpdate('anleggsdata_brannalarm', {
+        anlegg_id: anleggId,
+        leverandor,
+        sentraltype,
+      })
+      
+      // Queue kontrollpunkter (we'll need to handle this specially on sync)
+      Object.values(data).forEach(punkt => {
+        queueInsert('ns3960_kontrollpunkter', {
+          kontroll_id: currentKontrollId,
+          anlegg_id: anleggId,
+          kontrollpunkt_navn: punkt.kontrollpunkt_navn,
+          status: punkt.status,
+          avvik: punkt.avvik,
+          kommentar: punkt.kommentar,
+        })
+      })
+      
+      setLastSaved(new Date())
+      setHasUnsavedChanges(false)
+      alert('✓ Lagret lokalt (offline). Synkroniseres når nettilgang er tilgjengelig.')
+      setSaving(false)
+      return
+    }
+    
     try {
       // Oppdater kontrolldata
       const { error: kontrollError } = await supabase
@@ -400,6 +504,29 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
     if (!anleggId || !currentKontrollId) return
     
     setAutoSaving(true)
+    
+    // Always save to cache
+    cacheData(`ns3960_kontroll_${anleggId}`, {
+      kontrollId: currentKontrollId,
+      anleggsNavn,
+      leverandor,
+      sentraltype,
+      merknader,
+      harFeil,
+      feilKommentar,
+      harUtkoblinger,
+      utkoblingKommentar,
+      data
+    })
+    
+    // Skip online save if offline
+    if (!isOnline) {
+      setLastSaved(new Date())
+      setHasUnsavedChanges(false)
+      setAutoSaving(false)
+      return
+    }
+    
     try {
       // Oppdater kontrolldata
       await supabase
@@ -517,6 +644,19 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Offline/Online indicator */}
+              {!isOnline && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs">
+                  <WifiOff className="w-4 h-4" />
+                  Offline
+                </div>
+              )}
+              {isSyncing && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs">
+                  <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                  Synkroniserer...
+                </div>
+              )}
               {/* Auto-save indicator */}
               {autoSaving && (
                 <div className="flex items-center gap-2 text-xs text-blue-400">
@@ -525,7 +665,8 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                 </div>
               )}
               {lastSaved && !autoSaving && (
-                <div className="text-xs text-green-400">
+                <div className="flex items-center gap-2 text-xs text-green-400">
+                  {isOnline && <Wifi className="w-3 h-3" />}
                   Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               )}

@@ -55,7 +55,10 @@ export type Database = {
           kontroll_maaned: string | null
           kontroll_status: string | null
           kontroll_type: string[] | null
+          unik_kode: string | null
+          kontrollportal_url: string | null
           opprettet_dato: string
+          sist_oppdatert: string | null
         }
       }
       ordre: {
@@ -68,6 +71,7 @@ export type Database = {
           kommentar: string | null
           status: string
           opprettet_dato: string
+          sist_oppdatert: string | null
           tekniker_id: string | null
           kontrolltype: string[] | null
         }
@@ -84,6 +88,7 @@ export type Database = {
           tildelt_til: string | null
           forfallsdato: string | null
           opprettet_dato: string
+          sist_oppdatert: string | null
         }
       }
       prosjekter: {
@@ -99,6 +104,7 @@ export type Database = {
           planlagt_fullfort: string | null
           faktisk_fullfort: string | null
           opprettet_dato: string
+          sist_oppdatert: string | null
         }
       }
       kontaktpersoner: {
@@ -109,6 +115,7 @@ export type Database = {
           telefon: string | null
           rolle: string | null
           opprettet_dato: string
+          sist_oppdatert: string | null
         }
       }
       anlegg_kontaktpersoner: {

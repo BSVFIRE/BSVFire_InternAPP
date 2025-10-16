@@ -1,28 +1,50 @@
-import { BookOpen, FileText, Download, Upload } from 'lucide-react'
+import { BookOpen, FileText, Download, Upload, Mail } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 export function Dokumentasjon() {
+  const navigate = useNavigate()
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Dokumentasjon</h1>
-        <p className="text-gray-400">Administrer dokumenter og filer</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Dokumentasjon</h1>
+        <p className="text-gray-400 dark:text-gray-400">Administrer dokumenter og filer</p>
       </div>
 
       {/* Placeholder content */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card hover:border-primary/50 transition-colors cursor-pointer">
+        <button
+          onClick={() => navigate('/rapporter')}
+          className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
+        >
           <div className="flex items-center gap-4 mb-4">
             <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
               <FileText className="w-6 h-6 text-blue-500" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Rapporter</h3>
-              <p className="text-sm text-gray-400">Genererte rapporter</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Rapporter</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Genererte rapporter</p>
             </div>
           </div>
-          <p className="text-gray-500 text-sm">Kommer snart...</p>
-        </div>
+          <p className="text-gray-400 dark:text-gray-500 text-sm">Kommer snart...</p>
+        </button>
+
+        <button
+          onClick={() => navigate('/send-rapporter')}
+          className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
+        >
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Mail className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Send rapporter</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Send rapporter via e-post</p>
+            </div>
+          </div>
+          <p className="text-gray-400 dark:text-gray-500 text-sm">Velg dokumenter og mottakere</p>
+        </button>
 
         <div className="card hover:border-primary/50 transition-colors cursor-pointer">
           <div className="flex items-center gap-4 mb-4">
@@ -30,25 +52,28 @@ export function Dokumentasjon() {
               <Upload className="w-6 h-6 text-green-500" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Last opp</h3>
-              <p className="text-sm text-gray-400">Last opp dokumenter</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Last opp</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Last opp dokumenter</p>
             </div>
           </div>
-          <p className="text-gray-500 text-sm">Kommer snart...</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm">Kommer snart...</p>
         </div>
 
-        <div className="card hover:border-primary/50 transition-colors cursor-pointer">
+        <button
+          onClick={() => navigate('/nedlastinger')}
+          className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
+        >
           <div className="flex items-center gap-4 mb-4">
             <div className="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center">
               <Download className="w-6 h-6 text-purple-500" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Nedlastinger</h3>
-              <p className="text-sm text-gray-400">Tidligere nedlastinger</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Nedlastinger</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Dokumenter og e-posthistorikk</p>
             </div>
           </div>
-          <p className="text-gray-500 text-sm">Kommer snart...</p>
-        </div>
+          <p className="text-gray-400 dark:text-gray-500 text-sm">Se alle dokumenter og e-postutsendelser</p>
+        </button>
       </div>
 
       {/* Info box */}
@@ -56,8 +81,8 @@ export function Dokumentasjon() {
         <div className="flex items-start gap-3">
           <BookOpen className="w-5 h-5 text-blue-500 mt-0.5" />
           <div>
-            <h3 className="text-white font-medium mb-1">Dokumentasjon under utvikling</h3>
-            <p className="text-gray-400 text-sm">
+            <h3 className="text-gray-900 dark:text-white font-medium mb-1">Dokumentasjon under utvikling</h3>
+            <p className="text-gray-400 dark:text-gray-400 text-sm">
               Denne seksjonen vil inneholde funksjonalitet for å administrere, laste opp og laste ned dokumenter.
             </p>
           </div>

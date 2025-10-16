@@ -11,6 +11,7 @@ import {
   Users,
   User
 } from 'lucide-react'
+import { ORDRE_STATUSER, OPPGAVE_STATUSER } from '@/lib/constants'
 
 interface Stats {
   ordre: { total: number; aktive: number; fullfort: number; fakturert: number }
@@ -70,9 +71,9 @@ export function Dashboard() {
       }
       const { data: ordreData } = await ordreQuery
       
-      const fullfort = ordreData?.filter(o => o.status === 'Fullført').length || 0
-      const fakturert = ordreData?.filter(o => o.status === 'Fakturert').length || 0
-      const aktive = ordreData?.filter(o => o.status !== 'Fullført' && o.status !== 'Fakturert').length || 0
+      const fullfort = ordreData?.filter(o => o.status === ORDRE_STATUSER.FULLFORT).length || 0
+      const fakturert = ordreData?.filter(o => o.status === ORDRE_STATUSER.FAKTURERT).length || 0
+      const aktive = ordreData?.filter(o => o.status !== ORDRE_STATUSER.FULLFORT && o.status !== ORDRE_STATUSER.FAKTURERT).length || 0
       
       const ordreStats = {
         total: ordreData?.length || 0,
@@ -91,7 +92,7 @@ export function Dashboard() {
       const oppgaverStats = {
         total: oppgaverData?.length || 0,
         aktive: oppgaverData?.filter(o => o.status === 'Aktiv' || o.status === 'Pågår').length || 0,
-        fullfort: oppgaverData?.filter(o => o.status === 'Fullført').length || 0
+        fullfort: oppgaverData?.filter(o => o.status === OPPGAVE_STATUSER.FULLFORT).length || 0
       }
 
       // Hent prosjekter statistikk
@@ -174,8 +175,8 @@ export function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Dashboard</h1>
-          <p className="text-gray-400">Oversikt over aktiviteter og statistikk</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Dashboard</h1>
+          <p className="text-gray-400 dark:text-gray-400">Oversikt over aktiviteter og statistikk</p>
         </div>
         
         {/* Toggle for egne vs alle */}
@@ -184,8 +185,8 @@ export function Dashboard() {
             onClick={() => setVisAlle(false)}
             className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
               !visAlle 
-                ? 'bg-primary text-white shadow-lg' 
-                : 'text-gray-400 hover:text-white'
+                ? 'bg-primary text-gray-900 dark:text-white shadow-lg' 
+                : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:text-white'
             }`}
           >
             <User className="w-4 h-4" />
@@ -195,8 +196,8 @@ export function Dashboard() {
             onClick={() => setVisAlle(true)}
             className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
               visAlle 
-                ? 'bg-primary text-white shadow-lg' 
-                : 'text-gray-400 hover:text-white'
+                ? 'bg-primary text-gray-900 dark:text-white shadow-lg' 
+                : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:text-white'
             }`}
           >
             <Users className="w-4 h-4" />
@@ -211,13 +212,13 @@ export function Dashboard() {
           <div key={card.title} className="card hover:shadow-xl transition-shadow">
             <div className="flex items-start justify-between mb-4">
               <div className={`p-3 bg-gradient-to-br ${card.color} rounded-lg`}>
-                <card.icon className="w-6 h-6 text-white" />
+                <card.icon className="w-6 h-6 text-gray-900 dark:text-white" />
               </div>
               <TrendingUp className="w-5 h-5 text-green-500" />
             </div>
             
-            <h3 className="text-gray-400 text-sm font-medium mb-1">{card.title}</h3>
-            <p className="text-3xl font-bold text-white mb-4">{card.total}</p>
+            <h3 className="text-gray-400 dark:text-gray-400 text-sm font-medium mb-1">{card.title}</h3>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white mb-4">{card.total}</p>
             
             <div className="flex items-center gap-4 text-sm">
               {card.showSubStats ? (
@@ -225,7 +226,7 @@ export function Dashboard() {
                   {card.fullfort !== undefined && card.fullfort > 0 && (
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-gray-400">
+                      <span className="text-gray-400 dark:text-gray-400">
                         {card.fullfort} fullført
                       </span>
                     </div>
@@ -233,7 +234,7 @@ export function Dashboard() {
                   {card.fakturert !== undefined && card.fakturert > 0 && (
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span className="text-gray-400">
+                      <span className="text-gray-400 dark:text-gray-400">
                         {card.fakturert} fakturert
                       </span>
                     </div>
@@ -244,7 +245,7 @@ export function Dashboard() {
                   {card.active !== undefined && card.active > 0 && (
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-primary rounded-full"></div>
-                      <span className="text-gray-400">
+                      <span className="text-gray-400 dark:text-gray-400">
                         {card.active} aktive
                       </span>
                     </div>
@@ -252,7 +253,7 @@ export function Dashboard() {
                   {card.completed !== undefined && card.completed > 0 && (
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-gray-400">
+                      <span className="text-gray-400 dark:text-gray-400">
                         {card.completed} fullført
                       </span>
                     </div>
@@ -267,40 +268,40 @@ export function Dashboard() {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
-          <h2 className="text-xl font-bold text-white mb-4">Siste aktivitet</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Siste aktivitet</h2>
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg">
               <AlertCircle className="w-5 h-5 text-yellow-500" />
               <div className="flex-1">
                 <p className="text-sm text-gray-200">Ny ordre opprettet</p>
-                <p className="text-xs text-gray-500">For 2 timer siden</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">For 2 timer siden</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg">
               <CheckSquare className="w-5 h-5 text-green-500" />
               <div className="flex-1">
                 <p className="text-sm text-gray-200">Oppgave fullført</p>
-                <p className="text-xs text-gray-500">I dag kl. 14:30</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">I dag kl. 14:30</p>
               </div>
             </div>
           </div>
         </div>
 
         <div className="card">
-          <h2 className="text-xl font-bold text-white mb-4">Kommende oppgaver</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kommende oppgaver</h2>
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg">
               <div className="w-2 h-2 bg-red-500 rounded-full"></div>
               <div className="flex-1">
                 <p className="text-sm text-gray-200">Brannalarmkontroll</p>
-                <p className="text-xs text-gray-500">Forfaller i morgen</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Forfaller i morgen</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg">
               <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
               <div className="flex-1">
                 <p className="text-sm text-gray-200">Servicerapport</p>
-                <p className="text-xs text-gray-500">Forfaller om 3 dager</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Forfaller om 3 dager</p>
               </div>
             </div>
           </div>

@@ -3,6 +3,8 @@ import { ArrowLeft, FileText, ClipboardCheck } from 'lucide-react'
 import { KontrollOversiktView } from './KontrollOversiktView'
 import { NS3960KontrollView } from './kontroll/NS3960KontrollView'
 import { NS3960RapportView } from './kontroll/NS3960RapportView'
+import { FG790KontrollView } from './kontroll/FG790KontrollView'
+import { FG790RapportView } from './kontroll/FG790RapportView'
 
 interface NyKontrollViewProps {
   anleggId: string
@@ -11,7 +13,7 @@ interface NyKontrollViewProps {
   onBack: () => void
 }
 
-type ViewState = 'oversikt' | 'valg' | 'fg790' | 'ns3960' | 'rapport'
+type ViewState = 'oversikt' | 'valg' | 'fg790' | 'ns3960' | 'rapport' | 'fg790rapport'
 
 export function NyKontrollView({ anleggId, anleggsNavn, kundeNavn, onBack }: NyKontrollViewProps) {
   const [viewState, setViewState] = useState<ViewState>('oversikt')
@@ -34,6 +36,7 @@ export function NyKontrollView({ anleggId, anleggsNavn, kundeNavn, onBack }: NyK
 
   function handleOpenKontroll(kontrollId: string, type: 'FG790' | 'NS3960') {
     setSelectedKontrollId(kontrollId)
+    setSelectedType(type) // Sett selectedType slik at rapport-visning fungerer
     if (type === 'FG790') {
       setViewState('fg790')
     } else {
@@ -49,7 +52,12 @@ export function NyKontrollView({ anleggId, anleggsNavn, kundeNavn, onBack }: NyK
 
   function handleShowRapport(kontrollId: string) {
     setSelectedKontrollId(kontrollId)
-    setViewState('rapport')
+    // Sjekk kontrolltype basert på selectedType eller hent fra database
+    if (selectedType === 'FG790') {
+      setViewState('fg790rapport')
+    } else {
+      setViewState('rapport')
+    }
   }
 
   // Show overview first
@@ -79,7 +87,7 @@ export function NyKontrollView({ anleggId, anleggsNavn, kundeNavn, onBack }: NyK
     )
   }
 
-  // Show rapport
+  // Show NS3960 rapport
   if (viewState === 'rapport' && selectedKontrollId) {
     return (
       <NS3960RapportView
@@ -91,19 +99,28 @@ export function NyKontrollView({ anleggId, anleggsNavn, kundeNavn, onBack }: NyK
     )
   }
 
-  // Show FG790 kontroll (placeholder for now)
+  // Show FG790 rapport
+  if (viewState === 'fg790rapport' && selectedKontrollId) {
+    return (
+      <FG790RapportView
+        kontrollId={selectedKontrollId}
+        anleggId={anleggId}
+        kundeNavn={kundeNavn}
+        onBack={handleBackToOversikt}
+      />
+    )
+  }
+
+  // Show FG790 kontroll
   if (viewState === 'fg790') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="card max-w-2xl text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">FG790 Kontroll</h1>
-          <p className="text-gray-400 mb-6">Denne kontrollskjermen er under utvikling</p>
-          <button onClick={() => setViewState('valg')} className="btn-secondary">
-            <ArrowLeft className="w-4 h-4 inline mr-2" />
-            Tilbake
-          </button>
-        </div>
-      </div>
+      <FG790KontrollView
+        anleggId={anleggId}
+        anleggsNavn={anleggsNavn}
+        kontrollId={selectedKontrollId}
+        onBack={handleBackToOversikt}
+        onShowRapport={handleShowRapport}
+      />
     )
   }
 

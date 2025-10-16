@@ -11,8 +11,11 @@ import { Kontaktpersoner } from './pages/Kontaktpersoner'
 import { Ordre } from './pages/Ordre'
 import { Oppgaver } from './pages/Oppgaver'
 import { Rapporter } from './pages/Rapporter'
+import { SendRapporter } from './pages/SendRapporter'
 import { Teknisk } from './pages/Teknisk'
 import { Dokumentasjon } from './pages/Dokumentasjon'
+import { Nedlastinger } from './pages/Nedlastinger'
+import { AdminLogger } from './pages/AdminLogger'
 import { OfflineIndicator } from './components/OfflineIndicator'
 
 // Placeholder pages
@@ -70,8 +73,11 @@ function App() {
                   <Route path="/oppgaver" element={<Oppgaver />} />
                   <Route path="/prosjekter" element={<Prosjekter />} />
                   <Route path="/rapporter" element={<Rapporter />} />
+                  <Route path="/send-rapporter" element={<SendRapporter />} />
                   <Route path="/teknisk" element={<Teknisk />} />
                   <Route path="/dokumentasjon" element={<Dokumentasjon />} />
+                  <Route path="/nedlastinger" element={<Nedlastinger />} />
+                  <Route path="/admin/logger" element={<AdminLogger />} />
                 </Routes>
               </Layout>
             </ProtectedRoute>

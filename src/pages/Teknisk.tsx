@@ -42,8 +42,8 @@ export function Teknisk() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Teknisk</h1>
-        <p className="text-gray-400">Detektorlister, alarmorganisering og prosjektering</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Teknisk</h1>
+        <p className="text-gray-400 dark:text-gray-400">Detektorlister, alarmorganisering og prosjektering</p>
       </div>
 
       {/* Kategorier */}
@@ -57,8 +57,8 @@ export function Teknisk() {
               <Radio className="w-6 h-6 text-red-500" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Detektorlister</h3>
-              <p className="text-sm text-gray-400">Oversikt over detektorer</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Detektorlister</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Oversikt over detektorer</p>
             </div>
           </div>
           <p className="text-primary text-sm font-medium">Klikk for å åpne →</p>
@@ -70,11 +70,11 @@ export function Teknisk() {
               <Bell className="w-6 h-6 text-yellow-500" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Alarmorganisering</h3>
-              <p className="text-sm text-gray-400">Organisering av alarmer</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Alarmorganisering</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Organisering av alarmer</p>
             </div>
           </div>
-          <p className="text-gray-500 text-sm">Kommer snart...</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm">Kommer snart...</p>
         </div>
 
         <button
@@ -86,8 +86,8 @@ export function Teknisk() {
               <ClipboardList className="w-6 h-6 text-green-500" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Servicerapport</h3>
-              <p className="text-sm text-gray-400">Tekstbaserte rapporter</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Servicerapport</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Tekstbaserte rapporter</p>
             </div>
           </div>
           <p className="text-primary text-sm font-medium">Klikk for å åpne →</p>
@@ -99,11 +99,11 @@ export function Teknisk() {
               <FileText className="w-6 h-6 text-blue-500" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Prosjektering</h3>
-              <p className="text-sm text-gray-400">Prosjekteringsverktøy</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Prosjektering</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Prosjekteringsverktøy</p>
             </div>
           </div>
-          <p className="text-gray-500 text-sm">Kommer snart...</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm">Kommer snart...</p>
         </div>
       </div>
 
@@ -112,8 +112,8 @@ export function Teknisk() {
         <div className="flex items-start gap-3">
           <Settings className="w-5 h-5 text-blue-500 mt-0.5" />
           <div>
-            <h3 className="text-white font-medium mb-1">Teknisk seksjon under utvikling</h3>
-            <p className="text-gray-400 text-sm">
+            <h3 className="text-gray-900 dark:text-white font-medium mb-1">Teknisk seksjon under utvikling</h3>
+            <p className="text-gray-400 dark:text-gray-400 text-sm">
               Denne seksjonen vil inneholde verktøy for detektorlister, alarmorganisering og prosjektering av brannsikkerhetssystemer.
             </p>
           </div>

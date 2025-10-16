@@ -4,6 +4,7 @@ import { FileText, Lightbulb, Flame, Shield, Wind } from 'lucide-react'
 import { Nodlys } from './rapporter/Nodlys'
 import { Brannalarm } from './rapporter/Brannalarm'
 import { Slukkeutstyr } from './rapporter/Slukkeutstyr'
+import { Roykluker } from './rapporter/Roykluker'
 
 type RapportType = 'oversikt' | 'nodlys' | 'brannalarm' | 'slukkeutstyr' | 'roykluker'
 
@@ -11,7 +12,7 @@ const rapportTyper = [
   { id: 'nodlys', navn: 'Nødlys', icon: Lightbulb, color: 'yellow', beskrivelse: 'Kontroll og registrering av nødlysarmaturer' },
   { id: 'brannalarm', navn: 'Brannalarm', icon: Flame, color: 'red', beskrivelse: 'Kontroll av brannalarmsystemer' },
   { id: 'slukkeutstyr', navn: 'Slukkeutstyr', icon: Shield, color: 'blue', beskrivelse: 'Kontroll av brannslukkere og brannslanger' },
-  { id: 'roykluker', navn: 'Røykluker', icon: Wind, color: 'gray', beskrivelse: 'Kontroll av røykluker (kommer snart)' },
+  { id: 'roykluker', navn: 'Røykluker', icon: Wind, color: 'gray', beskrivelse: 'Kontroll av røykluker' },
 ]
 
 export function Rapporter() {
@@ -38,19 +39,23 @@ export function Rapporter() {
     return <Slukkeutstyr onBack={() => setActiveRapport('oversikt')} />
   }
 
+  if (activeRapport === 'roykluker') {
+    return <Roykluker onBack={() => setActiveRapport('oversikt')} />
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Rapporter</h1>
-        <p className="text-gray-400">Velg rapporttype for å starte</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Rapporter</h1>
+        <p className="text-gray-400 dark:text-gray-400">Velg rapporttype for å starte</p>
       </div>
 
       {/* Rapport Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {rapportTyper.map((rapport) => {
           const Icon = rapport.icon
-          const isAvailable = rapport.id === 'nodlys' || rapport.id === 'brannalarm' || rapport.id === 'slukkeutstyr'
+          const isAvailable = rapport.id === 'nodlys' || rapport.id === 'brannalarm' || rapport.id === 'slukkeutstyr' || rapport.id === 'roykluker'
           
           return (
             <button
@@ -77,13 +82,13 @@ export function Rapporter() {
                   ${rapport.color === 'yellow' && 'text-yellow-500'}
                   ${rapport.color === 'red' && 'text-red-500'}
                   ${rapport.color === 'blue' && 'text-blue-500'}
-                  ${rapport.color === 'gray' && 'text-gray-500'}
+                  ${rapport.color === 'gray' && 'text-gray-400 dark:text-gray-500'}
                 `} />
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">{rapport.navn}</h3>
-              <p className="text-sm text-gray-400">{rapport.beskrivelse}</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{rapport.navn}</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">{rapport.beskrivelse}</p>
               {!isAvailable && (
-                <span className="inline-block mt-3 text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
+                <span className="inline-block mt-3 text-xs text-gray-400 dark:text-gray-500 bg-gray-800 px-2 py-1 rounded">
                   Kommer snart
                 </span>
               )}
@@ -97,11 +102,11 @@ export function Rapporter() {
         <div className="flex items-start gap-3">
           <FileText className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
           <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Om rapporter</h3>
-            <p className="text-gray-400 text-sm mb-3">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Om rapporter</h3>
+            <p className="text-gray-400 dark:text-gray-400 text-sm mb-3">
               Rapportmodulen lar deg registrere og administrere kontroller for ulike typer brannsikkerhetsutstyr.
             </p>
-            <ul className="space-y-2 text-sm text-gray-400">
+            <ul className="space-y-2 text-sm text-gray-400 dark:text-gray-400">
               <li className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
                 Velg kunde og anlegg for å starte

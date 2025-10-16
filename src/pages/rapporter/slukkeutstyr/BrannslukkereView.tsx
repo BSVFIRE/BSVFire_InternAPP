@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, FileDown } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, FileDown, MessageSquare } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BrannslukkerPreview } from '../BrannslukkerPreview'
 import { useAuthStore } from '@/store/authStore'
+import { KommentarViewBrannslukkere } from './KommentarViewBrannslukkere'
 
 interface Brannslukker {
   id?: string
@@ -32,6 +33,7 @@ interface BrannslukkereViewProps {
 const statusAlternativer = [
   'OK',
   'OK Byttet',
+  'Byttet ved kontroll',
   'Ikke funnet',
   'Ikke tilkomst',
   'Utgått',
@@ -114,22 +116,22 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
     }
   }, [anleggId])
 
-  // Autolagring med debounce
-  useEffect(() => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
+  // AUTOLAGRING DEAKTIVERT - forårsaker duplikater
+  // useEffect(() => {
+  //   if (saveTimeoutRef.current) {
+  //     clearTimeout(saveTimeoutRef.current)
+  //   }
 
-    saveTimeoutRef.current = setTimeout(() => {
-      autoSave()
-    }, 3000) // 3 sekunder debounce
+  //   saveTimeoutRef.current = setTimeout(() => {
+  //     autoSave()
+  //   }, 3000) // 3 sekunder debounce
 
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    }
-  }, [slukkere])
+  //   return () => {
+  //     if (saveTimeoutRef.current) {
+  //       clearTimeout(saveTimeoutRef.current)
+  //     }
+  //   }
+  // }, [slukkere])
 
   async function loadSlukkere() {
     try {
@@ -259,41 +261,56 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
     try {
       setLoading(true)
 
-      // Hent primær kontaktperson for anlegget
-      const { data: kontaktData, error: kontaktError } = await supabase
-        .from('kontaktperson')
-        .select('*')
-        .eq('anleggsnr', anleggId)
-        .eq('primaer', true)
+      // Hent kontaktperson via junction table (samme metode som røykluker)
+      const { data: kontaktResult } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .select(`
+          kontaktpersoner!inner(
+            navn,
+            telefon,
+            epost
+          )
+        `)
+        .eq('anlegg_id', anleggId)
+        .eq('primar', true)
         .maybeSingle()
-
-      if (kontaktError) {
-        console.error('Feil ved henting av kontaktperson:', kontaktError)
-      }
+      
+      const kontaktData = Array.isArray(kontaktResult?.kontaktpersoner) 
+        ? kontaktResult.kontaktpersoner[0] 
+        : kontaktResult?.kontaktpersoner
 
       // Hent innlogget bruker (tekniker) data
       const { data: tekniker, error: teknikerError } = await supabase
         .from('ansatte')
-        .select('navn, telefon, epost')
-        .eq('bruker_id', user?.id)
+        .select('navn, telefon, epost, gronn_sertifikat_nummer')
+        .eq('epost', user?.email)
         .maybeSingle()
 
       if (teknikerError) {
         console.error('Feil ved henting av tekniker:', teknikerError)
       }
 
+      // Hent kommentarer for anlegget
+      const { data: kommentarer } = await supabase
+        .from('kommentar_brannslukkere')
+        .select('*')
+        .eq('anlegg_id', anleggId)
+        .order('created_at', { ascending: false })
+
       const doc = new jsPDF()
       let yPos = 20
 
-      // Logo
+      // Logo - bruk fetch for å laste bildet
       try {
-        const logoImg = new Image()
-        logoImg.src = '/bsv-logo.png'
-        await new Promise((resolve, reject) => {
-          logoImg.onload = resolve
-          logoImg.onerror = reject
+        const response = await fetch('/bsv-logo.png')
+        const blob = await response.blob()
+        const reader = new FileReader()
+        const base64 = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
         })
-        doc.addImage(logoImg, 'PNG', 20, yPos, 40, 15)
+        doc.addImage(base64, 'PNG', 20, yPos, 40, 15)
         yPos += 25
       } catch (error) {
         console.error('Kunne ikke laste logo:', error)
@@ -311,79 +328,197 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       doc.text('RAPPORT - BRANNSLUKKERE', 20, yPos)
       yPos += 12
 
-      // Anleggsinformasjon
+      // Anleggsinformasjon - Profesjonell layout
+      doc.setDrawColor(220, 220, 220)
+      doc.setLineWidth(0.3)
+      doc.setFillColor(250, 250, 250)
+      doc.rect(17, yPos, 85, 28, 'FD')
+      
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(100, 100, 100)
+      doc.text('KUNDE', 20, yPos + 5)
       doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text(kundeNavn, 20, yPos + 10)
+      
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(100, 100, 100)
+      doc.text('ANLEGG', 20, yPos + 16)
+      doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Kunde: ${kundeNavn}`, 20, yPos)
-      yPos += 6
-      doc.text(`Anlegg: ${anleggNavn}`, 20, yPos)
-      yPos += 6
+      doc.setTextColor(0, 0, 0)
+      doc.text(anleggNavn, 20, yPos + 21)
       
       const idag = new Date()
-      doc.text(`Dato: ${idag.toLocaleDateString('nb-NO')}`, 20, yPos)
-      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Kontrollert: ${idag.toLocaleDateString('nb-NO')}`, 20, yPos + 26)
       
-      // Neste kontroll (12 måneder fram)
+      // Neste kontroll boks
+      doc.setFillColor(254, 249, 195)
+      doc.rect(104, yPos, 91, 28, 'FD')
+      
       const nesteKontroll = new Date(idag)
       nesteKontroll.setMonth(nesteKontroll.getMonth() + 12)
-      doc.text(`Neste kontroll: ${nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' })}`, 20, yPos)
-      yPos += 10
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(100, 100, 100)
+      doc.text('NESTE KONTROLL', 107, yPos + 5)
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(202, 138, 4)
+      doc.text(nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }).toUpperCase(), 107, yPos + 14)
+      
+      yPos += 32
 
-      // Kontaktperson og tekniker
+      // Kontaktpersoner - To kolonner
+      const colWidth = 85
+      let leftCol = 17
+      let rightCol = 104
+      
       if (kontaktData?.navn) {
+        doc.setDrawColor(220, 220, 220)
+        doc.setFillColor(250, 250, 250)
+        doc.rect(leftCol, yPos, colWidth, 24, 'FD')
+        
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(100, 100, 100)
+        doc.text('KONTAKTPERSON', leftCol + 3, yPos + 5)
+        
         doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
-        doc.text('Kontaktperson:', 20, yPos)
+        doc.setTextColor(0, 0, 0)
+        doc.text(kontaktData.navn, leftCol + 3, yPos + 11)
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        yPos += 5
-        doc.text(kontaktData.navn, 20, yPos)
+        let infoY = yPos + 15
         if (kontaktData.telefon) {
-          yPos += 4
-          doc.text(`Tlf: ${kontaktData.telefon}`, 20, yPos)
+          doc.text(`Tlf: ${kontaktData.telefon}`, leftCol + 3, infoY)
+          infoY += 4
         }
         if (kontaktData.epost) {
-          yPos += 4
-          doc.text(`E-post: ${kontaktData.epost}`, 20, yPos)
+          doc.text(`E-post: ${kontaktData.epost}`, leftCol + 3, infoY)
         }
-        yPos += 8
       }
 
       if (tekniker?.navn) {
+        doc.setFillColor(240, 253, 244)
+        doc.rect(rightCol, yPos, colWidth + 6, 24, 'FD')
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
-        doc.text('Tekniker:', 20, yPos)
+        doc.setTextColor(100, 100, 100)
+        doc.text('UTFØRT AV', rightCol + 3, yPos + 5)
+        
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(22, 163, 74)
+        doc.text(tekniker.navn, rightCol + 3, yPos + 11)
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        yPos += 5
-        doc.text(tekniker.navn, 20, yPos)
+        doc.setTextColor(0, 0, 0)
+        let infoY = yPos + 15
         if (tekniker.telefon) {
-          yPos += 4
-          doc.text(`Tlf: ${tekniker.telefon}`, 20, yPos)
+          doc.text(`Tlf: ${tekniker.telefon}`, rightCol + 3, infoY)
+          infoY += 4
         }
-        if (tekniker.epost) {
-          yPos += 4
-          doc.text(`E-post: ${tekniker.epost}`, 20, yPos)
+        if (tekniker.gronn_sertifikat_nummer) {
+          doc.text(`Sertifikat: ${tekniker.gronn_sertifikat_nummer}`, rightCol + 3, infoY)
         }
-        yPos += 8
       }
+      
+      doc.setTextColor(0, 0, 0)
+      yPos += 28
 
       // Statistikk
       const totalt = slukkere.length
-      const ok = slukkere.filter(s => s.status?.includes('OK')).length
-      const defekt = slukkere.filter(s => s.status?.includes('Defekt')).length
-      const utskiftet = slukkere.filter(s => s.status?.includes('Utskiftet')).length
+      const ok = slukkere.filter(s => 
+        s.status?.includes('OK') || s.status?.includes('OK Byttet') || s.status?.includes('Byttet ved kontroll')
+      ).length
+      const ikkeKontrollert = slukkere.filter(s => 
+        s.status?.includes('Ikke funnet') || s.status?.includes('Ikke tilkomst')
+      ).length
+      const avvik = slukkere.filter(s => 
+        s.status?.some(st => !['OK', 'OK Byttet', 'Byttet ved kontroll', 'Ikke funnet', 'Ikke tilkomst'].includes(st))
+      ).length
 
+      // Statistikk - Profesjonell layout
+      doc.setFillColor(41, 128, 185)
+      doc.rect(15, yPos, 180, 8, 'F')
+      doc.setTextColor(255, 255, 255)
       doc.setFontSize(12)
       doc.setFont('helvetica', 'bold')
-      doc.text('STATISTIKK', 20, yPos)
-      yPos += 6
-      doc.setFontSize(10)
+      doc.text('STATISTIKK', 20, yPos + 5.5)
+      doc.setTextColor(0, 0, 0)
+      yPos += 12
+      
+      // Status-seksjon
+      const boxWidth = 43
+      const boxHeight = 22
+      let xPos = 17
+      
+      // Totalt
+      doc.setDrawColor(200, 200, 200)
+      doc.setLineWidth(0.5)
+      doc.setFillColor(248, 250, 252)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(41, 128, 185)
+      doc.text(totalt.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Totalt antall: ${totalt}`, 20, yPos)
-      yPos += 5
-      doc.text(`OK: ${ok}`, 20, yPos)
-      yPos += 5
-      doc.text(`Defekt: ${defekt}`, 20, yPos)
-      yPos += 5
-      doc.text(`Utskiftet: ${utskiftet}`, 20, yPos)
+      doc.setTextColor(100, 100, 100)
+      doc.text('TOTALT', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // OK
+      xPos += boxWidth + 2
+      doc.setFillColor(240, 253, 244)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(22, 163, 74)
+      doc.text(ok.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('OK', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Ikke kontrollert
+      xPos += boxWidth + 2
+      doc.setFillColor(249, 250, 251)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(107, 114, 128)
+      doc.text(ikkeKontrollert.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('IKKE KONTR.', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Avvik
+      xPos += boxWidth + 2
+      doc.setFillColor(254, 242, 242)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(220, 38, 38)
+      doc.text(avvik.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('AVVIK', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      doc.setTextColor(0, 0, 0)
+      yPos += boxHeight + 8
 
       // Ny side for tabell
       doc.addPage()
@@ -409,13 +544,128 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
           s.brannklasse || '-',
           s.produksjonsaar || '-',
           s.service || '-',
-          s.status?.[0] || 'OK'
+          // Vis alle statuser kommaseparert
+          (Array.isArray(s.status) && s.status.length > 0) 
+            ? s.status.join(', ') 
+            : 'OK'
         ]),
         styles: { fontSize: 8 },
         headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 8 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { left: 10, right: 10, bottom: 25 },
+        margin: { left: 10, right: 10, bottom: 30 },
       })
+
+      // Kommentarer seksjon - på ny side hvis det finnes kommentarer
+      if (kommentarer && kommentarer.length > 0) {
+        doc.addPage()
+        yPos = 20
+
+        // Kommentarer header med bakgrunn
+        doc.setFillColor(220, 53, 69) // Red color for brannslukkere
+        doc.rect(15, yPos - 5, 180, 12, 'F')
+        doc.setFontSize(16)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(255, 255, 255)
+        doc.text('KOMMENTARER', 20, yPos + 3)
+        doc.setTextColor(0, 0, 0)
+        yPos += 15
+
+        // Gå gjennom hver kommentar
+        kommentarer.forEach((kommentar) => {
+          // Sjekk om vi trenger ny side
+          if (yPos > 250) {
+            doc.addPage()
+            yPos = 20
+          }
+
+          // Kommentar boks
+          doc.setDrawColor(200, 200, 200)
+          doc.setLineWidth(0.3)
+          doc.setFillColor(250, 250, 250)
+          
+          // Beregn høyde basert på tekst
+          const kommentarTekst = kommentar.kommentar || ''
+          const textLines = doc.splitTextToSize(kommentarTekst, 170)
+          const boxHeight = 12 + (textLines.length * 4)
+          
+          doc.rect(15, yPos, 180, boxHeight, 'FD')
+          
+          // Kommentar header (navn og dato)
+          doc.setFontSize(9)
+          doc.setFont('helvetica', 'bold')
+          doc.text(kommentar.opprettet_av || 'Ukjent', 20, yPos + 5)
+          
+          // Dato
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8)
+          doc.setTextColor(100, 100, 100)
+          const kommentarDato = kommentar.opprettet_dato || kommentar.created_at
+          let datoTekst = 'Ukjent dato'
+          if (kommentarDato) {
+            try {
+              const d = new Date(kommentarDato)
+              datoTekst = d.toLocaleDateString('nb-NO', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })
+            } catch {
+              datoTekst = kommentarDato
+            }
+          }
+          doc.text(datoTekst, 190, yPos + 5, { align: 'right' })
+          doc.setTextColor(0, 0, 0)
+          
+          // Kommentar tekst
+          yPos += 9
+          doc.setFontSize(9)
+          doc.setFont('helvetica', 'normal')
+          doc.text(textLines, 20, yPos)
+          
+          yPos += boxHeight - 9 + 5 // Mellomrom til neste kommentar
+        })
+      }
+
+      // Legg til footer på alle sider
+      const pageCount = (doc as any).internal.getNumberOfPages()
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        const footerY = pageHeight - 20
+        
+        // Linje over footer
+        doc.setDrawColor(200, 200, 200)
+        doc.setLineWidth(0.5)
+        doc.line(20, footerY - 5, pageWidth - 20, footerY - 5)
+        
+        // Firmanavn (blå og bold)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 102, 204)
+        doc.text('Brannteknisk Service og Vedlikehold AS', 20, footerY)
+        
+        // Org.nr, e-post og telefon
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(100, 100, 100)
+        doc.text('Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600', 20, footerY + 4)
+        
+        // Adresse
+        doc.text('Adresse: Sælenveien 44, 5151 Straumsgrend', 20, footerY + 8)
+        
+        // Generert dato (lys grå)
+        doc.setFontSize(7)
+        doc.setTextColor(150, 150, 150)
+        const genererDato = new Date().toLocaleDateString('nb-NO') + ' ' + new Date().toLocaleTimeString('nb-NO')
+        doc.text(`Generert: ${genererDato}`, 20, footerY + 13)
+        
+        // Sidetall (høyre side)
+        doc.setFontSize(8)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`Side ${i} av ${pageCount}`, pageWidth - 20, footerY, { align: 'right' })
+      }
 
       const pdfBlob = doc.output('blob')
       const fileName = `Rapport_Brannslukkere_${new Date().getFullYear()}_${anleggNavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
@@ -446,9 +696,18 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   }
 
   function leggTilNye() {
-    const nyeSlukkere: Brannslukker[] = Array.from({ length: antallNye }, () => ({
+    // Finn høyeste nummer
+    let hoyesteNummer = 0
+    slukkere.forEach(s => {
+      const num = parseInt(s.apparat_nr || '0')
+      if (!isNaN(num) && num > hoyesteNummer) {
+        hoyesteNummer = num
+      }
+    })
+
+    const nyeSlukkere: Brannslukker[] = Array.from({ length: antallNye }, (_, index) => ({
       anlegg_id: anleggId,
-      apparat_nr: '',
+      apparat_nr: String(hoyesteNummer + index + 1),
       plassering: '',
       etasje: '',
       produsent: '',
@@ -565,9 +824,14 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   const currentYear = new Date().getFullYear()
   
   const totalt = slukkere.length
-  const ok = slukkere.filter(s => s.status?.includes('OK')).length
+  const ok = slukkere.filter(s => 
+    s.status?.includes('OK') || s.status?.includes('OK Byttet') || s.status?.includes('Byttet ved kontroll')
+  ).length
+  const ikkeKontrollert = slukkere.filter(s => 
+    s.status?.includes('Ikke funnet') || s.status?.includes('Ikke tilkomst')
+  ).length
   const avvik = slukkere.filter(s => 
-    s.status?.some(st => !['OK', 'OK Byttet', 'Ikke funnet', 'Ikke tilkomst', 'Fjernet'].includes(st))
+    s.status?.some(st => !['OK', 'OK Byttet', 'Byttet ved kontroll', 'Ikke funnet', 'Ikke tilkomst'].includes(st))
   ).length
   
   // Beregn utgått basert på brannklasse og produksjonsår/service
@@ -732,8 +996,11 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                             value={slukker.apparat_nr || ''}
                             onChange={(e) => {
                               const nyeSlukkere = [...slukkere]
-                              nyeSlukkere[index].apparat_nr = e.target.value
-                              setSlukkere(nyeSlukkere)
+                              const originalIndex = slukkere.findIndex(s => s === slukker)
+                              if (originalIndex !== -1) {
+                                nyeSlukkere[originalIndex].apparat_nr = e.target.value
+                                setSlukkere(nyeSlukkere)
+                              }
                             }}
                             className="input text-white font-medium py-1 px-2 text-sm w-full"
                             placeholder="001"
@@ -746,8 +1013,11 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                           value={slukker.plassering || ''}
                           onChange={(e) => {
                             const nyeSlukkere = [...slukkere]
-                            nyeSlukkere[index].plassering = e.target.value
-                            setSlukkere(nyeSlukkere)
+                            const originalIndex = slukkere.findIndex(s => s === slukker)
+                            if (originalIndex !== -1) {
+                              nyeSlukkere[originalIndex].plassering = e.target.value
+                              setSlukkere(nyeSlukkere)
+                            }
                           }}
                           className="input py-1 px-2 text-sm w-full"
                           placeholder="Gang"
@@ -758,8 +1028,11 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                           value={slukker.etasje || ''}
                           onChange={(e) => {
                             const nyeSlukkere = [...slukkere]
-                            nyeSlukkere[index].etasje = e.target.value
-                            setSlukkere(nyeSlukkere)
+                            const originalIndex = slukkere.findIndex(s => s === slukker)
+                            if (originalIndex !== -1) {
+                              nyeSlukkere[originalIndex].etasje = e.target.value
+                              setSlukkere(nyeSlukkere)
+                            }
                           }}
                           className="input py-1 px-2 text-sm w-full"
                         >
@@ -776,8 +1049,11 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                           value={slukker.produsent || ''}
                           onChange={(e) => {
                             const nyeSlukkere = [...slukkere]
-                            nyeSlukkere[index].produsent = e.target.value
-                            setSlukkere(nyeSlukkere)
+                            const originalIndex = slukkere.findIndex(s => s === slukker)
+                            if (originalIndex !== -1) {
+                              nyeSlukkere[originalIndex].produsent = e.target.value
+                              setSlukkere(nyeSlukkere)
+                            }
                           }}
                           className="input py-1 px-2 text-sm w-full"
                           placeholder="Euro"
@@ -788,8 +1064,11 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                           value={slukker.modell || ''}
                           onChange={(e) => {
                             const nyeSlukkere = [...slukkere]
-                            nyeSlukkere[index].modell = e.target.value
-                            setSlukkere(nyeSlukkere)
+                            const originalIndex = slukkere.findIndex(s => s === slukker)
+                            if (originalIndex !== -1) {
+                              nyeSlukkere[originalIndex].modell = e.target.value
+                              setSlukkere(nyeSlukkere)
+                            }
                           }}
                           className="input py-1 px-2 text-sm w-full"
                         >
@@ -805,8 +1084,11 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                           value={slukker.brannklasse || ''}
                           onChange={(e) => {
                             const nyeSlukkere = [...slukkere]
-                            nyeSlukkere[index].brannklasse = e.target.value
-                            setSlukkere(nyeSlukkere)
+                            const originalIndex = slukkere.findIndex(s => s === slukker)
+                            if (originalIndex !== -1) {
+                              nyeSlukkere[originalIndex].brannklasse = e.target.value
+                              setSlukkere(nyeSlukkere)
+                            }
                           }}
                           className="input py-1 px-2 text-sm w-full"
                         >
@@ -824,8 +1106,11 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                           value={slukker.produksjonsaar || ''}
                           onChange={(e) => {
                             const nyeSlukkere = [...slukkere]
-                            nyeSlukkere[index].produksjonsaar = e.target.value
-                            setSlukkere(nyeSlukkere)
+                            const originalIndex = slukkere.findIndex(s => s === slukker)
+                            if (originalIndex !== -1) {
+                              nyeSlukkere[originalIndex].produksjonsaar = e.target.value
+                              setSlukkere(nyeSlukkere)
+                            }
                           }}
                           className="input py-1 px-2 text-sm w-full"
                           placeholder="2020"
@@ -837,8 +1122,11 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                           value={slukker.service || ''}
                           onChange={(e) => {
                             const nyeSlukkere = [...slukkere]
-                            nyeSlukkere[index].service = e.target.value
-                            setSlukkere(nyeSlukkere)
+                            const originalIndex = slukkere.findIndex(s => s === slukker)
+                            if (originalIndex !== -1) {
+                              nyeSlukkere[originalIndex].service = e.target.value
+                              setSlukkere(nyeSlukkere)
+                            }
                           }}
                           className="input py-1 px-2 text-sm w-full"
                         />
@@ -849,8 +1137,11 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                           value={slukker.siste_kontroll || ''}
                           onChange={(e) => {
                             const nyeSlukkere = [...slukkere]
-                            nyeSlukkere[index].siste_kontroll = e.target.value
-                            setSlukkere(nyeSlukkere)
+                            const originalIndex = slukkere.findIndex(s => s === slukker)
+                            if (originalIndex !== -1) {
+                              nyeSlukkere[originalIndex].siste_kontroll = e.target.value
+                              setSlukkere(nyeSlukkere)
+                            }
                           }}
                           className="input py-1 px-2 text-sm w-full"
                           placeholder="2024"
@@ -862,10 +1153,14 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                           className="flex flex-wrap gap-1 hover:bg-dark-200 p-2 rounded transition-colors w-full text-left"
                         >
                           {slukker.status && slukker.status.length > 0 ? (
-                            slukker.status.map((st) => (
+                            slukker.status.map((st: string) => (
                               <span
                                 key={st}
-                                className="px-2 py-1 bg-primary/20 text-primary rounded text-xs"
+                                className={`px-2 py-1 rounded text-xs ${
+                                  st === 'OK' || st === 'OK Byttet' || st === 'Byttet ved kontroll'
+                                    ? 'bg-green-500/20 text-green-400' 
+                                    : 'bg-red-500/20 text-red-400'
+                                }`}
                               >
                                 {st}
                               </span>
@@ -1160,9 +1455,9 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                       <span
                         key={st}
                         className={`px-2 py-1 rounded text-xs ${
-                          st === 'OK' ? 'bg-green-500/20 text-green-400' :
-                          st === 'Defekt' ? 'bg-red-500/20 text-red-400' :
-                          'bg-yellow-500/20 text-yellow-400'
+                          st === 'OK' || st === 'OK Byttet' || st === 'Byttet ved kontroll'
+                            ? 'bg-green-500/20 text-green-400' 
+                            : 'bg-red-500/20 text-red-400'
                         }`}
                       >
                         {st}
@@ -1170,7 +1465,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                     ))}
                   </div>
                 ) : (
-                  <span className="text-gray-500">-</span>
+                  <span className="text-gray-500 text-xs">-</span>
                 )}
               </td>
             </tr>
@@ -1180,6 +1475,13 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
         </div>
       )}
       </div>
+
+      {/* Kommentarer seksjon */}
+      <KommentarViewBrannslukkere
+        anleggId={anleggId}
+        kundeNavn={kundeNavn}
+        anleggNavn={anleggNavn}
+      />
     </div>
   )
 }

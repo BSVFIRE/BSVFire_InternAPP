@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, FileText, AlertTriangle, Clock, CheckCircle, Edit, Eye, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, FileText, AlertTriangle, Clock, CheckCircle, Edit, Eye, Plus, Trash2, ClipboardCheck, Shield } from 'lucide-react'
 
 interface Kontroll {
   id: string
@@ -19,6 +19,8 @@ interface Avvik {
   avvik_type: string
   feilkode?: string
   kommentar: string
+  rapport_type: 'FG790' | 'NS3960'
+  kontroll_dato?: string
 }
 
 interface KontrollOversiktViewProps {
@@ -43,6 +45,8 @@ export function KontrollOversiktView({
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [leverandor, setLeverandor] = useState<string>('')
   const [sentraltype, setSentraltype] = useState<string>('')
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [sisteKontrollDato, setSisteKontrollDato] = useState<string | null>(null)
 
   useEffect(() => {
     if (anleggId) {
@@ -121,102 +125,146 @@ export function KontrollOversiktView({
   }
 
   async function loadForrigeAvvik(kontrollerData: Kontroll[]) {
-    const currentYear = new Date().getFullYear()
-    const forrigeKontroll = kontrollerData.find(k => 
-      k.kontrollaar === currentYear - 1 && k.kontroll_status === 'ferdig'
-    )
-
-    if (!forrigeKontroll) {
+    // Finn siste utførte kontroller (både FG790 og NS3960)
+    const ferdigeKontroller = kontrollerData.filter(k => k.kontroll_status === 'ferdig')
+    
+    if (ferdigeKontroller.length === 0) {
       setForrigeAvvik([])
+      setSisteKontrollDato(null)
       return
     }
 
+    // Finn siste FG790 og NS3960 kontroll
+    const sisteFG790 = ferdigeKontroller
+      .filter(k => k.rapport_type === 'FG790')
+      .sort((a, b) => new Date(b.dato).getTime() - new Date(a.dato).getTime())[0]
+    
+    const sisteNS3960 = ferdigeKontroller
+      .filter(k => k.rapport_type === 'NS3960')
+      .sort((a, b) => new Date(b.dato).getTime() - new Date(a.dato).getTime())[0]
+
+    const alleAvvik: Avvik[] = []
+
     try {
-      if (forrigeKontroll.rapport_type === 'FG790') {
-        // Hent FG790 avvik
+      // Hent FG790 avvik hvis det finnes en siste FG790 kontroll
+      if (sisteFG790) {
+        console.log('Henter FG790 avvik fra kontroll:', sisteFG790.id, 'Dato:', sisteFG790.dato)
         const { data, error } = await supabase
           .from('kontrollsjekkpunkter_brannalarm')
           .select('*')
-          .eq('anlegg_id', anleggId)
-          .eq('kontrollaar', currentYear - 1)
+          .eq('kontroll_id', sisteFG790.id)
           .not('avvik_type', 'is', null)
 
         if (error) {
           console.error('Feil ved henting av FG790 avvik:', error)
-          setForrigeAvvik([])
-          return
+        } else if (data && data.length > 0) {
+          console.log('Fant', data.length, 'FG790 avvik')
+          const fg790Avvik = data.map(d => ({
+            kategori: d.kategori,
+            tittel: d.tittel,
+            avvik_type: d.avvik_type,
+            feilkode: d.feilkode,
+            kommentar: d.kommentar || '',
+            rapport_type: 'FG790' as const,
+            kontroll_dato: sisteFG790.dato,
+          }))
+          alleAvvik.push(...fg790Avvik)
         }
+      }
 
-        const avvikData = (data || []).map(d => ({
-          kategori: d.kategori,
-          tittel: d.tittel,
-          avvik_type: d.avvik_type,
-          feilkode: d.feilkode,
-          kommentar: d.kommentar || '',
-        }))
-
-        setForrigeAvvik(avvikData)
-      } else {
-        // Hent NS3960 avvik
+      // Hent NS3960 avvik hvis det finnes en siste NS3960 kontroll
+      if (sisteNS3960) {
+        console.log('Henter NS3960 avvik fra kontroll:', sisteNS3960.id, 'Dato:', sisteNS3960.dato)
         const { data, error } = await supabase
           .from('ns3960_kontrollpunkter')
           .select('*')
-          .eq('anlegg_id', anleggId)
+          .eq('kontroll_id', sisteNS3960.id)
           .eq('avvik', true)
 
         if (error) {
           console.error('Feil ved henting av NS3960 avvik:', error)
-          setForrigeAvvik([])
-          return
+        } else if (data && data.length > 0) {
+          console.log('Fant', data.length, 'NS3960 avvik')
+          const ns3960Avvik = data.map(d => ({
+            kategori: 'NS3960',
+            tittel: d.kontrollpunkt_navn,
+            avvik_type: 'Avvik',
+            kommentar: d.kommentar || '',
+            rapport_type: 'NS3960' as const,
+            kontroll_dato: sisteNS3960.dato,
+          }))
+          alleAvvik.push(...ns3960Avvik)
         }
-
-        const avvikData = (data || []).map(d => ({
-          kategori: 'NS3960',
-          tittel: d.kontrollpunkt_navn,
-          avvik_type: 'Avvik',
-          kommentar: d.kommentar || '',
-        }))
-
-        setForrigeAvvik(avvikData)
       }
+
+      // Sett siste kontroll dato (den nyeste av de to)
+      const sisteDato = [sisteFG790?.dato, sisteNS3960?.dato]
+        .filter(Boolean)
+        .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0]
+      
+      setSisteKontrollDato(sisteDato || null)
+      setForrigeAvvik(alleAvvik)
+      console.log('Totalt', alleAvvik.length, 'avvik lastet')
     } catch (error) {
       console.error('Feil ved lasting av avvik:', error)
       setForrigeAvvik([])
+      setSisteKontrollDato(null)
     }
   }
 
-  const utkast = kontroller.find(k => k.kontroll_status === 'utkast')
+  const utkast = kontroller.filter(k => k.kontroll_status === 'utkast')
   const ferdigeKontroller = kontroller.filter(k => k.kontroll_status !== 'utkast')
   const years = [...new Set(ferdigeKontroller.map(k => k.kontrollaar))].sort((a, b) => b - a)
 
-  async function handleDeleteUtkast() {
-    if (!utkast) return
-    
+  async function handleDeleteUtkast(utkastId: string, rapportType: 'FG790' | 'NS3960') {
+    if (isDeleting) {
+      console.log('Sletting pågår allerede, avbryter')
+      return
+    }
+
     const confirm = window.confirm('Er du sikker på at du vil slette dette utkastet? Dette kan ikke angres.')
     if (!confirm) return
 
+    console.log('Sletter utkast:', utkastId, 'Type:', rapportType)
+    setIsDeleting(true)
+
     try {
       // Slett kontrollpunkter først (hvis NS3960)
-      if (utkast.rapport_type === 'NS3960') {
-        await supabase
+      if (rapportType === 'NS3960') {
+        console.log('Sletter NS3960 kontrollpunkter for kontroll_id:', utkastId)
+        const { error: punkterError } = await supabase
           .from('ns3960_kontrollpunkter')
           .delete()
-          .eq('kontroll_id', utkast.id)
+          .eq('kontroll_id', utkastId)
+        
+        if (punkterError) {
+          console.error('Feil ved sletting av kontrollpunkter:', punkterError)
+          throw punkterError
+        }
+        console.log('Kontrollpunkter slettet')
       }
 
       // Slett kontrollen
+      console.log('Sletter kontroll fra anleggsdata_kontroll:', utkastId)
       const { error } = await supabase
         .from('anleggsdata_kontroll')
         .delete()
-        .eq('id', utkast.id)
+        .eq('id', utkastId)
 
-      if (error) throw error
+      if (error) {
+        console.error('Feil ved sletting av kontroll:', error)
+        throw error
+      }
 
+      console.log('Kontroll slettet, refresher listen')
       // Refresh listen
       await loadKontroller()
+      console.log('Listen refreshet')
     } catch (error) {
       console.error('Feil ved sletting av utkast:', error)
       alert('Kunne ikke slette utkast. Prøv igjen.')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -305,40 +353,44 @@ export function KontrollOversiktView({
         {/* Main content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Utkast */}
-          {utkast && (
-            <div className="card border-yellow-500/30 bg-yellow-500/5">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-yellow-400" />
+          {utkast.length > 0 && (
+            <div className="space-y-4">
+              {utkast.map((u) => (
+                <div key={u.id} className="card border-yellow-500/30 bg-yellow-500/5">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                        <Clock className="w-6 h-6 text-yellow-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Pågående utkast</h3>
+                        <p className="text-sm text-gray-400">
+                          {u.rapport_type} • Opprettet {new Date(u.dato).toLocaleDateString('nb-NO')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleDeleteUtkast(u.id, u.rapport_type)}
+                        className="btn-secondary flex items-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Slett
+                      </button>
+                      <button
+                        onClick={() => onOpenKontroll(u.id, u.rapport_type)}
+                        className="btn-primary flex items-center gap-2"
+                      >
+                        <Edit className="w-4 h-4" />
+                        Fortsett
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">Pågående utkast</h3>
-                    <p className="text-sm text-gray-400">
-                      {utkast.rapport_type} • Opprettet {new Date(utkast.dato).toLocaleDateString('nb-NO')}
-                    </p>
-                  </div>
+                  <p className="text-sm text-gray-400">
+                    Du har et utkast som ikke er fullført. Fortsett arbeidet eller start en ny kontroll.
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleDeleteUtkast}
-                    className="btn-secondary flex items-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Slett
-                  </button>
-                  <button
-                    onClick={() => onOpenKontroll(utkast.id, utkast.rapport_type)}
-                    className="btn-primary flex items-center gap-2"
-                  >
-                    <Edit className="w-4 h-4" />
-                    Fortsett
-                  </button>
-                </div>
-              </div>
-              <p className="text-sm text-gray-400">
-                Du har et utkast som ikke er fullført. Fortsett arbeidet eller start en ny kontroll.
-              </p>
+              ))}
             </div>
           )}
 
@@ -421,12 +473,23 @@ export function KontrollOversiktView({
           </div>
         </div>
 
-        {/* Sidebar - Avvik fra forrige år */}
+        {/* Sidebar - Avvik fra siste kontroll */}
         <div className="lg:col-span-1">
           <div className="card sticky top-6">
-            <div className="flex items-center gap-2 mb-4">
-              <AlertTriangle className="w-5 h-5 text-orange-400" />
-              <h3 className="text-lg font-semibold text-white">Avvik fra {new Date().getFullYear() - 1}</h3>
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle className="w-5 h-5 text-orange-400" />
+                <h3 className="text-lg font-semibold text-white">Avvik fra siste kontroll</h3>
+              </div>
+              {sisteKontrollDato && (
+                <p className="text-xs text-gray-500 ml-7">
+                  {new Date(sisteKontrollDato).toLocaleDateString('nb-NO', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </p>
+              )}
             </div>
 
             {forrigeAvvik.length === 0 ? (
@@ -439,22 +502,40 @@ export function KontrollOversiktView({
                 {forrigeAvvik.map((avvik, idx) => (
                   <div
                     key={idx}
-                    className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20"
+                    className={`p-3 rounded-lg border ${
+                      avvik.rapport_type === 'FG790'
+                        ? 'bg-blue-500/5 border-blue-500/20'
+                        : 'bg-purple-500/5 border-purple-500/20'
+                    }`}
                   >
                     <div className="flex items-start gap-2 mb-2">
                       <AlertTriangle className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
                       <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold ${
+                            avvik.rapport_type === 'FG790' 
+                              ? 'bg-blue-500/30 text-blue-300 border border-blue-400/30' 
+                              : 'bg-purple-500/30 text-purple-300 border border-purple-400/30'
+                          }`}>
+                            {avvik.rapport_type === 'FG790' ? (
+                              <ClipboardCheck className="w-3 h-3" />
+                            ) : (
+                              <Shield className="w-3 h-3" />
+                            )}
+                            {avvik.rapport_type}
+                          </span>
+                          <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded text-xs">
+                            {avvik.avvik_type}
+                          </span>
+                        </div>
                         <div className="text-sm font-medium text-white mb-1">
                           {avvik.tittel}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-                          <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded">
-                            {avvik.avvik_type}
-                          </span>
-                          {avvik.kategori && (
-                            <span className="text-gray-500">{avvik.kategori}</span>
-                          )}
-                        </div>
+                        {avvik.kategori && avvik.kategori !== 'NS3960' && (
+                          <div className="text-xs text-gray-500 mb-1">
+                            {avvik.kategori}
+                          </div>
+                        )}
                         {avvik.feilkode && (
                           <div className="text-xs text-gray-500 mb-1">
                             {avvik.feilkode}

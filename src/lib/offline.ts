@@ -1,4 +1,7 @@
 import { supabase } from './supabase'
+import { createLogger } from './logger'
+
+const log = createLogger('Offline')
 
 // Track online/offline status
 let isOnline = navigator.onLine
@@ -7,13 +10,13 @@ const onlineListeners: Array<(online: boolean) => void> = []
 // Listen for online/offline events
 window.addEventListener('online', () => {
   isOnline = true
-  console.log('🟢 Tilkobling gjenopprettet - synkroniserer data...')
+  log.info('🟢 Tilkobling gjenopprettet - synkroniserer data...')
   notifyListeners(true)
 })
 
 window.addEventListener('offline', () => {
   isOnline = false
-  console.log('🔴 Offline-modus aktivert - endringer lagres lokalt')
+  log.info('🔴 Offline-modus aktivert - endringer lagres lokalt')
   notifyListeners(false)
 })
 
@@ -50,7 +53,7 @@ export function cacheData(key: string, data: any) {
   try {
     localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data))
   } catch (error) {
-    console.error('Feil ved lagring til cache:', error)
+    log.error('Feil ved lagring til cache:', error)
   }
 }
 
@@ -60,7 +63,7 @@ export function getCachedData<T>(key: string): T | null {
     const cached = localStorage.getItem(CACHE_PREFIX + key)
     return cached ? JSON.parse(cached) : null
   } catch (error) {
-    console.error('Feil ved henting fra cache:', error)
+    log.error('Feil ved henting fra cache:', error)
     return null
   }
 }
@@ -75,7 +78,7 @@ export function queueChange(change: Omit<PendingChange, 'id' | 'timestamp'>) {
   }
   pendingChanges.push(newChange)
   savePendingChanges(pendingChanges)
-  console.log('📝 Endring lagt i kø for synkronisering:', change.operation, change.table)
+  log.debug('📝 Endring lagt i kø for synkronisering:', change.operation, change.table)
 }
 
 function getPendingChanges(): PendingChange[] {
@@ -83,7 +86,7 @@ function getPendingChanges(): PendingChange[] {
     const changes = localStorage.getItem(PENDING_CHANGES_KEY)
     return changes ? JSON.parse(changes) : []
   } catch (error) {
-    console.error('Feil ved henting av ventende endringer:', error)
+    log.error('Feil ved henting av ventende endringer:', error)
     return []
   }
 }
@@ -92,24 +95,24 @@ function savePendingChanges(changes: PendingChange[]) {
   try {
     localStorage.setItem(PENDING_CHANGES_KEY, JSON.stringify(changes))
   } catch (error) {
-    console.error('Feil ved lagring av ventende endringer:', error)
+    log.error('Feil ved lagring av ventende endringer:', error)
   }
 }
 
 // Sync pending changes when back online
 export async function syncPendingChanges() {
   if (!isOnline) {
-    console.log('⏸️ Kan ikke synkronisere - fortsatt offline')
+    log.debug('⏸️ Kan ikke synkronisere - fortsatt offline')
     return { success: false, synced: 0, failed: 0 }
   }
 
   const pendingChanges = getPendingChanges()
   if (pendingChanges.length === 0) {
-    console.log('✅ Ingen ventende endringer å synkronisere')
+    log.debug('✅ Ingen ventende endringer å synkronisere')
     return { success: true, synced: 0, failed: 0 }
   }
 
-  console.log(`🔄 Synkroniserer ${pendingChanges.length} ventende endringer...`)
+  log.info(`🔄 Synkroniserer ${pendingChanges.length} ventende endringer...`)
   
   const results = {
     success: true,
@@ -143,16 +146,16 @@ export async function syncPendingChanges() {
       }
 
       if (result?.error) {
-        console.error(`❌ Feil ved synkronisering av ${change.operation} på ${change.table}:`, result.error)
+        log.error(`❌ Feil ved synkronisering av ${change.operation} på ${change.table}:`, result.error)
         results.failed++
         results.errors.push(result.error.message)
         remainingChanges.push(change) // Keep for retry
       } else {
-        console.log(`✅ Synkronisert ${change.operation} på ${change.table}`)
+        log.debug(`✅ Synkronisert ${change.operation} på ${change.table}`)
         results.synced++
       }
     } catch (error) {
-      console.error(`❌ Feil ved synkronisering:`, error)
+      log.error(`❌ Feil ved synkronisering:`, error)
       results.failed++
       results.errors.push(error instanceof Error ? error.message : 'Ukjent feil')
       remainingChanges.push(change) // Keep for retry
@@ -164,9 +167,9 @@ export async function syncPendingChanges() {
 
   if (results.failed > 0) {
     results.success = false
-    console.log(`⚠️ Synkronisering fullført med feil: ${results.synced} vellykket, ${results.failed} feilet`)
+    log.warn(`⚠️ Synkronisering fullført med feil: ${results.synced} vellykket, ${results.failed} feilet`)
   } else {
-    console.log(`✅ Alle endringer synkronisert vellykket (${results.synced})`)
+    log.info(`✅ Alle endringer synkronisert vellykket (${results.synced})`)
   }
 
   return results
@@ -191,7 +194,7 @@ export async function offlineAwareOperation<T>(
       if (cacheKey) {
         const cached = getCachedData<T>(cacheKey)
         if (cached) {
-          console.log('📦 Bruker cached data (offline)')
+          log.debug('📦 Bruker cached data (offline)')
           return cached
         }
       }
@@ -207,13 +210,13 @@ export async function offlineAwareOperation<T>(
     
     return result
   } catch (error) {
-    console.error('Feil ved operasjon:', error)
+    log.error('Feil ved operasjon:', error)
     
     // Try to return cached data on error
     if (cacheKey) {
       const cached = getCachedData<T>(cacheKey)
       if (cached) {
-        console.log('📦 Bruker cached data (feil ved henting)')
+        log.debug('📦 Bruker cached data (feil ved henting)')
         return cached
       }
     }

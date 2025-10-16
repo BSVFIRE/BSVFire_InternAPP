@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Download, Eye, FileText } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { BrannalarmPreview } from './BrannalarmPreview'
 
 interface NS3960RapportViewProps {
   kontrollId: string
@@ -66,11 +67,19 @@ interface BrannalarmData {
 
 interface KontrollData {
   dato: string
+  kontrollor_id?: string
   merknader?: string
   har_feil?: boolean
   feil_kommentar?: string
   har_utkoblinger?: boolean
   utkobling_kommentar?: string
+}
+
+interface AnsattData {
+  navn: string
+  epost?: string
+  telefon?: string
+  fg_sertifikat_nr?: string
 }
 
 interface Kontrollpunkt {
@@ -116,6 +125,8 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
   const [styringer, setStyringer] = useState<Styring[]>([])
   const [nettverk, setNettverk] = useState<NettverkEnhet[]>([])
   const [primaerKontakt, setPrimaerKontakt] = useState<Kontaktperson | null>(null)
+  const [kontrollorData, setKontrollorData] = useState<AnsattData | null>(null)
+  const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
 
   useEffect(() => {
     loadData()
@@ -151,11 +162,24 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
       // Hent kontrolldata
       const { data: kontroll } = await supabase
         .from('anleggsdata_kontroll')
-        .select('dato, merknader, har_feil, feil_kommentar, har_utkoblinger, utkobling_kommentar')
+        .select('dato, kontrollor_id, merknader, har_feil, feil_kommentar, har_utkoblinger, utkobling_kommentar')
         .eq('id', kontrollId)
         .single()
 
-      if (kontroll) setKontrollData(kontroll)
+      if (kontroll) {
+        setKontrollData(kontroll)
+        
+        // Hent kontrollør-informasjon hvis kontrollor_id finnes
+        if (kontroll.kontrollor_id) {
+          const { data: ansatt } = await supabase
+            .from('ansatte')
+            .select('navn, epost, telefon, fg_sertifikat_nr')
+            .eq('id', kontroll.kontrollor_id)
+            .maybeSingle()
+          
+          if (ansatt) setKontrollorData(ansatt)
+        }
+      }
 
       // Hent kontrollpunkter
       const { data: punkter } = await supabase
@@ -195,35 +219,18 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
           { key: 'annet', label: 'Annet' },
         ]
 
-        // Sjekk om enheter finnes i egen tabell
-        const { data: enheterData } = await supabase
-          .from('enheter_brannalarm')
-          .select('type, antall, type_modell, kommentar, aktiv')
-          .eq('anlegg_id', anleggId)
-          .eq('aktiv', true)
-
-        if (enheterData && enheterData.length > 0) {
-          // Bruk data fra enheter_brannalarm tabell
-          setEnheter(enheterData.map(e => ({
-            type: e.type,
-            antall: e.antall,
-            typeModell: e.type_modell,
-            kommentar: e.kommentar
-          })))
-        } else {
-          // Fallback: Hent fra brannalarm-kolonner (hvis de finnes)
-          enhetTypes.forEach(({ key, label }) => {
-            if (brannalarm[`${key}_antall`] && brannalarm[`${key}_antall`] > 0) {
-              enheterArray.push({
-                type: label,
-                antall: brannalarm[`${key}_antall`] || 0,
-                typeModell: brannalarm[`${key}_type`] || '',
-                kommentar: brannalarm[`${key}_note`] || '',
-              })
-            }
-          })
-          setEnheter(enheterArray)
-        }
+        // Hent enheter fra brannalarm-kolonner
+        enhetTypes.forEach(({ key, label }) => {
+          if (brannalarm[`${key}_antall`] && brannalarm[`${key}_antall`] > 0) {
+            enheterArray.push({
+              type: label,
+              antall: brannalarm[`${key}_antall`] || 0,
+              typeModell: brannalarm[`${key}_type`] || '',
+              kommentar: brannalarm[`${key}_note`] || '',
+            })
+          }
+        })
+        setEnheter(enheterArray)
       }
 
       // Hent styringer (kun aktive) - må transformere fra kolonner til rader
@@ -336,16 +343,37 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
       
       // Funksjon for å legge til footer på hver side
       const addFooter = (pageNum: number) => {
+        const footerY = pageHeight - 20
+        
+        // Linje over footer
+        doc.setDrawColor(200, 200, 200)
+        doc.setLineWidth(0.5)
+        doc.line(20, footerY - 5, pageWidth - 20, footerY - 5)
+        
+        // Firmanavn (blå og bold)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 102, 204)
+        doc.text('Brannteknisk Service og Vedlikehold AS', 20, footerY)
+        
+        // Org.nr, e-post og telefon
         doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        doc.setTextColor(100)
+        doc.setTextColor(100, 100, 100)
+        doc.text('Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600', 20, footerY + 4)
         
-        // Footer info
-        const footerY = pageHeight - 15
-        doc.text('Brannteknisk Service og Vedlikehold AS', pageWidth / 2, footerY, { align: 'center' })
-        doc.text('Sælenveien 44, 5151 Straumsgrend | 900 46 600 | mail@bsvfire.no', pageWidth / 2, footerY + 4, { align: 'center' })
+        // Adresse
+        doc.text('Adresse: Sælenveien 44, 5151 Straumsgrend', 20, footerY + 8)
         
-        // Sidetall
+        // Generert dato (lys grå)
+        doc.setFontSize(7)
+        doc.setTextColor(150, 150, 150)
+        const genererDato = new Date().toLocaleDateString('nb-NO') + ' ' + new Date().toLocaleTimeString('nb-NO')
+        doc.text(`Generert: ${genererDato}`, 20, footerY + 13)
+        
+        // Sidetall (høyre side)
+        doc.setFontSize(8)
+        doc.setTextColor(100, 100, 100)
         doc.text(`Side ${pageNum}`, pageWidth - 20, footerY, { align: 'right' })
         
         // Reset farge
@@ -409,31 +437,6 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
         yPos += 6
       }
 
-      // Kontaktperson
-      if (primaerKontakt) {
-        doc.setFont('helvetica', 'bold')
-        doc.text('Kontaktperson:', 20, yPos)
-        doc.setFont('helvetica', 'normal')
-        doc.text(primaerKontakt.navn || '-', 20 + labelWidth, yPos)
-        yPos += 6
-
-        if (primaerKontakt.telefon) {
-          doc.setFont('helvetica', 'bold')
-          doc.text('Telefon:', 20, yPos)
-          doc.setFont('helvetica', 'normal')
-          doc.text(primaerKontakt.telefon, 20 + labelWidth, yPos)
-          yPos += 6
-        }
-
-        if (primaerKontakt.epost) {
-          doc.setFont('helvetica', 'bold')
-          doc.text('E-post:', 20, yPos)
-          doc.setFont('helvetica', 'normal')
-          doc.text(primaerKontakt.epost, 20 + labelWidth, yPos)
-          yPos += 6
-        }
-      }
-
       yPos += 2
 
       // Dato
@@ -453,8 +456,53 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
       doc.text('Neste kontroll:', 20, yPos)
       doc.setFont('helvetica', 'normal')
       doc.text(nesteKontrollText.charAt(0).toUpperCase() + nesteKontrollText.slice(1), 20 + labelWidth, yPos)
-      
-      yPos += 10
+      yPos += 8
+
+      // Kontaktperson
+      if (primaerKontakt?.navn) {
+        doc.setFontSize(11)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Kontaktperson:', 20, yPos)
+        doc.setFont('helvetica', 'normal')
+        yPos += 5
+        doc.text(primaerKontakt.navn, 20, yPos)
+        yPos += 4
+        if (primaerKontakt.telefon) {
+          doc.text(`Tlf: ${primaerKontakt.telefon}`, 20, yPos)
+          yPos += 4
+        }
+        if (primaerKontakt.epost) {
+          doc.text(`E-post: ${primaerKontakt.epost}`, 20, yPos)
+          yPos += 4
+        }
+        yPos += 4
+      }
+
+      // Utført av (kontrollør)
+      if (kontrollorData?.navn) {
+        doc.setFontSize(11)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Utført av:', 20, yPos)
+        doc.setFont('helvetica', 'normal')
+        yPos += 5
+        doc.text(kontrollorData.navn, 20, yPos)
+        yPos += 4
+        if (kontrollorData.telefon) {
+          doc.text(`Tlf: ${kontrollorData.telefon}`, 20, yPos)
+          yPos += 4
+        }
+        if (kontrollorData.epost) {
+          doc.text(`E-post: ${kontrollorData.epost}`, 20, yPos)
+          yPos += 4
+        }
+        if (kontrollorData.fg_sertifikat_nr) {
+          doc.text(`FG-sertifikat: ${kontrollorData.fg_sertifikat_nr}`, 20, yPos)
+          yPos += 4
+        }
+        yPos += 4
+      }
+
+      yPos += 6
 
       // Teknisk informasjon
       if (brannalarmData?.leverandor || brannalarmData?.sentraltype) {
@@ -889,15 +937,15 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
         addFooter(totalPages)
       }
 
+      const pdfBlob = doc.output('blob')
+      const year = new Date(kontrollData.dato).getFullYear()
+      const fileName = `Rapport_Brannalarm_${year}_${anleggData.anleggsnavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+
       if (preview) {
         // Forhåndsvisning
-        window.open(doc.output('bloburl'), '_blank')
+        setPreviewPdf({ blob: pdfBlob, fileName })
       } else {
         // Lagre til storage
-        const pdfBlob = doc.output('blob')
-        const year = new Date(kontrollData.dato).getFullYear()
-        const fileName = `Rapport_Brannalarm_${year}_${anleggData.anleggsnavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
-
         const { error: uploadError } = await supabase.storage
           .from('rapporter')
           .upload(`brannalarm/${anleggId}/${fileName}`, pdfBlob, {
@@ -931,6 +979,37 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
     } finally {
       setGenerating(false)
     }
+  }
+
+  // Vis forhåndsvisning hvis PDF er generert
+  if (previewPdf) {
+    return (
+      <BrannalarmPreview
+        pdfBlob={previewPdf.blob}
+        fileName={previewPdf.fileName}
+        rapportType="NS3960"
+        onBack={() => setPreviewPdf(null)}
+        onSave={async () => {
+          const { error: uploadError } = await supabase.storage
+            .from('rapporter')
+            .upload(`brannalarm/${anleggId}/${previewPdf.fileName}`, previewPdf.blob, {
+              contentType: 'application/pdf',
+              upsert: true
+            })
+
+          if (uploadError) throw uploadError
+
+          // Oppdater kontroll status til 'ferdig'
+          await supabase
+            .from('anleggsdata_kontroll')
+            .update({ 
+              kontroll_status: 'ferdig',
+              dato: new Date().toISOString(),
+            })
+            .eq('id', kontrollId)
+        }}
+      />
+    )
   }
 
   if (loading) {
