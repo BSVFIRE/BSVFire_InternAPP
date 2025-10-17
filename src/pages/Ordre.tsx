@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Plus, Search, ClipboardList, Building2, User, Eye, Trash2, Calendar, Edit, CheckCircle, FileText } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { ORDRE_STATUSER, ORDRE_STATUS_COLORS } from '@/lib/constants'
 
 interface Ordre {
@@ -53,6 +53,9 @@ function getInitials(navn: string): string {
 
 export function Ordre() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const state = location.state as { kundeId?: string; anleggId?: string; selectedOrdreId?: string } | null
+  
   const [ordre, setOrdre] = useState<OrdreMedAnleggKunde[]>([])
   const [teknikere, setTeknikere] = useState<Tekniker[]>([])
   const [loading, setLoading] = useState(true)
@@ -63,10 +66,32 @@ export function Ordre() {
   const [sortBy, setSortBy] = useState<SortOption>('dato_nyeste')
   const [filterStatus, setFilterStatus] = useState<string>('alle')
   const [filterTekniker, setFilterTekniker] = useState<string>('alle')
+  const [prefilledData, setPrefilledData] = useState<{ kundeId?: string; anleggId?: string } | null>(null)
 
   useEffect(() => {
     loadOrdre()
   }, [])
+
+  // Håndter forhåndsutfylt data fra navigasjon
+  useEffect(() => {
+    if (state?.kundeId || state?.anleggId) {
+      setPrefilledData({ kundeId: state.kundeId, anleggId: state.anleggId })
+      setViewMode('create')
+      // Nullstill state for å unngå at det trigges på nytt
+      window.history.replaceState({}, document.title)
+    }
+  }, [state])
+
+  // Håndter navigasjon fra Dashboard
+  useEffect(() => {
+    if (state?.selectedOrdreId && ordre.length > 0) {
+      const selectedOrder = ordre.find(o => o.id === state.selectedOrdreId)
+      if (selectedOrder) {
+        setSelectedOrdre(selectedOrder)
+        setViewMode('view')
+      }
+    }
+  }, [state?.selectedOrdreId, ordre])
 
   async function loadOrdre() {
     try {
@@ -272,14 +297,18 @@ export function Ordre() {
     return (
       <OrdreForm
         ordre={selectedOrdre}
+        prefilledKundeId={prefilledData?.kundeId}
+        prefilledAnleggId={prefilledData?.anleggId}
         onSave={async () => {
           await loadOrdre()
           setViewMode('list')
           setSelectedOrdre(null)
+          setPrefilledData(null)
         }}
         onCancel={() => {
           setViewMode('list')
           setSelectedOrdre(null)
+          setPrefilledData(null)
         }}
       />
     )
@@ -675,6 +704,8 @@ export function Ordre() {
 // Ordre Form Component
 interface OrdreFormProps {
   ordre: OrdreMedAnleggKunde | null
+  prefilledKundeId?: string
+  prefilledAnleggId?: string
   onSave: () => void
   onCancel: () => void
 }
@@ -690,11 +721,12 @@ interface Anlegg {
   kontroll_type: string[] | null
 }
 
-function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
+function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCancel }: OrdreFormProps) {
+  const navigate = useNavigate()
   const [formData, setFormData] = useState({
     type: ordre?.type || '',
-    kundenr: ordre?.kundenr || '',
-    anlegg_id: ordre?.anlegg_id || '',
+    kundenr: ordre?.kundenr || prefilledKundeId || '',
+    anlegg_id: ordre?.anlegg_id || prefilledAnleggId || '',
     tekniker_id: ordre?.tekniker_id || '',
     kommentar: ordre?.kommentar || '',
     status: ordre?.status || 'Ventende',
@@ -807,8 +839,8 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
     try {
       const dataToSave = {
         type: formData.type,
-        kundenr: formData.kundenr,
-        anlegg_id: formData.anlegg_id,
+        kundenr: formData.kundenr || null,
+        anlegg_id: formData.anlegg_id || null,
         tekniker_id: formData.tekniker_id || null,
         kommentar: formData.kommentar || null,
         status: formData.status,
@@ -967,6 +999,15 @@ function OrdreForm({ ordre, onSave, onCancel }: OrdreFormProps) {
             {ordre ? 'Oppdater ordreinformasjon' : 'Opprett ny serviceordre'}
           </p>
         </div>
+        {prefilledAnleggId && !ordre && (
+          <button
+            type="button"
+            onClick={() => navigate('/anlegg', { state: { viewAnleggId: prefilledAnleggId } })}
+            className="btn-secondary"
+          >
+            Tilbake til anlegg
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="card space-y-6">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Check, Volume2, Radio, Key, X } from 'lucide-react'
+import { ArrowLeft, Check, Volume2, Radio, Key, X, Wifi, WifiOff } from 'lucide-react'
 
 interface Kontaktperson {
   id: string
@@ -63,11 +63,53 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
   const [kontaktpersoner, setKontaktpersoner] = useState<Kontaktperson[]>([])
   const [showKontaktDialog, setShowKontaktDialog] = useState(false)
   const [selectedKontakter, setSelectedKontakter] = useState<string[]>([])
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [pendingChanges, setPendingChanges] = useState(0)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const localStorageKey = `tilleggsutstyr_offline_${anleggId}`
 
   useEffect(() => {
     loadData()
     loadKontaktpersoner()
   }, [anleggId])
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true)
+      syncOfflineData()
+    }
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    const stored = localStorage.getItem(localStorageKey)
+    if (stored && navigator.onLine) syncOfflineData()
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [anleggId])
+
+  async function syncOfflineData() {
+    const stored = localStorage.getItem(localStorageKey)
+    if (!stored) return
+    try {
+      setSaving(true)
+      const savedData = JSON.parse(stored)
+      if (data.id) {
+        await supabase.from('anleggsdata_brannalarm').update(savedData).eq('id', data.id)
+      } else {
+        await supabase.from('anleggsdata_brannalarm').insert(savedData)
+      }
+      localStorage.removeItem(localStorageKey)
+      setPendingChanges(0)
+      setLastSaved(new Date())
+      await loadData()
+    } catch (error) {
+      console.error('Feil ved synkronisering:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function loadData() {
     try {
@@ -190,25 +232,26 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
         nokkelsafe_kommentar: data.nokkelsafe_kommentar,
       }
 
-      if (data.id) {
-        await supabase
-          .from('anleggsdata_brannalarm')
-          .update(saveData)
-          .eq('id', data.id)
-      } else {
-        // Bruk upsert for å håndtere både insert og update
-        const { data: newData } = await supabase
-          .from('anleggsdata_brannalarm')
-          .upsert(saveData, { onConflict: 'anlegg_id' })
-          .select()
-          .single()
-        
-        if (newData) {
-          setData(prev => ({ ...prev, id: newData.id }))
+      if (isOnline) {
+        if (data.id) {
+          await supabase.from('anleggsdata_brannalarm').update(saveData).eq('id', data.id)
+        } else {
+          const { data: newData } = await supabase
+            .from('anleggsdata_brannalarm')
+            .upsert(saveData, { onConflict: 'anlegg_id' })
+            .select()
+            .single()
+          if (newData) {
+            setData(prev => ({ ...prev, id: newData.id }))
+          }
         }
+        setLastSaved(new Date())
+        alert('Tilleggsutstyr lagret!')
+      } else {
+        localStorage.setItem(localStorageKey, JSON.stringify(saveData))
+        setPendingChanges(1)
+        alert('Offline - data lagret lokalt og vil synkroniseres når du er online igjen')
       }
-
-      alert('Tilleggsutstyr lagret!')
     } catch (error) {
       console.error('Feil ved lagring:', error)
       alert('Feil ved lagring av tilleggsutstyr')
@@ -250,19 +293,48 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
             <p className="text-gray-400 mt-1">{anleggsNavn}</p>
           </div>
         </div>
-        <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
-          {saving ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Lagrer...
-            </>
-          ) : (
-            <>
-              <Check className="w-4 h-4" />
-              Lagre
-            </>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {isOnline ? (
+              <>
+                <Wifi className="w-4 h-4 text-green-400" />
+                <span className="text-sm text-green-400">Online</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-4 h-4 text-yellow-400" />
+                <span className="text-sm text-yellow-400">Offline</span>
+              </>
+            )}
+          </div>
+          {pendingChanges > 0 && (
+            <span className="text-sm text-orange-400">{pendingChanges} endring venter</span>
           )}
-        </button>
+          {saving && (
+            <span className="text-sm text-gray-400 flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+              {isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}
+            </span>
+          )}
+          {!saving && lastSaved && pendingChanges === 0 && (
+            <span className="text-sm text-green-400">
+              Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
+            {saving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Lagrer...
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4" />
+                Lagre
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Talevarsling */}

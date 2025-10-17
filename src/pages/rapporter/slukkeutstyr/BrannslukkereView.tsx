@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, FileDown } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Download, Wifi, WifiOff } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BrannslukkerPreview } from '../BrannslukkerPreview'
@@ -81,6 +81,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [pendingChanges, setPendingChanges] = useState(0)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const localStorageKey = `brannslukkere_offline_${anleggId}`
   const [editingStatusIndex, setEditingStatusIndex] = useState<number | null>(null)
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
@@ -88,6 +89,12 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   useEffect(() => {
     loadSlukkere()
   }, [anleggId])
+
+  // Wrapper for setSlukkere som også setter hasUnsavedChanges
+  const updateSlukkere = (newSlukkere: Brannslukker[] | ((prev: Brannslukker[]) => Brannslukker[])) => {
+    setSlukkere(newSlukkere)
+    setHasUnsavedChanges(true)
+  }
 
   // Online/offline event listeners
   useEffect(() => {
@@ -143,6 +150,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
 
       if (error) throw error
       setSlukkere(data || [])
+      setHasUnsavedChanges(false)
     } catch (error) {
       console.error('Feil ved lasting av brannslukkere:', error)
       alert('Kunne ikke laste brannslukkere')
@@ -177,6 +185,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       setPendingChanges(0)
       setLastSaved(new Date())
       await loadSlukkere()
+      setHasUnsavedChanges(false)
     } catch (error) {
       console.error('Feil ved synkronisering:', error)
     } finally {
@@ -196,13 +205,14 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
 
       if (error) throw error
       await loadSlukkere()
+      setHasUnsavedChanges(false)
     } catch (error) {
       console.error('Feil ved sletting:', error)
       alert('Kunne ikke slette brannslukker')
     }
   }
 
-  async function genererRapport(forhandsvisning: boolean = false) {
+  async function genererRapport(mode: 'preview' | 'save' | 'download' = 'preview') {
     try {
       setLoading(true)
 
@@ -615,22 +625,44 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       const pdfBlob = doc.output('blob')
       const fileName = `Rapport_Brannslukkere_${new Date().getFullYear()}_${anleggNavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
 
-      if (forhandsvisning) {
+      if (mode === 'preview') {
         setPreviewPdf({ blob: pdfBlob, fileName })
       } else {
         // Lagre til Supabase Storage
+        const storagePath = `anlegg/${anleggId}/dokumenter/${fileName}`
         const { error: uploadError } = await supabase.storage
-          .from('rapporter')
-          .upload(`${anleggId}/${fileName}`, pdfBlob, {
+          .from('anlegg.dokumenter')
+          .upload(storagePath, pdfBlob, {
             contentType: 'application/pdf',
             upsert: true
           })
 
         if (uploadError) throw uploadError
 
-        // Last ned PDF
-        doc.save(fileName)
-        alert('Rapport generert og lagret!')
+        // Generate signed URL
+        const { data: urlData } = await supabase.storage
+          .from('anlegg.dokumenter')
+          .createSignedUrl(storagePath, 60 * 60 * 24 * 365)
+
+        // Insert record into dokumenter table
+        await supabase
+          .from('dokumenter')
+          .insert({
+            anlegg_id: anleggId,
+            filnavn: fileName,
+            url: urlData?.signedUrl || null,
+            type: 'Brannslukkere Rapport',
+            opplastet_dato: new Date().toISOString(),
+            storage_path: storagePath
+          })
+
+        // Last ned PDF hvis mode er 'download'
+        if (mode === 'download') {
+          doc.save(fileName)
+          alert('Rapport lagret og lastet ned!')
+        } else {
+          alert('Rapport lagret!')
+        }
       }
     } catch (error) {
       console.error('Feil ved generering av rapport:', error)
@@ -662,7 +694,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       status: []
     }))
 
-    setSlukkere([...slukkere, ...nyeSlukkere])
+    updateSlukkere([...slukkere, ...nyeSlukkere])
     setAntallNye(1)
   }
 
@@ -687,6 +719,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
 
       alert('Alle brannslukkere lagret!')
       await loadSlukkere()
+      setHasUnsavedChanges(false)
     } catch (error) {
       console.error('Feil ved lagring:', error)
       alert('Kunne ikke lagre alle brannslukkere')
@@ -713,7 +746,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       nyeSlukkere[originalIndex].status = [...currentStatus, status]
     }
     
-    setSlukkere(nyeSlukkere)
+    updateSlukkere(nyeSlukkere)
   }
 
   const filteredSlukkere = slukkere.filter(s =>
@@ -752,14 +785,32 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
         fileName={previewPdf.fileName}
         onBack={() => setPreviewPdf(null)}
         onSave={async () => {
+          const storagePath = `anlegg/${anleggId}/dokumenter/${previewPdf.fileName}`
           const { error: uploadError } = await supabase.storage
-            .from('rapporter')
-            .upload(`${anleggId}/${previewPdf.fileName}`, previewPdf.blob, {
+            .from('anlegg.dokumenter')
+            .upload(storagePath, previewPdf.blob, {
               contentType: 'application/pdf',
               upsert: true
             })
 
           if (uploadError) throw uploadError
+
+          // Generate signed URL
+          const { data: urlData } = await supabase.storage
+            .from('anlegg.dokumenter')
+            .createSignedUrl(storagePath, 60 * 60 * 24 * 365)
+
+          // Insert record into dokumenter table
+          await supabase
+            .from('dokumenter')
+            .insert({
+              anlegg_id: anleggId,
+              filnavn: previewPdf.fileName,
+              url: urlData?.signedUrl || null,
+              type: 'Brannslukkere Rapport',
+              opplastet_dato: new Date().toISOString(),
+              storage_path: storagePath
+            })
         }}
       />
     )
@@ -941,7 +992,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                               const originalIndex = slukkere.findIndex(s => s === slukker)
                               if (originalIndex !== -1) {
                                 nyeSlukkere[originalIndex].apparat_nr = e.target.value
-                                setSlukkere(nyeSlukkere)
+                                updateSlukkere(nyeSlukkere)
                               }
                             }}
                             className="input text-white font-medium py-1 px-2 text-sm w-full"
@@ -958,7 +1009,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                             const originalIndex = slukkere.findIndex(s => s === slukker)
                             if (originalIndex !== -1) {
                               nyeSlukkere[originalIndex].plassering = e.target.value
-                              setSlukkere(nyeSlukkere)
+                              updateSlukkere(nyeSlukkere)
                             }
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -973,7 +1024,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                             const originalIndex = slukkere.findIndex(s => s === slukker)
                             if (originalIndex !== -1) {
                               nyeSlukkere[originalIndex].etasje = e.target.value
-                              setSlukkere(nyeSlukkere)
+                              updateSlukkere(nyeSlukkere)
                             }
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -994,7 +1045,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                             const originalIndex = slukkere.findIndex(s => s === slukker)
                             if (originalIndex !== -1) {
                               nyeSlukkere[originalIndex].produsent = e.target.value
-                              setSlukkere(nyeSlukkere)
+                              updateSlukkere(nyeSlukkere)
                             }
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -1009,7 +1060,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                             const originalIndex = slukkere.findIndex(s => s === slukker)
                             if (originalIndex !== -1) {
                               nyeSlukkere[originalIndex].modell = e.target.value
-                              setSlukkere(nyeSlukkere)
+                              updateSlukkere(nyeSlukkere)
                             }
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -1029,7 +1080,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                             const originalIndex = slukkere.findIndex(s => s === slukker)
                             if (originalIndex !== -1) {
                               nyeSlukkere[originalIndex].brannklasse = e.target.value
-                              setSlukkere(nyeSlukkere)
+                              updateSlukkere(nyeSlukkere)
                             }
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -1051,7 +1102,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                             const originalIndex = slukkere.findIndex(s => s === slukker)
                             if (originalIndex !== -1) {
                               nyeSlukkere[originalIndex].produksjonsaar = e.target.value
-                              setSlukkere(nyeSlukkere)
+                              updateSlukkere(nyeSlukkere)
                             }
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -1067,7 +1118,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                             const originalIndex = slukkere.findIndex(s => s === slukker)
                             if (originalIndex !== -1) {
                               nyeSlukkere[originalIndex].service = e.target.value
-                              setSlukkere(nyeSlukkere)
+                              updateSlukkere(nyeSlukkere)
                             }
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -1082,7 +1133,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                             const originalIndex = slukkere.findIndex(s => s === slukker)
                             if (originalIndex !== -1) {
                               nyeSlukkere[originalIndex].siste_kontroll = e.target.value
-                              setSlukkere(nyeSlukkere)
+                              updateSlukkere(nyeSlukkere)
                             }
                           }}
                           className="input py-1 px-2 text-sm w-full"
@@ -1199,13 +1250,20 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Offline indikator */}
-          {!isOnline && (
-            <span className="text-sm text-yellow-400 flex items-center gap-2">
-              <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-              Offline
-            </span>
-          )}
+          {/* Online/Offline status */}
+          <div className="flex items-center gap-2">
+            {isOnline ? (
+              <>
+                <Wifi className="w-4 h-4 text-green-400" />
+                <span className="text-sm text-green-400">Online</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-4 h-4 text-yellow-400" />
+                <span className="text-sm text-yellow-400">Offline</span>
+              </>
+            )}
+          </div>
           
           {/* Pending changes */}
           {pendingChanges > 0 && (
@@ -1228,28 +1286,39 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
           )}
           
           <button
-            onClick={() => genererRapport(true)}
+            onClick={() => genererRapport('preview')}
             disabled={loading || slukkere.length === 0}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Eye className="w-5 h-5" />
             Forhåndsvisning
           </button>
           <button
-            onClick={() => genererRapport(false)}
+            onClick={() => genererRapport('save')}
             disabled={loading || slukkere.length === 0}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <FileDown className="w-5 h-5" />
-            Generer PDF
+            <Save className="w-5 h-5" />
+            Lagre rapport
+          </button>
+          <button
+            onClick={() => genererRapport('download')}
+            disabled={loading || slukkere.length === 0}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-5 h-5" />
+            Lagre og last ned
           </button>
           <button
             onClick={lagreAlle}
             disabled={loading || saving}
-            className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed relative"
           >
             <Save className="w-5 h-5" />
-            Lagre alle
+            Lagre endringer
+            {hasUnsavedChanges && (
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full animate-pulse"></span>
+            )}
           </button>
         </div>
       </div>

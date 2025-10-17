@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Plus, Search, CheckSquare, Building2, User, Eye, Trash2, Calendar, Edit } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
@@ -12,10 +13,13 @@ interface Oppgave {
   tekniker_id: string | null
   ordre_id: string | null
   prosjekt_id: string | null
+  kontaktperson: string | null
   type: string
+  tittel: string | null
   prioritet: string | null
   status: string
   beskrivelse: string | null
+  forfallsdato: string | null
   opprettet_dato: string
   sist_oppdatert: string | null
 }
@@ -56,6 +60,7 @@ function getInitials(navn: string): string {
 }
 
 export function Oppgaver() {
+  const location = useLocation()
   const [oppgaver, setOppgaver] = useState<OppgaveMedDetaljer[]>([])
   const [teknikere, setTeknikere] = useState<Tekniker[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,6 +76,18 @@ export function Oppgaver() {
   useEffect(() => {
     loadOppgaver()
   }, [])
+
+  // Håndter navigasjon fra Dashboard
+  useEffect(() => {
+    const state = location.state as { selectedOppgaveId?: string } | null
+    if (state?.selectedOppgaveId && oppgaver.length > 0) {
+      const oppgave = oppgaver.find(o => o.id === state.selectedOppgaveId)
+      if (oppgave) {
+        setSelectedOppgave(oppgave)
+        setViewMode('edit')
+      }
+    }
+  }, [location.state, oppgaver])
 
   async function loadOppgaver() {
     try {
@@ -523,25 +540,51 @@ interface Anlegg {
   anleggsnavn: string
 }
 
+interface Kontaktperson {
+  id: string
+  navn: string
+  epost: string | null
+  telefon: string | null
+  rolle: string | null
+}
+
 function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
+  // Beregn default forfallsdato (2 uker frem i tid)
+  const getDefaultForfallsdato = () => {
+    const dato = new Date()
+    dato.setDate(dato.getDate() + 14) // 2 uker = 14 dager
+    return dato.toISOString().split('T')[0]
+  }
+
   const [formData, setFormData] = useState({
     type: oppgave?.type || '',
+    tittel: oppgave?.tittel || '',
     kunde_id: oppgave?.kunde_id || '',
     anlegg_id: oppgave?.anlegg_id || '',
     tekniker_id: oppgave?.tekniker_id || '',
+    kontaktperson: oppgave?.kontaktperson || '',
     prioritet: oppgave?.prioritet || '',
     status: oppgave?.status || 'Ikke påbegynt',
     beskrivelse: oppgave?.beskrivelse || '',
+    forfallsdato: oppgave?.forfallsdato ? oppgave.forfallsdato.split('T')[0] : getDefaultForfallsdato(),
   })
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
   const [teknikere, setTeknikere] = useState<Tekniker[]>([])
+  const [kontaktpersoner, setKontaktpersoner] = useState<Kontaktperson[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [kundeSok, setKundeSok] = useState('')
   const [anleggSok, setAnleggSok] = useState('')
   const [erIntern, setErIntern] = useState(oppgave?.type === 'Internt')
   const [kanRedigereKundeAnlegg, setKanRedigereKundeAnlegg] = useState(!oppgave)
+  const [visNyKontaktperson, setVisNyKontaktperson] = useState(false)
+  const [nyKontaktperson, setNyKontaktperson] = useState({
+    navn: '',
+    epost: '',
+    telefon: '',
+    rolle: ''
+  })
 
   const oppgavetyper = ['Faktura', 'Regnskap', 'Internt', 'Bestilling', 'Befaring', 'FG-Registrering', 'Dokumentasjon', 'DAC Underlag', 'Oppfølging']
   const prioriteter = Object.values(PRIORITETER)
@@ -564,6 +607,9 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
       if (formData.kunde_id) {
         await loadAnlegg(formData.kunde_id)
       }
+      if (formData.anlegg_id) {
+        await loadKontaktpersoner(formData.anlegg_id)
+      }
     } catch (error) {
       console.error('Feil ved lasting:', error)
     } finally {
@@ -577,20 +623,103 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
 
   async function loadAnlegg(kundeId: string) {
     try {
-      const { data } = await supabase
+      console.log('🏢 Laster anlegg for kunde:', kundeId)
+      const { data, error } = await supabase
         .from('anlegg')
         .select('id, anleggsnavn')
         .eq('kundenr', kundeId)
         .order('anleggsnavn')
 
-      if (data) {
-        setAnlegg(data)
-        if (data.length === 1) {
-          setFormData(prev => ({ ...prev, anlegg_id: data[0].id }))
-        }
+      if (error) {
+        console.error('❌ Feil ved lasting av anlegg:', error)
+        throw error
+      }
+      
+      console.log('✅ Anlegg lastet:', data?.length || 0, 'anlegg')
+      setAnlegg(data || [])
+      
+      // Hvis det kun er ett anlegg, velg det automatisk
+      if (data && data.length === 1) {
+        console.log('🎯 Auto-velger anlegg:', data[0].anleggsnavn)
+        setFormData(prev => ({ ...prev, anlegg_id: data[0].id }))
+        await loadKontaktpersoner(data[0].id)
       }
     } catch (error) {
-      console.error('Feil ved lasting av anlegg:', error)
+      console.error('💥 Feil ved lasting av anlegg:', error)
+    }
+  }
+
+  async function loadKontaktpersoner(anleggId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .select(`
+          kontaktperson_id,
+          kontaktpersoner (
+            id,
+            navn,
+            epost,
+            telefon,
+            rolle
+          )
+        `)
+        .eq('anlegg_id', anleggId)
+
+      if (error) throw error
+      
+      const kontakter = data?.map((item: any) => item.kontaktpersoner).filter(Boolean) || []
+      setKontaktpersoner(kontakter)
+    } catch (error) {
+      console.error('Feil ved lasting av kontaktpersoner:', error)
+      setKontaktpersoner([])
+    }
+  }
+
+  async function opprettNyKontaktperson() {
+    if (!nyKontaktperson.navn || !formData.anlegg_id) {
+      alert('Navn og anlegg er påkrevd')
+      return
+    }
+
+    try {
+      // Opprett kontaktperson
+      const { data: kontaktData, error: kontaktError } = await supabase
+        .from('kontaktpersoner')
+        .insert([{
+          navn: nyKontaktperson.navn,
+          epost: nyKontaktperson.epost || null,
+          telefon: nyKontaktperson.telefon || null,
+          rolle: nyKontaktperson.rolle || null,
+          opprettet_dato: new Date().toISOString()
+        }])
+        .select()
+        .single()
+
+      if (kontaktError) throw kontaktError
+
+      // Link til anlegg
+      const { error: linkError } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .insert([{
+          anlegg_id: formData.anlegg_id,
+          kontaktperson_id: kontaktData.id,
+          primar: false
+        }])
+
+      if (linkError) throw linkError
+
+      // Oppdater formData med ny kontaktperson
+      setFormData({ ...formData, kontaktperson: kontaktData.id })
+      
+      // Last inn kontaktpersoner på nytt
+      await loadKontaktpersoner(formData.anlegg_id)
+      
+      // Nullstill skjema
+      setNyKontaktperson({ navn: '', epost: '', telefon: '', rolle: '' })
+      setVisNyKontaktperson(false)
+    } catch (error) {
+      console.error('Feil ved opprettelse av kontaktperson:', error)
+      alert('Kunne ikke opprette kontaktperson')
     }
   }
 
@@ -599,15 +728,37 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
     setSaving(true)
 
     try {
-      const dataToSave = {
+      const dataToSave: Record<string, any> = {
         type: formData.type,
-        kunde_id: formData.kunde_id || null,
-        anlegg_id: formData.anlegg_id || null,
-        tekniker_id: formData.tekniker_id || null,
-        prioritet: formData.prioritet || null,
         status: formData.status,
-        beskrivelse: formData.beskrivelse || null,
+        ordre_id: null,
+        prosjekt_id: null,
       }
+
+      // Legg kun til felter som har verdier for å unngå foreign key constraint feil
+      if (formData.tittel) dataToSave.tittel = formData.tittel
+      else dataToSave.tittel = null
+      
+      if (formData.kunde_id) dataToSave.kunde_id = formData.kunde_id
+      else dataToSave.kunde_id = null
+      
+      if (formData.anlegg_id) dataToSave.anlegg_id = formData.anlegg_id
+      else dataToSave.anlegg_id = null
+      
+      if (formData.tekniker_id) dataToSave.tekniker_id = formData.tekniker_id
+      else dataToSave.tekniker_id = null
+      
+      if (formData.kontaktperson) dataToSave.kontaktperson = formData.kontaktperson
+      else dataToSave.kontaktperson = null
+      
+      if (formData.prioritet) dataToSave.prioritet = formData.prioritet
+      else dataToSave.prioritet = null
+      
+      if (formData.beskrivelse) dataToSave.beskrivelse = formData.beskrivelse
+      else dataToSave.beskrivelse = null
+      
+      if (formData.forfallsdato) dataToSave.forfallsdato = new Date(formData.forfallsdato).toISOString()
+      else dataToSave.forfallsdato = null
 
       if (oppgave) {
         const { error } = await supabase
@@ -710,6 +861,21 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
             </select>
           </div>
 
+          {/* Tittel */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+              Tittel <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.tittel}
+              onChange={(e) => setFormData({ ...formData, tittel: e.target.value })}
+              className="input"
+              placeholder="Kort beskrivelse av oppgaven..."
+              required
+            />
+          </div>
+
           {/* Status */}
           <div>
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
@@ -744,6 +910,20 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
             </select>
           </div>
 
+          {/* Forfallsdato */}
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+              Forfallsdato
+            </label>
+            <input
+              type="date"
+              value={formData.forfallsdato}
+              onChange={(e) => setFormData({ ...formData, forfallsdato: e.target.value })}
+              className="input"
+            />
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">2 uker standard</p>
+          </div>
+
           {/* Tekniker */}
           <div>
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
@@ -760,6 +940,90 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
               ))}
             </select>
           </div>
+
+          {/* Kontaktperson */}
+          {formData.anlegg_id && (
+            <div>
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+                Kontaktperson (valgfritt)
+              </label>
+              <div className="space-y-2">
+                <select
+                  value={formData.kontaktperson}
+                  onChange={(e) => setFormData({ ...formData, kontaktperson: e.target.value })}
+                  className="input"
+                >
+                  <option value="">Ingen kontaktperson</option>
+                  {kontaktpersoner.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.navn} {k.rolle ? `(${k.rolle})` : ''}
+                    </option>
+                  ))}
+                </select>
+                
+                {!visNyKontaktperson ? (
+                  <button
+                    type="button"
+                    onClick={() => setVisNyKontaktperson(true)}
+                    className="text-xs text-primary hover:text-primary-400"
+                  >
+                    + Opprett ny kontaktperson
+                  </button>
+                ) : (
+                  <div className="p-3 bg-dark-100 rounded-lg space-y-2">
+                    <p className="text-sm font-medium text-gray-300">Ny kontaktperson</p>
+                    <input
+                      type="text"
+                      placeholder="Navn *"
+                      value={nyKontaktperson.navn}
+                      onChange={(e) => setNyKontaktperson({ ...nyKontaktperson, navn: e.target.value })}
+                      className="input text-sm"
+                    />
+                    <input
+                      type="email"
+                      placeholder="E-post"
+                      value={nyKontaktperson.epost}
+                      onChange={(e) => setNyKontaktperson({ ...nyKontaktperson, epost: e.target.value })}
+                      className="input text-sm"
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Telefon"
+                      value={nyKontaktperson.telefon}
+                      onChange={(e) => setNyKontaktperson({ ...nyKontaktperson, telefon: e.target.value })}
+                      className="input text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Rolle"
+                      value={nyKontaktperson.rolle}
+                      onChange={(e) => setNyKontaktperson({ ...nyKontaktperson, rolle: e.target.value })}
+                      className="input text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={opprettNyKontaktperson}
+                        className="btn-primary text-xs py-1 px-3"
+                      >
+                        Lagre
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVisNyKontaktperson(false)
+                          setNyKontaktperson({ navn: '', epost: '', telefon: '', rolle: '' })
+                        }}
+                        className="btn-secondary text-xs py-1 px-3"
+                      >
+                        Avbryt
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Kunde */}
           {!erIntern && (
@@ -794,10 +1058,14 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
                   />
                   <select
                     value={formData.kunde_id}
-                    onChange={(e) => {
-                      setFormData({ ...formData, kunde_id: e.target.value, anlegg_id: '' })
+                    onChange={async (e) => {
+                      const kundeId = e.target.value
+                      setFormData({ ...formData, kunde_id: kundeId, anlegg_id: '', kontaktperson: '' })
                       setAnlegg([])
-                      if (e.target.value) loadAnlegg(e.target.value)
+                      setKontaktpersoner([])
+                      if (kundeId) {
+                        await loadAnlegg(kundeId)
+                      }
                     }}
                     className="input"
                     size={Math.min(kunder.filter(k => 
@@ -845,7 +1113,10 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
                   />
                   <select
                     value={formData.anlegg_id}
-                    onChange={(e) => setFormData({ ...formData, anlegg_id: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, anlegg_id: e.target.value, kontaktperson: '' })
+                      if (e.target.value) loadKontaktpersoner(e.target.value)
+                    }}
                     className="input"
                     size={Math.min(anlegg.filter(a => 
                       a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase())

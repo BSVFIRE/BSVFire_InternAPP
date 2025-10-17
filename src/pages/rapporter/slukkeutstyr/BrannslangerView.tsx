@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, FileDown } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Download, Wifi, WifiOff } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BrannslangerPreview } from '../BrannslangerPreview'
@@ -80,6 +80,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [pendingChanges, setPendingChanges] = useState(0)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const localStorageKey = `brannslanger_offline_${anleggId}`
   const [editingStatusIndex, setEditingStatusIndex] = useState<number | null>(null)
@@ -88,6 +89,12 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   useEffect(() => {
     loadSlanger()
   }, [anleggId])
+
+  // Wrapper for setSlanger som også setter hasUnsavedChanges
+  const updateSlanger = (newSlanger: Brannslange[] | ((prev: Brannslange[]) => Brannslange[])) => {
+    setSlanger(newSlanger)
+    setHasUnsavedChanges(true)
+  }
 
   // Online/offline event listeners
   useEffect(() => {
@@ -158,6 +165,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       }
       
       setSlanger(processedData)
+      setHasUnsavedChanges(false)
     } catch (error) {
       console.error('Feil ved lasting av brannslanger:', error)
       alert('Kunne ikke laste brannslanger')
@@ -191,7 +199,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       type_avvik: []
     }))
 
-    setSlanger([...slanger, ...nyeSlanger])
+    updateSlanger([...slanger, ...nyeSlanger])
     setAntallNye(1)
   }
 
@@ -229,6 +237,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       setPendingChanges(0)
       setLastSaved(new Date())
       await loadSlanger()
+      setHasUnsavedChanges(false)
     } catch (error) {
       console.error('Feil ved synkronisering:', error)
     } finally {
@@ -292,6 +301,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       alert('Alle brannslanger lagret!')
       // Last inn på nytt fra databasen for å få riktig state
       await loadSlanger()
+      setHasUnsavedChanges(false)
     } catch (error) {
       console.error('Feil ved lagring:', error)
       alert('Kunne ikke lagre alle brannslanger')
@@ -311,13 +321,14 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
 
       if (error) throw error
       await loadSlanger()
+      setHasUnsavedChanges(false)
     } catch (error) {
       console.error('Feil ved sletting:', error)
       alert('Kunne ikke slette brannslange')
     }
   }
 
-  async function genererRapport(forhandsvisning: boolean = false) {
+  async function genererRapport(mode: 'preview' | 'save' | 'download' = 'preview') {
     try {
       setLoading(true)
 
@@ -790,22 +801,44 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       const pdfBlob = doc.output('blob')
       const fileName = `Rapport_Brannslanger_${new Date().getFullYear()}_${anleggNavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
 
-      if (forhandsvisning) {
+      if (mode === 'preview') {
         setPreviewPdf({ blob: pdfBlob, fileName })
       } else {
         // Lagre til Supabase Storage
+        const storagePath = `anlegg/${anleggId}/dokumenter/${fileName}`
         const { error: uploadError } = await supabase.storage
-          .from('rapporter')
-          .upload(`${anleggId}/${fileName}`, pdfBlob, {
+          .from('anlegg.dokumenter')
+          .upload(storagePath, pdfBlob, {
             contentType: 'application/pdf',
             upsert: true
           })
 
         if (uploadError) throw uploadError
 
-        // Last ned PDF
-        doc.save(fileName)
-        alert('Rapport generert og lagret!')
+        // Generate signed URL
+        const { data: urlData } = await supabase.storage
+          .from('anlegg.dokumenter')
+          .createSignedUrl(storagePath, 60 * 60 * 24 * 365)
+
+        // Insert record into dokumenter table
+        await supabase
+          .from('dokumenter')
+          .insert({
+            anlegg_id: anleggId,
+            filnavn: fileName,
+            url: urlData?.signedUrl || null,
+            type: 'Brannslanger Rapport',
+            opplastet_dato: new Date().toISOString(),
+            storage_path: storagePath
+          })
+
+        // Last ned PDF hvis mode er 'download'
+        if (mode === 'download') {
+          doc.save(fileName)
+          alert('Rapport lagret og lastet ned!')
+        } else {
+          alert('Rapport lagret!')
+        }
       }
     } catch (error) {
       console.error('Feil ved generering av rapport:', error)
@@ -835,7 +868,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       nyeSlanger[originalIndex].type_avvik = [...currentAvvik, avvik]
     }
     
-    setSlanger(nyeSlanger)
+    updateSlanger(nyeSlanger)
   }
 
   const filteredSlanger = slanger.filter(s =>
@@ -890,14 +923,32 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         fileName={previewPdf.fileName}
         onBack={() => setPreviewPdf(null)}
         onSave={async () => {
+          const storagePath = `anlegg/${anleggId}/dokumenter/${previewPdf.fileName}`
           const { error: uploadError } = await supabase.storage
-            .from('rapporter')
-            .upload(`${anleggId}/${previewPdf.fileName}`, previewPdf.blob, {
+            .from('anlegg.dokumenter')
+            .upload(storagePath, previewPdf.blob, {
               contentType: 'application/pdf',
               upsert: true
             })
 
           if (uploadError) throw uploadError
+
+          // Generate signed URL
+          const { data: urlData } = await supabase.storage
+            .from('anlegg.dokumenter')
+            .createSignedUrl(storagePath, 60 * 60 * 24 * 365)
+
+          // Insert record into dokumenter table
+          await supabase
+            .from('dokumenter')
+            .insert({
+              anlegg_id: anleggId,
+              filnavn: previewPdf.fileName,
+              url: urlData?.signedUrl || null,
+              type: 'Brannslanger Rapport',
+              opplastet_dato: new Date().toISOString(),
+              storage_path: storagePath
+            })
         }}
       />
     )
@@ -993,7 +1044,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                             onChange={(e) => {
                               const nyeSlanger = [...slanger]
                               nyeSlanger[originalIndex].slangenummer = e.target.value
-                              setSlanger(nyeSlanger)
+                              updateSlanger(nyeSlanger)
                             }}
                             className="input py-1 px-2 text-sm w-full"
                             placeholder="001"
@@ -1007,7 +1058,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
                             nyeSlanger[originalIndex].plassering = e.target.value
-                            setSlanger(nyeSlanger)
+                            updateSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
                           placeholder="Gang"
@@ -1019,7 +1070,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
                             nyeSlanger[originalIndex].etasje = e.target.value
-                            setSlanger(nyeSlanger)
+                            updateSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
                         >
@@ -1037,7 +1088,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
                             nyeSlanger[originalIndex].produsent = e.target.value
-                            setSlanger(nyeSlanger)
+                            updateSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
                           placeholder="NOHA"
@@ -1049,7 +1100,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
                             nyeSlanger[originalIndex].modell = e.target.value
-                            setSlanger(nyeSlanger)
+                            updateSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
                         >
@@ -1066,7 +1117,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
                             nyeSlanger[originalIndex].brannklasse = e.target.value
-                            setSlanger(nyeSlanger)
+                            updateSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
                         >
@@ -1084,7 +1135,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
                             nyeSlanger[originalIndex].produksjonsaar = e.target.value
-                            setSlanger(nyeSlanger)
+                            updateSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
                           placeholder="2024"
@@ -1097,7 +1148,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
                             nyeSlanger[originalIndex].sistekontroll = e.target.value
-                            setSlanger(nyeSlanger)
+                            updateSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
                           placeholder="2025"
@@ -1110,7 +1161,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                           onChange={(e) => {
                             const nyeSlanger = [...slanger]
                             nyeSlanger[originalIndex].trykktest = e.target.value
-                            setSlanger(nyeSlanger)
+                            updateSlanger(nyeSlanger)
                           }}
                           className="input py-1 px-2 text-sm w-full"
                           placeholder="2025"
@@ -1230,13 +1281,20 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Status indikatorer */}
-          {!isOnline && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-              <span className="text-sm text-yellow-500">Offline-modus</span>
-            </div>
-          )}
+          {/* Online/Offline status */}
+          <div className="flex items-center gap-2">
+            {isOnline ? (
+              <>
+                <Wifi className="w-4 h-4 text-green-400" />
+                <span className="text-sm text-green-400">Online</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-4 h-4 text-yellow-400" />
+                <span className="text-sm text-yellow-400">Offline</span>
+              </>
+            )}
+          </div>
           {pendingChanges > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 bg-orange-500/10 border border-orange-500/20 rounded-lg">
               <span className="text-sm text-orange-500">{pendingChanges} endringer venter</span>
@@ -1256,28 +1314,39 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
             </div>
           )}
           <button
-            onClick={() => genererRapport(true)}
+            onClick={() => genererRapport('preview')}
             disabled={loading || slanger.length === 0}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Eye className="w-5 h-5" />
             Forhåndsvisning
           </button>
           <button
-            onClick={() => genererRapport(false)}
+            onClick={() => genererRapport('save')}
             disabled={loading || slanger.length === 0}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <FileDown className="w-5 h-5" />
-            Generer PDF
+            <Save className="w-5 h-5" />
+            Lagre rapport
+          </button>
+          <button
+            onClick={() => genererRapport('download')}
+            disabled={loading || slanger.length === 0}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-5 h-5" />
+            Lagre og last ned
           </button>
           <button
             onClick={lagreAlle}
             disabled={loading}
-            className="btn-primary flex items-center gap-2"
+            className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed relative"
           >
             <Save className="w-5 h-5" />
-            Lagre alle
+            Lagre endringer
+            {hasUnsavedChanges && (
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full animate-pulse"></span>
+            )}
           </button>
         </div>
       </div>

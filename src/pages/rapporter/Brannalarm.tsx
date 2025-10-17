@@ -320,37 +320,59 @@ export function Brannalarm({ onBack }: BrannalarmProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card">
           <label className="block text-sm font-medium text-gray-300 mb-2">Velg kunde</label>
-          <input
-            type="text"
-            placeholder="Søk kunde..."
-            value={kundeSok}
-            onChange={(e) => setKundeSok(e.target.value)}
-            className="input mb-2"
-          />
-          <select value={selectedKunde} onChange={(e) => setSelectedKunde(e.target.value)} className="input">
-            <option value="">-- Velg kunde --</option>
-            {filteredKunder.map((kunde) => (
-              <option key={kunde.id} value={kunde.id}>{kunde.navn}</option>
-            ))}
-          </select>
+          <div className="space-y-2">
+            <input
+              type="text"
+              placeholder="Søk kunde..."
+              value={kundeSok}
+              onChange={(e) => setKundeSok(e.target.value)}
+              className="input"
+            />
+            <select 
+              value={selectedKunde} 
+              onChange={(e) => {
+                setSelectedKunde(e.target.value)
+                setSelectedAnlegg('')
+              }} 
+              className="input"
+              size={Math.min(filteredKunder.length + 1, 8)}
+            >
+              <option value="">Velg kunde</option>
+              {filteredKunder.map((kunde) => (
+                <option key={kunde.id} value={kunde.id}>{kunde.navn}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="card">
           <label className="block text-sm font-medium text-gray-300 mb-2">Velg anlegg</label>
-          <input
-            type="text"
-            placeholder="Søk anlegg..."
-            value={anleggSok}
-            onChange={(e) => setAnleggSok(e.target.value)}
-            className="input mb-2"
-            disabled={!selectedKunde}
-          />
-          <select value={selectedAnlegg} onChange={(e) => setSelectedAnlegg(e.target.value)} className="input" disabled={!selectedKunde}>
-            <option value="">-- Velg anlegg --</option>
-            {filteredAnlegg.map((anlegg) => (
-              <option key={anlegg.id} value={anlegg.id}>{anlegg.anleggsnavn}</option>
-            ))}
-          </select>
+          {!selectedKunde ? (
+            <div className="input bg-dark-100 text-gray-500 cursor-not-allowed">
+              Velg kunde først
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="Søk anlegg..."
+                value={anleggSok}
+                onChange={(e) => setAnleggSok(e.target.value)}
+                className="input"
+              />
+              <select 
+                value={selectedAnlegg} 
+                onChange={(e) => setSelectedAnlegg(e.target.value)} 
+                className="input"
+                size={Math.min(filteredAnlegg.length + 1, 8)}
+              >
+                <option value="">Velg anlegg</option>
+                {filteredAnlegg.map((anlegg) => (
+                  <option key={anlegg.id} value={anlegg.id}>{anlegg.anleggsnavn}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 

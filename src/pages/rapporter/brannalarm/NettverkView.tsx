@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Search, Edit, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Plus, Search, Edit, Trash2, X, Wifi, WifiOff } from 'lucide-react'
 import { NettverkEnhet } from '../Brannalarm'
 
 interface NettverkViewProps {
@@ -25,6 +25,47 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
     batterialder: 0,
   })
   const [saving, setSaving] = useState(false)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [pendingChanges, setPendingChanges] = useState(0)
+  const localStorageKey = `nettverk_offline_${anleggId}`
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true)
+      syncOfflineData()
+    }
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    const stored = localStorage.getItem(localStorageKey)
+    if (stored && navigator.onLine) syncOfflineData()
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [anleggId])
+
+  async function syncOfflineData() {
+    const stored = localStorage.getItem(localStorageKey)
+    if (!stored) return
+    try {
+      const operations = JSON.parse(stored)
+      for (const op of operations) {
+        if (op.type === 'insert') {
+          await supabase.from('nettverk_brannalarm').insert(op.data)
+        } else if (op.type === 'update') {
+          await supabase.from('nettverk_brannalarm').update(op.data).eq('id', op.id)
+        } else if (op.type === 'delete') {
+          await supabase.from('nettverk_brannalarm').delete().eq('id', op.id)
+        }
+      }
+      localStorage.removeItem(localStorageKey)
+      setPendingChanges(0)
+      onRefresh()
+    } catch (error) {
+      console.error('Feil ved synkronisering:', error)
+    }
+  }
 
   const filteredNettverk = (nettverkListe || []).filter(n =>
     String(n.nettverk_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -68,15 +109,26 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
         ...formData
       }
 
-      if (editingSystem) {
-        await supabase
-          .from('nettverk_brannalarm')
-          .update(data)
-          .eq('id', editingSystem.id)
+      if (isOnline) {
+        if (editingSystem) {
+          await supabase.from('nettverk_brannalarm').update(data).eq('id', editingSystem.id)
+        } else {
+          await supabase.from('nettverk_brannalarm').insert(data)
+        }
+        onRefresh()
+        setShowDialog(false)
       } else {
-        await supabase
-          .from('nettverk_brannalarm')
-          .insert(data)
+        const stored = localStorage.getItem(localStorageKey)
+        const operations = stored ? JSON.parse(stored) : []
+        if (editingSystem) {
+          operations.push({ type: 'update', id: editingSystem.id, data })
+        } else {
+          operations.push({ type: 'insert', data })
+        }
+        localStorage.setItem(localStorageKey, JSON.stringify(operations))
+        setPendingChanges(operations.length)
+        alert('Offline - data lagret lokalt')
+        setShowDialog(false)
       }
 
       setShowDialog(false)
@@ -117,10 +169,28 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
             <p className="text-gray-400 mt-1">{anleggsNavn}</p>
           </div>
         </div>
-        <button onClick={() => openDialog()} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          Nytt system
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {isOnline ? (
+              <>
+                <Wifi className="w-4 h-4 text-green-400" />
+                <span className="text-sm text-green-400">Online</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-4 h-4 text-yellow-400" />
+                <span className="text-sm text-yellow-400">Offline</span>
+              </>
+            )}
+          </div>
+          {pendingChanges > 0 && (
+            <span className="text-sm text-orange-400">{pendingChanges} endringer venter</span>
+          )}
+          <button onClick={() => openDialog()} className="btn-primary flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            Nytt system
+          </button>
+        </div>
       </div>
 
       <div className="card">

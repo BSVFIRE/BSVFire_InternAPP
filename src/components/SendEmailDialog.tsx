@@ -18,7 +18,7 @@ interface Dokument {
   filnavn: string
   storage_path: string
   type: string | null
-  opprettet_dato: string
+  opplastet_dato: string
 }
 
 interface SendEmailDialogProps {
@@ -66,7 +66,7 @@ export function SendEmailDialog({ anleggId, anleggsnavn, rapportType, onClose, o
         .from('dokumenter')
         .select('*')
         .eq('anlegg_id', anleggId)
-        .order('opprettet_dato', { ascending: false })
+        .order('opplastet_dato', { ascending: false })
 
       if (docsError) throw docsError
 
@@ -279,7 +279,7 @@ export function SendEmailDialog({ anleggId, anleggsnavn, rapportType, onClose, o
                         <FileText className="w-4 h-4 text-gray-400" />
                         <div className="flex-1">
                           <p className="text-white text-sm">{dok.filnavn}</p>
-                          <p className="text-gray-500 text-xs">{new Date(dok.opprettet_dato).toLocaleDateString('nb-NO')}</p>
+                          <p className="text-gray-500 text-xs">{new Date(dok.opplastet_dato).toLocaleDateString('nb-NO')}</p>
                         </div>
                       </label>
                     ))}

@@ -10,7 +10,7 @@ interface Dokument {
   filnavn: string
   storage_path: string
   type: string | null
-  opprettet_dato: string
+  opplastet_dato: string
 }
 
 interface EpostLogg {
@@ -103,7 +103,7 @@ export function Nedlastinger() {
               filnavn: file.name,
               storage_path: `anlegg/${anlegg.id}/dokumenter/${file.name}`,
               type: file.name.toLowerCase().includes('service') ? 'servicerapport' : 'rapport',
-              opprettet_dato: file.created_at || new Date().toISOString()
+              opplastet_dato: file.created_at || new Date().toISOString()
             })
           }
         }
@@ -111,7 +111,7 @@ export function Nedlastinger() {
 
       // Sorter etter dato (nyeste først)
       alleDokumenter.sort((a, b) => 
-        new Date(b.opprettet_dato).getTime() - new Date(a.opprettet_dato).getTime()
+        new Date(b.opplastet_dato).getTime() - new Date(a.opplastet_dato).getTime()
       )
 
       // Sjekk om det finnes flere dokumenter enn limit
@@ -208,10 +208,10 @@ export function Nedlastinger() {
 
     // Dato filter
     if (datoFra) {
-      filtered = filtered.filter(dok => new Date(dok.opprettet_dato) >= new Date(datoFra))
+      filtered = filtered.filter(dok => new Date(dok.opplastet_dato) >= new Date(datoFra))
     }
     if (datoTil) {
-      filtered = filtered.filter(dok => new Date(dok.opprettet_dato) <= new Date(datoTil))
+      filtered = filtered.filter(dok => new Date(dok.opplastet_dato) <= new Date(datoTil))
     }
 
     // Sorter favoritter først
@@ -219,7 +219,7 @@ export function Nedlastinger() {
       const aFav = favoritter.has(a.id) ? 1 : 0
       const bFav = favoritter.has(b.id) ? 1 : 0
       if (aFav !== bFav) return bFav - aFav
-      return new Date(b.opprettet_dato).getTime() - new Date(a.opprettet_dato).getTime()
+      return new Date(b.opplastet_dato).getTime() - new Date(a.opplastet_dato).getTime()
     })
 
     // Hvis det er aktive filtre, vis alle resultater. Ellers bruk limit
@@ -484,7 +484,7 @@ export function Nedlastinger() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {new Date(dok.opprettet_dato).toLocaleDateString('nb-NO')}
+                          {new Date(dok.opplastet_dato).toLocaleDateString('nb-NO')}
                         </span>
                         {dok.type && (
                           <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-xs">

@@ -15,7 +15,7 @@ export function Dokumentasjon() {
       {/* Placeholder content */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <button
-          onClick={() => navigate('/rapporter')}
+          onClick={() => navigate('/rapport-oversikt')}
           className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
         >
           <div className="flex items-center gap-4 mb-4">
@@ -24,10 +24,10 @@ export function Dokumentasjon() {
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Rapporter</h3>
-              <p className="text-sm text-gray-400 dark:text-gray-400">Genererte rapporter</p>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Oversikt over dokumenter</p>
             </div>
           </div>
-          <p className="text-gray-400 dark:text-gray-500 text-sm">Kommer snart...</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm">Se, last ned og slett dokumenter for et anlegg</p>
         </button>
 
         <button
@@ -46,7 +46,10 @@ export function Dokumentasjon() {
           <p className="text-gray-400 dark:text-gray-500 text-sm">Velg dokumenter og mottakere</p>
         </button>
 
-        <div className="card hover:border-primary/50 transition-colors cursor-pointer">
+        <button
+          onClick={() => navigate('/last-opp')}
+          className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
+        >
           <div className="flex items-center gap-4 mb-4">
             <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center">
               <Upload className="w-6 h-6 text-green-500" />
@@ -56,8 +59,8 @@ export function Dokumentasjon() {
               <p className="text-sm text-gray-400 dark:text-gray-400">Last opp dokumenter</p>
             </div>
           </div>
-          <p className="text-gray-400 dark:text-gray-500 text-sm">Kommer snart...</p>
-        </div>
+          <p className="text-gray-400 dark:text-gray-500 text-sm">Velg kunde og anlegg for å laste opp PDF-filer</p>
+        </button>
 
         <button
           onClick={() => navigate('/nedlastinger')}

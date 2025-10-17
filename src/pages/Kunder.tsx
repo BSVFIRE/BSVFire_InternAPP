@@ -1,23 +1,21 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, Search, Building, Mail, Phone, MapPin, Edit, Trash2, Eye, ExternalLink, Loader2 } from 'lucide-react'
+import { Plus, Search, Building, Mail, Phone, Edit, Trash2, Eye, ExternalLink, Loader2, DollarSign } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { searchCompaniesByName, getCompanyByOrgNumber, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
 
 interface Kunde {
   id: string
   navn: string
+  type: string | null
   organisasjonsnummer: string | null
-  adresse: string | null
-  postnummer: string | null
-  poststed: string | null
-  telefon: string | null
-  epost: string | null
-  opprettet_dato: string
+  kontaktperson_id: string | null
+  opprettet: string
   sist_oppdatert: string | null
+  kunde_nummer: string | null
 }
 
-type SortOption = 'navn_asc' | 'navn_desc' | 'opprettet_nyeste' | 'opprettet_eldste' | 'poststed'
+type SortOption = 'navn_asc' | 'navn_desc' | 'opprettet_nyeste' | 'opprettet_eldste'
 
 export function Kunder() {
   const [kunder, setKunder] = useState<Kunde[]>([])
@@ -73,8 +71,7 @@ export function Kunder() {
 
   const filteredKunder = kunder.filter(kunde =>
     kunde.navn.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    kunde.organisasjonsnummer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    kunde.poststed?.toLowerCase().includes(searchTerm.toLowerCase())
+    kunde.organisasjonsnummer?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   // Sortering
@@ -85,11 +82,9 @@ export function Kunder() {
       case 'navn_desc':
         return b.navn.localeCompare(a.navn, 'nb-NO')
       case 'opprettet_nyeste':
-        return new Date(b.opprettet_dato).getTime() - new Date(a.opprettet_dato).getTime()
+        return new Date(b.opprettet).getTime() - new Date(a.opprettet).getTime()
       case 'opprettet_eldste':
-        return new Date(a.opprettet_dato).getTime() - new Date(b.opprettet_dato).getTime()
-      case 'poststed':
-        return (a.poststed || '').localeCompare(b.poststed || '', 'nb-NO')
+        return new Date(a.opprettet).getTime() - new Date(b.opprettet).getTime()
       default:
         return 0
     }
@@ -188,7 +183,7 @@ export function Kunder() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
             <input
               type="text"
-              placeholder="Søk etter kunde, org.nr eller poststed..."
+              placeholder="Søk etter kunde eller org.nr..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input pl-10"
@@ -204,7 +199,6 @@ export function Kunder() {
               <option value="navn_desc">Navn (Å-A)</option>
               <option value="opprettet_nyeste">Nyeste først</option>
               <option value="opprettet_eldste">Eldste først</option>
-              <option value="poststed">Poststed</option>
             </select>
           </div>
         </div>
@@ -226,12 +220,12 @@ export function Kunder() {
         <div className="card">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-green-500/10 rounded-lg">
-              <Mail className="w-6 h-6 text-green-500" />
+              <Building className="w-6 h-6 text-green-500" />
             </div>
             <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Med e-post</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Med kontaktperson</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {kunder.filter(k => k.epost).length}
+                {kunder.filter(k => k.kontaktperson_id).length}
               </p>
             </div>
           </div>
@@ -239,12 +233,12 @@ export function Kunder() {
         <div className="card">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-blue-500/10 rounded-lg">
-              <Phone className="w-6 h-6 text-blue-500" />
+              <Building className="w-6 h-6 text-blue-500" />
             </div>
             <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Med telefon</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Med org.nr</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {kunder.filter(k => k.telefon).length}
+                {kunder.filter(k => k.organisasjonsnummer).length}
               </p>
             </div>
           </div>
@@ -276,8 +270,7 @@ export function Kunder() {
                 <tr className="border-b border-gray-200 dark:border-gray-800">
                   <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Navn</th>
                   <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Org.nr</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Sted</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Kontakt</th>
+                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Kontaktperson</th>
                   <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Opprettet</th>
                   <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Handlinger</th>
                 </tr>
@@ -295,8 +288,8 @@ export function Kunder() {
                         </div>
                         <div>
                           <p className="text-gray-900 dark:text-white font-medium">{kunde.navn}</p>
-                          {kunde.adresse && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">{kunde.adresse}</p>
+                          {kunde.organisasjonsnummer && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Org.nr: {kunde.organisasjonsnummer}</p>
                           )}
                         </div>
                       </div>
@@ -304,37 +297,11 @@ export function Kunder() {
                     <td className="py-3 px-4 text-gray-500 dark:text-gray-300">
                       {kunde.organisasjonsnummer || '-'}
                     </td>
-                    <td className="py-3 px-4">
-                      {kunde.poststed ? (
-                        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
-                          <MapPin className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-                          {kunde.postnummer} {kunde.poststed}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">-</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="space-y-1">
-                        {kunde.telefon && (
-                          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
-                            <Phone className="w-3 h-3 text-gray-400 dark:text-gray-500" />
-                            {kunde.telefon}
-                          </div>
-                        )}
-                        {kunde.epost && (
-                          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
-                            <Mail className="w-3 h-3 text-gray-400 dark:text-gray-500" />
-                            {kunde.epost}
-                          </div>
-                        )}
-                        {!kunde.telefon && !kunde.epost && (
-                          <span className="text-gray-400 dark:text-gray-500">-</span>
-                        )}
-                      </div>
+                    <td className="py-3 px-4 text-gray-500 dark:text-gray-300">
+                      {kunde.kontaktperson_id ? 'Ja' : '-'}
                     </td>
                     <td className="py-3 px-4 text-gray-500 dark:text-gray-300 text-sm">
-                      {formatDate(kunde.opprettet_dato)}
+                      {formatDate(kunde.opprettet)}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-end gap-2">
@@ -389,12 +356,13 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
   const [formData, setFormData] = useState({
     navn: kunde?.navn || '',
     organisasjonsnummer: kunde?.organisasjonsnummer || '',
-    adresse: kunde?.adresse || '',
-    postnummer: kunde?.postnummer || '',
-    poststed: kunde?.poststed || '',
-    telefon: kunde?.telefon || '',
-    epost: kunde?.epost || '',
+    kontaktperson_id: kunde?.kontaktperson_id || '',
   })
+  const [kontaktpersoner, setKontaktpersoner] = useState<any[]>([])
+  const [kontaktpersonSearch, setKontaktpersonSearch] = useState('')
+  const [showKontaktpersonForm, setShowKontaktpersonForm] = useState(false)
+  const [newKontaktperson, setNewKontaktperson] = useState({ navn: '', epost: '', telefon: '' })
+  const [savingKontaktperson, setSavingKontaktperson] = useState(false)
   const [saving, setSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<BrregEnhet[]>([])
@@ -404,6 +372,63 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
   const [lookingUp, setLookingUp] = useState(false)
   const searchTimeoutRef = useRef<NodeJS.Timeout>()
   const resultsRef = useRef<HTMLDivElement>(null)
+
+  // Last kontaktpersoner
+  useEffect(() => {
+    loadKontaktpersoner()
+  }, [])
+
+  async function loadKontaktpersoner() {
+    try {
+      const { data, error } = await supabase
+        .from('kontaktpersoner')
+        .select('id, navn, epost, telefon')
+        .order('navn', { ascending: true })
+
+      if (error) throw error
+      setKontaktpersoner(data || [])
+    } catch (error) {
+      console.error('Feil ved lasting av kontaktpersoner:', error)
+    }
+  }
+
+  async function handleCreateKontaktperson() {
+    if (!newKontaktperson.navn.trim()) {
+      alert('Navn er påkrevd')
+      return
+    }
+
+    setSavingKontaktperson(true)
+    try {
+      const { data, error } = await supabase
+        .from('kontaktpersoner')
+        .insert([{
+          navn: newKontaktperson.navn,
+          epost: newKontaktperson.epost || null,
+          telefon: newKontaktperson.telefon || null
+        }])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Oppdater listen og velg den nye kontaktpersonen
+      await loadKontaktpersoner()
+      setFormData({ ...formData, kontaktperson_id: data.id })
+      setShowKontaktpersonForm(false)
+      setNewKontaktperson({ navn: '', epost: '', telefon: '' })
+    } catch (error) {
+      console.error('Feil ved opprettelse av kontaktperson:', error)
+      alert('Kunne ikke opprette kontaktperson')
+    } finally {
+      setSavingKontaktperson(false)
+    }
+  }
+
+  const filteredKontaktpersoner = kontaktpersoner.filter(kp =>
+    kp.navn.toLowerCase().includes(kontaktpersonSearch.toLowerCase()) ||
+    kp.epost?.toLowerCase().includes(kontaktpersonSearch.toLowerCase())
+  )
 
   // Close search results when clicking outside
   useEffect(() => {
@@ -470,15 +495,10 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
   }
 
   function fillFormFromCompany(company: BrregEnhet) {
-    const address = extractAddress(company)
     setFormData({
       navn: company.navn,
       organisasjonsnummer: formatOrgNumber(company.organisasjonsnummer),
-      adresse: address.adresse,
-      postnummer: address.postnummer,
-      poststed: address.poststed,
-      telefon: formData.telefon, // Keep existing phone
-      epost: formData.epost, // Keep existing email
+      kontaktperson_id: formData.kontaktperson_id, // Keep existing contact
     })
     setSearchQuery('')
     setOrgNumberLookup('')
@@ -668,69 +688,102 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-              Telefon
-            </label>
-            <input
-              type="tel"
-              value={formData.telefon}
-              onChange={(e) => setFormData({ ...formData, telefon: e.target.value })}
-              className="input"
-              placeholder="+47 123 45 678"
-            />
-          </div>
-
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-              E-post
+              Kontaktperson
             </label>
-            <input
-              type="email"
-              value={formData.epost}
-              onChange={(e) => setFormData({ ...formData, epost: e.target.value })}
-              className="input"
-              placeholder="post@bedrift.no"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-              Adresse
-            </label>
-            <input
-              type="text"
-              value={formData.adresse}
-              onChange={(e) => setFormData({ ...formData, adresse: e.target.value })}
-              className="input"
-              placeholder="Gateadresse 1"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-              Postnummer
-            </label>
-            <input
-              type="text"
-              value={formData.postnummer}
-              onChange={(e) => setFormData({ ...formData, postnummer: e.target.value })}
-              className="input"
-              placeholder="0123"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-              Poststed
-            </label>
-            <input
-              type="text"
-              value={formData.poststed}
-              onChange={(e) => setFormData({ ...formData, poststed: e.target.value })}
-              className="input"
-              placeholder="Oslo"
-            />
+            
+            {!showKontaktpersonForm ? (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Søk etter kontaktperson..."
+                  value={kontaktpersonSearch}
+                  onChange={(e) => setKontaktpersonSearch(e.target.value)}
+                  className="input"
+                />
+                <select
+                  value={formData.kontaktperson_id}
+                  onChange={(e) => {
+                    setFormData({ 
+                      ...formData, 
+                      kontaktperson_id: e.target.value
+                    })
+                  }}
+                  className="input"
+                  size={5}
+                >
+                  <option value="">Ingen valgt</option>
+                  {filteredKontaktpersoner.map((kp) => (
+                    <option key={kp.id} value={kp.id}>
+                      {kp.navn} {kp.epost ? `(${kp.epost})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowKontaktpersonForm(true)}
+                  className="btn-secondary w-full flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Opprett ny kontaktperson
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                <h3 className="font-medium text-gray-900 dark:text-white">Ny kontaktperson</h3>
+                <div>
+                  <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">Navn *</label>
+                  <input
+                    type="text"
+                    value={newKontaktperson.navn}
+                    onChange={(e) => setNewKontaktperson({ ...newKontaktperson, navn: e.target.value })}
+                    className="input"
+                    placeholder="Navn"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">E-post</label>
+                  <input
+                    type="email"
+                    value={newKontaktperson.epost}
+                    onChange={(e) => setNewKontaktperson({ ...newKontaktperson, epost: e.target.value })}
+                    className="input"
+                    placeholder="epost@eksempel.no"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">Telefon</label>
+                  <input
+                    type="tel"
+                    value={newKontaktperson.telefon}
+                    onChange={(e) => setNewKontaktperson({ ...newKontaktperson, telefon: e.target.value })}
+                    className="input"
+                    placeholder="+47 123 45 678"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCreateKontaktperson}
+                    disabled={savingKontaktperson}
+                    className="btn-primary flex-1 disabled:opacity-50"
+                  >
+                    {savingKontaktperson ? 'Oppretter...' : 'Opprett'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowKontaktpersonForm(false)
+                      setNewKontaktperson({ navn: '', epost: '', telefon: '' })
+                    }}
+                    className="btn-secondary flex-1"
+                  >
+                    Avbryt
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -763,6 +816,71 @@ interface KundeDetailsProps {
 }
 
 function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
+  const [priser, setPriser] = useState<any[]>([])
+  const [anlegg, setAnlegg] = useState<any[]>([])
+  const [loadingPriser, setLoadingPriser] = useState(true)
+  const [kontaktperson, setKontaktperson] = useState<any>(null)
+
+  useEffect(() => {
+    loadServiceavtaler()
+    loadKontaktperson()
+  }, [kunde.id])
+
+  async function loadKontaktperson() {
+    if (!kunde.kontaktperson_id) return
+    
+    try {
+      const { data, error } = await supabase
+        .from('kontaktpersoner')
+        .select('*')
+        .eq('id', kunde.kontaktperson_id)
+        .single()
+
+      if (error) throw error
+      setKontaktperson(data)
+    } catch (error) {
+      console.error('Feil ved lasting av kontaktperson:', error)
+    }
+  }
+
+  async function loadServiceavtaler() {
+    try {
+      // Hent alle anlegg for denne kunden
+      const { data: anleggData, error: anleggError } = await supabase
+        .from('anlegg')
+        .select('id, anleggsnavn')
+        .eq('kundenr', kunde.id)
+
+      if (anleggError) throw anleggError
+
+      setAnlegg(anleggData || [])
+
+      // Hent priser for disse anleggene
+      if (anleggData && anleggData.length > 0) {
+        const anleggIds = anleggData.map(a => a.id)
+        const { data: priserData, error: priserError } = await supabase
+          .from('priser_kundenummer')
+          .select('*')
+          .in('anlegg_id', anleggIds)
+
+        if (priserError) throw priserError
+        setPriser(priserData || [])
+      }
+    } catch (error) {
+      console.error('Feil ved lasting av serviceavtaler:', error)
+    } finally {
+      setLoadingPriser(false)
+    }
+  }
+
+  // Beregn totalsummer
+  const totalBrannalarm = priser.reduce((sum, p) => sum + (p.prisbrannalarm || 0), 0)
+  const totalNodlys = priser.reduce((sum, p) => sum + (p.prisnodlys || 0), 0)
+  const totalEkstern = priser.reduce((sum, p) => sum + (p.prisekstern || 0), 0)
+  const totalSlukkeutstyr = priser.reduce((sum, p) => sum + (p.prisslukkeutstyr || 0), 0)
+  const totalRoykluker = priser.reduce((sum, p) => sum + (p.prisroykluker || 0), 0)
+  const totalSum = totalBrannalarm + totalNodlys + totalEkstern + totalSlukkeutstyr + totalRoykluker
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -790,35 +908,109 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Organisasjonsnummer</p>
                 <p className="text-gray-900 dark:text-white">{kunde.organisasjonsnummer || '-'}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Telefon</p>
-                <p className="text-gray-900 dark:text-white">{kunde.telefon || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">E-post</p>
-                <p className="text-gray-900 dark:text-white">{kunde.epost || '-'}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Adresse</h2>
-            <div className="space-y-2">
-              <p className="text-gray-900 dark:text-white">{kunde.adresse || '-'}</p>
-              {kunde.postnummer && kunde.poststed && (
-                <p className="text-gray-900 dark:text-white">{kunde.postnummer} {kunde.poststed}</p>
+              {kontaktperson && (
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Kontaktperson</p>
+                  <p className="text-gray-900 dark:text-white font-medium">{kontaktperson.navn}</p>
+                  {kontaktperson.telefon && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Phone className="w-4 h-4 text-gray-400" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{kontaktperson.telefon}</p>
+                    </div>
+                  )}
+                  {kontaktperson.epost && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Mail className="w-4 h-4 text-gray-400" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{kontaktperson.epost}</p>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
+
         </div>
 
         <div className="space-y-6">
+          {/* Serviceavtaler */}
+          <div className="card">
+            <div className="flex items-center gap-2 mb-4">
+              <DollarSign className="w-5 h-5 text-primary" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Serviceavtaler</h2>
+            </div>
+            {loadingPriser ? (
+              <div className="text-center py-4">
+                <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto" />
+              </div>
+            ) : anlegg.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Ingen anlegg registrert</p>
+            ) : priser.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Ingen priser registrert</p>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  {totalBrannalarm > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Brannalarm</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {totalBrannalarm.toLocaleString('nb-NO')} kr
+                      </span>
+                    </div>
+                  )}
+                  {totalNodlys > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Nødlys</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {totalNodlys.toLocaleString('nb-NO')} kr
+                      </span>
+                    </div>
+                  )}
+                  {totalEkstern > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Ekstern</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {totalEkstern.toLocaleString('nb-NO')} kr
+                      </span>
+                    </div>
+                  )}
+                  {totalSlukkeutstyr > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Slukkeutstyr</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {totalSlukkeutstyr.toLocaleString('nb-NO')} kr
+                      </span>
+                    </div>
+                  )}
+                  {totalRoykluker > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Røykluker</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {totalRoykluker.toLocaleString('nb-NO')} kr
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between items-center">
+                    <span className="text-base font-semibold text-gray-900 dark:text-white">Total</span>
+                    <span className="text-lg font-bold text-primary">
+                      {totalSum.toLocaleString('nb-NO')} kr
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {anlegg.length} {anlegg.length === 1 ? 'anlegg' : 'anlegg'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="card">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Metadata</h2>
             <div className="space-y-3">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Opprettet</p>
-                <p className="text-gray-900 dark:text-white text-sm">{formatDate(kunde.opprettet_dato)}</p>
+                <p className="text-gray-900 dark:text-white text-sm">{formatDate(kunde.opprettet)}</p>
               </div>
               {kunde.sist_oppdatert && (
                 <div>

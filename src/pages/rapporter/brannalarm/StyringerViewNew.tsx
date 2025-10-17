@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Check, AlertCircle, Eye, Filter } from 'lucide-react'
+import { ArrowLeft, Check, AlertCircle, Eye, Filter, Wifi, WifiOff } from 'lucide-react'
 import { BrannalarmStyring } from '../Brannalarm'
 
 interface StyringerViewProps {
@@ -37,6 +37,10 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
   const [saving, setSaving] = useState(false)
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
   const [viewMode, setViewMode] = useState<'compact' | 'detailed'>('compact')
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [pendingChanges, setPendingChanges] = useState(0)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const localStorageKey = `styringer_offline_${anleggId}`
 
   useEffect(() => {
     const initial: Record<string, any> = {}
@@ -51,31 +55,69 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
     setLocalStyringer(initial)
   }, [styringer])
 
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true)
+      syncOfflineData()
+    }
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    const stored = localStorage.getItem(localStorageKey)
+    if (stored && navigator.onLine) syncOfflineData()
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [anleggId])
+
+  async function syncOfflineData() {
+    const stored = localStorage.getItem(localStorageKey)
+    if (!stored) return
+    try {
+      setSaving(true)
+      const data = JSON.parse(stored)
+      if (styringer?.id) {
+        await supabase.from('anleggsdata_brannalarm').update(data).eq('id', styringer.id)
+      } else {
+        await supabase.from('anleggsdata_brannalarm').insert(data)
+      }
+      localStorage.removeItem(localStorageKey)
+      setPendingChanges(0)
+      setLastSaved(new Date())
+      onSave(anleggId)
+    } catch (error) {
+      console.error('Feil ved synkronisering:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleSave() {
     setSaving(true)
     try {
       const data: any = { anlegg_id: anleggId }
-      
       styringTyper.forEach(({ key }) => {
         data[`${key}_antall`] = localStyringer[key]?.antall || 0
         data[`${key}_status`] = localStyringer[key]?.status || ''
         data[`${key}_note`] = localStyringer[key]?.note || ''
         data[`${key}_aktiv`] = localStyringer[key]?.aktiv || false
       })
-
-      if (styringer?.id) {
-        await supabase
-          .from('anleggsdata_brannalarm')
-          .update(data)
-          .eq('id', styringer.id)
+      if (isOnline) {
+        if (styringer?.id) {
+          await supabase.from('anleggsdata_brannalarm').update(data).eq('id', styringer.id)
+        } else {
+          await supabase.from('anleggsdata_brannalarm').insert(data)
+        }
+        setLastSaved(new Date())
+        onSave(anleggId)
+        onBack()
       } else {
-        await supabase
-          .from('anleggsdata_brannalarm')
-          .insert(data)
+        localStorage.setItem(localStorageKey, JSON.stringify(data))
+        setPendingChanges(1)
+        alert('Offline - data lagret lokalt og vil synkroniseres når du er online igjen')
+        onBack()
       }
-
-      onSave(anleggId)
-      onBack()
     } catch (error) {
       console.error('Feil ved lagring:', error)
       alert('Feil ved lagring av styringer')
@@ -119,19 +161,48 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
             <p className="text-gray-400 mt-1">{anleggsNavn}</p>
           </div>
         </div>
-        <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
-          {saving ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Lagrer...
-            </>
-          ) : (
-            <>
-              <Check className="w-4 h-4" />
-              Lagre styringer
-            </>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {isOnline ? (
+              <>
+                <Wifi className="w-4 h-4 text-green-400" />
+                <span className="text-sm text-green-400">Online</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-4 h-4 text-yellow-400" />
+                <span className="text-sm text-yellow-400">Offline</span>
+              </>
+            )}
+          </div>
+          {pendingChanges > 0 && (
+            <span className="text-sm text-orange-400">{pendingChanges} endring venter</span>
           )}
-        </button>
+          {saving && (
+            <span className="text-sm text-gray-400 flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+              {isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}
+            </span>
+          )}
+          {!saving && lastSaved && pendingChanges === 0 && (
+            <span className="text-sm text-green-400">
+              Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
+            {saving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Lagrer...
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4" />
+                Lagre styringer
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Stats */}

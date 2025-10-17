@@ -33,7 +33,7 @@ interface Dokument {
   filnavn: string
   storage_path: string
   type: string | null
-  opprettet_dato: string
+  opplastet_dato: string
 }
 
 export function SendRapporter() {
@@ -142,9 +142,19 @@ export function SendRapporter() {
       setLoadingData(true)
       console.log('🔍 Laster dokumenter for anlegg:', anleggId)
       
-      // Hent fra Storage
+      // Hent fra dokumenter-tabellen
+      const { data: dbDocs, error: dbError } = await supabase
+        .from('dokumenter')
+        .select('*')
+        .eq('anlegg_id', anleggId)
+        .order('opplastet_dato', { ascending: false })
+
+      if (dbError) {
+        console.error('❌ Feil ved henting fra dokumenter-tabell:', dbError)
+      }
+
+      // Hent fra Storage som fallback
       const storagePath = `anlegg/${anleggId}/dokumenter`
-      console.log('📦 Henter fra storage bucket: anlegg.dokumenter, path:', storagePath)
       const { data: storageDocs, error: storageError } = await supabase
         .storage
         .from('anlegg.dokumenter')
@@ -154,26 +164,34 @@ export function SendRapporter() {
           sortBy: { column: 'created_at', order: 'desc' }
         })
 
-      console.log('📦 Filer fra storage:', storageDocs?.length || 0, storageDocs)
       if (storageError) {
         console.error('❌ Feil ved henting fra storage:', storageError)
-        throw storageError
       }
 
-      // Konverter storage-filer til dokumenter
+      // Kombiner dokumenter fra tabell og storage
       const docs: Dokument[] = []
+
+      // Legg til dokumenter fra tabell
+      if (dbDocs) {
+        docs.push(...dbDocs)
+      }
+
+      // Legg til dokumenter fra storage som ikke finnes i tabellen
       if (storageDocs) {
         for (const file of storageDocs) {
-          const filePath = `anlegg/${anleggId}/dokumenter/${file.name}`
+          const existsInDb = dbDocs?.some(doc => doc.filnavn === file.name)
           
-          docs.push({
-            id: file.id || file.name,
-            anlegg_id: anleggId,
-            filnavn: file.name,
-            storage_path: filePath,
-            type: null,
-            opprettet_dato: file.created_at || new Date().toISOString()
-          })
+          if (!existsInDb) {
+            const filePath = `anlegg/${anleggId}/dokumenter/${file.name}`
+            docs.push({
+              id: file.id || file.name,
+              anlegg_id: anleggId,
+              filnavn: file.name,
+              storage_path: filePath,
+              type: null,
+              opplastet_dato: file.created_at || new Date().toISOString()
+            })
+          }
         }
       }
 
@@ -620,8 +638,15 @@ export function SendRapporter() {
                         />
                         <FileText className="w-4 h-4 text-gray-400 dark:text-gray-400 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-gray-900 dark:text-white text-sm truncate">{dok.filnavn}</p>
-                          <p className="text-gray-400 dark:text-gray-500 text-xs">{new Date(dok.opprettet_dato).toLocaleDateString('nb-NO')}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-gray-900 dark:text-white text-sm truncate">{dok.filnavn}</p>
+                            {dok.type && (
+                              <span className="px-2 py-0.5 bg-primary/20 text-primary rounded text-xs flex-shrink-0">
+                                {dok.type}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-gray-400 dark:text-gray-500 text-xs">{new Date(dok.opplastet_dato).toLocaleDateString('nb-NO')}</p>
                         </div>
                       </label>
                     ))}

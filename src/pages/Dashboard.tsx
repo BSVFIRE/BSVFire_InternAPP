@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { 
@@ -9,7 +10,8 @@ import {
   TrendingUp,
   AlertCircle,
   Users,
-  User
+  User,
+  Calendar
 } from 'lucide-react'
 import { ORDRE_STATUSER, OPPGAVE_STATUSER } from '@/lib/constants'
 
@@ -20,8 +22,39 @@ interface Stats {
   anlegg: number
 }
 
+interface Aktivitet {
+  id: string
+  type: 'ordre' | 'oppgave'
+  tittel: string
+  beskrivelse: string
+  tidspunkt: string
+  status: string
+  ikon: 'ny' | 'fullfort' | 'endret'
+}
+
+interface KommendeOppgave {
+  id: string
+  tittel: string
+  forfallsdato: string
+  prioritet: 'hoy' | 'medium' | 'lav'
+  dagerIgjen: number
+}
+
+interface KommendeOrdre {
+  id: string
+  ordrenummer: string
+  anleggsnavn: string | null
+  kundenavn: string | null
+  status: string
+  opprettet: string
+  dagerSiden: number
+}
+
+type TidsFilter = 'dag' | 'uke' | 'maned' | 'ar'
+
 export function Dashboard() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [visAlle, setVisAlle] = useState(false)
   const [ansattId, setAnsattId] = useState<string | null>(null)
   const [stats, setStats] = useState<Stats>({
@@ -31,16 +64,14 @@ export function Dashboard() {
     anlegg: 0
   })
   const [loading, setLoading] = useState(true)
+  const [tidsFilter, setTidsFilter] = useState<TidsFilter>('uke')
+  const [aktiviteter, setAktiviteter] = useState<Aktivitet[]>([])
+  const [kommendeOppgaver, setKommendeOppgaver] = useState<KommendeOppgave[]>([])
+  const [kommendeOrdre, setKommendeOrdre] = useState<KommendeOrdre[]>([])
 
   useEffect(() => {
     loadAnsattId()
   }, [user])
-
-  useEffect(() => {
-    if (ansattId !== null || visAlle) {
-      loadStats()
-    }
-  }, [visAlle, ansattId])
 
   async function loadAnsattId() {
     if (!user?.email) {
@@ -125,6 +156,213 @@ export function Dashboard() {
       setLoading(false)
     }
   }
+
+  const getTidsFilterDato = useCallback((): string => {
+    const now = new Date()
+    switch (tidsFilter) {
+      case 'dag':
+        now.setDate(now.getDate() - 1)
+        break
+      case 'uke':
+        now.setDate(now.getDate() - 7)
+        break
+      case 'maned':
+        now.setMonth(now.getMonth() - 1)
+        break
+      case 'ar':
+        now.setFullYear(now.getFullYear() - 1)
+        break
+    }
+    return now.toISOString()
+  }, [tidsFilter])
+
+  function formaterTidSiden(dato: string): string {
+    const now = new Date()
+    const then = new Date(dato)
+    const diffMs = now.getTime() - then.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 60) return `For ${diffMins} ${diffMins === 1 ? 'minutt' : 'minutter'} siden`
+    if (diffHours < 24) return `For ${diffHours} ${diffHours === 1 ? 'time' : 'timer'} siden`
+    if (diffDays === 0) return 'I dag'
+    if (diffDays === 1) return 'I går'
+    return `For ${diffDays} dager siden`
+  }
+
+  const loadAktiviteter = useCallback(async () => {
+    try {
+      const filterDato = getTidsFilterDato()
+      const aktivitetsListe: Aktivitet[] = []
+
+      // Hent ordre
+      let ordreQuery = supabase
+        .from('ordre')
+        .select('id, ordre_nummer, status, sist_oppdatert, opprettet_dato')
+        .gte('sist_oppdatert', filterDato)
+        .order('sist_oppdatert', { ascending: false })
+        .limit(10)
+
+      if (!visAlle && ansattId) {
+        ordreQuery = ordreQuery.eq('tekniker_id', ansattId)
+      }
+
+      const { data: ordreData } = await ordreQuery
+
+      ordreData?.forEach(ordre => {
+        const erNy = new Date(ordre.opprettet_dato).getTime() === new Date(ordre.sist_oppdatert).getTime()
+        aktivitetsListe.push({
+          id: ordre.id,
+          type: 'ordre',
+          tittel: erNy ? 'Ny ordre opprettet' : 'Ordre oppdatert',
+          beskrivelse: `Ordre #${ordre.ordre_nummer}`,
+          tidspunkt: ordre.sist_oppdatert,
+          status: ordre.status,
+          ikon: erNy ? 'ny' : ordre.status === ORDRE_STATUSER.FULLFORT ? 'fullfort' : 'endret'
+        })
+      })
+
+      // Hent oppgaver
+      let oppgaverQuery = supabase
+        .from('oppgaver')
+        .select('id, tittel, status, sist_oppdatert, opprettet_dato')
+        .gte('sist_oppdatert', filterDato)
+        .order('sist_oppdatert', { ascending: false })
+        .limit(10)
+
+      if (!visAlle && ansattId) {
+        oppgaverQuery = oppgaverQuery.eq('tekniker_id', ansattId)
+      }
+
+      const { data: oppgaverData } = await oppgaverQuery
+
+      oppgaverData?.forEach(oppgave => {
+        const erNy = new Date(oppgave.opprettet_dato).getTime() === new Date(oppgave.sist_oppdatert).getTime()
+        aktivitetsListe.push({
+          id: oppgave.id,
+          type: 'oppgave',
+          tittel: erNy ? 'Ny oppgave opprettet' : 'Oppgave oppdatert',
+          beskrivelse: oppgave.tittel,
+          tidspunkt: oppgave.sist_oppdatert,
+          status: oppgave.status,
+          ikon: erNy ? 'ny' : oppgave.status === OPPGAVE_STATUSER.FULLFORT ? 'fullfort' : 'endret'
+        })
+      })
+
+      // Sorter etter tidspunkt
+      aktivitetsListe.sort((a, b) => new Date(b.tidspunkt).getTime() - new Date(a.tidspunkt).getTime())
+      
+      setAktiviteter(aktivitetsListe.slice(0, 5))
+    } catch (error) {
+      console.error('Feil ved lasting av aktiviteter:', error)
+    }
+  }, [visAlle, ansattId, getTidsFilterDato])
+
+  const loadKommendeOppgaver = useCallback(async () => {
+    try {
+      const now = new Date()
+      const tredveDagerFrem = new Date()
+      tredveDagerFrem.setDate(now.getDate() + 30)
+
+      let query = supabase
+        .from('oppgaver')
+        .select('id, tittel, forfallsdato')
+        .gte('forfallsdato', now.toISOString())
+        .lte('forfallsdato', tredveDagerFrem.toISOString())
+        .neq('status', OPPGAVE_STATUSER.FULLFORT)
+        .order('forfallsdato', { ascending: true })
+        .limit(5)
+
+      if (!visAlle && ansattId) {
+        query = query.eq('tekniker_id', ansattId)
+      }
+
+      const { data } = await query
+
+      const oppgaver: KommendeOppgave[] = data?.map(oppgave => {
+        const forfallDato = new Date(oppgave.forfallsdato)
+        const dagerIgjen = Math.ceil((forfallDato.getTime() - now.getTime()) / 86400000)
+        
+        let prioritet: 'hoy' | 'medium' | 'lav' = 'lav'
+        if (dagerIgjen <= 1) prioritet = 'hoy'
+        else if (dagerIgjen <= 3) prioritet = 'medium'
+
+        return {
+          id: oppgave.id,
+          tittel: oppgave.tittel,
+          forfallsdato: oppgave.forfallsdato,
+          prioritet,
+          dagerIgjen
+        }
+      }) || []
+
+      setKommendeOppgaver(oppgaver)
+    } catch (error) {
+      console.error('Feil ved lasting av kommende oppgaver:', error)
+    }
+  }, [visAlle, ansattId])
+
+  const loadKommendeOrdre = useCallback(async () => {
+    try {
+      let query = supabase
+        .from('ordre')
+        .select(`
+          id,
+          ordre_nummer,
+          status,
+          opprettet_dato,
+          anlegg:anlegg_id(anleggsnavn),
+          customer:kundenr(navn)
+        `)
+        .neq('status', ORDRE_STATUSER.FULLFORT)
+        .neq('status', ORDRE_STATUSER.FAKTURERT)
+        .order('opprettet_dato', { ascending: false })
+        .limit(5)
+
+      if (!visAlle && ansattId) {
+        query = query.eq('tekniker_id', ansattId)
+      }
+
+      const { data, error } = await query
+      
+      if (error) {
+        console.error('❌ Feil ved lasting av kommende ordre:', error)
+        throw error
+      }
+      
+      console.log('✅ Kommende ordre lastet:', data?.length || 0, 'ordre')
+
+      const ordre: KommendeOrdre[] = data?.map((ordre: any) => {
+        const opprettetDato = new Date(ordre.opprettet_dato)
+        const now = new Date()
+        const dagerSiden = Math.floor((now.getTime() - opprettetDato.getTime()) / 86400000)
+
+        return {
+          id: ordre.id,
+          ordrenummer: ordre.ordre_nummer,
+          anleggsnavn: ordre.anlegg?.anleggsnavn || null,
+          kundenavn: ordre.customer?.navn || null,
+          status: ordre.status,
+          opprettet: ordre.opprettet_dato,
+          dagerSiden
+        }
+      }) || []
+
+      setKommendeOrdre(ordre)
+    } catch (error) {
+      console.error('Feil ved lasting av kommende ordre:', error)
+    }
+  }, [visAlle, ansattId])
+
+  useEffect(() => {
+    if (ansattId !== null || visAlle) {
+      loadStats()
+      loadAktiviteter()
+      loadKommendeOppgaver()
+      loadKommendeOrdre()
+    }
+  }, [visAlle, ansattId, loadAktiviteter, loadKommendeOppgaver, loadKommendeOrdre])
 
   const statCards = [
     {
@@ -265,46 +503,170 @@ export function Dashboard() {
         ))}
       </div>
 
-      {/* Quick Actions */}
+      {/* Ordre og Oppgaver */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Siste aktivitet</h2>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-yellow-500" />
-              <div className="flex-1">
-                <p className="text-sm text-gray-200">Ny ordre opprettet</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">For 2 timer siden</p>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kommende ordre</h2>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {kommendeOrdre.length === 0 ? (
+              <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+                Ingen aktive ordre
               </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg">
-              <CheckSquare className="w-5 h-5 text-green-500" />
-              <div className="flex-1">
-                <p className="text-sm text-gray-200">Oppgave fullført</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">I dag kl. 14:30</p>
-              </div>
-            </div>
+            ) : (
+              kommendeOrdre.map((ordre) => {
+                const statusFarge = ordre.status === 'Ikke påbegynt' ? 'bg-yellow-500' : 
+                                   ordre.status === 'Pågår' ? 'bg-blue-500' : 
+                                   'bg-gray-500'
+                
+                const tidTekst = ordre.dagerSiden === 0 ? 'Opprettet i dag' :
+                                ordre.dagerSiden === 1 ? 'Opprettet i går' :
+                                `Opprettet for ${ordre.dagerSiden} dager siden`
+                
+                return (
+                  <div 
+                    key={ordre.id} 
+                    onClick={() => navigate('/ordre', { state: { selectedOrdreId: ordre.id } })}
+                    className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg hover:bg-dark-200 cursor-pointer transition-colors"
+                  >
+                    <div className={`w-2 h-2 ${statusFarge} rounded-full`}></div>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-200">Ordre #{ordre.ordrenummer}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        {ordre.kundenavn || ordre.anleggsnavn || 'Ingen kunde/anlegg'}
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{tidTekst}</p>
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </div>
         </div>
 
         <div className="card">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kommende oppgaver</h2>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg">
-              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-200">Brannalarmkontroll</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">Forfaller i morgen</p>
-              </div>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+          {kommendeOppgaver.length === 0 ? (
+            <div className="col-span-full text-center py-8 text-gray-400 dark:text-gray-500">
+              Ingen kommende oppgaver
             </div>
-            <div className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-200">Servicerapport</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">Forfaller om 3 dager</p>
-              </div>
-            </div>
+          ) : (
+            kommendeOppgaver.map((oppgave) => {
+              const prikkeFarge = oppgave.prioritet === 'hoy' ? 'bg-red-500' : 
+                                 oppgave.prioritet === 'medium' ? 'bg-yellow-500' : 
+                                 'bg-green-500'
+              
+              const forfallTekst = oppgave.dagerIgjen === 0 ? 'Forfaller i dag' :
+                                  oppgave.dagerIgjen === 1 ? 'Forfaller i morgen' :
+                                  `Forfaller om ${oppgave.dagerIgjen} dager`
+              
+              return (
+                <div 
+                  key={oppgave.id} 
+                  onClick={() => navigate('/oppgaver', { state: { selectedOppgaveId: oppgave.id } })}
+                  className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg hover:bg-dark-200 cursor-pointer transition-colors"
+                >
+                  <div className={`w-2 h-2 ${prikkeFarge} rounded-full`}></div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-200">{oppgave.tittel}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">{forfallTekst}</p>
+                  </div>
+                </div>
+              )
+            })
+          )}
           </div>
+        </div>
+      </div>
+
+      {/* Siste aktivitet - full bredde */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Siste aktivitet</h2>
+          
+          {/* Tidsfilter */}
+          <div className="flex items-center gap-2 bg-dark-200 rounded-lg p-1 flex-shrink-0">
+            <button
+              onClick={() => setTidsFilter('dag')}
+              className={`px-3 py-1 text-xs rounded-md transition-all ${
+                tidsFilter === 'dag' 
+                  ? 'bg-primary text-gray-900 dark:text-white' 
+                  : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Dag
+            </button>
+            <button
+              onClick={() => setTidsFilter('uke')}
+              className={`px-3 py-1 text-xs rounded-md transition-all ${
+                tidsFilter === 'uke' 
+                  ? 'bg-primary text-gray-900 dark:text-white' 
+                  : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Uke
+            </button>
+            <button
+              onClick={() => setTidsFilter('maned')}
+              className={`px-3 py-1 text-xs rounded-md transition-all ${
+                tidsFilter === 'maned' 
+                  ? 'bg-primary text-gray-900 dark:text-white' 
+                  : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Måned
+            </button>
+            <button
+              onClick={() => setTidsFilter('ar')}
+              className={`px-3 py-1 text-xs rounded-md transition-all ${
+                tidsFilter === 'ar' 
+                  ? 'bg-primary text-gray-900 dark:text-white' 
+                  : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              År
+            </button>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {aktiviteter.length === 0 ? (
+            <div className="col-span-full text-center py-8 text-gray-400 dark:text-gray-500">
+              Ingen aktiviteter i valgt periode
+            </div>
+          ) : (
+            aktiviteter.map((aktivitet) => {
+              const Ikon = aktivitet.ikon === 'fullfort' ? CheckSquare : 
+                          aktivitet.ikon === 'ny' ? AlertCircle : 
+                          Calendar
+              const ikonFarge = aktivitet.ikon === 'fullfort' ? 'text-green-500' : 
+                               aktivitet.ikon === 'ny' ? 'text-yellow-500' : 
+                               'text-blue-500'
+              
+              return (
+                <div 
+                  key={aktivitet.id} 
+                  onClick={() => {
+                    if (aktivitet.type === 'ordre') {
+                      navigate('/ordre', { state: { selectedOrdreId: aktivitet.id } })
+                    } else {
+                      navigate('/oppgaver', { state: { selectedOppgaveId: aktivitet.id } })
+                    }
+                  }}
+                  className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg hover:bg-dark-200 cursor-pointer transition-colors"
+                >
+                  <Ikon className={`w-5 h-5 ${ikonFarge}`} />
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-200">{aktivitet.tittel}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">{aktivitet.beskrivelse}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      {formaterTidSiden(aktivitet.tidspunkt)}
+                    </p>
+                  </div>
+                </div>
+              )
+            })
+          )}
         </div>
       </div>
     </div>

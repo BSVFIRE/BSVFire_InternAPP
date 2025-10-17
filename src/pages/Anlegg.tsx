@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2 } from 'lucide-react'
+import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ANLEGG_STATUSER, ANLEGG_STATUS_COLORS, KONTROLLTYPER, MAANEDER } from '@/lib/constants'
@@ -44,15 +44,16 @@ interface Dokument {
   filnavn: string
   url: string
   type: string | null
-  opprettet_dato: string
+  opplastet_dato: string
   opprettet_av: string | null
 }
 
 type SortOption = 'navn_asc' | 'navn_desc' | 'kunde' | 'poststed' | 'status' | 'kontroll_maaned'
 
 export function Anlegg() {
+  const navigate = useNavigate()
   const location = useLocation()
-  const state = location.state as { editAnleggId?: string } | null
+  const state = location.state as { editAnleggId?: string; viewAnleggId?: string } | null
   
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
   const [kunder, setKunder] = useState<Kunde[]>([])
@@ -77,6 +78,19 @@ export function Anlegg() {
       }
     }
   }, [state?.editAnleggId, anlegg])
+
+  // Åpne anlegg i visningsmodus hvis sendt via state (fra ordre)
+  useEffect(() => {
+    if (state?.viewAnleggId && anlegg.length > 0) {
+      const anleggToView = anlegg.find(a => a.id === state.viewAnleggId)
+      if (anleggToView) {
+        setSelectedAnlegg(anleggToView)
+        setViewMode('view')
+        // Nullstill state for å unngå at det trigges på nytt
+        window.history.replaceState({}, document.title)
+      }
+    }
+  }, [state?.viewAnleggId, anlegg])
 
   async function loadData() {
     try {
@@ -360,7 +374,11 @@ export function Anlegg() {
                 {sortedAnlegg.map((anlegg) => (
                   <tr
                     key={anlegg.id}
-                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors"
+                    onClick={() => {
+                      setSelectedAnlegg(anlegg)
+                      setViewMode('view')
+                    }}
+                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer"
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -425,6 +443,7 @@ export function Anlegg() {
                             href={anlegg.kontrollportal_url}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="p-2 text-gray-400 dark:text-gray-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-colors"
                             title="Åpne Kontrollportal"
                           >
@@ -432,7 +451,18 @@ export function Anlegg() {
                           </a>
                         )}
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigate('/priser', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })
+                          }}
+                          className="p-2 text-gray-400 dark:text-gray-400 hover:text-yellow-400 hover:bg-yellow-500/10 rounded-lg transition-colors"
+                          title="Kontrollpriser"
+                        >
+                          <DollarSign className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
                             setSelectedAnlegg(anlegg)
                             setViewMode('view')
                           }}
@@ -442,7 +472,8 @@ export function Anlegg() {
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation()
                             setSelectedAnlegg(anlegg)
                             setViewMode('edit')
                           }}
@@ -452,7 +483,10 @@ export function Anlegg() {
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => deleteAnlegg(anlegg.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteAnlegg(anlegg.id)
+                          }}
                           className="p-2 text-gray-400 dark:text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Slett"
                         >
@@ -507,6 +541,9 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
     telefon: '',
     rolle: ''
   })
+  const [kundeSok, setKundeSok] = useState('')
+  const [visKundeListe, setVisKundeListe] = useState(false)
+  const kundeDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadKontaktpersoner()
@@ -514,6 +551,30 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
       loadAnleggsKontakter()
     }
   }, [anlegg])
+
+  // Initialiser kundesøk med valgt kunde
+  useEffect(() => {
+    if (formData.kundenr && kunder.length > 0) {
+      const kunde = kunder.find(k => k.id === formData.kundenr)
+      if (kunde) {
+        setKundeSok(kunde.navn)
+      }
+    }
+  }, [formData.kundenr, kunder])
+
+  // Lukk dropdown ved klikk utenfor
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (kundeDropdownRef.current && !kundeDropdownRef.current.contains(event.target as Node)) {
+        setVisKundeListe(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   async function loadKontaktpersoner() {
     try {
@@ -715,23 +776,76 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
       <form onSubmit={handleSubmit} className="card space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Kunde */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 relative" ref={kundeDropdownRef}>
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Kunde <span className="text-red-500">*</span>
             </label>
-            <select
-              value={formData.kundenr}
-              onChange={(e) => setFormData({ ...formData, kundenr: e.target.value })}
-              className="input"
-              required
-            >
-              <option value="">Velg kunde</option>
-              {kunder.map((kunde) => (
-                <option key={kunde.id} value={kunde.id}>
-                  {kunde.navn}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-400" />
+              <input
+                type="text"
+                value={kundeSok}
+                onChange={(e) => {
+                  setKundeSok(e.target.value)
+                  setVisKundeListe(true)
+                  // Nullstill valgt kunde hvis bruker endrer søket
+                  if (formData.kundenr) {
+                    const kunde = kunder.find(k => k.id === formData.kundenr)
+                    if (kunde && kunde.navn !== e.target.value) {
+                      setFormData({ ...formData, kundenr: '' })
+                    }
+                  }
+                }}
+                onFocus={() => setVisKundeListe(true)}
+                className="input pl-10"
+                placeholder="Søk etter kunde..."
+                required={!formData.kundenr}
+              />
+              {formData.kundenr && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({ ...formData, kundenr: '' })
+                    setKundeSok('')
+                    setVisKundeListe(true)
+                  }}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            
+            {/* Dropdown med søkeresultater */}
+            {visKundeListe && kundeSok && !formData.kundenr && (
+              <div className="absolute z-50 w-full mt-1 bg-white dark:bg-dark-200 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {kunder
+                  .filter(kunde => 
+                    kunde.navn.toLowerCase().includes(kundeSok.toLowerCase())
+                  )
+                  .map((kunde) => (
+                    <button
+                      key={kunde.id}
+                      type="button"
+                      onClick={() => {
+                        setFormData({ ...formData, kundenr: kunde.id })
+                        setKundeSok(kunde.navn)
+                        setVisKundeListe(false)
+                      }}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-dark-100 text-gray-900 dark:text-white transition-colors"
+                    >
+                      {kunde.navn}
+                    </button>
+                  ))}
+                {kunder.filter(kunde => 
+                  kunde.navn.toLowerCase().includes(kundeSok.toLowerCase())
+                ).length === 0 && (
+                  <div className="px-4 py-3 text-gray-400 dark:text-gray-500 text-sm">
+                    Ingen kunder funnet
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Anleggsnavn */}
@@ -1198,7 +1312,7 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
         .from('dokumenter')
         .select('*')
         .eq('anlegg_id', anlegg.id)
-        .order('opprettet_dato', { ascending: false })
+        .order('opplastet_dato', { ascending: false })
 
       console.log('📄 Dokumenter fra tabell:', dbDocs?.length || 0, dbDocs)
       if (dbError) {
@@ -1261,7 +1375,7 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
                 filnavn: file.name,
                 url: urlData.signedUrl,
                 type: null,
-                opprettet_dato: file.created_at || new Date().toISOString(),
+                opplastet_dato: file.created_at || new Date().toISOString(),
                 opprettet_av: null
               })
             }
@@ -1327,6 +1441,21 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, loading
           <p className="text-gray-400 dark:text-gray-400">{kundeNavn}</p>
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => navigate('/priser', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}
+            className="btn-secondary flex items-center gap-2"
+            title="Kontrollpriser"
+          >
+            <DollarSign className="w-4 h-4" />
+            Priser
+          </button>
+          <button 
+            onClick={() => navigate('/ordre', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id } })}
+            className="btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700"
+          >
+            <ClipboardList className="w-4 h-4" />
+            Opprett ordre
+          </button>
           <button onClick={onEdit} className="btn-primary flex items-center gap-2">
             <Edit className="w-4 h-4" />
             Rediger
@@ -1527,7 +1656,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, loading
                           <span className="badge badge-info text-xs">{dok.type}</span>
                         )}
                         <p className="text-xs text-gray-400 dark:text-gray-400 mt-1">
-                          {formatDate(dok.opprettet_dato)}
+                          {formatDate(dok.opplastet_dato)}
                         </p>
                       </div>
                     </div>

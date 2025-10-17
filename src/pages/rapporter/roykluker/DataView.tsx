@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Save, Battery, Info, Server, CheckCircle, HelpCircle, X, Wifi, WifiOff, Clock, FileDown, Eye } from 'lucide-react'
+import { Save, Battery, Info, Server, CheckCircle, HelpCircle, Wifi, WifiOff, Clock, Eye, Download, X } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { useAuthStore } from '@/store/authStore'
+import { RoyklukerPreview } from '../RoyklukerPreview'
 
 interface RoyklukeSentral {
   id: string
@@ -350,7 +351,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
     setHasChanges(true)
   }
 
-  async function genererRapport(forhandsvisning: boolean = false) {
+  async function genererRapport(mode: 'preview' | 'save' | 'download' = 'preview') {
     try {
       setGeneratingPdf(true)
 
@@ -440,61 +441,114 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       doc.text('RAPPORT - RØYKLUKER', 20, yPos)
       yPos += 12
 
-      // Anleggsinformasjon
+      // Anleggsinformasjon - Profesjonell layout
+      doc.setDrawColor(220, 220, 220)
+      doc.setLineWidth(0.3)
+      doc.setFillColor(250, 250, 250)
+      doc.rect(17, yPos, 85, 28, 'FD')
+      
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(100, 100, 100)
+      doc.text('KUNDE', 20, yPos + 5)
       doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text(kundeNavn, 20, yPos + 10)
+      
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(100, 100, 100)
+      doc.text('ANLEGG', 20, yPos + 16)
+      doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Kunde: ${kundeNavn}`, 20, yPos)
-      yPos += 6
-      doc.text(`Anlegg: ${anleggNavn}`, 20, yPos)
-      yPos += 6
+      doc.setTextColor(0, 0, 0)
+      doc.text(anleggNavn, 20, yPos + 21)
       
       const idag = new Date()
-      doc.text(`Dato: ${idag.toLocaleDateString('nb-NO')}`, 20, yPos)
-      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Kontrollert: ${idag.toLocaleDateString('nb-NO')}`, 20, yPos + 26)
+      
+      // Neste kontroll boks
+      doc.setFillColor(254, 249, 195)
+      doc.rect(104, yPos, 91, 28, 'FD')
       
       const nesteKontroll = new Date(idag)
       nesteKontroll.setMonth(nesteKontroll.getMonth() + 12)
-      doc.text(`Neste kontroll: ${nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' })}`, 20, yPos)
-      yPos += 10
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(100, 100, 100)
+      doc.text('NESTE KONTROLL', 107, yPos + 5)
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(202, 138, 4)
+      doc.text(nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }).toUpperCase(), 107, yPos + 14)
+      
+      yPos += 32
 
-      // Kontaktperson og tekniker
+      // Kontaktpersoner - To kolonner
+      const colWidth = 85
+      let leftCol = 17
+      let rightCol = 104
+      
       if (kontakt?.navn) {
+        doc.setDrawColor(220, 220, 220)
+        doc.setFillColor(250, 250, 250)
+        doc.rect(leftCol, yPos, colWidth, 24, 'FD')
+        
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(100, 100, 100)
+        doc.text('KONTAKTPERSON', leftCol + 3, yPos + 5)
+        
         doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
-        doc.text('Kontaktperson:', 20, yPos)
+        doc.setTextColor(0, 0, 0)
+        doc.text(kontakt.navn, leftCol + 3, yPos + 11)
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        yPos += 5
-        doc.text(kontakt.navn, 20, yPos)
-        yPos += 4
+        let infoY = yPos + 15
         if (kontakt.telefon) {
-          doc.text(`Tlf: ${kontakt.telefon}`, 20, yPos)
-          yPos += 4
+          doc.text(`Tlf: ${kontakt.telefon}`, leftCol + 3, infoY)
+          infoY += 4
         }
         if (kontakt.epost) {
-          doc.text(`E-post: ${kontakt.epost}`, 20, yPos)
-          yPos += 4
+          doc.text(`E-post: ${kontakt.epost}`, leftCol + 3, infoY)
         }
-        yPos += 4
       }
 
       if (tekniker?.navn) {
+        doc.setFillColor(240, 253, 244)
+        doc.rect(rightCol, yPos, colWidth + 6, 24, 'FD')
+        
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(100, 100, 100)
+        doc.text('UTFØRT AV', rightCol + 3, yPos + 5)
+        
         doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
-        doc.text('Utført av:', 20, yPos)
+        doc.setTextColor(22, 163, 74)
+        doc.text(tekniker.navn, rightCol + 3, yPos + 11)
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        yPos += 5
-        doc.text(tekniker.navn, 20, yPos)
-        yPos += 4
+        doc.setTextColor(0, 0, 0)
+        let infoY = yPos + 15
         if (tekniker.telefon) {
-          doc.text(`Tlf: ${tekniker.telefon}`, 20, yPos)
-          yPos += 4
+          doc.text(`Tlf: ${tekniker.telefon}`, rightCol + 3, infoY)
+          infoY += 4
         }
         if (tekniker.epost) {
-          doc.text(`E-post: ${tekniker.epost}`, 20, yPos)
-          yPos += 4
+          doc.text(`E-post: ${tekniker.epost}`, rightCol + 3, infoY)
         }
-        yPos += 4
       }
+      
+      doc.setTextColor(0, 0, 0)
+      yPos += 28
 
       // Statistikk
       const totaltSentraler = alleSentraler?.length || 0
@@ -502,20 +556,76 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       const lukerOk = alleLuker.filter(l => l.status === 'OK').length
       const lukerAvvik = alleLuker.filter(l => l.status === 'Avvik').length
 
+      // Statistikk - Profesjonell layout
+      doc.setFillColor(41, 128, 185)
+      doc.rect(15, yPos, 180, 8, 'F')
+      doc.setTextColor(255, 255, 255)
       doc.setFontSize(12)
       doc.setFont('helvetica', 'bold')
-      doc.text('STATISTIKK', 20, yPos)
-      yPos += 6
-      doc.setFontSize(10)
+      doc.text('STATISTIKK', 20, yPos + 5.5)
+      doc.setTextColor(0, 0, 0)
+      yPos += 12
+      
+      // Status-seksjon
+      const boxWidth = 43
+      const boxHeight = 22
+      let xPos = 17
+      
+      // Totalt sentraler
+      doc.setDrawColor(200, 200, 200)
+      doc.setLineWidth(0.5)
+      doc.setFillColor(248, 250, 252)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(41, 128, 185)
+      doc.text(totaltSentraler.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Totalt sentraler: ${totaltSentraler}`, 20, yPos)
-      yPos += 5
-      doc.text(`Totalt luker: ${totaltLuker}`, 20, yPos)
-      yPos += 5
-      doc.text(`Luker OK: ${lukerOk}`, 20, yPos)
-      yPos += 5
-      doc.text(`Luker Avvik: ${lukerAvvik}`, 20, yPos)
-      yPos += 10
+      doc.setTextColor(100, 100, 100)
+      doc.text('SENTRALER', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Totalt luker
+      xPos += boxWidth + 2
+      doc.setFillColor(248, 250, 252)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(41, 128, 185)
+      doc.text(totaltLuker.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('TOTALT LUKER', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // OK
+      xPos += boxWidth + 2
+      doc.setFillColor(240, 253, 244)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(22, 163, 74)
+      doc.text(lukerOk.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('OK', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Avvik
+      xPos += boxWidth + 2
+      doc.setFillColor(254, 242, 242)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(220, 38, 38)
+      doc.text(lukerAvvik.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('AVVIK', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      doc.setTextColor(0, 0, 0)
+      yPos += boxHeight + 8
 
       // Gå gjennom hver sentral - én per side
       alleSentraler?.forEach((sentral, index) => {
@@ -999,22 +1109,44 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       const pdfBlob = doc.output('blob')
       const fileName = `Rapport_Roykluker_${new Date().getFullYear()}_${anleggNavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
 
-      if (forhandsvisning) {
+      if (mode === 'preview') {
         setPreviewPdf({ blob: pdfBlob, fileName })
       } else {
         // Lagre til Supabase Storage
+        const storagePath = `anlegg/${anleggId}/dokumenter/${fileName}`
         const { error: uploadError } = await supabase.storage
-          .from('rapporter')
-          .upload(`${anleggId}/${fileName}`, pdfBlob, {
+          .from('anlegg.dokumenter')
+          .upload(storagePath, pdfBlob, {
             contentType: 'application/pdf',
             upsert: true
           })
 
         if (uploadError) throw uploadError
 
-        // Last ned PDF
-        doc.save(fileName)
-        alert('Rapport generert og lagret!')
+        // Generate signed URL
+        const { data: urlData } = await supabase.storage
+          .from('anlegg.dokumenter')
+          .createSignedUrl(storagePath, 60 * 60 * 24 * 365)
+
+        // Insert record into dokumenter table
+        await supabase
+          .from('dokumenter')
+          .insert({
+            anlegg_id: anleggId,
+            filnavn: fileName,
+            url: urlData?.signedUrl || null,
+            type: 'Røykluker Rapport',
+            opplastet_dato: new Date().toISOString(),
+            storage_path: storagePath
+          })
+
+        // Last ned PDF hvis mode er 'download'
+        if (mode === 'download') {
+          doc.save(fileName)
+          alert('Rapport lagret og lastet ned!')
+        } else {
+          alert('Rapport lagret!')
+        }
       }
     } catch (error) {
       console.error('Feil ved generering av rapport:', error)
@@ -1083,20 +1215,28 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => genererRapport(true)}
+            onClick={() => genererRapport('preview')}
             disabled={generatingPdf}
-            className="btn-secondary"
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Eye className="w-4 h-4" />
-            Forhåndsvis
+            <Eye className="w-5 h-5" />
+            Forhåndsvisning
           </button>
           <button
-            onClick={() => genererRapport(false)}
+            onClick={() => genererRapport('save')}
             disabled={generatingPdf}
-            className="btn-primary"
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <FileDown className="w-4 h-4" />
-            {generatingPdf ? 'Genererer...' : 'Generer rapport'}
+            <Save className="w-5 h-5" />
+            Lagre rapport
+          </button>
+          <button
+            onClick={() => genererRapport('download')}
+            disabled={generatingPdf}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-5 h-5" />
+            Lagre og last ned
           </button>
         </div>
       </div>
@@ -1950,67 +2090,41 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
         </div>
       )}
 
-      {/* PDF Preview Modal */}
+      {/* PDF Preview */}
       {previewPdf && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-200 rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-dark-100">
-              <h3 className="text-lg font-semibold text-white">Forhåndsvisning - Røykluker Rapport</h3>
-              <button
-                onClick={() => setPreviewPdf(null)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              <iframe
-                src={URL.createObjectURL(previewPdf.blob)}
-                className="w-full h-full min-h-[600px] rounded"
-                title="PDF Preview"
-              />
-            </div>
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-dark-100">
-              <button
-                onClick={() => setPreviewPdf(null)}
-                className="btn-secondary"
-              >
-                Lukk
-              </button>
-              <button
-                onClick={async () => {
-                  try {
-                    // Lagre til Supabase Storage
-                    const { error: uploadError } = await supabase.storage
-                      .from('rapporter')
-                      .upload(`${anleggId}/${previewPdf.fileName}`, previewPdf.blob, {
-                        contentType: 'application/pdf',
-                        upsert: true
-                      })
+        <RoyklukerPreview
+          pdfBlob={previewPdf.blob}
+          fileName={previewPdf.fileName}
+          onBack={() => setPreviewPdf(null)}
+          onSave={async () => {
+            const storagePath = `anlegg/${anleggId}/dokumenter/${previewPdf.fileName}`
+            const { error: uploadError } = await supabase.storage
+              .from('anlegg.dokumenter')
+              .upload(storagePath, previewPdf.blob, {
+                contentType: 'application/pdf',
+                upsert: true
+              })
 
-                    if (uploadError) throw uploadError
+            if (uploadError) throw uploadError
 
-                    // Last ned PDF
-                    const url = URL.createObjectURL(previewPdf.blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = previewPdf.fileName
-                    a.click()
-                    setPreviewPdf(null)
-                    alert('Rapport lagret og lastet ned!')
-                  } catch (error) {
-                    console.error('Feil ved lagring:', error)
-                    alert('Kunne ikke lagre rapport')
-                  }
-                }}
-                className="btn-primary"
-              >
-                <FileDown className="w-4 h-4" />
-                Last ned og lagre
-              </button>
-            </div>
-          </div>
-        </div>
+            // Generate signed URL
+            const { data: urlData } = await supabase.storage
+              .from('anlegg.dokumenter')
+              .createSignedUrl(storagePath, 60 * 60 * 24 * 365)
+
+            // Insert record into dokumenter table
+            await supabase
+              .from('dokumenter')
+              .insert({
+                anlegg_id: anleggId,
+                filnavn: previewPdf.fileName,
+                url: urlData?.signedUrl || null,
+                type: 'Røykluker Rapport',
+                opplastet_dato: new Date().toISOString(),
+                storage_path: storagePath
+              })
+          }}
+        />
       )}
     </div>
   )

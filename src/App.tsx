@@ -11,11 +11,14 @@ import { Kontaktpersoner } from './pages/Kontaktpersoner'
 import { Ordre } from './pages/Ordre'
 import { Oppgaver } from './pages/Oppgaver'
 import { Rapporter } from './pages/Rapporter'
+import { RapportOversikt } from './pages/RapportOversikt'
 import { SendRapporter } from './pages/SendRapporter'
 import { Teknisk } from './pages/Teknisk'
 import { Dokumentasjon } from './pages/Dokumentasjon'
+import { LastOpp } from './pages/LastOpp'
 import { Nedlastinger } from './pages/Nedlastinger'
 import { AdminLogger } from './pages/AdminLogger'
+import { Priser } from './pages/Priser'
 import { OfflineIndicator } from './components/OfflineIndicator'
 
 // Placeholder pages
@@ -73,10 +76,13 @@ function App() {
                   <Route path="/oppgaver" element={<Oppgaver />} />
                   <Route path="/prosjekter" element={<Prosjekter />} />
                   <Route path="/rapporter" element={<Rapporter />} />
+                  <Route path="/rapport-oversikt" element={<RapportOversikt />} />
                   <Route path="/send-rapporter" element={<SendRapporter />} />
                   <Route path="/teknisk" element={<Teknisk />} />
                   <Route path="/dokumentasjon" element={<Dokumentasjon />} />
+                  <Route path="/last-opp" element={<LastOpp />} />
                   <Route path="/nedlastinger" element={<Nedlastinger />} />
+                  <Route path="/priser" element={<Priser />} />
                   <Route path="/admin/logger" element={<AdminLogger />} />
                 </Routes>
               </Layout>

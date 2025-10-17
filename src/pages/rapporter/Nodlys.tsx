@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, FileDown, Eye, Maximize2, Minimize2 } from 'lucide-react'
+import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Download } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { useOfflineQueue } from '@/hooks/useOffline'
 import { cacheData } from '@/lib/offline'
 import { NodlysPreview } from './NodlysPreview'
+import { KommentarViewNodlys } from './KommentarViewNodlys'
 
 interface Kunde {
   id: string
@@ -57,6 +58,8 @@ interface NodlysProps {
 }
 
 const statusTyper = ['OK', 'Defekt', 'Mangler', 'Utskiftet']
+const etasjeOptions = ['-2.Etg', '-1.Etg', '0.Etg', '1.Etg', '2.Etg', '3.Etg', '4.Etg', '5.Etg', '6.Etg', '7.Etg', '8.Etg', '9.Etg', '10.Etg']
+const typeOptions = ['ML', 'LL', 'Strobe', 'Fluoriserende']
 
 export function Nodlys({ onBack }: NodlysProps) {
   const location = useLocation()
@@ -68,9 +71,7 @@ export function Nodlys({ onBack }: NodlysProps) {
   const [nodlysListe, setNodlysListe] = useState<NodlysEnhet[]>([])
   const [nettverkListe, setNettverkListe] = useState<NettverkEnhet[]>([])
   const [harNettverk, setHarNettverk] = useState(false)
-  const [kommentar, setKommentar] = useState('')
   const [evakueringsplanStatus, setEvakueringsplanStatus] = useState('')
-  const [kommentarId, setKommentarId] = useState<string | null>(null)
   const [selectedKunde, setSelectedKunde] = useState(state?.kundeId || '')
   const [selectedAnlegg, setSelectedAnlegg] = useState(state?.anleggId || '')
   const [loading, setLoading] = useState(false)
@@ -102,14 +103,12 @@ export function Nodlys({ onBack }: NodlysProps) {
     if (selectedAnlegg) {
       loadNodlys(selectedAnlegg)
       checkNettverk(selectedAnlegg)
-      loadKommentar(selectedAnlegg)
+      loadEvakueringsplan(selectedAnlegg)
     } else {
       setNodlysListe([])
       setNettverkListe([])
       setHarNettverk(false)
-      setKommentar('')
       setEvakueringsplanStatus('')
-      setKommentarId(null)
     }
   }, [selectedAnlegg])
 
@@ -191,61 +190,46 @@ export function Nodlys({ onBack }: NodlysProps) {
     }
   }
 
-  async function loadKommentar(anleggId: string) {
+  async function loadEvakueringsplan(anleggId: string) {
     try {
       const { data, error } = await supabase
-        .from('kommentar_nodlys')
-        .select('*')
+        .from('evakueringsplan_status')
+        .select('status')
         .eq('anlegg_id', anleggId)
-        .single()
+        .maybeSingle()
 
       if (error && error.code !== 'PGRST116') throw error
-      
-      if (data) {
-        setKommentar(data.kommentar || '')
-        setEvakueringsplanStatus(data.evakueringsplan_status || '')
-        setKommentarId(data.id)
-      }
+      setEvakueringsplanStatus(data?.status || '')
     } catch (error) {
-      console.error('Feil ved lasting av kommentar:', error)
+      console.error('Feil ved lasting av evakueringsplan:', error)
     }
   }
 
-  async function saveKommentar() {
+  async function saveEvakueringsplan() {
     try {
-      if (kommentarId) {
-        // Oppdater eksisterende
-        const { error } = await supabase
-          .from('kommentar_nodlys')
-          .update({
-            kommentar,
-            evakueringsplan_status: evakueringsplanStatus
-          })
-          .eq('id', kommentarId)
+      const { data: existing } = await supabase
+        .from('evakueringsplan_status')
+        .select('id')
+        .eq('anlegg_id', selectedAnlegg)
+        .maybeSingle()
 
-        if (error) throw error
+      if (existing) {
+        await supabase
+          .from('evakueringsplan_status')
+          .update({ status: evakueringsplanStatus })
+          .eq('anlegg_id', selectedAnlegg)
       } else {
-        // Opprett ny
-        const { data, error } = await supabase
-          .from('kommentar_nodlys')
-          .insert([{
-            anlegg_id: selectedAnlegg,
-            kommentar,
-            evakueringsplan_status: evakueringsplanStatus
-          }])
-          .select()
-          .single()
-
-        if (error) throw error
-        if (data) setKommentarId(data.id)
+        await supabase
+          .from('evakueringsplan_status')
+          .insert({ anlegg_id: selectedAnlegg, status: evakueringsplanStatus })
       }
-      
-      alert('Kommentar lagret!')
+      alert('Evakueringsplan-status lagret!')
     } catch (error) {
-      console.error('Feil ved lagring av kommentar:', error)
-      alert('Kunne ikke lagre kommentar')
+      console.error('Feil ved lagring:', error)
+      alert('Kunne ikke lagre evakueringsplan-status')
     }
   }
+
 
   async function deleteNodlys(id: string) {
     if (!confirm('Er du sikker på at du vil slette denne nødlysenheten?')) return
@@ -309,7 +293,7 @@ export function Nodlys({ onBack }: NodlysProps) {
     setEditValue('')
   }
 
-  async function genererPDF(forhandsvisning: boolean = false) {
+  async function genererPDF(mode: 'preview' | 'save' | 'download' = 'preview') {
     try {
       setLoading(true)
 
@@ -356,6 +340,20 @@ export function Nodlys({ onBack }: NodlysProps) {
         .from('ansatte')
         .select('navn, telefon, epost')
         .eq('epost', authUser?.email)
+        .maybeSingle()
+
+      // Hent kommentarer for anlegget
+      const { data: kommentarer } = await supabase
+        .from('kommentar_nodlys')
+        .select('*')
+        .eq('anlegg_id', selectedAnlegg)
+        .order('created_at', { ascending: false })
+
+      // Hent evakueringsplan-status
+      const { data: evakPlan } = await supabase
+        .from('evakueringsplan_status')
+        .select('status')
+        .eq('anlegg_id', selectedAnlegg)
         .maybeSingle()
 
       // Generer PDF
@@ -425,143 +423,211 @@ export function Nodlys({ onBack }: NodlysProps) {
         yPos += 10
       }
 
-      // Header
-      doc.setFontSize(20)
+      // Tittel
+      doc.setFontSize(18)
       doc.setFont('helvetica', 'bold')
-      doc.text('NØDLYSRAPPORT', pageWidth / 2, yPos, { align: 'center' })
-      yPos += 15
+      doc.text('RAPPORT - NØDLYS', 20, yPos)
+      yPos += 12
 
-      // Kunde og anlegg info
-      doc.setFontSize(12)
+      // Anleggsinformasjon - Profesjonell layout
+      doc.setDrawColor(220, 220, 220)
+      doc.setLineWidth(0.3)
+      doc.setFillColor(250, 250, 250)
+      doc.rect(17, yPos, 85, 28, 'FD')
+      
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'bold')
-      doc.text('Kunde:', 20, yPos)
+      doc.setTextColor(100, 100, 100)
+      doc.text('KUNDE', 20, yPos + 5)
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text(kundeData?.navn || selectedKundeNavn || '-', 20, yPos + 10)
+      
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(100, 100, 100)
+      doc.text('ANLEGG', 20, yPos + 16)
+      doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
-      doc.text(kundeData?.navn || selectedKundeNavn || '-', 50, yPos)
-      yPos += 7
-
-      doc.setFont('helvetica', 'bold')
-      doc.text('Anlegg:', 20, yPos)
-      doc.setFont('helvetica', 'normal')
-      doc.text(anleggData?.anleggsnavn || '-', 50, yPos)
-      yPos += 7
-
-      if (anleggData?.adresse) {
-        doc.setFont('helvetica', 'bold')
-        doc.text('Adresse:', 20, yPos)
-        doc.setFont('helvetica', 'normal')
-        doc.text(`${anleggData.adresse}, ${anleggData.postnummer || ''} ${anleggData.poststed || ''}`, 50, yPos)
-        yPos += 7
-      }
-
-      yPos += 2
-
-      // Dato
-      doc.setFont('helvetica', 'bold')
-      doc.text('Dato:', 20, yPos)
-      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0, 0, 0)
+      doc.text(anleggData?.anleggsnavn || '-', 20, yPos + 21)
+      
       const idag = new Date()
-      doc.text(idag.toLocaleDateString('nb-NO'), 50, yPos)
-      yPos += 7
-
-      // Neste kontroll (12 måneder fram)
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Kontrollert: ${idag.toLocaleDateString('nb-NO')}`, 20, yPos + 26)
+      
+      // Neste kontroll boks
+      doc.setFillColor(254, 249, 195)
+      doc.rect(104, yPos, 91, 28, 'FD')
+      
       const nesteKontroll = new Date(idag)
       nesteKontroll.setMonth(nesteKontroll.getMonth() + 12)
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'bold')
-      doc.text('Neste kontroll:', 20, yPos)
-      doc.setFont('helvetica', 'normal')
-      doc.text(nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }), 50, yPos)
-      yPos += 10
+      doc.setTextColor(100, 100, 100)
+      doc.text('NESTE KONTROLL', 107, yPos + 5)
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(202, 138, 4)
+      doc.text(nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }).toUpperCase(), 107, yPos + 14)
+      
+      yPos += 32
 
-      // Kontaktperson
+      // Kontaktpersoner - To kolonner
+      const colWidth = 85
+      let leftCol = 17
+      let rightCol = 104
+      
       if (primaerKontakt?.navn) {
-        doc.setFontSize(11)
+        doc.setDrawColor(220, 220, 220)
+        doc.setFillColor(250, 250, 250)
+        doc.rect(leftCol, yPos, colWidth, 24, 'FD')
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
-        doc.text('Kontaktperson:', 20, yPos)
+        doc.setTextColor(100, 100, 100)
+        doc.text('KONTAKTPERSON', leftCol + 3, yPos + 5)
+        
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text(primaerKontakt.navn, leftCol + 3, yPos + 11)
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        yPos += 5
-        doc.text(primaerKontakt.navn, 20, yPos)
-        yPos += 4
+        let infoY = yPos + 15
         if (primaerKontakt.telefon) {
-          doc.text(`Tlf: ${primaerKontakt.telefon}`, 20, yPos)
-          yPos += 4
+          doc.text(`Tlf: ${primaerKontakt.telefon}`, leftCol + 3, infoY)
+          infoY += 4
         }
         if (primaerKontakt.epost) {
-          doc.text(`E-post: ${primaerKontakt.epost}`, 20, yPos)
-          yPos += 4
+          doc.text(`E-post: ${primaerKontakt.epost}`, leftCol + 3, infoY)
         }
-        yPos += 4
       }
 
-      // Utført av
       if (tekniker?.navn) {
-        doc.setFontSize(11)
+        doc.setFillColor(240, 253, 244)
+        doc.rect(rightCol, yPos, colWidth + 6, 24, 'FD')
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
-        doc.text('Utført av:', 20, yPos)
+        doc.setTextColor(100, 100, 100)
+        doc.text('UTFØRT AV', rightCol + 3, yPos + 5)
+        
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(22, 163, 74)
+        doc.text(tekniker.navn, rightCol + 3, yPos + 11)
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        yPos += 5
-        doc.text(tekniker.navn, 20, yPos)
-        yPos += 4
+        doc.setTextColor(0, 0, 0)
+        let infoY = yPos + 15
         if (tekniker.telefon) {
-          doc.text(`Tlf: ${tekniker.telefon}`, 20, yPos)
-          yPos += 4
+          doc.text(`Tlf: ${tekniker.telefon}`, rightCol + 3, infoY)
+          infoY += 4
         }
         if (tekniker.epost) {
-          doc.text(`E-post: ${tekniker.epost}`, 20, yPos)
-          yPos += 4
+          doc.text(`E-post: ${tekniker.epost}`, rightCol + 3, infoY)
         }
-        yPos += 4
       }
+      
+      doc.setTextColor(0, 0, 0)
+      yPos += 28
 
-      yPos += 5
-
-      // Oppsummering
+      // Statistikk
       const totalt = nodlysListe.length
       const ok = nodlysListe.filter(n => n.status === 'OK').length
       const defekt = nodlysListe.filter(n => n.status === 'Defekt').length
       const kontrollert = nodlysListe.filter(n => n.kontrollert).length
 
-      doc.setFontSize(14)
+      // Statistikk - Profesjonell layout
+      doc.setFillColor(41, 128, 185)
+      doc.rect(15, yPos, 180, 8, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(12)
       doc.setFont('helvetica', 'bold')
-      doc.text('OPPSUMMERING', 20, yPos)
-      yPos += 10
-
-      doc.setFontSize(11)
+      doc.text('STATISTIKK', 20, yPos + 5.5)
+      doc.setTextColor(0, 0, 0)
+      yPos += 12
+      
+      // Status-seksjon
+      const boxWidth = 43
+      const boxHeight = 22
+      let xPos = 17
+      
+      // Totalt
+      doc.setDrawColor(200, 200, 200)
+      doc.setLineWidth(0.5)
+      doc.setFillColor(248, 250, 252)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(41, 128, 185)
+      doc.text(totalt.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Totalt antall nødlysenheter: ${totalt}`, 20, yPos)
-      yPos += 6
-      doc.text(`Kontrollert: ${kontrollert} av ${totalt}`, 20, yPos)
-      yPos += 6
-      doc.text(`Status OK: ${ok}`, 20, yPos)
-      yPos += 6
-      doc.text(`Defekte: ${defekt}`, 20, yPos)
-      yPos += 15
+      doc.setTextColor(100, 100, 100)
+      doc.text('TOTALT', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // OK
+      xPos += boxWidth + 2
+      doc.setFillColor(240, 253, 244)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(22, 163, 74)
+      doc.text(ok.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('OK', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Kontrollert
+      xPos += boxWidth + 2
+      doc.setFillColor(249, 250, 251)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(107, 114, 128)
+      doc.text(kontrollert.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('KONTROLLERT', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Defekt
+      xPos += boxWidth + 2
+      doc.setFillColor(254, 242, 242)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(220, 38, 38)
+      doc.text(defekt.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('DEFEKT', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      doc.setTextColor(0, 0, 0)
+      yPos += boxHeight + 8
 
-      // Evakueringsplan og kommentar
-      if (evakueringsplanStatus || kommentar) {
+      // Tilleggsinformasjon (Evakueringsplan)
+      if (evakPlan?.status) {
         doc.setFontSize(14)
         doc.setFont('helvetica', 'bold')
         doc.text('TILLEGGSINFORMASJON', 20, yPos)
         yPos += 10
 
         doc.setFontSize(11)
-        
-        if (evakueringsplanStatus) {
-          doc.setFont('helvetica', 'bold')
-          doc.text('Evakueringsplaner:', 20, yPos)
-          doc.setFont('helvetica', 'normal')
-          doc.text(evakueringsplanStatus, 70, yPos)
-          yPos += 7
-        }
-
-        if (kommentar) {
-          doc.setFont('helvetica', 'bold')
-          doc.text('Kommentar:', 20, yPos)
-          yPos += 6
-          doc.setFont('helvetica', 'normal')
-          const kommentarLines = doc.splitTextToSize(kommentar, pageWidth - 40)
-          doc.text(kommentarLines, 20, yPos)
-          yPos += (kommentarLines.length * 6) + 5
-        }
+        doc.setFont('helvetica', 'bold')
+        doc.text('Evakueringsplaner:', 20, yPos)
+        doc.setFont('helvetica', 'normal')
+        doc.text(evakPlan.status, 70, yPos)
+        yPos += 10
       }
 
       // Legg til footer på første side
@@ -630,30 +696,124 @@ export function Nodlys({ onBack }: NodlysProps) {
         }
       })
 
+      // Kommentarer seksjon - på ny side hvis det finnes kommentarer
+      if (kommentarer && kommentarer.length > 0) {
+        doc.addPage()
+        yPos = 20
+
+        // Tittel
+        doc.setFontSize(16)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text('KOMMENTARER', 20, yPos)
+        doc.setTextColor(0, 0, 0)
+        yPos += 15
+
+        // Gå gjennom hver kommentar
+        kommentarer.forEach((kommentar) => {
+          // Sjekk om vi trenger ny side
+          if (yPos > 250) {
+            doc.addPage()
+            yPos = 20
+            const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
+            addFooter(currentPage)
+          }
+
+          // Kommentar boks
+          doc.setDrawColor(220, 220, 220)
+          doc.setLineWidth(0.3)
+          doc.setFillColor(250, 250, 250)
+          
+          // Beregn høyde basert på tekst
+          const kommentarTekst = kommentar.kommentar || ''
+          const textLines = doc.splitTextToSize(kommentarTekst, 170)
+          const boxHeight = 12 + (textLines.length * 4)
+          
+          doc.rect(15, yPos, 180, boxHeight, 'FD')
+          
+          // Kommentar header (navn og dato)
+          doc.setFontSize(9)
+          doc.setFont('helvetica', 'bold')
+          doc.text(kommentar.opprettet_av || 'Ukjent', 20, yPos + 5)
+          
+          // Dato
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8)
+          doc.setTextColor(100, 100, 100)
+          const kommentarDato = kommentar.opprettet_dato || kommentar.created_at
+          let datoTekst = 'Ukjent dato'
+          if (kommentarDato) {
+            try {
+              const d = new Date(kommentarDato)
+              datoTekst = d.toLocaleDateString('nb-NO', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })
+            } catch {
+              datoTekst = kommentarDato
+            }
+          }
+          doc.text(datoTekst, 190, yPos + 5, { align: 'right' })
+          
+          // Kommentar tekst
+          doc.setFontSize(9)
+          doc.setTextColor(0, 0, 0)
+          yPos += 9
+          doc.setFont('helvetica', 'normal')
+          doc.text(textLines, 20, yPos)
+          
+          yPos += boxHeight - 9 + 5 // Mellomrom til neste kommentar
+        })
+
+        // Legg til footer på kommentar-siden
+        const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
+        addFooter(currentPage)
+      }
+
       const pdfBlob = doc.output('blob')
       const fileName = `Rapport_Nodlys_${new Date().getFullYear()}_${(anleggData?.anleggsnavn || 'Anlegg').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
 
-      if (forhandsvisning) {
-        // Vis forhåndsvisning i samme vindu
+      if (mode === 'preview') {
+        // Vis forhåndsvisning
         setPreviewPdf({ blob: pdfBlob, fileName })
       } else {
-        // Lagre PDF til Supabase Storage
-        const pdfBlob = doc.output('blob')
-        const fileName = `Rapport_Nodlys_${new Date().getFullYear()}_${(anleggData?.anleggsnavn || 'Anlegg').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+        // Lagre til Supabase Storage
+        const storagePath = `anlegg/${selectedAnlegg}/dokumenter/${fileName}`
         
         const { error: uploadError } = await supabase.storage
-          .from('rapporter')
-          .upload(`${selectedAnlegg}/${fileName}`, pdfBlob, {
+          .from('anlegg.dokumenter')
+          .upload(storagePath, pdfBlob, {
             contentType: 'application/pdf',
             upsert: true
           })
 
         if (uploadError) throw uploadError
 
-        // Last ned PDF også
-        doc.save(fileName)
+        // Generate signed URL
+        const { data: urlData } = await supabase.storage
+          .from('anlegg.dokumenter')
+          .createSignedUrl(storagePath, 60 * 60 * 24 * 365)
 
-        alert('Rapport generert og lagret!')
+        // Insert record into dokumenter table
+        await supabase
+          .from('dokumenter')
+          .insert({
+            anlegg_id: selectedAnlegg,
+            filnavn: fileName,
+            url: urlData?.signedUrl || null,
+            type: 'Nødlys Rapport',
+            opplastet_dato: new Date().toISOString(),
+            storage_path: storagePath
+          })
+
+        // Last ned PDF hvis mode er 'download'
+        if (mode === 'download') {
+          doc.save(fileName)
+          alert('Rapport lagret og lastet ned!')
+        } else {
+          alert('Rapport lagret!')
+        }
       }
     } catch (error) {
       console.error('Feil ved generering av rapport:', error)
@@ -661,6 +821,14 @@ export function Nodlys({ onBack }: NodlysProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Hent unike verdier for autocomplete
+  function getUniqueValues(field: 'fordeling' | 'kurs' | 'produsent'): string[] {
+    const values = nodlysListe
+      .map(n => n[field])
+      .filter((v): v is string => v !== null && v !== '')
+    return Array.from(new Set(values)).sort()
   }
 
   // Redigerbar celle-komponent
@@ -676,8 +844,155 @@ export function Nodlys({ onBack }: NodlysProps) {
     className?: string 
   }) {
     const isEditing = editingCell?.id === nodlysId && editingCell?.field === field
+    const [showSuggestions, setShowSuggestions] = useState(false)
+    const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
+    const inputRef = useRef<HTMLInputElement>(null)
+
+    // Håndter autocomplete for fordeling, kurs, produsent
+    const isAutocompleteField = field === 'fordeling' || field === 'kurs' || field === 'produsent'
+    const isEtasjeField = field === 'etasje'
+    const isTypeField = field === 'type'
+
+    useEffect(() => {
+      if (isEditing && isAutocompleteField) {
+        const uniqueValues = getUniqueValues(field as 'fordeling' | 'kurs' | 'produsent')
+        const filtered = uniqueValues.filter(v => 
+          v.toLowerCase().startsWith(editValue.toLowerCase())
+        )
+        setFilteredSuggestions(filtered)
+        setShowSuggestions(filtered.length > 0 && editValue.length > 0)
+      }
+    }, [editValue, isEditing, isAutocompleteField, field])
 
     if (isEditing) {
+      // Etasje dropdown
+      if (isEtasjeField) {
+        return (
+          <select
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => saveInlineEdit(nodlysId, field)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') saveInlineEdit(nodlysId, field)
+              if (e.key === 'Escape') cancelEditing()
+            }}
+            autoFocus
+            className="input py-1 px-2 text-sm w-full"
+          >
+            <option value="">Velg etasje</option>
+            {etasjeOptions.map((etasje) => (
+              <option key={etasje} value={etasje}>{etasje}</option>
+            ))}
+          </select>
+        )
+      }
+
+      // Type dropdown
+      if (isTypeField) {
+        return (
+          <select
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => saveInlineEdit(nodlysId, field)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') saveInlineEdit(nodlysId, field)
+              if (e.key === 'Escape') cancelEditing()
+            }}
+            autoFocus
+            className="input py-1 px-2 text-sm w-full"
+          >
+            <option value="">Velg type</option>
+            {typeOptions.map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        )
+      }
+
+      // Autocomplete for fordeling, kurs, produsent
+      if (isAutocompleteField) {
+        return (
+          <div className="relative">
+            <input
+              ref={inputRef}
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={(e) => {
+                // Sjekk om klikket var på en suggestion
+                const relatedTarget = e.relatedTarget as HTMLElement
+                if (relatedTarget?.closest('.suggestion-item')) {
+                  return // Ikke lagre hvis vi klikker på en suggestion
+                }
+                // Delay to allow click on suggestion
+                setTimeout(() => {
+                  saveInlineEdit(nodlysId, field)
+                  setShowSuggestions(false)
+                }, 200)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  saveInlineEdit(nodlysId, field)
+                  setShowSuggestions(false)
+                }
+                if (e.key === 'Escape') {
+                  cancelEditing()
+                  setShowSuggestions(false)
+                }
+              }}
+              autoFocus
+              className="input py-1 px-2 text-sm w-full"
+              placeholder={`Skriv eller velg ${field}...`}
+            />
+            {showSuggestions && filteredSuggestions.length > 0 && (
+              <div className="absolute z-50 w-full bottom-full mb-1 bg-dark-100 border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                {filteredSuggestions.map((suggestion, idx) => (
+                  <div
+                    key={idx}
+                    className="suggestion-item w-full text-left px-3 py-2 hover:bg-primary/20 text-gray-300 text-sm transition-colors cursor-pointer"
+                    onMouseDown={async (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setShowSuggestions(false)
+                      
+                      // Lagre direkte med den valgte verdien
+                      try {
+                        if (isOnline) {
+                          const { error } = await supabase
+                            .from('anleggsdata_nodlys')
+                            .update({ [field]: suggestion })
+                            .eq('id', nodlysId)
+
+                          if (error) throw error
+                        } else {
+                          queueUpdate('anleggsdata_nodlys', { id: nodlysId, [field]: suggestion })
+                        }
+
+                        // Oppdater lokal state
+                        const updatedList = nodlysListe.map(n => 
+                          n.id === nodlysId ? { ...n, [field]: suggestion } : n
+                        )
+                        setNodlysListe(updatedList)
+                        cacheData(`nodlys_${selectedAnlegg}`, updatedList)
+                        
+                        setEditingCell(null)
+                        setEditValue('')
+                      } catch (error) {
+                        console.error('Feil ved oppdatering:', error)
+                        alert('Kunne ikke oppdatere felt')
+                      }
+                    }}
+                  >
+                    {suggestion}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      }
+
+      // Standard text input for other fields
       return (
         <input
           type="text"
@@ -696,9 +1011,9 @@ export function Nodlys({ onBack }: NodlysProps) {
 
     return (
       <span
-        onDoubleClick={() => startEditing(nodlysId, field, value)}
+        onClick={() => startEditing(nodlysId, field, value)}
         className={`${className} cursor-pointer hover:bg-dark-100 px-2 py-1 rounded transition-colors`}
-        title="Dobbeltklikk for å redigere"
+        title="Klikk for å redigere"
       >
         {value || '-'}
       </span>
@@ -753,14 +1068,32 @@ export function Nodlys({ onBack }: NodlysProps) {
         onBack={() => setPreviewPdf(null)}
         onSave={async () => {
           // Lagre PDF til Supabase Storage
+          const storagePath = `anlegg/${selectedAnlegg}/dokumenter/${previewPdf.fileName}`
           const { error: uploadError } = await supabase.storage
-            .from('rapporter')
-            .upload(`${selectedAnlegg}/${previewPdf.fileName}`, previewPdf.blob, {
+            .from('anlegg.dokumenter')
+            .upload(storagePath, previewPdf.blob, {
               contentType: 'application/pdf',
               upsert: true
             })
 
           if (uploadError) throw uploadError
+
+          // Generate signed URL
+          const { data: urlData } = await supabase.storage
+            .from('anlegg.dokumenter')
+            .createSignedUrl(storagePath, 60 * 60 * 24 * 365)
+
+          // Insert record into dokumenter table
+          await supabase
+            .from('dokumenter')
+            .insert({
+              anlegg_id: selectedAnlegg,
+              filnavn: previewPdf.fileName,
+              url: urlData?.signedUrl || null,
+              type: 'Nødlys Rapport',
+              opplastet_dato: new Date().toISOString(),
+              storage_path: storagePath
+            })
         }}
       />
     )
@@ -873,20 +1206,20 @@ export function Nodlys({ onBack }: NodlysProps) {
             </div>
           ) : (
             <div className="overflow-x-auto bg-dark-100 rounded-lg">
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead>
                   <tr className="border-b border-gray-800">
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Intern nr.</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Armatur ID</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Fordeling</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Kurs</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Etasje</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Plassering</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Produsent</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Type</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
-                    <th className="text-center py-3 px-4 text-gray-400 font-medium">Kontrollert</th>
-                    <th className="text-right py-3 px-4 text-gray-400 font-medium">Handlinger</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Intern nr.</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Armatur ID</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Fordeling</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Kurs</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Etasje</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-40">Plassering</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-32">Produsent</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-32">Type</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Status</th>
+                    <th className="text-center py-3 px-4 text-gray-400 font-medium w-28">Kontrollert</th>
+                    <th className="text-right py-3 px-4 text-gray-400 font-medium w-24">Handlinger</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -949,9 +1282,9 @@ export function Nodlys({ onBack }: NodlysProps) {
                           </select>
                         ) : (
                           <span
-                            onDoubleClick={() => startEditing(nodlys.id, 'status', nodlys.status)}
+                            onClick={() => startEditing(nodlys.id, 'status', nodlys.status)}
                             className="cursor-pointer"
-                            title="Dobbeltklikk for å redigere"
+                            title="Klikk for å redigere"
                           >
                             {nodlys.status ? (
                               <span className={`badge ${
@@ -1261,20 +1594,20 @@ export function Nodlys({ onBack }: NodlysProps) {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full table-fixed">
                   <thead>
                     <tr className="border-b border-gray-800">
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">Intern nr.</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">Armatur ID</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">Fordeling</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">Kurs</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">Etasje</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">Plassering</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">Produsent</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">Type</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">Kontrollert</th>
-                      <th className="text-right py-3 px-4 text-gray-400 font-medium">Handlinger</th>
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Intern nr.</th>
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Armatur ID</th>
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Fordeling</th>
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Kurs</th>
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Etasje</th>
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-40">Plassering</th>
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-32">Produsent</th>
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-32">Type</th>
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Status</th>
+                      <th className="text-center py-3 px-4 text-gray-400 font-medium w-28">Kontrollert</th>
+                      <th className="text-right py-3 px-4 text-gray-400 font-medium w-24">Handlinger</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1337,9 +1670,9 @@ export function Nodlys({ onBack }: NodlysProps) {
                             </select>
                           ) : (
                             <span
-                              onDoubleClick={() => startEditing(nodlys.id, 'status', nodlys.status)}
+                              onClick={() => startEditing(nodlys.id, 'status', nodlys.status)}
                               className="cursor-pointer"
-                              title="Dobbeltklikk for å redigere"
+                              title="Klikk for å redigere"
                             >
                               {nodlys.status ? (
                                 <span className={`badge ${
@@ -1427,15 +1760,13 @@ export function Nodlys({ onBack }: NodlysProps) {
             )}
           </div>
 
-          {/* Kommentar og Evakueringsplan */}
+          {/* Evakueringsplan */}
           <div className="card">
-            <h2 className="text-lg font-semibold text-white mb-4">Kommentar og Evakueringsplan</h2>
-            
+            <h2 className="text-lg font-semibold text-white mb-4">Tilleggsinformasjon</h2>
             <div className="space-y-4">
-              {/* Evakueringsplan status */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Har anlegget evakueringsplaner?
+                  Evakueringsplaner
                 </label>
                 <select
                   value={evakueringsplanStatus}
@@ -1445,49 +1776,55 @@ export function Nodlys({ onBack }: NodlysProps) {
                   <option value="">Velg status</option>
                   <option value="Ja">Ja</option>
                   <option value="Nei">Nei</option>
-                  <option value="Mangler">Mangler</option>
                   <option value="Må oppdateres">Må oppdateres</option>
                 </select>
               </div>
+              <button
+                onClick={saveEvakueringsplan}
+                className="btn-primary"
+              >
+                <Save className="w-4 h-4" />
+                Lagre tilleggsinformasjon
+              </button>
+            </div>
+          </div>
 
-              {/* Kommentar */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Kommentar
-                </label>
-                <textarea
-                  value={kommentar}
-                  onChange={(e) => setKommentar(e.target.value)}
-                  className="input min-h-[120px]"
-                  placeholder="Skriv kommentar her..."
-                />
-              </div>
+          {/* Kommentarer seksjon */}
+          <KommentarViewNodlys
+            anleggId={selectedAnlegg}
+            kundeNavn={kunder.find(k => k.id === selectedKunde)?.navn || ''}
+            anleggNavn={anlegg.find(a => a.id === selectedAnlegg)?.anleggsnavn || ''}
+            onBack={() => {}}
+          />
 
-              {/* Handlingsknapper */}
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={saveKommentar}
-                  className="btn-primary"
-                >
-                  Lagre kommentar
-                </button>
-                <button
-                  onClick={() => genererPDF(true)}
-                  disabled={loading || nodlysListe.length === 0}
-                  className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Eye className="w-5 h-5" />
-                  Forhåndsvis rapport
-                </button>
-                <button
-                  onClick={() => genererPDF(false)}
-                  disabled={loading || nodlysListe.length === 0}
-                  className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <FileDown className="w-5 h-5" />
-                  Generer og lagre rapport
-                </button>
-              </div>
+          {/* Rapportknapper */}
+          <div className="card">
+            <h2 className="text-lg font-semibold text-white mb-4">Generer rapport</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => genererPDF('preview')}
+                disabled={loading || nodlysListe.length === 0}
+                className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Eye className="w-5 h-5" />
+                Forhåndsvis rapport
+              </button>
+              <button
+                onClick={() => genererPDF('save')}
+                disabled={loading || nodlysListe.length === 0}
+                className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save className="w-5 h-5" />
+                Lagre rapport
+              </button>
+              <button
+                onClick={() => genererPDF('download')}
+                disabled={loading || nodlysListe.length === 0}
+                className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="w-5 h-5" />
+                Lagre og last ned
+              </button>
             </div>
           </div>
         </>
@@ -1519,6 +1856,52 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
     kontrollert: nodlys?.kontrollert || false,
   })
   const [saving, setSaving] = useState(false)
+  const [fordelingOptions, setFordelingOptions] = useState<string[]>([])
+  const [kursOptions, setKursOptions] = useState<string[]>([])
+  const [produsentOptions, setProdusentOptions] = useState<string[]>([])
+  const [showFordelingSuggestions, setShowFordelingSuggestions] = useState(false)
+  const [showKursSuggestions, setShowKursSuggestions] = useState(false)
+  const [showProdusentSuggestions, setShowProdusentSuggestions] = useState(false)
+  const [nesteInternnummer, setNesteInternnummer] = useState<number | null>(null)
+
+  // Hent unike verdier fra eksisterende nødlysenheter og beregn neste internnummer
+  useEffect(() => {
+    async function loadOptions() {
+      try {
+        const { data, error } = await supabase
+          .from('anleggsdata_nodlys')
+          .select('fordeling, kurs, produsent, internnummer')
+          .eq('anlegg_id', anleggId)
+
+        if (error) throw error
+        
+        if (data) {
+          const fordelinger = Array.from(new Set(data.map(d => d.fordeling).filter((v): v is string => v !== null && v !== ''))).sort()
+          const kurser = Array.from(new Set(data.map(d => d.kurs).filter((v): v is string => v !== null && v !== ''))).sort()
+          const produsenter = Array.from(new Set(data.map(d => d.produsent).filter((v): v is string => v !== null && v !== ''))).sort()
+          
+          setFordelingOptions(fordelinger)
+          setKursOptions(kurser)
+          setProdusentOptions(produsenter)
+
+          // Beregn neste internnummer hvis vi oppretter ny enhet
+          if (!nodlys) {
+            const internnumre = data
+              .map(d => parseInt(d.internnummer || '0'))
+              .filter(n => !isNaN(n) && n > 0)
+            
+            const maxNummer = internnumre.length > 0 ? Math.max(...internnumre) : 0
+            const neste = maxNummer + 1
+            setNesteInternnummer(neste)
+            setFormData(prev => ({ ...prev, internnummer: neste.toString() }))
+          }
+        }
+      } catch (error) {
+        console.error('Feil ved lasting av alternativer:', error)
+      }
+    }
+    loadOptions()
+  }, [anleggId, nodlys])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1600,13 +1983,18 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Internnummer
+              {!nodlys && nesteInternnummer && (
+                <span className="ml-2 text-xs text-green-400">
+                  (Foreslått: {nesteInternnummer})
+                </span>
+              )}
             </label>
             <input
               type="text"
               value={formData.internnummer}
               onChange={(e) => setFormData({ ...formData, internnummer: e.target.value })}
               className="input"
-              placeholder="F.eks. 001, 002, etc."
+              placeholder={nesteInternnummer ? `Foreslått: ${nesteInternnummer}` : "F.eks. 1, 2, 3, etc."}
             />
           </div>
 
@@ -1639,31 +2027,85 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
           </div>
 
           {/* Fordeling */}
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Fordeling
             </label>
             <input
               type="text"
               value={formData.fordeling}
-              onChange={(e) => setFormData({ ...formData, fordeling: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, fordeling: e.target.value })
+                setShowFordelingSuggestions(e.target.value.length > 0)
+              }}
+              onFocus={() => setShowFordelingSuggestions(formData.fordeling.length > 0)}
+              onBlur={() => setTimeout(() => setShowFordelingSuggestions(false), 200)}
               className="input"
-              placeholder="Fordelingsnavn"
+              placeholder="Skriv eller velg fordeling"
             />
+            {showFordelingSuggestions && fordelingOptions.filter(opt => 
+              opt.toLowerCase().includes(formData.fordeling.toLowerCase())
+            ).length > 0 && (
+              <div className="absolute z-50 w-full mt-1 bg-dark-100 border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                {fordelingOptions
+                  .filter(opt => opt.toLowerCase().includes(formData.fordeling.toLowerCase()))
+                  .map((option, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        setFormData({ ...formData, fordeling: option })
+                        setShowFordelingSuggestions(false)
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-primary/20 text-gray-300 text-sm transition-colors"
+                    >
+                      {option}
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
 
           {/* Kurs */}
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Kurs
             </label>
             <input
               type="text"
               value={formData.kurs}
-              onChange={(e) => setFormData({ ...formData, kurs: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, kurs: e.target.value })
+                setShowKursSuggestions(e.target.value.length > 0)
+              }}
+              onFocus={() => setShowKursSuggestions(formData.kurs.length > 0)}
+              onBlur={() => setTimeout(() => setShowKursSuggestions(false), 200)}
               className="input"
-              placeholder="Kursnummer"
+              placeholder="Skriv eller velg kurs"
             />
+            {showKursSuggestions && kursOptions.filter(opt => 
+              opt.toLowerCase().includes(formData.kurs.toLowerCase())
+            ).length > 0 && (
+              <div className="absolute z-50 w-full mt-1 bg-dark-100 border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                {kursOptions
+                  .filter(opt => opt.toLowerCase().includes(formData.kurs.toLowerCase()))
+                  .map((option, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        setFormData({ ...formData, kurs: option })
+                        setShowKursSuggestions(false)
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-primary/20 text-gray-300 text-sm transition-colors"
+                    >
+                      {option}
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
 
           {/* Etasje */}
@@ -1671,13 +2113,16 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Etasje
             </label>
-            <input
-              type="text"
+            <select
               value={formData.etasje}
               onChange={(e) => setFormData({ ...formData, etasje: e.target.value })}
               className="input"
-              placeholder="F.eks. 1, 2, U1, etc."
-            />
+            >
+              <option value="">Velg etasje</option>
+              {etasjeOptions.map((etasje) => (
+                <option key={etasje} value={etasje}>{etasje}</option>
+              ))}
+            </select>
           </div>
 
           {/* Type */}
@@ -1685,27 +2130,57 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Type
             </label>
-            <input
-              type="text"
+            <select
               value={formData.type}
               onChange={(e) => setFormData({ ...formData, type: e.target.value })}
               className="input"
-              placeholder="F.eks. LED, Halogen, etc."
-            />
+            >
+              <option value="">Velg type</option>
+              {typeOptions.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
           </div>
 
           {/* Produsent */}
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Produsent
             </label>
             <input
               type="text"
               value={formData.produsent}
-              onChange={(e) => setFormData({ ...formData, produsent: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, produsent: e.target.value })
+                setShowProdusentSuggestions(e.target.value.length > 0)
+              }}
+              onFocus={() => setShowProdusentSuggestions(formData.produsent.length > 0)}
+              onBlur={() => setTimeout(() => setShowProdusentSuggestions(false), 200)}
               className="input"
-              placeholder="Produsentnavn"
+              placeholder="Skriv eller velg produsent"
             />
+            {showProdusentSuggestions && produsentOptions.filter(opt => 
+              opt.toLowerCase().includes(formData.produsent.toLowerCase())
+            ).length > 0 && (
+              <div className="absolute z-50 w-full mt-1 bg-dark-100 border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                {produsentOptions
+                  .filter(opt => opt.toLowerCase().includes(formData.produsent.toLowerCase()))
+                  .map((option, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        setFormData({ ...formData, produsent: option })
+                        setShowProdusentSuggestions(false)
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-primary/20 text-gray-300 text-sm transition-colors"
+                    >
+                      {option}
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
 
           {/* Status */}
@@ -1969,6 +2444,33 @@ function BulkAddForm({ anleggId, onSave, onCancel }: BulkAddFormProps) {
   const { isOnline, queueInsert } = useOfflineQueue()
   const [antall, setAntall] = useState(5)
   const [saving, setSaving] = useState(false)
+  const [startNummer, setStartNummer] = useState<number>(1)
+
+  // Hent neste ledige internnummer
+  useEffect(() => {
+    async function getNesteNummer() {
+      try {
+        const { data, error } = await supabase
+          .from('anleggsdata_nodlys')
+          .select('internnummer')
+          .eq('anlegg_id', anleggId)
+
+        if (error) throw error
+        
+        if (data) {
+          const internnumre = data
+            .map(d => parseInt(d.internnummer || '0'))
+            .filter(n => !isNaN(n) && n > 0)
+          
+          const maxNummer = internnumre.length > 0 ? Math.max(...internnumre) : 0
+          setStartNummer(maxNummer + 1)
+        }
+      } catch (error) {
+        console.error('Feil ved henting av neste nummer:', error)
+      }
+    }
+    getNesteNummer()
+  }, [anleggId])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1981,10 +2483,10 @@ function BulkAddForm({ anleggId, onSave, onCancel }: BulkAddFormProps) {
     setSaving(true)
 
     try {
-      // Opprett array med tomme nødlysenheter
-      const nyeEnheter = Array.from({ length: antall }, () => ({
+      // Opprett array med nødlysenheter med automatisk nummerering
+      const nyeEnheter = Array.from({ length: antall }, (_, index) => ({
         anlegg_id: anleggId,
-        internnummer: null,
+        internnummer: (startNummer + index).toString(),
         amatur_id: null,
         fordeling: null,
         kurs: null,
@@ -2049,7 +2551,7 @@ function BulkAddForm({ anleggId, onSave, onCancel }: BulkAddFormProps) {
             required
           />
           <p className="text-sm text-gray-400 mt-2">
-            Maks 25 enheter om gangen. Alle felt vil være tomme og kan fylles ut ved å dobbeltklikke i tabellen.
+            Maks 25 enheter om gangen. Internnummer vil automatisk bli satt fra <span className="text-green-400 font-semibold">{startNummer}</span> til <span className="text-green-400 font-semibold">{startNummer + antall - 1}</span>.
           </p>
         </div>
 
@@ -2079,11 +2581,15 @@ function BulkAddForm({ anleggId, onSave, onCancel }: BulkAddFormProps) {
             <ul className="space-y-2 text-sm text-gray-400">
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-1">•</span>
-                <span>Enhetene opprettes tomme - du fyller ut feltene etterpå</span>
+                <span>Internnummer settes automatisk basert på eksisterende enheter</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-1">•</span>
-                <span>Dobbeltklikk på en celle i tabellen for å redigere</span>
+                <span>Klikk på en celle i tabellen for å redigere</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-400 mt-1">•</span>
+                <span>Autocomplete for Fordeling, Kurs og Produsent basert på tidligere verdier</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-1">•</span>

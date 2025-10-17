@@ -168,18 +168,17 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
 
       if (kontroll) {
         setKontrollData(kontroll)
-        
-        // Hent kontrollør-informasjon hvis kontrollor_id finnes
-        if (kontroll.kontrollor_id) {
-          const { data: ansatt } = await supabase
-            .from('ansatte')
-            .select('navn, epost, telefon, fg_sertifikat_nr')
-            .eq('id', kontroll.kontrollor_id)
-            .maybeSingle()
-          
-          if (ansatt) setKontrollorData(ansatt)
-        }
       }
+
+      // Hent innlogget bruker (kontrollør) data
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: ansatt } = await supabase
+        .from('ansatte')
+        .select('navn, epost, telefon, fg_sertifikat_nr')
+        .eq('epost', user?.email)
+        .maybeSingle()
+      
+      if (ansatt) setKontrollorData(ansatt)
 
       // Hent kontrollpunkter
       const { data: punkter } = await supabase
@@ -403,106 +402,120 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
         yPos += 15
       }
 
-      // Header
-      doc.setFontSize(20)
+      // Tittel
+      doc.setFontSize(18)
       doc.setFont('helvetica', 'bold')
-      doc.text('BRANNALARM KONTROLLRAPPORT NS3960', pageWidth / 2, yPos, { align: 'center' })
-      yPos += 20
+      doc.text('RAPPORT - BRANNALARM NS3960', 20, yPos)
+      yPos += 12
 
-      // Anleggsinformasjon - enkel layout
-      doc.setFontSize(11)
-      const labelWidth = 35
+      // Anleggsinformasjon - Profesjonell layout
+      doc.setDrawColor(220, 220, 220)
+      doc.setLineWidth(0.3)
+      doc.setFillColor(250, 250, 250)
+      doc.rect(17, yPos, 85, 28, 'FD')
       
-      // Kunde
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'bold')
-      doc.text('Kunde:', 20, yPos)
-      doc.setFont('helvetica', 'normal')
-      doc.text(kundeData?.navn || '-', 20 + labelWidth, yPos)
-      yPos += 6
-
-      // Anlegg
+      doc.setTextColor(100, 100, 100)
+      doc.text('KUNDE', 20, yPos + 5)
+      doc.setFontSize(11)
       doc.setFont('helvetica', 'bold')
-      doc.text('Anlegg:', 20, yPos)
-      doc.setFont('helvetica', 'normal')
-      doc.text(anleggData.anleggsnavn, 20 + labelWidth, yPos)
-      yPos += 6
-
-      // Adresse
-      if (anleggData.adresse) {
-        doc.setFont('helvetica', 'bold')
-        doc.text('Adresse:', 20, yPos)
-        doc.setFont('helvetica', 'normal')
-        const adresseText = `${anleggData.adresse}, ${anleggData.postnummer || ''} ${anleggData.poststed || ''}`
-        doc.text(adresseText, 20 + labelWidth, yPos)
-        yPos += 6
-      }
-
-      yPos += 2
-
-      // Dato
+      doc.setTextColor(0, 0, 0)
+      doc.text(kundeData?.navn || '-', 20, yPos + 10)
+      
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'bold')
-      doc.text('Dato:', 20, yPos)
+      doc.setTextColor(100, 100, 100)
+      doc.text('ANLEGG', 20, yPos + 16)
+      doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
-      const kontrollDato = new Date(kontrollData.dato)
-      doc.text(kontrollDato.toLocaleDateString('nb-NO'), 20 + labelWidth, yPos)
-      yPos += 6
-
-      // Neste kontroll (12 måneder frem)
+      doc.setTextColor(0, 0, 0)
+      doc.text(anleggData.anleggsnavn, 20, yPos + 21)
+      
+      const kontrollDato = new Date()
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Kontrollert: ${kontrollDato.toLocaleDateString('nb-NO')}`, 20, yPos + 26)
+      
+      // Neste kontroll boks
+      doc.setFillColor(254, 249, 195)
+      doc.rect(104, yPos, 91, 28, 'FD')
+      
       const nesteKontroll = new Date(kontrollDato)
       nesteKontroll.setFullYear(nesteKontroll.getFullYear() + 1)
-      const nesteKontrollText = nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' })
-      
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'bold')
-      doc.text('Neste kontroll:', 20, yPos)
-      doc.setFont('helvetica', 'normal')
-      doc.text(nesteKontrollText.charAt(0).toUpperCase() + nesteKontrollText.slice(1), 20 + labelWidth, yPos)
-      yPos += 8
+      doc.setTextColor(100, 100, 100)
+      doc.text('NESTE KONTROLL', 107, yPos + 5)
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(202, 138, 4)
+      doc.text(nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }).toUpperCase(), 107, yPos + 14)
+      
+      yPos += 32
 
-      // Kontaktperson
+      // Kontaktpersoner - To kolonner
+      const colWidth = 85
+      let leftCol = 17
+      let rightCol = 104
+      
       if (primaerKontakt?.navn) {
-        doc.setFontSize(11)
+        doc.setDrawColor(220, 220, 220)
+        doc.setFillColor(250, 250, 250)
+        doc.rect(leftCol, yPos, colWidth, 24, 'FD')
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
-        doc.text('Kontaktperson:', 20, yPos)
+        doc.setTextColor(100, 100, 100)
+        doc.text('KONTAKTPERSON', leftCol + 3, yPos + 5)
+        
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text(primaerKontakt.navn, leftCol + 3, yPos + 11)
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        yPos += 5
-        doc.text(primaerKontakt.navn, 20, yPos)
-        yPos += 4
+        let infoY = yPos + 15
         if (primaerKontakt.telefon) {
-          doc.text(`Tlf: ${primaerKontakt.telefon}`, 20, yPos)
-          yPos += 4
+          doc.text(`Tlf: ${primaerKontakt.telefon}`, leftCol + 3, infoY)
+          infoY += 4
         }
         if (primaerKontakt.epost) {
-          doc.text(`E-post: ${primaerKontakt.epost}`, 20, yPos)
-          yPos += 4
+          doc.text(`E-post: ${primaerKontakt.epost}`, leftCol + 3, infoY)
         }
-        yPos += 4
       }
 
-      // Utført av (kontrollør)
       if (kontrollorData?.navn) {
-        doc.setFontSize(11)
+        doc.setFillColor(240, 253, 244)
+        doc.rect(rightCol, yPos, colWidth + 6, 24, 'FD')
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
-        doc.text('Utført av:', 20, yPos)
+        doc.setTextColor(100, 100, 100)
+        doc.text('UTFØRT AV', rightCol + 3, yPos + 5)
+        
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(22, 163, 74)
+        doc.text(kontrollorData.navn, rightCol + 3, yPos + 11)
+        
+        doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
-        yPos += 5
-        doc.text(kontrollorData.navn, 20, yPos)
-        yPos += 4
+        doc.setTextColor(0, 0, 0)
+        let infoY = yPos + 15
         if (kontrollorData.telefon) {
-          doc.text(`Tlf: ${kontrollorData.telefon}`, 20, yPos)
-          yPos += 4
-        }
-        if (kontrollorData.epost) {
-          doc.text(`E-post: ${kontrollorData.epost}`, 20, yPos)
-          yPos += 4
+          doc.text(`Tlf: ${kontrollorData.telefon}`, rightCol + 3, infoY)
+          infoY += 4
         }
         if (kontrollorData.fg_sertifikat_nr) {
-          doc.text(`FG-sertifikat: ${kontrollorData.fg_sertifikat_nr}`, 20, yPos)
-          yPos += 4
+          doc.text(`Sertifikat: ${kontrollorData.fg_sertifikat_nr}`, rightCol + 3, infoY)
         }
-        yPos += 4
       }
-
-      yPos += 6
+      
+      doc.setTextColor(0, 0, 0)
+      yPos += 38
 
       // Teknisk informasjon
       if (brannalarmData?.leverandor || brannalarmData?.sentraltype) {
@@ -938,22 +951,48 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
       }
 
       const pdfBlob = doc.output('blob')
-      const year = new Date(kontrollData.dato).getFullYear()
-      const fileName = `Rapport_Brannalarm_${year}_${anleggData.anleggsnavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+      const datoForFilnavn = kontrollData.dato ? new Date(kontrollData.dato) : new Date()
+      const year = datoForFilnavn.getFullYear()
+      const fileName = `Rapport_Brannalarm_NS3960_${year}_${anleggData.anleggsnavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
 
       if (preview) {
         // Forhåndsvisning
         setPreviewPdf({ blob: pdfBlob, fileName })
       } else {
-        // Lagre til storage
+        // Lagre til storage i anlegg.dokumenter bucket
+        const storagePath = `anlegg/${anleggId}/dokumenter/${fileName}`
         const { error: uploadError } = await supabase.storage
-          .from('rapporter')
-          .upload(`brannalarm/${anleggId}/${fileName}`, pdfBlob, {
+          .from('anlegg.dokumenter')
+          .upload(storagePath, pdfBlob, {
             contentType: 'application/pdf',
             upsert: true
           })
 
         if (uploadError) throw uploadError
+
+        // Generate signed URL
+        const { data: urlData } = await supabase.storage
+          .from('anlegg.dokumenter')
+          .createSignedUrl(storagePath, 60 * 60 * 24 * 365) // 1 year
+
+        // Upsert record into dokumenter table (oppdater hvis finnes, ellers insert)
+        const { error: dbError } = await supabase
+          .from('dokumenter')
+          .upsert({
+            anlegg_id: anleggId,
+            filnavn: fileName,
+            url: urlData?.signedUrl || null,
+            type: 'NS3960 Rapport',
+            opplastet_dato: new Date().toISOString(),
+            storage_path: storagePath
+          }, {
+            onConflict: 'anlegg_id,filnavn'
+          })
+
+        if (dbError) {
+          console.error('⚠️ Feil ved lagring til dokumenter-tabell:', dbError)
+          // Fortsett likevel - rapporten er lagret i storage
+        }
 
         // Oppdater kontroll status til 'ferdig'
         const { error: statusError } = await supabase
@@ -990,14 +1029,34 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
         rapportType="NS3960"
         onBack={() => setPreviewPdf(null)}
         onSave={async () => {
+          const storagePath = `anlegg/${anleggId}/dokumenter/${previewPdf.fileName}`
           const { error: uploadError } = await supabase.storage
-            .from('rapporter')
-            .upload(`brannalarm/${anleggId}/${previewPdf.fileName}`, previewPdf.blob, {
+            .from('anlegg.dokumenter')
+            .upload(storagePath, previewPdf.blob, {
               contentType: 'application/pdf',
               upsert: true
             })
 
           if (uploadError) throw uploadError
+
+          // Generate signed URL
+          const { data: urlData } = await supabase.storage
+            .from('anlegg.dokumenter')
+            .createSignedUrl(storagePath, 60 * 60 * 24 * 365)
+
+          // Upsert record into dokumenter table (oppdater hvis finnes, ellers insert)
+          await supabase
+            .from('dokumenter')
+            .upsert({
+              anlegg_id: anleggId,
+              filnavn: previewPdf.fileName,
+              url: urlData?.signedUrl || null,
+              type: 'NS3960 Rapport',
+              opplastet_dato: new Date().toISOString(),
+              storage_path: storagePath
+            }, {
+              onConflict: 'anlegg_id,filnavn'
+            })
 
           // Oppdater kontroll status til 'ferdig'
           await supabase
