@@ -1122,18 +1122,174 @@ export function FG790KontrollView({
                               {/* Vis resten av feltene hvis kontrollert */}
                               {punktData.status === 'Kontrollert' && (
                                 <div className="space-y-3 mt-3 pt-3 border-t border-gray-700">
-                                  <select
-                                    value={punktData.avvik_type || ''}
-                                    onChange={(e) => updatePunkt(key, { avvik_type: e.target.value || null })}
-                                    className="input text-sm w-full"
-                                  >
-                                    <option value="">Ingen avvik</option>
-                                    {AVVIK_TYPER.map(type => (
-                                      <option key={type} value={type}>{type}</option>
-                                    ))}
-                                  </select>
-                                  
+                                  {/* AG-verdi (kun for POS.2 detektor-punkter) */}
+                                  {punktData.posisjon === 'POS.2 - Visuell kontroll' && 
+                                   punktData.tittel.toLowerCase().includes('detektor') && (
+                                    <div>
+                                      <label className="block text-sm text-gray-400 mb-2">
+                                        AG-verdi
+                                        <span className="text-xs text-gray-500 ml-2">(Forurensningsgrad)</span>
+                                      </label>
+                                      <div className="grid grid-cols-5 gap-2">
+                                        {AG_VERDIER.map(ag => (
+                                          <button
+                                            key={ag.verdi}
+                                            onClick={() => {
+                                              updatePunkt(key, { 
+                                                ag_verdi: ag.verdi,
+                                                poeng_trekk: ag.poeng,
+                                                avvik_type: ag.poeng > 0 ? 'Avvik' : null
+                                              })
+                                            }}
+                                            className={`px-2 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                                              punktData.ag_verdi === ag.verdi
+                                                ? ag.poeng === 0
+                                                  ? 'bg-green-500 text-white'
+                                                  : ag.poeng < 1
+                                                  ? 'bg-yellow-500 text-white'
+                                                  : 'bg-red-500 text-white'
+                                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                            }`}
+                                          >
+                                            <div className="text-xs">{ag.verdi}</div>
+                                            <div className="text-xs opacity-75">({ag.poeng})</div>
+                                          </button>
+                                        ))}
+                                      </div>
+                                      {punktData.ag_verdi && (
+                                        <p className="text-xs text-gray-500 mt-2">
+                                          {AG_VERDIER.find(a => a.verdi === punktData.ag_verdi)?.beskrivelse} - 
+                                          Poeng: {beregnPoengFraAG(punktData.ag_verdi)}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  <div>
+                                    <label className="block text-sm text-gray-400 mb-2">Avvik type</label>
+                                    <select
+                                      value={punktData.avvik_type || ''}
+                                      onChange={(e) => updatePunkt(key, { avvik_type: e.target.value || null })}
+                                      className="input text-sm w-full"
+                                    >
+                                      <option value="">Ingen avvik</option>
+                                      {AVVIK_TYPER.map(type => (
+                                        <option key={type} value={type}>{type}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  {/* Feilkode - vises kun hvis det er avvik */}
                                   {punktData.avvik_type && (
+                                    <div>
+                                      <label className="block text-sm text-gray-400 mb-2">Feilkode</label>
+                                      <select
+                                        value={punktData.feilkode || ''}
+                                        onChange={(e) => updatePunkt(key, { feilkode: e.target.value })}
+                                        className="input text-sm w-full"
+                                      >
+                                        <option value="">Velg feilkode</option>
+                                        {FEILKODER.map(kode => (
+                                          <option key={kode} value={kode}>{kode}</option>
+                                        ))}
+                                      </select>
+                                      
+                                      {/* Egendefinert feilkode hvis "Annet" er valgt */}
+                                      {(punktData.feilkode === 'Annet' || punktData.feilkode?.startsWith('Annet:')) && (
+                                        <input
+                                          type="text"
+                                          placeholder="Skriv egendefinert feilkode..."
+                                          value={punktData.feilkode?.startsWith('Annet:') ? punktData.feilkode.substring(7) : ''}
+                                          onChange={(e) => {
+                                            if (e.target.value) {
+                                              updatePunkt(key, { feilkode: `Annet: ${e.target.value}` })
+                                            } else {
+                                              updatePunkt(key, { feilkode: 'Annet' })
+                                            }
+                                          }}
+                                          className="input text-sm w-full mt-2"
+                                        />
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Poeng trekk - vises alltid når det er avvik */}
+                                  {punktData.avvik_type && (
+                                    <div>
+                                      <label className="block text-sm text-gray-400 mb-2">
+                                        Poeng trekk
+                                        <span className="text-xs text-gray-500 ml-2">(Velg AG-verdi)</span>
+                                      </label>
+                                      <div className="grid grid-cols-5 gap-2">
+                                        {AG_VERDIER.map(ag => (
+                                          <button
+                                            key={ag.verdi}
+                                            onClick={() => updatePunkt(key, { 
+                                              ag_verdi: ag.verdi,
+                                              poeng_trekk: ag.poeng 
+                                            })}
+                                            className={`px-2 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                                              punktData.ag_verdi === ag.verdi
+                                                ? ag.poeng === 0
+                                                  ? 'bg-green-500 text-white'
+                                                  : ag.poeng < 1
+                                                  ? 'bg-yellow-500 text-white'
+                                                  : 'bg-red-500 text-white'
+                                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                            }`}
+                                          >
+                                            <div className="text-xs">{ag.verdi}</div>
+                                            <div className="text-xs opacity-75">({ag.poeng})</div>
+                                          </button>
+                                        ))}
+                                      </div>
+                                      {punktData.ag_verdi && (
+                                        <div className="mt-2 space-y-2">
+                                          <p className="text-xs text-gray-500">
+                                            {AG_VERDIER.find(a => a.verdi === punktData.ag_verdi)?.beskrivelse} - 
+                                            Poeng per avvik: {beregnPoengFraAG(punktData.ag_verdi)}
+                                          </p>
+                                          
+                                          {/* Antall avvik */}
+                                          <div>
+                                            <label className="block text-xs text-gray-400 mb-1">
+                                              Antall avvik av denne typen
+                                            </label>
+                                            <input
+                                              type="number"
+                                              min="1"
+                                              max="99"
+                                              value={punktData.antall_avvik || 1}
+                                              onChange={(e) => {
+                                                const antall = parseInt(e.target.value) || 1
+                                                updatePunkt(key, { antall_avvik: Math.max(1, Math.min(99, antall)) })
+                                              }}
+                                              className="input text-sm w-24"
+                                            />
+                                            {punktData.antall_avvik > 1 && (
+                                              <p className="text-xs text-orange-400 mt-1">
+                                                Totalt: {punktData.antall_avvik} × {punktData.poeng_trekk} = {(punktData.antall_avvik * punktData.poeng_trekk).toFixed(1)} poeng
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Vis total poeng hvis AG-verdi er satt */}
+                                  {punktData.ag_verdi && punktData.poeng_trekk > 0 && (
+                                    <div className="p-2 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                                      <p className="text-sm text-orange-400">
+                                        ⚠️ Poeng trekk: {(punktData.poeng_trekk * (punktData.antall_avvik || 1)).toFixed(1)} 
+                                        {punktData.antall_avvik > 1 && ` (${punktData.antall_avvik} avvik)`}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Kommentar */}
+                                  <div>
+                                    <label className="block text-sm text-gray-400 mb-2">Kommentar</label>
                                     <textarea
                                       value={punktData.kommentar || ''}
                                       onChange={(e) => updatePunkt(key, { kommentar: e.target.value || null })}
@@ -1141,7 +1297,7 @@ export function FG790KontrollView({
                                       className="input text-base w-full"
                                       rows={4}
                                     />
-                                  )}
+                                  </div>
                                 </div>
                               )}
                             </div>
