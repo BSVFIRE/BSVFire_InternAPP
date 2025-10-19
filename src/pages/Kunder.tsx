@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, Search, Building, Mail, Phone, Edit, Trash2, Eye, ExternalLink, Loader2, DollarSign } from 'lucide-react'
+import { Plus, Search, Building, Mail, Phone, Edit, Trash2, Eye, ExternalLink, Loader2, DollarSign, Building2, MapPin, ChevronRight } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { searchCompaniesByName, getCompanyByOrgNumber, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
+import { useNavigate } from 'react-router-dom'
 
 interface Kunde {
   id: string
@@ -13,9 +14,10 @@ interface Kunde {
   opprettet: string
   sist_oppdatert: string | null
   kunde_nummer: string | null
+  anlegg_count?: number
 }
 
-type SortOption = 'navn_asc' | 'navn_desc' | 'opprettet_nyeste' | 'opprettet_eldste'
+type SortOption = 'navn_asc' | 'navn_desc' | 'opprettet_nyeste' | 'opprettet_eldste' | 'uten_anlegg'
 
 export function Kunder() {
   const [kunder, setKunder] = useState<Kunde[]>([])
@@ -43,7 +45,22 @@ export function Kunder() {
         throw new Error(error.message)
       }
       
-      setKunder(data || [])
+      // Hent antall anlegg for hver kunde
+      const kunderMedAnleggCount = await Promise.all(
+        (data || []).map(async (kunde) => {
+          const { data: anlegg } = await supabase
+            .from('anlegg')
+            .select('id', { count: 'exact' })
+            .eq('kundenr', kunde.id)
+          
+          return {
+            ...kunde,
+            anlegg_count: anlegg?.length || 0
+          }
+        })
+      )
+      
+      setKunder(kunderMedAnleggCount)
     } catch (err) {
       console.error('Feil ved lasting av kunder:', err)
       setError(err instanceof Error ? err.message : 'Kunne ikke laste kunder')
@@ -85,6 +102,14 @@ export function Kunder() {
         return new Date(b.opprettet).getTime() - new Date(a.opprettet).getTime()
       case 'opprettet_eldste':
         return new Date(a.opprettet).getTime() - new Date(b.opprettet).getTime()
+      case 'uten_anlegg':
+        // Sorter kunder uten anlegg først, deretter alfabetisk
+        const aCount = a.anlegg_count || 0
+        const bCount = b.anlegg_count || 0
+        if (aCount === bCount) {
+          return a.navn.localeCompare(b.navn, 'nb-NO')
+        }
+        return aCount - bCount
       default:
         return 0
     }
@@ -199,6 +224,7 @@ export function Kunder() {
               <option value="navn_desc">Navn (Å-A)</option>
               <option value="opprettet_nyeste">Nyeste først</option>
               <option value="opprettet_eldste">Eldste først</option>
+              <option value="uten_anlegg">Uten anlegg først</option>
             </select>
           </div>
         </div>
@@ -232,13 +258,13 @@ export function Kunder() {
         </div>
         <div className="card">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-500/10 rounded-lg">
-              <Building className="w-6 h-6 text-blue-500" />
+            <div className="p-3 bg-yellow-500/10 rounded-lg">
+              <Building2 className="w-6 h-6 text-yellow-600" />
             </div>
             <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Med org.nr</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Uten anlegg</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {kunder.filter(k => k.organisasjonsnummer).length}
+                {kunder.filter(k => (k.anlegg_count || 0) === 0).length}
               </p>
             </div>
           </div>
@@ -269,8 +295,8 @@ export function Kunder() {
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-800">
                   <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Navn</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Org.nr</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Kontaktperson</th>
+                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Antall anlegg</th>
+                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Kundenummer</th>
                   <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Opprettet</th>
                   <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Handlinger</th>
                 </tr>
@@ -279,15 +305,26 @@ export function Kunder() {
                 {sortedKunder.map((kunde) => (
                   <tr
                     key={kunde.id}
-                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors"
+                    onClick={() => {
+                      setSelectedKunde(kunde)
+                      setViewMode('view')
+                    }}
+                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer"
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                           <Building className="w-5 h-5 text-primary" />
                         </div>
-                        <div>
-                          <p className="text-gray-900 dark:text-white font-medium">{kunde.navn}</p>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-gray-900 dark:text-white font-medium">{kunde.navn}</p>
+                            {kunde.anlegg_count === 0 && (
+                              <span className="px-2 py-0.5 text-xs font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 rounded-full">
+                                Ingen anlegg
+                              </span>
+                            )}
+                          </div>
                           {kunde.organisasjonsnummer && (
                             <p className="text-sm text-gray-500 dark:text-gray-400">Org.nr: {kunde.organisasjonsnummer}</p>
                           )}
@@ -295,15 +332,18 @@ export function Kunder() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-gray-500 dark:text-gray-300">
-                      {kunde.organisasjonsnummer || '-'}
+                      <span className="inline-flex items-center gap-1">
+                        <Building2 className="w-4 h-4" />
+                        {kunde.anlegg_count || 0}
+                      </span>
                     </td>
                     <td className="py-3 px-4 text-gray-500 dark:text-gray-300">
-                      {kunde.kontaktperson_id ? 'Ja' : '-'}
+                      {kunde.kunde_nummer || '-'}
                     </td>
                     <td className="py-3 px-4 text-gray-500 dark:text-gray-300 text-sm">
                       {formatDate(kunde.opprettet)}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => {
@@ -816,6 +856,7 @@ interface KundeDetailsProps {
 }
 
 function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
+  const navigate = useNavigate()
   const [priser, setPriser] = useState<any[]>([])
   const [anlegg, setAnlegg] = useState<any[]>([])
   const [loadingPriser, setLoadingPriser] = useState(true)
@@ -848,8 +889,9 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
       // Hent alle anlegg for denne kunden
       const { data: anleggData, error: anleggError } = await supabase
         .from('anlegg')
-        .select('id, anleggsnavn')
+        .select('id, anleggsnavn, adresse, postnummer, poststed, kontroll_status, kontroll_maaned')
         .eq('kundenr', kunde.id)
+        .order('anleggsnavn', { ascending: true })
 
       if (anleggError) throw anleggError
 
@@ -927,6 +969,68 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Anlegg */}
+          <div className="card">
+            <div className="flex items-center gap-2 mb-4">
+              <Building2 className="w-5 h-5 text-primary" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Anlegg</h2>
+            </div>
+            {loadingPriser ? (
+              <div className="text-center py-4">
+                <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto" />
+              </div>
+            ) : anlegg.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Ingen anlegg registrert</p>
+            ) : (
+              <div className="space-y-3">
+                {anlegg.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => navigate('/anlegg', { state: { viewAnleggId: a.id } })}
+                    className="w-full text-left p-4 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-gray-900 dark:text-white mb-2">
+                          {a.anleggsnavn}
+                        </h3>
+                        {(a.adresse || a.poststed) && (
+                          <div className="flex items-start gap-2 text-sm text-gray-500 dark:text-gray-400">
+                            <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <div>
+                              {a.adresse && <p>{a.adresse}</p>}
+                              {a.poststed && (
+                                <p>{a.postnummer} {a.poststed}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {a.kontroll_maaned && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            Kontrollmåned: {a.kontroll_maaned}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {a.kontroll_status && (
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            a.kontroll_status === 'Godkjent' ? 'bg-green-500/20 text-green-400' :
+                            a.kontroll_status === 'Avvik' ? 'bg-red-500/20 text-red-400' :
+                            a.kontroll_status === 'Venter' ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {a.kontroll_status}
+                          </span>
+                        )}
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
         </div>

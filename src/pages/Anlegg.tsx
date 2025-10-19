@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign } from 'lucide-react'
+import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ANLEGG_STATUSER, ANLEGG_STATUS_COLORS, KONTROLLTYPER, MAANEDER } from '@/lib/constants'
 import { syncAnleggToKontrollportal } from '@/lib/kontrollportal-sync'
+import { searchCompaniesByName, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
 
 interface Anlegg {
   id: string
@@ -544,6 +545,16 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
   const [kundeSok, setKundeSok] = useState('')
   const [visKundeListe, setVisKundeListe] = useState(false)
   const kundeDropdownRef = useRef<HTMLDivElement>(null)
+  const [visSlettKundeDialog, setVisSlettKundeDialog] = useState(false)
+  const [gammelKundeId, setGammelKundeId] = useState<string | null>(null)
+  const [gammelKundeNavn, setGammelKundeNavn] = useState<string>('')
+  const [pendingSubmit, setPendingSubmit] = useState(false)
+  const [brregSearchQuery, setBrregSearchQuery] = useState('')
+  const [brregSearchResults, setBrregSearchResults] = useState<BrregEnhet[]>([])
+  const [showBrregResults, setShowBrregResults] = useState(false)
+  const [brregSearching, setBrregSearching] = useState(false)
+  const brregSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const brregResultsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadKontaktpersoner()
@@ -666,6 +677,93 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
   const statuser = Object.values(ANLEGG_STATUSER)
   const kontrolltyper = [...KONTROLLTYPER]
 
+  // Hent org.nummer og kundenummer fra valgt kunde
+  async function hentDataFraKunde() {
+    if (!formData.kundenr) {
+      alert('Velg en kunde først')
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('customer')
+        .select('organisasjonsnummer, kunde_nummer')
+        .eq('id', formData.kundenr)
+        .single()
+
+      if (error) throw error
+
+      if (data) {
+        setFormData({
+          ...formData,
+          org_nummer: data.organisasjonsnummer || '',
+          kunde_nummer: data.kunde_nummer || ''
+        })
+      }
+    } catch (error) {
+      console.error('Feil ved henting av kundedata:', error)
+      alert('Kunne ikke hente data fra kunde')
+    }
+  }
+
+  // Brønnøysund-søk
+  useEffect(() => {
+    if (brregSearchQuery.length >= 3) {
+      if (brregSearchTimeoutRef.current) {
+        clearTimeout(brregSearchTimeoutRef.current)
+      }
+
+      setBrregSearching(true)
+      brregSearchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const results = await searchCompaniesByName(brregSearchQuery, 10)
+          setBrregSearchResults(results)
+          setShowBrregResults(true)
+        } catch (error) {
+          console.error('Feil ved søk:', error)
+        } finally {
+          setBrregSearching(false)
+        }
+      }, 500)
+    } else {
+      setBrregSearchResults([])
+      setShowBrregResults(false)
+    }
+
+    return () => {
+      if (brregSearchTimeoutRef.current) {
+        clearTimeout(brregSearchTimeoutRef.current)
+      }
+    }
+  }, [brregSearchQuery])
+
+  // Lukk Brønnøysund-resultater ved klikk utenfor
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (brregResultsRef.current && !brregResultsRef.current.contains(event.target as Node)) {
+        setShowBrregResults(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  function selectBrregCompany(company: BrregEnhet) {
+    const address = extractAddress(company)
+    setFormData({
+      ...formData,
+      org_nummer: formatOrgNumber(company.organisasjonsnummer),
+      adresse: address.adresse || formData.adresse,
+      postnummer: address.postnummer || formData.postnummer,
+      poststed: address.poststed || formData.poststed
+    })
+    setBrregSearchQuery('')
+    setShowBrregResults(false)
+  }
+
   function toggleKontrolltype(type: string) {
     const current = formData.kontroll_type || []
     if (current.includes(type)) {
@@ -675,8 +773,116 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
     }
   }
 
+  async function sjekkOmKundeHarFlereAnlegg(kundeId: string): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .from('anlegg')
+        .select('id', { count: 'exact' })
+        .eq('kundenr', kundeId)
+      
+      if (error) {
+        console.error('Feil ved sjekk av anlegg:', error)
+        return -1 // Returner -1 for å indikere feil
+      }
+      
+      return data?.length || 0
+    } catch (error) {
+      console.error('Feil ved sjekk av anlegg:', error)
+      return -1
+    }
+  }
+
+  async function sjekkOmKundeHarAndreRelasjoner(kundeId: string): Promise<boolean> {
+    try {
+      // Sjekk om kunden har ordre som IKKE er fullført
+      const { data: ordre } = await supabase
+        .from('ordre')
+        .select('id, status')
+        .eq('kundenr', kundeId)
+        .neq('status', 'Fullført')
+        .limit(1)
+      
+      if (ordre && ordre.length > 0) return true
+
+      // Sjekk om kunden har oppgaver som IKKE er fullført
+      const { data: oppgaver } = await supabase
+        .from('oppgaver')
+        .select('id, status')
+        .eq('kunde_id', kundeId)
+        .neq('status', 'Fullført')
+        .limit(1)
+      
+      if (oppgaver && oppgaver.length > 0) return true
+
+      return false
+    } catch (error) {
+      console.error('Feil ved sjekk av relasjoner:', error)
+      return true // Anta at det finnes relasjoner hvis vi får feil
+    }
+  }
+
+  async function slettKunde(kundeId: string): Promise<boolean> {
+    try {
+      // Sjekk om kunden har andre relasjoner
+      const harRelasjoner = await sjekkOmKundeHarAndreRelasjoner(kundeId)
+      
+      if (harRelasjoner) {
+        alert('Kunne ikke slette kunde. Kunden har ordre eller oppgaver tilknyttet.')
+        return false
+      }
+
+      const { error } = await supabase
+        .from('customer')
+        .delete()
+        .eq('id', kundeId)
+      
+      if (error) {
+        console.error('Feil ved sletting av kunde:', error)
+        alert('Kunne ikke slette kunde: ' + error.message)
+        return false
+      }
+      
+      console.log('✅ Kunde slettet')
+      return true
+    } catch (error) {
+      console.error('Feil ved sletting av kunde:', error)
+      alert('Kunne ikke slette kunde')
+      return false
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    
+    // Sjekk om kunden har endret seg (kun ved redigering)
+    if (anlegg && anlegg.kundenr && formData.kundenr && anlegg.kundenr !== formData.kundenr) {
+      // Sjekk om den gamle kunden har flere anlegg
+      const antallAnlegg = await sjekkOmKundeHarFlereAnlegg(anlegg.kundenr)
+      
+      // Hvis sjekken feilet, fortsett uten å vise dialog
+      if (antallAnlegg === -1) {
+        console.warn('Kunne ikke sjekke antall anlegg, fortsetter uten sletting')
+        await saveAnlegg()
+        return
+      }
+      
+      // Hvis den gamle kunden kun har dette anlegget, vis dialog
+      if (antallAnlegg === 1) {
+        const gammelKunde = kunder.find(k => k.id === anlegg.kundenr)
+        if (gammelKunde) {
+          setGammelKundeId(anlegg.kundenr)
+          setGammelKundeNavn(gammelKunde.navn)
+          setPendingSubmit(true)
+          setVisSlettKundeDialog(true)
+          return
+        }
+      }
+    }
+    
+    await saveAnlegg()
+  }
+
+  async function saveAnlegg() {
     setSaving(true)
 
     try {
@@ -749,6 +955,18 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
           .insert(koblinger)
 
         if (koblingError) throw koblingError
+      }
+
+      // Hvis vi skal slette den gamle kunden
+      if (pendingSubmit && gammelKundeId) {
+        const slettet = await slettKunde(gammelKundeId)
+        if (slettet) {
+          console.log('✅ Kunde slettet og anlegg oppdatert')
+        }
+        setPendingSubmit(false)
+        setGammelKundeId(null)
+        setGammelKundeNavn('')
+        setVisSlettKundeDialog(false)
       }
 
       onSave()
@@ -903,6 +1121,73 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
               className="input"
               placeholder="Oslo"
             />
+          </div>
+
+          {/* Brønnøysund Register Search */}
+          <div className="md:col-span-2 bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ExternalLink className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Søk i Brønnøysundregistrene</h3>
+              </div>
+              {formData.kundenr && (
+                <button
+                  type="button"
+                  onClick={hentDataFraKunde}
+                  className="btn-secondary flex items-center gap-2 text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Hent fra kunde
+                </button>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Søk etter bedrift eller organisasjonsnummer for å automatisk fylle ut informasjon
+            </p>
+
+            {/* Search by name */}
+            <div className="relative" ref={brregResultsRef}>
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+                Søk etter bedrift
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-400" />
+                <input
+                  type="text"
+                  value={brregSearchQuery}
+                  onChange={(e) => setBrregSearchQuery(e.target.value)}
+                  className="input pl-10"
+                  placeholder="Søk etter bedriftsnavn..."
+                />
+                {brregSearching && (
+                  <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-primary animate-spin" />
+                )}
+              </div>
+
+              {/* Search Results Dropdown */}
+              {showBrregResults && brregSearchResults.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white dark:bg-dark-200 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {brregSearchResults.map((company) => (
+                    <button
+                      key={company.organisasjonsnummer}
+                      type="button"
+                      onClick={() => selectBrregCompany(company)}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-dark-100 border-b border-gray-200 dark:border-gray-700 last:border-b-0 transition-colors"
+                    >
+                      <p className="font-medium text-gray-900 dark:text-white">{company.navn}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Org.nr: {formatOrgNumber(company.organisasjonsnummer)}
+                      </p>
+                      {company.forretningsadresse && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {extractAddress(company).adresse}
+                        </p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Org.nummer */}
@@ -1219,6 +1504,53 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
           </button>
         </div>
       </form>
+
+      {/* Dialog for sletting av kunde */}
+      {visSlettKundeDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-dark-200 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-yellow-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Kunde har ingen anlegg
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Kunden <span className="font-semibold">{gammelKundeNavn}</span> har ikke flere anlegg tilknyttet. 
+                  Ønsker du å slette kunden?
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingSubmit(false)
+                  setGammelKundeId(null)
+                  setGammelKundeNavn('')
+                  setVisSlettKundeDialog(false)
+                  saveAnlegg()
+                }}
+                className="btn-secondary"
+              >
+                Nei, behold kunde
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  saveAnlegg()
+                }}
+                className="btn-primary bg-red-600 hover:bg-red-700"
+              >
+                Ja, slett kunde
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

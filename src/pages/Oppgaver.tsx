@@ -72,6 +72,7 @@ export function Oppgaver() {
   const [filterStatus, setFilterStatus] = useState<string>('alle')
   const [filterPrioritet, setFilterPrioritet] = useState<string>('alle')
   const [filterTekniker, setFilterTekniker] = useState<string>('alle')
+  const [inkluderFullforte, setInkluderFullforte] = useState(false)
 
   useEffect(() => {
     loadOppgaver()
@@ -144,6 +145,7 @@ export function Oppgaver() {
     const matchesSearch = 
       o.oppgave_nummer.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.tittel?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.beskrivelse?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.customer?.navn.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.anlegg?.anleggsnavn.toLowerCase().includes(searchTerm.toLowerCase())
@@ -155,7 +157,11 @@ export function Oppgaver() {
       (filterTekniker === 'ikke_tildelt' && !o.tekniker_id) ||
       o.tekniker_id === filterTekniker
 
-    return matchesSearch && matchesStatus && matchesPrioritet && matchesTekniker
+    // Skjul fullførte oppgaver som standard
+    const isFullfort = o.status === 'Fullført'
+    const shouldShow = !isFullfort || inkluderFullforte
+
+    return matchesSearch && matchesStatus && matchesPrioritet && matchesTekniker && shouldShow
   })
 
   // Sortering
@@ -320,6 +326,19 @@ export function Oppgaver() {
               <option value="type">Type</option>
             </select>
           </div>
+
+          {/* Checkboks for å inkludere fullførte */}
+          <div className="mt-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={inkluderFullforte}
+                onChange={(e) => setInkluderFullforte(e.target.checked)}
+                className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-primary dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">Inkluder fullførte</span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -416,7 +435,11 @@ export function Oppgaver() {
                 {sortedOppgaver.map((oppgave) => (
                   <tr
                     key={oppgave.id}
-                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors"
+                    onClick={() => {
+                      setSelectedOppgave(oppgave)
+                      setViewMode('edit')
+                    }}
+                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer"
                   >
                     <td className="py-3 px-4">
                       <span className="text-primary font-mono font-medium text-sm">
@@ -481,7 +504,7 @@ export function Oppgaver() {
                     <td className="py-3 px-4 text-gray-500 dark:text-gray-300 text-sm">
                       {formatDate(oppgave.opprettet_dato)}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => {

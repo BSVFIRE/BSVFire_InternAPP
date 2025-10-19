@@ -67,6 +67,8 @@ export function Ordre() {
   const [filterStatus, setFilterStatus] = useState<string>('alle')
   const [filterTekniker, setFilterTekniker] = useState<string>('alle')
   const [prefilledData, setPrefilledData] = useState<{ kundeId?: string; anleggId?: string } | null>(null)
+  const [inkluderFullforte, setInkluderFullforte] = useState(false)
+  const [inkluderFakturerte, setInkluderFakturerte] = useState(false)
 
   useEffect(() => {
     loadOrdre()
@@ -234,7 +236,15 @@ export function Ordre() {
       (filterTekniker === 'ikke_tildelt' && !o.tekniker_id) ||
       o.tekniker_id === filterTekniker
 
-    return matchesSearch && matchesStatus && matchesTekniker
+    // Skjul fullførte og fakturerte ordre som standard
+    const isFullfort = o.status === 'Fullført'
+    const isFakturert = o.status === 'Fakturert'
+    
+    const shouldShow = 
+      (!isFullfort || inkluderFullforte) &&
+      (!isFakturert || inkluderFakturerte)
+
+    return matchesSearch && matchesStatus && matchesTekniker && shouldShow
   })
 
   // Sortering
@@ -478,6 +488,28 @@ export function Ordre() {
             </select>
           </div>
         </div>
+
+        {/* Checkbokser for å inkludere fullførte og fakturerte */}
+        <div className="flex items-center gap-6 mt-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={inkluderFullforte}
+              onChange={(e) => setInkluderFullforte(e.target.checked)}
+              className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-primary dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <span className="text-sm text-gray-700 dark:text-gray-300">Inkluder fullførte</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={inkluderFakturerte}
+              onChange={(e) => setInkluderFakturerte(e.target.checked)}
+              className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-primary dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <span className="text-sm text-gray-700 dark:text-gray-300">Inkluder fakturerte</span>
+          </label>
+        </div>
       </div>
 
       {/* Stats */}
@@ -571,7 +603,11 @@ export function Ordre() {
                 {sortedOrdre.map((ordre) => (
                   <tr
                     key={ordre.id}
-                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors"
+                    onClick={() => {
+                      setSelectedOrdre(ordre)
+                      setViewMode('edit')
+                    }}
+                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer"
                   >
                     <td className="py-3 px-4">
                       <span className="text-primary font-mono font-medium text-sm">
@@ -629,7 +665,7 @@ export function Ordre() {
                     <td className="py-3 px-4 text-gray-500 dark:text-gray-300 text-sm">
                       {formatDate(ordre.opprettet_dato)}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         {ordre.type.toLowerCase() !== 'årskontroll' && ordre.type.toLowerCase() !== 'kontroll' && (
                           <button
