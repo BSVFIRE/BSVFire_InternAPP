@@ -1,4 +1,4 @@
-import { Building, Mail, Phone, Edit, X, FileText, User, Building2, DollarSign } from 'lucide-react'
+import { Building, Mail, Phone, Edit, X, FileText, User, DollarSign } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { StatusBadge } from './StatusBadge'
 import type { ServiceavtaleTilbud } from '../TilbudServiceavtale'
