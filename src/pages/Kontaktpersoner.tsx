@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Search, User, Mail, Phone, Building2, Trash2, Eye, Star } from 'lucide-react'
+import { Search, User, Mail, Phone, Building2, Trash2, Eye, Star, Pencil, Save, X as XIcon } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useLocation, useNavigate } from 'react-router-dom'
 
@@ -309,7 +309,11 @@ export function Kontaktpersoner() {
                 {sortedKontakter.map((kontakt) => (
                   <tr
                     key={kontakt.id}
-                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors"
+                    onClick={() => {
+                      setSelectedKontakt(kontakt)
+                      setViewMode('view')
+                    }}
+                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer"
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -372,7 +376,8 @@ export function Kontaktpersoner() {
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation()
                             setSelectedKontakt(kontakt)
                             setViewMode('view')
                           }}
@@ -382,7 +387,10 @@ export function Kontaktpersoner() {
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => deleteKontaktperson(kontakt.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteKontaktperson(kontakt.id)
+                          }}
                           className="p-2 text-gray-400 dark:text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Slett"
                         >
@@ -408,6 +416,64 @@ interface KontaktpersonDetailsProps {
 }
 
 function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
+  const navigate = useNavigate()
+  const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editForm, setEditForm] = useState({
+    navn: kontakt.navn,
+    epost: kontakt.epost || '',
+    telefon: kontakt.telefon || '',
+    rolle: kontakt.rolle || ''
+  })
+
+  async function handleSave() {
+    if (!editForm.navn.trim()) {
+      alert('Navn er påkrevd')
+      return
+    }
+
+    try {
+      setSaving(true)
+      const { error } = await supabase
+        .from('kontaktpersoner')
+        .update({
+          navn: editForm.navn.trim(),
+          epost: editForm.epost.trim() || null,
+          telefon: editForm.telefon.trim() || null,
+          rolle: editForm.rolle.trim() || null,
+          sist_oppdatert: new Date().toISOString()
+        })
+        .eq('id', kontakt.id)
+
+      if (error) throw error
+
+      // Update local state
+      kontakt.navn = editForm.navn.trim()
+      kontakt.epost = editForm.epost.trim() || null
+      kontakt.telefon = editForm.telefon.trim() || null
+      kontakt.rolle = editForm.rolle.trim() || null
+      kontakt.sist_oppdatert = new Date().toISOString()
+
+      setIsEditing(false)
+      alert('Kontaktperson oppdatert')
+    } catch (error) {
+      console.error('Feil ved lagring:', error)
+      alert('Kunne ikke lagre endringer')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleCancel() {
+    setEditForm({
+      navn: kontakt.navn,
+      epost: kontakt.epost || '',
+      telefon: kontakt.telefon || '',
+      rolle: kontakt.rolle || ''
+    })
+    setIsEditing(false)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -416,6 +482,43 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
           <p className="text-gray-400 dark:text-gray-400">{kontakt.rolle || 'Ingen rolle'}</p>
         </div>
         <div className="flex items-center gap-3">
+          {isEditing ? (
+            <>
+              <button
+                onClick={handleCancel}
+                disabled={saving}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <XIcon className="w-4 h-4" />
+                Avbryt
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="btn-primary flex items-center gap-2"
+              >
+                {saving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    Lagrer...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Lagre
+                  </>
+                )}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Pencil className="w-4 h-4" />
+              Rediger
+            </button>
+          )}
           <button onClick={onClose} className="btn-secondary">
             Tilbake
           </button>
@@ -426,24 +529,70 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
         <div className="lg:col-span-2 space-y-6">
           <div className="card">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kontaktinformasjon</h2>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">E-post</p>
-                <p className="text-gray-900 dark:text-white">{kontakt.epost || '-'}</p>
+            {isEditing ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 dark:text-gray-400 mb-1">Navn *</label>
+                  <input
+                    type="text"
+                    value={editForm.navn}
+                    onChange={(e) => setEditForm({ ...editForm, navn: e.target.value })}
+                    className="input"
+                    placeholder="Fullt navn"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 dark:text-gray-400 mb-1">E-post</label>
+                  <input
+                    type="email"
+                    value={editForm.epost}
+                    onChange={(e) => setEditForm({ ...editForm, epost: e.target.value })}
+                    className="input"
+                    placeholder="eksempel@epost.no"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 dark:text-gray-400 mb-1">Telefon</label>
+                  <input
+                    type="tel"
+                    value={editForm.telefon}
+                    onChange={(e) => setEditForm({ ...editForm, telefon: e.target.value })}
+                    className="input"
+                    placeholder="12345678"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 dark:text-gray-400 mb-1">Rolle</label>
+                  <input
+                    type="text"
+                    value={editForm.rolle}
+                    onChange={(e) => setEditForm({ ...editForm, rolle: e.target.value })}
+                    className="input"
+                    placeholder="F.eks. Styremedlem, Daglig leder"
+                  />
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Telefon</p>
-                <p className="text-gray-900 dark:text-white">{kontakt.telefon || '-'}</p>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">E-post</p>
+                  <p className="text-gray-900 dark:text-white">{kontakt.epost || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Telefon</p>
+                  <p className="text-gray-900 dark:text-white">{kontakt.telefon || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Rolle</p>
+                  {kontakt.rolle ? (
+                    <span className="badge badge-info">{kontakt.rolle}</span>
+                  ) : (
+                    <span className="text-gray-400 dark:text-gray-500">Ingen rolle</span>
+                  )}
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Rolle</p>
-                {kontakt.rolle ? (
-                  <span className="badge badge-info">{kontakt.rolle}</span>
-                ) : (
-                  <span className="text-gray-400 dark:text-gray-500">Ingen rolle</span>
-                )}
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="card">
@@ -455,7 +604,14 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
                 {kontakt.anlegg.map((anlegg, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-3 bg-dark-100 rounded-lg"
+                    onClick={() => {
+                      navigate('/anlegg', {
+                        state: {
+                          viewAnleggId: anlegg.anlegg_id
+                        }
+                      })
+                    }}
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
                       <Building2 className="w-5 h-5 text-primary" />

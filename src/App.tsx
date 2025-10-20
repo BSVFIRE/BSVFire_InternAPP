@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { useThemeStore } from './store/themeStore'
 import { Layout } from './components/Layout'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { setupErrorTracking } from './lib/errorTracking'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Kunder } from './pages/Kunder'
@@ -19,6 +21,8 @@ import { LastOpp } from './pages/LastOpp'
 import { Nedlastinger } from './pages/Nedlastinger'
 import { AdminLogger } from './pages/AdminLogger'
 import { Priser } from './pages/Priser'
+import { TilbudServiceavtale } from './pages/TilbudServiceavtale'
+import { PrisAdministrasjon } from './pages/PrisAdministrasjon'
 import { OfflineIndicator } from './components/OfflineIndicator'
 
 // Placeholder pages
@@ -52,6 +56,7 @@ function App() {
 
   useEffect(() => {
     initialize()
+    setupErrorTracking()
   }, [initialize])
 
   useEffect(() => {
@@ -59,39 +64,43 @@ function App() {
   }, [theme])
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/*"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/kunder" element={<Kunder />} />
-                  <Route path="/anlegg" element={<Anlegg />} />
-                  <Route path="/kontaktpersoner" element={<Kontaktpersoner />} />
-                  <Route path="/ordre" element={<Ordre />} />
-                  <Route path="/oppgaver" element={<Oppgaver />} />
-                  <Route path="/prosjekter" element={<Prosjekter />} />
-                  <Route path="/rapporter" element={<Rapporter />} />
-                  <Route path="/rapport-oversikt" element={<RapportOversikt />} />
-                  <Route path="/send-rapporter" element={<SendRapporter />} />
-                  <Route path="/teknisk" element={<Teknisk />} />
-                  <Route path="/dokumentasjon" element={<Dokumentasjon />} />
-                  <Route path="/last-opp" element={<LastOpp />} />
-                  <Route path="/nedlastinger" element={<Nedlastinger />} />
-                  <Route path="/priser" element={<Priser />} />
-                  <Route path="/admin/logger" element={<AdminLogger />} />
-                </Routes>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-      <OfflineIndicator />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/kunder" element={<Kunder />} />
+                    <Route path="/anlegg" element={<Anlegg />} />
+                    <Route path="/kontaktpersoner" element={<Kontaktpersoner />} />
+                    <Route path="/ordre" element={<Ordre />} />
+                    <Route path="/oppgaver" element={<Oppgaver />} />
+                    <Route path="/prosjekter" element={<Prosjekter />} />
+                    <Route path="/rapporter" element={<Rapporter />} />
+                    <Route path="/rapport-oversikt" element={<RapportOversikt />} />
+                    <Route path="/send-rapporter" element={<SendRapporter />} />
+                    <Route path="/teknisk" element={<Teknisk />} />
+                    <Route path="/dokumentasjon" element={<Dokumentasjon />} />
+                    <Route path="/last-opp" element={<LastOpp />} />
+                    <Route path="/nedlastinger" element={<Nedlastinger />} />
+                    <Route path="/priser" element={<Priser />} />
+                    <Route path="/tilbud-serviceavtale" element={<TilbudServiceavtale />} />
+                    <Route path="/admin/prisadministrasjon" element={<PrisAdministrasjon />} />
+                    <Route path="/admin/logger" element={<AdminLogger />} />
+                  </Routes>
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+        <OfflineIndicator />
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }
 

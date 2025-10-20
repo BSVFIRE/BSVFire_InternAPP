@@ -1,7 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { createLogger } from '@/lib/logger'
 import { useAuthStore } from '@/store/authStore'
+
+const log = createLogger('Dashboard')
 import { 
   ClipboardList, 
   CheckSquare, 
@@ -88,7 +91,7 @@ export function Dashboard() {
       
       setAnsattId(data?.id || null)
     } catch (error) {
-      console.error('Feil ved henting av ansatt-ID:', error)
+      log.error('Feil ved henting av ansatt-ID', { error })
       setAnsattId(null)
     }
   }
@@ -151,7 +154,7 @@ export function Dashboard() {
         anlegg: anleggCount || 0
       })
     } catch (error) {
-      console.error('Feil ved lasting av statistikk:', error)
+      log.error('Feil ved lasting av statistikk', { error })
     } finally {
       setLoading(false)
     }
@@ -255,7 +258,7 @@ export function Dashboard() {
       
       setAktiviteter(aktivitetsListe.slice(0, 5))
     } catch (error) {
-      console.error('Feil ved lasting av aktiviteter:', error)
+      log.error('Feil ved lasting av aktiviteter', { error })
     }
   }, [visAlle, ansattId, getTidsFilterDato])
 
@@ -299,7 +302,7 @@ export function Dashboard() {
 
       setKommendeOppgaver(oppgaver)
     } catch (error) {
-      console.error('Feil ved lasting av kommende oppgaver:', error)
+      log.error('Feil ved lasting av kommende oppgaver', { error })
     }
   }, [visAlle, ansattId])
 
@@ -327,7 +330,7 @@ export function Dashboard() {
       const { data, error } = await query
       
       if (error) {
-        console.error('❌ Feil ved lasting av kommende ordre:', error)
+        log.error('Feil ved lasting av kommende ordre', { error })
         throw error
       }
       
@@ -351,7 +354,7 @@ export function Dashboard() {
 
       setKommendeOrdre(ordre)
     } catch (error) {
-      console.error('Feil ved lasting av kommende ordre:', error)
+      log.error('Feil ved lasting av kommende ordre (catch)', { error })
     }
   }, [visAlle, ansattId])
 
@@ -418,7 +421,7 @@ export function Dashboard() {
         </div>
         
         {/* Toggle for egne vs alle */}
-        <div className="flex items-center gap-3 bg-dark-200 rounded-lg p-1">
+        <div className="flex items-center gap-3 bg-gray-100 dark:bg-dark-200 rounded-lg p-1">
           <button
             onClick={() => setVisAlle(false)}
             className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
@@ -526,7 +529,7 @@ export function Dashboard() {
                   <div 
                     key={ordre.id} 
                     onClick={() => navigate('/ordre', { state: { selectedOrdreId: ordre.id } })}
-                    className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg hover:bg-dark-200 cursor-pointer transition-colors"
+                    className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors"
                   >
                     <div className={`w-2 h-2 ${statusFarge} rounded-full`}></div>
                     <div className="flex-1">
@@ -564,7 +567,7 @@ export function Dashboard() {
                 <div 
                   key={oppgave.id} 
                   onClick={() => navigate('/oppgaver', { state: { selectedOppgaveId: oppgave.id } })}
-                  className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg hover:bg-dark-200 cursor-pointer transition-colors"
+                  className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors"
                 >
                   <div className={`w-2 h-2 ${prikkeFarge} rounded-full`}></div>
                   <div className="flex-1">
@@ -585,7 +588,7 @@ export function Dashboard() {
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Siste aktivitet</h2>
           
           {/* Tidsfilter */}
-          <div className="flex items-center gap-2 bg-dark-200 rounded-lg p-1 flex-shrink-0">
+          <div className="flex items-center gap-2 bg-gray-100 dark:bg-dark-200 rounded-lg p-1 flex-shrink-0">
             <button
               onClick={() => setTidsFilter('dag')}
               className={`px-3 py-1 text-xs rounded-md transition-all ${
@@ -653,7 +656,7 @@ export function Dashboard() {
                       navigate('/oppgaver', { state: { selectedOppgaveId: aktivitet.id } })
                     }
                   }}
-                  className="flex items-center gap-3 p-3 bg-dark-100 rounded-lg hover:bg-dark-200 cursor-pointer transition-colors"
+                  className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors"
                 >
                   <Ikon className={`w-5 h-5 ${ikonFarge}`} />
                   <div className="flex-1">

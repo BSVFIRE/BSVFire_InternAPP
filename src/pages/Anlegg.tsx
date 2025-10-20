@@ -1,11 +1,14 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { createLogger } from '@/lib/logger'
 import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ANLEGG_STATUSER, ANLEGG_STATUS_COLORS, KONTROLLTYPER, MAANEDER } from '@/lib/constants'
 import { syncAnleggToKontrollportal } from '@/lib/kontrollportal-sync'
 import { searchCompaniesByName, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
+
+const log = createLogger('Anlegg')
 
 interface Anlegg {
   id: string
@@ -109,7 +112,7 @@ export function Anlegg() {
       setAnlegg(anleggResponse.data || [])
       setKunder(kunderResponse.data || [])
     } catch (err) {
-      console.error('Feil ved lasting:', err)
+      log.error('Feil ved lasting av anlegg og kunder', { error: err })
       setError(err instanceof Error ? err.message : 'Kunne ikke laste data')
     } finally {
       setLoading(false)
@@ -124,7 +127,7 @@ export function Anlegg() {
       if (error) throw error
       await loadData()
     } catch (error) {
-      console.error('Feil ved sletting:', error)
+      log.error('Feil ved sletting av anlegg', { error, anleggId: id })
       alert('Kunne ikke slette anlegg')
     }
   }
@@ -597,7 +600,7 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
       if (error) throw error
       setAlleKontaktpersoner(data || [])
     } catch (error) {
-      console.error('Feil ved lasting av kontaktpersoner:', error)
+      log.error('Feil ved lasting av kontaktpersoner', { error })
     }
   }
 
@@ -618,7 +621,7 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
       setValgteKontakter(kontaktIds)
       setPrimaerKontakt(primaer)
     } catch (error) {
-      console.error('Feil ved lasting av anleggskontakter:', error)
+      log.error('Feil ved lasting av anleggskontakter', { error, anleggId: anlegg?.id })
     }
   }
 
@@ -652,7 +655,7 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
       
       alert('Kontaktperson opprettet!')
     } catch (error) {
-      console.error('Feil ved opprettelse av kontaktperson:', error)
+      log.error('Feil ved opprettelse av kontaktperson', { error, kontaktperson: nyKontakt })
       alert('Kunne ikke opprette kontaktperson')
     }
   }
@@ -701,7 +704,7 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
         })
       }
     } catch (error) {
-      console.error('Feil ved henting av kundedata:', error)
+      log.error('Feil ved henting av kundedata', { error, kundeId: formData.kundenr })
       alert('Kunne ikke hente data fra kunde')
     }
   }
@@ -720,7 +723,7 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
           setBrregSearchResults(results)
           setShowBrregResults(true)
         } catch (error) {
-          console.error('Feil ved søk:', error)
+          log.error('Feil ved Brreg-søk', { error, searchTerm: brregSearchQuery })
         } finally {
           setBrregSearching(false)
         }
@@ -971,7 +974,7 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
 
       onSave()
     } catch (error) {
-      console.error('Feil ved lagring:', error)
+      log.error('Feil ved lagring av anlegg', { error, formData })
       alert('Kunne ikke lagre anlegg')
     } finally {
       setSaving(false)
@@ -1386,7 +1389,7 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
 
             {/* Ny kontaktperson skjema */}
             {visNyKontakt && (
-              <div className="card bg-dark-100 p-4 mb-4 space-y-3">
+              <div className="card p-4 mb-4 space-y-3">
                 <h4 className="text-sm font-medium text-gray-900 dark:text-white">Opprett ny kontaktperson</h4>
                 <div className="grid grid-cols-2 gap-3">
                   <input
@@ -1444,7 +1447,7 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
                   className={`p-3 rounded-lg border transition-all ${
                     valgteKontakter.includes(kontakt.id)
                       ? 'bg-primary/10 border-primary'
-                      : 'bg-dark-100 border-gray-700'
+                      : 'bg-gray-50 dark:bg-dark-100 border-gray-200 dark:border-gray-700'
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -1758,10 +1761,24 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, loading
   const navigate = useNavigate()
 
   function handleKontrolltypeClick(type: string) {
-    // Kun Nødlys er implementert foreløpig
-    if (type === 'Nødlys') {
+    // Mapping fra kontrolltype til rapporttype
+    const rapportTypeMap: Record<string, string> = {
+      'Nødlys': 'nodlys',
+      'Brannalarm': 'brannalarm',
+      'Slukkeutstyr': 'slukkeutstyr',
+      'Røykluker': 'roykluker'
+    }
+    
+    const rapportType = rapportTypeMap[type]
+    if (rapportType) {
       // Naviger til rapporter med forhåndsvalgt kunde og anlegg
-      navigate('/rapporter', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id, rapportType: 'nodlys' } })
+      navigate('/rapporter', { 
+        state: { 
+          kundeId: anlegg.kundenr, 
+          anleggId: anlegg.id, 
+          rapportType 
+        } 
+      })
     }
   }
 
@@ -1871,7 +1888,8 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, loading
                 {anlegg.kontroll_type && anlegg.kontroll_type.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {anlegg.kontroll_type.map((type, idx) => {
-                      const isClickable = type === 'Nødlys'
+                      // Alle hovedkontrolltyper er nå klikkbare
+                      const isClickable = ['Nødlys', 'Brannalarm', 'Slukkeutstyr', 'Røykluker'].includes(type)
                       return (
                         <button
                           key={idx}
@@ -1911,7 +1929,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, loading
                 {kontaktpersoner.map((kontakt) => (
                   <div
                     key={kontakt.id}
-                    className="flex items-start justify-between p-4 bg-dark-100 rounded-lg"
+                    className="flex items-start justify-between p-4 bg-gray-50 dark:bg-dark-100 rounded-lg"
                   >
                     <div className="flex items-start gap-3 flex-1">
                       <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
@@ -1978,7 +1996,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, loading
                 {dokumenter.map((dok) => (
                   <div
                     key={dok.id}
-                    className="flex items-center justify-between p-3 bg-dark-100 rounded-lg hover:bg-dark-200 transition-colors"
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <FileText className="w-5 h-5 text-primary flex-shrink-0" />

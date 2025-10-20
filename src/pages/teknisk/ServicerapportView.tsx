@@ -178,11 +178,11 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
             onClick={onBack}
             className="p-2 hover:bg-white/5 rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
+            <ArrowLeft className="w-5 h-5 text-gray-500 dark:text-gray-400" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Servicerapporter</h1>
-            <p className="text-gray-400">Opprett og administrer servicerapporter</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Servicerapporter</h1>
+            <p className="text-gray-600 dark:text-gray-400">Opprett og administrer servicerapporter</p>
           </div>
         </div>
         <button
@@ -196,26 +196,26 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
 
       {/* Rapporter liste */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-white mb-4">Eksisterende rapporter</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Eksisterende rapporter</h2>
         
         {loading ? (
-          <div className="text-center py-8 text-gray-400">Laster...</div>
+          <div className="text-center py-8 text-gray-600 dark:text-gray-400">Laster...</div>
         ) : rapporter.length === 0 ? (
           <div className="text-center py-8">
-            <FileText className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-400">Ingen servicerapporter ennå</p>
-            <p className="text-gray-500 text-sm mt-1">Klikk "Ny rapport" for å opprette din første rapport</p>
+            <FileText className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
+            <p className="text-gray-600 dark:text-gray-400">Ingen servicerapporter ennå</p>
+            <p className="text-gray-500 dark:text-gray-500 text-sm mt-1">Klikk "Ny rapport" for å opprette din første rapport</p>
           </div>
         ) : (
           <div className="space-y-3">
             {rapporter.map((rapport) => (
               <div
                 key={rapport.id}
-                className="flex items-center justify-between p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+                className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
               >
                 <div className="flex-1">
-                  <h3 className="text-white font-medium">{rapport.header || 'Uten tittel'}</h3>
-                  <div className="flex items-center gap-4 mt-1 text-sm text-gray-400">
+                  <h3 className="text-gray-900 dark:text-white font-medium">{rapport.header || 'Uten tittel'}</h3>
+                  <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
                     <span>{rapport.anlegg_navn || 'Ikke tilknyttet anlegg'}</span>
                     <span>•</span>
                     <span>{new Date(rapport.rapport_dato).toLocaleDateString('nb-NO')}</span>
@@ -232,7 +232,7 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
                     className="p-2 hover:bg-white/5 rounded-lg transition-colors"
                     title="Forhåndsvisning"
                   >
-                    <Eye className="w-5 h-5 text-gray-400" />
+                    <Eye className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                   </button>
                   <button
                     onClick={() => handleEditRapport(rapport)}

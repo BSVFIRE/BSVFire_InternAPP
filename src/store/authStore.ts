@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
+import { logger } from '@/lib/logger'
 import type { User } from '@supabase/supabase-js'
 
 interface AuthState {
@@ -19,20 +20,34 @@ export const useAuthStore = create<AuthState>((set) => ({
       email,
       password,
     })
-    if (error) throw error
+    if (error) {
+      logger.error('Sign in failed', { email, error: error.message })
+      throw error
+    }
   },
   
   signOut: async () => {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      logger.error('Sign out failed', { error: error.message })
+    }
     set({ user: null })
   },
   
   initialize: async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    set({ user: session?.user ?? null, loading: false })
-    
-    supabase.auth.onAuthStateChange((_event, session) => {
-      set({ user: session?.user ?? null })
-    })
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) {
+        logger.error('Failed to get session', { error: error.message })
+      }
+      set({ user: session?.user ?? null, loading: false })
+      
+      supabase.auth.onAuthStateChange((_event, session) => {
+        set({ user: session?.user ?? null })
+      })
+    } catch (error) {
+      logger.error('Auth initialization failed', { error })
+      set({ loading: false })
+    }
   },
 }))

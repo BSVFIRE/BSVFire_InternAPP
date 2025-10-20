@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { createLogger } from '@/lib/logger'
 import { Plus, Search, ClipboardList, Building2, User, Eye, Trash2, Calendar, Edit, CheckCircle, FileText } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ORDRE_STATUSER, ORDRE_STATUS_COLORS } from '@/lib/constants'
+
+const log = createLogger('Ordre')
 
 interface Ordre {
   id: string
@@ -136,7 +139,7 @@ export function Ordre() {
       setOrdre(ordreWithFlags)
       setTeknikere(teknikereResponse.data || [])
     } catch (err) {
-      console.error('Feil ved lasting:', err)
+      log.error('Feil ved lasting av ordre', { error: err })
       setError(err instanceof Error ? err.message : 'Kunne ikke laste ordre')
     } finally {
       setLoading(false)
@@ -155,7 +158,7 @@ export function Ordre() {
       if (error) throw error
       await loadOrdre()
     } catch (error) {
-      console.error('Feil ved sletting:', error)
+      log.error('Feil ved sletting av ordre', { error, ordreId: id })
       alert('Kunne ikke slette ordre')
     }
   }
@@ -216,7 +219,7 @@ export function Ordre() {
       setAvsluttDialog({ open: false, ordreId: null })
       await loadOrdre()
     } catch (error) {
-      console.error('Feil ved avslutning:', error)
+      log.error('Feil ved avslutning av ordre', { error, ordreId: avsluttDialog.ordreId })
       alert('Kunne ikke avslutte ordre')
     }
   }
@@ -809,7 +812,7 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
         await loadAnlegg(formData.kundenr)
       }
     } catch (error) {
-      console.error('Feil ved lasting:', error)
+      log.error('Feil ved lasting av kunder og anlegg', { error })
     } finally {
       setLoading(false)
     }
@@ -835,7 +838,7 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
         }
       }
     } catch (error) {
-      console.error('Feil ved lasting av anlegg:', error)
+      log.error('Feil ved lasting av anlegg for kunde', { error, kundeId })
     }
   }
 
@@ -922,7 +925,7 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
 
       onSave()
     } catch (error) {
-      console.error('Feil ved lagring:', error)
+      log.error('Feil ved lagring av ordre', { error, formData })
       alert('Kunne ikke lagre ordre')
     } finally {
       setSaving(false)

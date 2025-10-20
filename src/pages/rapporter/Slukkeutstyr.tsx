@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Shield, Building2 } from 'lucide-react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { BrannslukkereView } from './slukkeutstyr/BrannslukkereView'
 import { BrannslangerView } from './slukkeutstyr/BrannslangerView'
 
@@ -21,12 +21,14 @@ interface Anlegg {
 
 interface SlukkeutstyrProps {
   onBack: () => void
+  fromAnlegg?: boolean
 }
 
 type ViewMode = 'select' | 'brannslukkere' | 'brannslanger'
 
-export function Slukkeutstyr({ onBack }: SlukkeutstyrProps) {
+export function Slukkeutstyr({ onBack, fromAnlegg }: SlukkeutstyrProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const state = location.state as { kundeId?: string; anleggId?: string } | null
   
   const [kunder, setKunder] = useState<Kunde[]>([])
@@ -111,7 +113,15 @@ export function Slukkeutstyr({ onBack }: SlukkeutstyrProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={onBack}
+            onClick={() => {
+              if (fromAnlegg && state?.anleggId) {
+                // Naviger tilbake til anleggsvisningen
+                navigate('/anlegg', { state: { viewAnleggId: state.anleggId } })
+              } else {
+                // Naviger til rapporter-oversikten
+                onBack()
+              }
+            }}
             className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

@@ -15,7 +15,8 @@ import {
   Settings,
   Shield,
   Bug,
-  Info
+  Info,
+  DollarSign
 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
@@ -39,6 +40,7 @@ const navigation = [
 ]
 
 const adminNavigation = [
+  { name: 'Prisadministrasjon', href: '/admin/prisadministrasjon', icon: DollarSign },
   { name: 'System Logger', href: '/admin/logger', icon: Bug },
 ]
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { DollarSign, Search, Edit, Trash2, Plus, AlertCircle, Building2, TrendingUp, History, X } from 'lucide-react'
+import { DollarSign, Search, Edit, Trash2, Plus, AlertCircle, Building2, TrendingUp, History, X, ArrowLeft } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 interface Pris {
@@ -187,9 +187,26 @@ export function Priser() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Kontrollpriser</h1>
-          <p className="text-gray-400 dark:text-gray-400">Administrer priser per anlegg</p>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => {
+              if (state?.anleggId) {
+                // Naviger tilbake til anleggsvisningen
+                navigate('/anlegg', { state: { viewAnleggId: state.anleggId } })
+              } else {
+                // Naviger tilbake i historikken
+                navigate(-1)
+              }
+            }}
+            className="p-2 text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
+            title="Tilbake"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Kontrollpriser</h1>
+            <p className="text-gray-400 dark:text-gray-400">Administrer priser per anlegg</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {selectedAnleggId && (

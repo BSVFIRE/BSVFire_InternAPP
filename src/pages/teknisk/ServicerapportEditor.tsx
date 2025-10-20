@@ -236,11 +236,11 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
               onClick={() => setShowPreview(false)}
               className="p-2 hover:bg-white/5 rounded-lg transition-colors"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-400" />
+              <ArrowLeft className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">Forhåndsvisning</h1>
-              <p className="text-gray-400">Slik vil rapporten se ut</p>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Forhåndsvisning</h1>
+              <p className="text-gray-600 dark:text-gray-400">Slik vil rapporten se ut</p>
             </div>
           </div>
         </div>
@@ -283,13 +283,13 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
             onClick={onCancel}
             className="p-2 hover:bg-white/5 rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
+            <ArrowLeft className="w-5 h-5 text-gray-500 dark:text-gray-400" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
               {rapport.id ? 'Rediger servicerapport' : 'Ny servicerapport'}
             </h1>
-            <p className="text-gray-400">Fyll ut informasjon og rapportinnhold</p>
+            <p className="text-gray-600 dark:text-gray-400">Fyll ut informasjon og rapportinnhold</p>
           </div>
         </div>
       </div>
@@ -297,10 +297,10 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Header Section */}
         <div className="card">
-          <h2 className="text-xl font-semibold text-white mb-4">Header</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Header</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Rapporttittel *
               </label>
               <input
@@ -315,7 +315,7 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
 
             {/* Anlegg */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Anlegg <span className="text-red-500">*</span>
               </label>
               <div className="space-y-2">
@@ -348,7 +348,7 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Dato *
               </label>
               <input
@@ -361,7 +361,7 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Tekniker *
               </label>
               <select
@@ -384,19 +384,19 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
         {/* Anleggsdetaljer */}
         {anleggDetails && (
           <div className="card bg-blue-500/5 border-blue-500/20">
-            <h2 className="text-xl font-semibold text-white mb-4">Anleggsdetaljer</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Anleggsdetaljer</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Kunde</label>
-                <p className="text-white">{anleggDetails.kunde_navn || 'Ikke angitt'}</p>
+                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Kunde</label>
+                <p className="text-gray-900 dark:text-white">{anleggDetails.kunde_navn || 'Ikke angitt'}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Anlegg</label>
-                <p className="text-white">{anleggDetails.anleggsnavn}</p>
+                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Anlegg</label>
+                <p className="text-gray-900 dark:text-white">{anleggDetails.anleggsnavn}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Adresse</label>
-                <p className="text-white">
+                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Adresse</label>
+                <p className="text-gray-900 dark:text-white">
                   {anleggDetails.adresse || 'Ikke angitt'}
                   {anleggDetails.postnr && anleggDetails.poststed && (
                     <><br />{anleggDetails.postnr} {anleggDetails.poststed}</>
@@ -405,13 +405,13 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
               </div>
               {anleggDetails.kontaktperson_navn && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Kontaktperson</label>
-                  <p className="text-white">{anleggDetails.kontaktperson_navn}</p>
+                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Kontaktperson</label>
+                  <p className="text-gray-900 dark:text-white">{anleggDetails.kontaktperson_navn}</p>
                   {anleggDetails.kontaktperson_telefon && (
-                    <p className="text-sm text-gray-400">{anleggDetails.kontaktperson_telefon}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{anleggDetails.kontaktperson_telefon}</p>
                   )}
                   {anleggDetails.kontaktperson_epost && (
-                    <p className="text-sm text-gray-400">{anleggDetails.kontaktperson_epost}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{anleggDetails.kontaktperson_epost}</p>
                   )}
                 </div>
               )}
@@ -421,9 +421,9 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
 
         {/* Report Content Section */}
         <div className="card">
-          <h2 className="text-xl font-semibold text-white mb-4">Rapportinnhold</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Rapportinnhold</h2>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Rapport tekst *
             </label>
             <textarea
@@ -451,7 +451,7 @@ Eksempel:
    - Neste service"
               required
             />
-            <p className="text-sm text-gray-400 mt-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Tips: Bruk linjeskift for å strukturere rapporten. Teksten vil vises som du skriver den.
             </p>
           </div>

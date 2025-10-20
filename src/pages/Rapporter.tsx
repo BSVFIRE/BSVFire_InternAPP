@@ -17,7 +17,7 @@ const rapportTyper = [
 
 export function Rapporter() {
   const location = useLocation()
-  const state = location.state as { rapportType?: string } | null
+  const state = location.state as { rapportType?: string; kundeId?: string; anleggId?: string } | null
   const [activeRapport, setActiveRapport] = useState<RapportType>('oversikt')
 
   // Hvis vi kommer fra anlegg med forhåndsvalgt rapporttype
@@ -27,20 +27,23 @@ export function Rapporter() {
     }
   }, [state])
 
+  // Sjekk om vi kommer fra anlegg (har både kundeId og anleggId)
+  const fromAnlegg = !!(state?.kundeId && state?.anleggId)
+
   if (activeRapport === 'nodlys') {
-    return <Nodlys onBack={() => setActiveRapport('oversikt')} />
+    return <Nodlys onBack={() => setActiveRapport('oversikt')} fromAnlegg={fromAnlegg} />
   }
 
   if (activeRapport === 'brannalarm') {
-    return <Brannalarm onBack={() => setActiveRapport('oversikt')} />
+    return <Brannalarm onBack={() => setActiveRapport('oversikt')} fromAnlegg={fromAnlegg} />
   }
 
   if (activeRapport === 'slukkeutstyr') {
-    return <Slukkeutstyr onBack={() => setActiveRapport('oversikt')} />
+    return <Slukkeutstyr onBack={() => setActiveRapport('oversikt')} fromAnlegg={fromAnlegg} />
   }
 
   if (activeRapport === 'roykluker') {
-    return <Roykluker onBack={() => setActiveRapport('oversikt')} />
+    return <Roykluker onBack={() => setActiveRapport('oversikt')} fromAnlegg={fromAnlegg} />
   }
 
   return (

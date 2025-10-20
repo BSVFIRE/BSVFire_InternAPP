@@ -374,15 +374,15 @@ export function DetektorlisteEditor({
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}
-            className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
+            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
               {detektorlisteId ? 'Rediger' : 'Ny'} Detektorliste
             </h1>
-            <p className="text-gray-400">{kundeNavn} - {anleggNavn}</p>
+            <p className="text-gray-600 dark:text-gray-400">{kundeNavn} - {anleggNavn}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -420,10 +420,10 @@ export function DetektorlisteEditor({
 
       {/* Header informasjon */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-white mb-4">Informasjon</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Informasjon</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Revisjon *
             </label>
             <input
@@ -435,7 +435,7 @@ export function DetektorlisteEditor({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Dato *
             </label>
             <input
@@ -446,7 +446,7 @@ export function DetektorlisteEditor({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Servicetekniker *
             </label>
             <input
@@ -461,7 +461,7 @@ export function DetektorlisteEditor({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Kundeadresse
             </label>
             <input
@@ -472,7 +472,7 @@ export function DetektorlisteEditor({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Kontaktperson
             </label>
             <input
@@ -483,7 +483,7 @@ export function DetektorlisteEditor({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Mobil
             </label>
             <input
@@ -494,7 +494,7 @@ export function DetektorlisteEditor({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               E-post
             </label>
             <input
@@ -522,7 +522,7 @@ export function DetektorlisteEditor({
       {/* Detektorer */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Detektorer ({detektorer.length})
           </h2>
           <div className="flex items-center gap-3">
@@ -549,8 +549,8 @@ export function DetektorlisteEditor({
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-800">
-                <th className="text-left py-3 px-2 text-gray-400 font-medium w-32">
+              <tr className="border-b border-gray-200 dark:border-gray-800">
+                <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium w-32">
                   <button
                     onClick={() => setSortBy('adresse')}
                     className="flex items-center gap-1 hover:text-primary transition-colors"
@@ -559,7 +559,7 @@ export function DetektorlisteEditor({
                     <ArrowUpDown className="w-4 h-4" />
                   </button>
                 </th>
-                <th className="text-left py-3 px-2 text-gray-400 font-medium w-40">
+                <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium w-40">
                   <button
                     onClick={() => setSortBy('type')}
                     className="flex items-center gap-1 hover:text-primary transition-colors"
@@ -568,7 +568,7 @@ export function DetektorlisteEditor({
                     <ArrowUpDown className="w-4 h-4" />
                   </button>
                 </th>
-                <th className="text-left py-3 px-2 text-gray-400 font-medium">
+                <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium">
                   <button
                     onClick={() => setSortBy('plassering')}
                     className="flex items-center gap-1 hover:text-primary transition-colors"
@@ -577,9 +577,9 @@ export function DetektorlisteEditor({
                     <ArrowUpDown className="w-4 h-4" />
                   </button>
                 </th>
-                <th className="text-left py-3 px-2 text-gray-400 font-medium w-24">Kart</th>
-                <th className="text-left py-3 px-2 text-gray-400 font-medium w-24">Akse</th>
-                <th className="text-left py-3 px-2 text-gray-400 font-medium w-24">
+                <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium w-24">Kart</th>
+                <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium w-24">Akse</th>
+                <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium w-24">
                   <button
                     onClick={() => setSortBy('etasje')}
                     className="flex items-center gap-1 hover:text-primary transition-colors"
@@ -588,8 +588,8 @@ export function DetektorlisteEditor({
                     <ArrowUpDown className="w-4 h-4" />
                   </button>
                 </th>
-                <th className="text-left py-3 px-2 text-gray-400 font-medium">Kommentar</th>
-                <th className="text-right py-3 px-2 text-gray-400 font-medium w-16"></th>
+                <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium">Kommentar</th>
+                <th className="text-right py-3 px-2 text-gray-600 dark:text-gray-400 font-medium w-16"></th>
               </tr>
             </thead>
             <tbody>
@@ -690,7 +690,7 @@ export function DetektorlisteEditor({
                   <td className="py-2 px-2 text-right">
                     <button
                       onClick={() => deleteDetektorRad(originalIndex)}
-                      className="p-1 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                      className="p-1 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
                       title="Slett rad"
                     >
                       <Trash2 className="w-4 h-4" />

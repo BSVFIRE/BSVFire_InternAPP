@@ -1,4 +1,4 @@
-import { BookOpen, FileText, Download, Upload, Mail } from 'lucide-react'
+import { BookOpen, FileText, Download, Upload, Mail, FileCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 export function Dokumentasjon() {
@@ -13,7 +13,7 @@ export function Dokumentasjon() {
       </div>
 
       {/* Placeholder content */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <button
           onClick={() => navigate('/rapport-oversikt')}
           className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
@@ -76,6 +76,22 @@ export function Dokumentasjon() {
             </div>
           </div>
           <p className="text-gray-400 dark:text-gray-500 text-sm">Se alle dokumenter og e-postutsendelser</p>
+        </button>
+
+        <button
+          onClick={() => navigate('/tilbud-serviceavtale')}
+          className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
+        >
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center">
+              <FileCheck className="w-6 h-6 text-orange-500" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tilbud Serviceavtale</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Opprett serviceavtaletilbud</p>
+            </div>
+          </div>
+          <p className="text-gray-400 dark:text-gray-500 text-sm">Lag tilbud på serviceavtaler med kunde og tjenester</p>
         </button>
       </div>
 

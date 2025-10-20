@@ -166,13 +166,13 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}
-            className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
+            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Detektorlister</h1>
-            <p className="text-gray-400">Velg kunde og anlegg for å administrere detektorlister</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Detektorlister</h1>
+            <p className="text-gray-600 dark:text-gray-400">Velg kunde og anlegg for å administrere detektorlister</p>
           </div>
         </div>
       </div>
@@ -181,9 +181,9 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Kunde */}
         <div className="card">
-          <h2 className="text-lg font-semibold text-white mb-4">Velg kunde</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Velg kunde</h2>
           <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
             <input
               type="text"
               placeholder="Søk etter kunde..."
@@ -206,8 +206,8 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
                   onClick={() => setSelectedKunde(kunde.id)}
                   className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
                     selectedKunde === kunde.id
-                      ? 'bg-primary text-white'
-                      : 'bg-dark-100 text-gray-300 hover:bg-dark-200'
+                      ? 'bg-primary text-white dark:text-white'
+                      : 'bg-gray-50 dark:bg-dark-100 text-gray-900 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200'
                   }`}
                 >
                   {kunde.navn}
@@ -219,13 +219,13 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
 
         {/* Anlegg */}
         <div className="card">
-          <h2 className="text-lg font-semibold text-white mb-4">Velg anlegg</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Velg anlegg</h2>
           {!selectedKunde ? (
             <p className="text-gray-500 text-center py-8">Velg en kunde først</p>
           ) : (
             <>
               <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
                 <input
                   type="text"
                   placeholder="Søk etter anlegg..."
@@ -248,8 +248,8 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
                       onClick={() => setSelectedAnlegg(anlegg.id)}
                       className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
                         selectedAnlegg === anlegg.id
-                          ? 'bg-primary text-white'
-                          : 'bg-dark-100 text-gray-300 hover:bg-dark-200'
+                          ? 'bg-primary text-white dark:text-white'
+                          : 'bg-gray-50 dark:bg-dark-100 text-gray-900 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200'
                       }`}
                     >
                       <div className="font-medium">{anlegg.anleggsnavn}</div>
@@ -271,10 +271,10 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
       {selectedAnlegg && (
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Detektorlister
               {detektorlister.length > 0 && (
-                <span className="ml-2 text-sm text-gray-400 font-normal">
+                <span className="ml-2 text-sm text-gray-600 dark:text-gray-400 font-normal">
                   ({detektorlister.length} {detektorlister.length === 1 ? 'liste' : 'lister'})
                 </span>
               )}
@@ -291,12 +291,12 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-gray-400">Laster detektorlister...</p>
+              <p className="text-gray-600 dark:text-gray-400">Laster detektorlister...</p>
             </div>
           ) : detektorlister.length === 0 ? (
             <div className="text-center py-12">
-              <FileText className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 mb-2">Ingen detektorlister funnet</p>
+              <FileText className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-600 dark:text-gray-400 mb-2">Ingen detektorlister funnet</p>
               <p className="text-sm text-gray-500">Klikk "Ny detektorliste" for å opprette en ny liste</p>
             </div>
           ) : (
@@ -304,11 +304,11 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
               {detektorlister.map((liste) => (
                 <div
                   key={liste.id}
-                  className="flex items-center justify-between p-4 bg-dark-100 rounded-lg hover:bg-dark-200 transition-colors"
+                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-white font-medium">
+                      <h3 className="text-gray-900 dark:text-white font-medium">
                         Revisjon {liste.revisjon}
                       </h3>
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -322,23 +322,23 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
                         <span className="text-gray-500">Dato:</span>
-                        <span className="text-gray-300 ml-2">
+                        <span className="text-gray-700 dark:text-gray-300 ml-2">
                           {new Date(liste.dato).toLocaleDateString('nb-NO')}
                         </span>
                       </div>
                       <div>
                         <span className="text-gray-500">Servicetekniker:</span>
-                        <span className="text-gray-300 ml-2">{liste.service_ingeniør}</span>
+                        <span className="text-gray-700 dark:text-gray-300 ml-2">{liste.service_ingeniør}</span>
                       </div>
                       {liste.kontakt_person && (
                         <div>
                           <span className="text-gray-500">Kontakt:</span>
-                          <span className="text-gray-300 ml-2">{liste.kontakt_person}</span>
+                          <span className="text-gray-700 dark:text-gray-300 ml-2">{liste.kontakt_person}</span>
                         </div>
                       )}
                       <div>
                         <span className="text-gray-500">Opprettet:</span>
-                        <span className="text-gray-300 ml-2">
+                        <span className="text-gray-700 dark:text-gray-300 ml-2">
                           {new Date(liste.opprettet_dato).toLocaleDateString('nb-NO')}
                         </span>
                       </div>
@@ -346,7 +346,7 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
                   </div>
                   <button
                     onClick={() => setEditingListeId(liste.id)}
-                    className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors ml-4"
+                    className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors ml-4"
                     title="Rediger"
                   >
                     <Edit className="w-5 h-5" />

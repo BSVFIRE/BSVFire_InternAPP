@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Download } from 'lucide-react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { useOfflineQueue } from '@/hooks/useOffline'
@@ -55,14 +55,16 @@ interface NettverkEnhet {
 
 interface NodlysProps {
   onBack: () => void
+  fromAnlegg?: boolean
 }
 
 const statusTyper = ['OK', 'Defekt', 'Mangler', 'Utskiftet']
 const etasjeOptions = ['-2.Etg', '-1.Etg', '0.Etg', '1.Etg', '2.Etg', '3.Etg', '4.Etg', '5.Etg', '6.Etg', '7.Etg', '8.Etg', '9.Etg', '10.Etg']
 const typeOptions = ['ML', 'LL', 'Strobe', 'Fluoriserende']
 
-export function Nodlys({ onBack }: NodlysProps) {
+export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const state = location.state as { kundeId?: string; anleggId?: string } | null
   const { isOnline, queueUpdate } = useOfflineQueue()
   
@@ -1381,7 +1383,15 @@ export function Nodlys({ onBack }: NodlysProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={onBack}
+            onClick={() => {
+              if (fromAnlegg && state?.anleggId) {
+                // Naviger tilbake til anleggsvisningen
+                navigate('/anlegg', { state: { viewAnleggId: state.anleggId } })
+              } else {
+                // Naviger til rapporter-oversikten
+                onBack()
+              }
+            }}
             className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Search, AlertCircle, AlertTriangle, Info, Bug, Filter, Download, Trash2, RefreshCw } from 'lucide-react'
+import { logger } from '@/lib/logger'
+import { Search, AlertCircle, AlertTriangle, Info, Bug, Filter, Download, Trash2, RefreshCw, TestTube } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 interface SystemLog {
@@ -105,6 +106,12 @@ export function AdminLogger() {
     }
   }
 
+  function testLogging() {
+    logger.error('Test error fra System Logger', { testData: 'Dette er en test' })
+    logger.warn('Test warning fra System Logger')
+    alert('Test-logger sendt! Oppdater siden om noen sekunder for å se dem.')
+  }
+
   async function exportLogs() {
     try {
       const csv = [
@@ -170,6 +177,13 @@ export function AdminLogger() {
           <p className="text-gray-400 dark:text-gray-400">Overvåk feil og hendelser i applikasjonen</p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={testLogging}
+            className="btn-primary flex items-center gap-2"
+          >
+            <TestTube className="w-4 h-4" />
+            Test Logger
+          </button>
           <button
             onClick={loadLogs}
             className="btn-secondary flex items-center gap-2"
@@ -311,7 +325,7 @@ export function AdminLogger() {
                 <div
                   key={log.id}
                   onClick={() => setSelectedLog(log)}
-                  className="p-4 bg-dark-100 rounded-lg hover:bg-dark-200 transition-colors cursor-pointer"
+                  className="p-4 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors cursor-pointer"
                 >
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-lg ${levelColors[log.level]}`}>

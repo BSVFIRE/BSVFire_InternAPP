@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { createLogger } from '@/lib/logger'
 import { Plus, Search, Building, Mail, Phone, Edit, Trash2, Eye, ExternalLink, Loader2, DollarSign, Building2, MapPin, ChevronRight } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { searchCompaniesByName, getCompanyByOrgNumber, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
 import { useNavigate } from 'react-router-dom'
+
+const log = createLogger('Kunder')
 
 interface Kunde {
   id: string
@@ -41,7 +44,7 @@ export function Kunder() {
         .order('navn', { ascending: true })
 
       if (error) {
-        console.error('Supabase error:', error)
+        log.error('Supabase error ved lasting av kunder', { error })
         throw new Error(error.message)
       }
       
@@ -62,7 +65,7 @@ export function Kunder() {
       
       setKunder(kunderMedAnleggCount)
     } catch (err) {
-      console.error('Feil ved lasting av kunder:', err)
+      log.error('Feil ved lasting av kunder', { error: err })
       setError(err instanceof Error ? err.message : 'Kunne ikke laste kunder')
     } finally {
       setLoading(false)
@@ -81,7 +84,7 @@ export function Kunder() {
       if (error) throw error
       await loadKunder()
     } catch (error) {
-      console.error('Feil ved sletting:', error)
+      log.error('Feil ved sletting av kunde', { error, kundeId: id })
       alert('Kunne ikke slette kunde')
     }
   }
@@ -428,7 +431,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
       if (error) throw error
       setKontaktpersoner(data || [])
     } catch (error) {
-      console.error('Feil ved lasting av kontaktpersoner:', error)
+      log.error('Feil ved lasting av kontaktpersoner', { error })
     }
   }
 
@@ -458,7 +461,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
       setShowKontaktpersonForm(false)
       setNewKontaktperson({ navn: '', epost: '', telefon: '' })
     } catch (error) {
-      console.error('Feil ved opprettelse av kontaktperson:', error)
+      log.error('Feil ved opprettelse av kontaktperson', { error, kontaktperson: newKontaktperson })
       alert('Kunne ikke opprette kontaktperson')
     } finally {
       setSavingKontaktperson(false)
@@ -501,7 +504,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
         setSearchResults(results)
         setShowResults(true)
       } catch (error) {
-        console.error('Search error:', error)
+        log.error('Feil ved søk i Brreg', { error, searchTerm: searchQuery })
         setSearchResults([])
       } finally {
         setSearching(false)
@@ -527,7 +530,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
         alert('Fant ikke bedrift med dette organisasjonsnummeret')
       }
     } catch (error) {
-      console.error('Lookup error:', error)
+      log.error('Feil ved oppslag i Brreg', { error, orgNumber: formData.organisasjonsnummer })
       alert('Kunne ikke hente bedriftsinformasjon')
     } finally {
       setLookingUp(false)
@@ -572,7 +575,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
 
       onSave()
     } catch (error) {
-      console.error('Feil ved lagring:', error)
+      log.error('Feil ved lagring av kunde', { error, formData })
       alert('Kunne ikke lagre kunde')
     } finally {
       setSaving(false)
@@ -880,7 +883,7 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
       if (error) throw error
       setKontaktperson(data)
     } catch (error) {
-      console.error('Feil ved lasting av kontaktperson:', error)
+      log.error('Feil ved lasting av kontaktperson', { error, kontaktpersonId: kunde.kontaktperson_id })
     }
   }
 
@@ -909,7 +912,7 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
         setPriser(priserData || [])
       }
     } catch (error) {
-      console.error('Feil ved lasting av serviceavtaler:', error)
+      log.error('Feil ved lasting av serviceavtaler', { error, kundeId: kunde.id })
     } finally {
       setLoadingPriser(false)
     }

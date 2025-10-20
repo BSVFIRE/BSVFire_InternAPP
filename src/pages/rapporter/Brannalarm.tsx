@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Flame, Settings, Network, Check, Cpu, Package, ClipboardCheck } from 'lucide-react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { cacheData } from '@/lib/offline'
 import { StyringerView } from './brannalarm/StyringerViewNew.tsx'
 import { NettverkView } from './brannalarm/NettverkView.tsx'
@@ -107,12 +107,14 @@ export interface NettverkEnhet {
 
 interface BrannalarmProps {
   onBack: () => void
+  fromAnlegg?: boolean
 }
 
 type ViewMode = 'list' | 'styringer' | 'nettverk' | 'enheter' | 'tilleggsutstyr' | 'ny-kontroll'
 
-export function Brannalarm({ onBack }: BrannalarmProps) {
+export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const state = location.state as { kundeId?: string; anleggId?: string } | null
   
   const [kunder, setKunder] = useState<Kunde[]>([])
@@ -304,7 +306,17 @@ export function Brannalarm({ onBack }: BrannalarmProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+          <button 
+            onClick={() => {
+              if (fromAnlegg && state?.anleggId) {
+                // Naviger tilbake til anleggsvisningen
+                navigate('/anlegg', { state: { viewAnleggId: state.anleggId } })
+              } else {
+                // Naviger til rapporter-oversikten
+                onBack()
+              }
+            }} 
+            className="p-2 hover:bg-white/5 rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
           <div>
