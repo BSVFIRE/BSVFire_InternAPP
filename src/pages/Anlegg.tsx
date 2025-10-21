@@ -889,6 +889,10 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
     setSaving(true)
 
     try {
+      // Check authentication status
+      const { data: { session } } = await supabase.auth.getSession()
+      console.log('Auth session:', session ? 'Authenticated' : 'Not authenticated', session?.user?.email)
+      
       const dataToSave = {
         ...formData,
         org_nummer: formData.org_nummer || null,
@@ -915,7 +919,10 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
           })
           .eq('id', anlegg.id)
 
-        if (error) throw error
+        if (error) {
+          console.error('Supabase update error:', error)
+          throw error
+        }
         anleggId = anlegg.id
       } else {
         // Create
@@ -925,7 +932,10 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
           .select()
           .single()
 
-        if (error) throw error
+        if (error) {
+          console.error('Supabase insert error:', error)
+          throw error
+        }
         anleggId = data.id
 
         // Synkroniser til Kontrollportal (kun ved opprettelse)
