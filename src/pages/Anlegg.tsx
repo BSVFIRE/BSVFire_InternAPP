@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
 import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2 } from 'lucide-react'
+import { GoogleMapsAddressAutocomplete } from '@/components/GoogleMapsAddressAutocomplete'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ANLEGG_STATUSER, ANLEGG_STATUS_COLORS, KONTROLLTYPER, MAANEDER } from '@/lib/constants'
@@ -1094,17 +1095,23 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
             />
           </div>
 
-          {/* Adresse */}
+          {/* Adresse med Google Maps Autocomplete */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Adresse
             </label>
-            <input
-              type="text"
+            <GoogleMapsAddressAutocomplete
               value={formData.adresse}
-              onChange={(e) => setFormData({ ...formData, adresse: e.target.value })}
-              className="input"
-              placeholder="Gateadresse 1"
+              onChange={(value) => setFormData({ ...formData, adresse: value })}
+              onAddressSelect={(components) => {
+                setFormData({
+                  ...formData,
+                  adresse: components.adresse,
+                  postnummer: components.postnummer,
+                  poststed: components.poststed
+                })
+              }}
+              placeholder="Søk adresse med Google Maps..."
             />
           </div>
 
