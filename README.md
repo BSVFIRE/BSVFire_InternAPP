@@ -101,7 +101,7 @@ npm run build
 - ✅ **Kontaktpersoner** - Kontaktpersonadministrasjon
 - ✅ **Ordre** - Ordrehåndtering med fakturering
 - ✅ **Oppgaver** - Oppgavestyring
-- ✅ **Rapporter** - Brannalarm, Nødlys, Slukkeutstyr
+- ✅ **Rapporter** - Brannalarm, Nødlys (med Excel/CSV import), Slukkeutstyr
 - ✅ **Teknisk** - Servicerapporter og detektorlister
 - ✅ **Offline** - Offline-funksjonalitet med synkronisering
 
@@ -144,6 +144,7 @@ All dokumentasjon ligger i `docs/`-mappen:
 - **Guides**: Hvordan bruke forskjellige funksjoner
 - **Admin**: Administrator-dokumentasjon
 - **Teknisk**: Teknisk dokumentasjon
+- **Import**: `NODLYS_IMPORT_GUIDE.md` - Guide for import av nødlysdata
 
 ## 🚀 Deployment
 

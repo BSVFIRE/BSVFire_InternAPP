@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Download } from 'lucide-react'
+import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Download, Upload } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -8,6 +8,7 @@ import { useOfflineQueue } from '@/hooks/useOffline'
 import { cacheData } from '@/lib/offline'
 import { NodlysPreview } from './NodlysPreview'
 import { KommentarViewNodlys } from './KommentarViewNodlys'
+import { NodlysImport } from './NodlysImport'
 
 interface Kunde {
   id: string
@@ -77,7 +78,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const [selectedKunde, setSelectedKunde] = useState(state?.kundeId || '')
   const [selectedAnlegg, setSelectedAnlegg] = useState(state?.anleggId || '')
   const [loading, setLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'bulk' | 'nettverk'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'bulk' | 'nettverk' | 'import'>('list')
   const [selectedNodlys, setSelectedNodlys] = useState<NodlysEnhet | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [kundeSok, setKundeSok] = useState('')
@@ -1113,6 +1114,18 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     )
   }
 
+  if (viewMode === 'import') {
+    return (
+      <NodlysImport
+        anleggId={selectedAnlegg}
+        onClose={() => setViewMode('list')}
+        onImportComplete={async () => {
+          await loadNodlys(selectedAnlegg)
+        }}
+      />
+    )
+  }
+
   if (viewMode === 'bulk') {
     return (
       <BulkAddForm
@@ -1500,6 +1513,13 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           {/* Handlingsknapper */}
           <div className="card">
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => setViewMode('import')}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <Upload className="w-5 h-5" />
+                Importer fra Excel/CSV
+              </button>
               <button
                 onClick={() => setViewMode('nettverk')}
                 className="btn-primary flex items-center gap-2"
