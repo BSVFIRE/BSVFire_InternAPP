@@ -181,10 +181,12 @@ export function DetektorlisteEditor({
 
       if (detektorlisteId) {
         // Oppdater eksisterende
-        await supabase
+        const { error } = await supabase
           .from('detektorlister')
           .update(detektorlisteData)
           .eq('id', detektorlisteId)
+        
+        if (error) throw error
       } else {
         // Opprett ny (kun første gang)
         const { data, error } = await supabase
@@ -204,10 +206,12 @@ export function DetektorlisteEditor({
 
       // Slett og re-insert detektorer
       if (listeId) {
-        await supabase
+        const { error: deleteError } = await supabase
           .from('detektor_items')
           .delete()
           .eq('detektorliste_id', listeId)
+        
+        if (deleteError) throw deleteError
 
         const detektorerMedData = detektorer
           .filter(d => d.adresse.trim() !== '')
@@ -223,15 +227,22 @@ export function DetektorlisteEditor({
           }))
 
         if (detektorerMedData.length > 0) {
-          await supabase
+          const { error: insertError } = await supabase
             .from('detektor_items')
             .insert(detektorerMedData)
+          
+          if (insertError) throw insertError
         }
       }
 
       setLastSaved(new Date())
-    } catch (error) {
+    } catch (error: any) {
       console.error('Feil ved autolagring:', error)
+      
+      // Check for RLS policy error
+      if (error?.code === '42501') {
+        console.error('Tilgangsfeil: Row Level Security policy mangler. Kontakt administrator.')
+      }
     } finally {
       setSaving(false)
     }
@@ -264,10 +275,12 @@ export function DetektorlisteEditor({
 
       if (detektorlisteId) {
         // Oppdater eksisterende
-        await supabase
+        const { error } = await supabase
           .from('detektorlister')
           .update(detektorlisteData)
           .eq('id', detektorlisteId)
+        
+        if (error) throw error
       } else {
         // Opprett ny
         const { data, error } = await supabase
@@ -285,10 +298,12 @@ export function DetektorlisteEditor({
 
       // Slett eksisterende detektorer hvis vi oppdaterer
       if (detektorlisteId) {
-        await supabase
+        const { error: deleteError } = await supabase
           .from('detektor_items')
           .delete()
           .eq('detektorliste_id', detektorlisteId)
+        
+        if (deleteError) throw deleteError
       }
 
       // Lagre detektorer (kun de med adresse)
@@ -306,16 +321,24 @@ export function DetektorlisteEditor({
         }))
 
       if (detektorerMedData.length > 0) {
-        await supabase
+        const { error: insertError } = await supabase
           .from('detektor_items')
           .insert(detektorerMedData)
+        
+        if (insertError) throw insertError
       }
 
       alert('Detektorliste lagret!')
       onBack()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre detektorliste')
+      
+      // Check for RLS policy error
+      if (error?.code === '42501') {
+        alert('Tilgangsfeil: Du har ikke tillatelse til å lagre. Kontakt administrator for å fikse Row Level Security policies.')
+      } else {
+        alert('Kunne ikke lagre detektorliste: ' + (error?.message || 'Ukjent feil'))
+      }
     } finally {
       setSaving(false)
     }
