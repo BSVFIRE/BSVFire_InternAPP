@@ -31,6 +31,8 @@ const detektorTyper = [
   'Flammedetektor',
   'Gassdetekt',
   'Manuell melder',
+  'Summer',
+  'Blitz',
   'Annen'
 ]
 
@@ -46,7 +48,6 @@ export function DetektorlisteEditor({
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [sortBy, setSortBy] = useState<'adresse' | 'type' | 'plassering' | 'etasje'>('adresse')
   const [showPreview, setShowPreview] = useState(false)
   
   // Header fields
@@ -344,21 +345,24 @@ export function DetektorlisteEditor({
     }
   }
 
-  // Sorter detektorer
-  const sortedDetektorer = [...detektorer].sort((a, b) => {
-    switch (sortBy) {
-      case 'adresse':
-        return (a.adresse || '').localeCompare(b.adresse || '', 'nb-NO', { numeric: true })
-      case 'type':
-        return (a.type || '').localeCompare(b.type || '', 'nb-NO')
-      case 'plassering':
-        return (a.plassering || '').localeCompare(b.plassering || '', 'nb-NO')
-      case 'etasje':
-        return (a.etasje || '').localeCompare(b.etasje || '', 'nb-NO', { numeric: true })
-      default:
-        return 0
-    }
-  })
+  // Funksjon for å sortere detektorer
+  function sorterDetektorer(sortType: 'adresse' | 'type' | 'plassering' | 'etasje') {
+    const sorterte = [...detektorer].sort((a, b) => {
+      switch (sortType) {
+        case 'adresse':
+          return (a.adresse || '').localeCompare(b.adresse || '', 'nb-NO', { numeric: true })
+        case 'type':
+          return (a.type || '').localeCompare(b.type || '', 'nb-NO')
+        case 'plassering':
+          return (a.plassering || '').localeCompare(b.plassering || '', 'nb-NO')
+        case 'etasje':
+          return (a.etasje || '').localeCompare(b.etasje || '', 'nb-NO', { numeric: true })
+        default:
+          return 0
+      }
+    })
+    setDetektorer(sorterte)
+  }
 
   if (loading) {
     return (
@@ -550,10 +554,16 @@ export function DetektorlisteEditor({
           </h2>
           <div className="flex items-center gap-3">
             <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => {
+                if (e.target.value) {
+                  sorterDetektorer(e.target.value as any)
+                }
+                e.target.value = '' // Reset til "Velg sortering"
+              }}
               className="input py-2"
+              defaultValue=""
             >
+              <option value="">Velg sortering...</option>
               <option value="adresse">Sorter: Adresse</option>
               <option value="type">Sorter: Type</option>
               <option value="plassering">Sorter: Plassering</option>
@@ -575,7 +585,7 @@ export function DetektorlisteEditor({
               <tr className="border-b border-gray-200 dark:border-gray-800">
                 <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium w-32">
                   <button
-                    onClick={() => setSortBy('adresse')}
+                    onClick={() => sorterDetektorer('adresse')}
                     className="flex items-center gap-1 hover:text-primary transition-colors"
                   >
                     Adresse
@@ -584,7 +594,7 @@ export function DetektorlisteEditor({
                 </th>
                 <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium w-40">
                   <button
-                    onClick={() => setSortBy('type')}
+                    onClick={() => sorterDetektorer('type')}
                     className="flex items-center gap-1 hover:text-primary transition-colors"
                   >
                     Type
@@ -593,7 +603,7 @@ export function DetektorlisteEditor({
                 </th>
                 <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium">
                   <button
-                    onClick={() => setSortBy('plassering')}
+                    onClick={() => sorterDetektorer('plassering')}
                     className="flex items-center gap-1 hover:text-primary transition-colors"
                   >
                     Plassering
@@ -604,7 +614,7 @@ export function DetektorlisteEditor({
                 <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium w-24">Akse</th>
                 <th className="text-left py-3 px-2 text-gray-600 dark:text-gray-400 font-medium w-24">
                   <button
-                    onClick={() => setSortBy('etasje')}
+                    onClick={() => sorterDetektorer('etasje')}
                     className="flex items-center gap-1 hover:text-primary transition-colors"
                   >
                     Etasje
@@ -616,10 +626,7 @@ export function DetektorlisteEditor({
               </tr>
             </thead>
             <tbody>
-              {sortedDetektorer.map((detektor, index) => {
-                // Finn original index for å kunne oppdatere riktig rad
-                const originalIndex = detektorer.findIndex(d => d === detektor)
-                return (
+              {detektorer.map((detektor, index) => (
                 <tr key={index} className="border-b border-gray-800 hover:bg-dark-200">
                   <td className="py-2 px-2">
                     <input
@@ -627,7 +634,7 @@ export function DetektorlisteEditor({
                       value={detektor.adresse}
                       onChange={(e) => {
                         const nyeDetektorer = [...detektorer]
-                        nyeDetektorer[originalIndex].adresse = e.target.value
+                        nyeDetektorer[index].adresse = e.target.value
                         setDetektorer(nyeDetektorer)
                       }}
                       className="input py-1 px-2 text-sm w-full"
@@ -639,7 +646,7 @@ export function DetektorlisteEditor({
                       value={detektor.type}
                       onChange={(e) => {
                         const nyeDetektorer = [...detektorer]
-                        nyeDetektorer[originalIndex].type = e.target.value
+                        nyeDetektorer[index].type = e.target.value
                         setDetektorer(nyeDetektorer)
                       }}
                       className="input py-1 px-2 text-sm w-full"
@@ -656,7 +663,7 @@ export function DetektorlisteEditor({
                       value={detektor.plassering}
                       onChange={(e) => {
                         const nyeDetektorer = [...detektorer]
-                        nyeDetektorer[originalIndex].plassering = e.target.value
+                        nyeDetektorer[index].plassering = e.target.value
                         setDetektorer(nyeDetektorer)
                       }}
                       className="input py-1 px-2 text-sm w-full"
@@ -668,7 +675,7 @@ export function DetektorlisteEditor({
                       value={detektor.kart}
                       onChange={(e) => {
                         const nyeDetektorer = [...detektorer]
-                        nyeDetektorer[originalIndex].kart = e.target.value
+                        nyeDetektorer[index].kart = e.target.value
                         setDetektorer(nyeDetektorer)
                       }}
                       className="input py-1 px-2 text-sm w-full"
@@ -680,7 +687,7 @@ export function DetektorlisteEditor({
                       value={detektor.akse}
                       onChange={(e) => {
                         const nyeDetektorer = [...detektorer]
-                        nyeDetektorer[originalIndex].akse = e.target.value
+                        nyeDetektorer[index].akse = e.target.value
                         setDetektorer(nyeDetektorer)
                       }}
                       className="input py-1 px-2 text-sm w-full"
@@ -692,7 +699,7 @@ export function DetektorlisteEditor({
                       value={detektor.etasje}
                       onChange={(e) => {
                         const nyeDetektorer = [...detektorer]
-                        nyeDetektorer[originalIndex].etasje = e.target.value
+                        nyeDetektorer[index].etasje = e.target.value
                         setDetektorer(nyeDetektorer)
                       }}
                       className="input py-1 px-2 text-sm w-full"
@@ -704,7 +711,7 @@ export function DetektorlisteEditor({
                       value={detektor.kommentar}
                       onChange={(e) => {
                         const nyeDetektorer = [...detektorer]
-                        nyeDetektorer[originalIndex].kommentar = e.target.value
+                        nyeDetektorer[index].kommentar = e.target.value
                         setDetektorer(nyeDetektorer)
                       }}
                       className="input py-1 px-2 text-sm w-full"
@@ -712,7 +719,7 @@ export function DetektorlisteEditor({
                   </td>
                   <td className="py-2 px-2 text-right">
                     <button
-                      onClick={() => deleteDetektorRad(originalIndex)}
+                      onClick={() => deleteDetektorRad(index)}
                       className="p-1 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
                       title="Slett rad"
                     >
@@ -720,7 +727,7 @@ export function DetektorlisteEditor({
                     </button>
                   </td>
                 </tr>
-              )})}
+              ))}
             </tbody>
           </table>
         </div>
