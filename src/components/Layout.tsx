@@ -16,7 +16,10 @@ import {
   Shield,
   Bug,
   Info,
-  DollarSign
+  DollarSign,
+  Sparkles,
+  Menu,
+  X
 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
@@ -42,6 +45,8 @@ const navigation = [
 const adminNavigation = [
   { name: 'Prisadministrasjon', href: '/admin/prisadministrasjon', icon: DollarSign },
   { name: 'System Logger', href: '/admin/logger', icon: Bug },
+  { name: 'AI Embeddings', href: '/admin/ai-embeddings', icon: Sparkles },
+  { name: 'AI Kunnskapsbase', href: '/admin/ai-knowledge', icon: BookOpen },
 ]
 
 // Admin users (kun disse ser admin-menyen)
@@ -52,14 +57,36 @@ export function Layout({ children }: LayoutProps) {
   const { theme, toggleTheme } = useThemeStore()
   const { user, signOut } = useAuthStore()
   const [showOfflineInfo, setShowOfflineInfo] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   
   // Sjekk om bruker er admin
   const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email)
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark">
+      {/* Mobile overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile menu button */}
+      <button
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-white dark:bg-dark-50 rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+      >
+        {isSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+      </button>
+
       {/* Sidebar */}
-      <aside className="fixed inset-y-0 left-0 w-64 bg-white dark:bg-dark-50 border-r border-gray-200 dark:border-gray-800">
+      <aside className={`
+        fixed inset-y-0 left-0 w-64 bg-white dark:bg-dark-50 border-r border-gray-200 dark:border-gray-800 z-40
+        transform transition-transform duration-300 ease-in-out
+        lg:translate-x-0
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-200 dark:border-gray-800">
@@ -180,7 +207,7 @@ export function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="pl-64">
+      <main className="lg:pl-64">
         <div className="p-8">
           {children}
         </div>

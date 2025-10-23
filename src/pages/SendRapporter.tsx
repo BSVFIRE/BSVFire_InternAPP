@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Mail, Building2, User, FileText, Send, Loader2, ArrowLeft } from 'lucide-react'
 import { sendEmail, getDocumentAsBase64, EmailAttachment, getKundeEmailTemplate, getTeknikerEmailTemplate, generateEmailSubject } from '@/lib/emailService'
@@ -38,13 +38,16 @@ interface Dokument {
 
 export function SendRapporter() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const state = location.state as { kundeId?: string; anleggId?: string } | null
+  
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
   const [kontaktpersoner, setKontaktpersoner] = useState<Kontaktperson[]>([])
   const [dokumenter, setDokumenter] = useState<Dokument[]>([])
   
-  const [selectedKunde, setSelectedKunde] = useState('')
-  const [selectedAnlegg, setSelectedAnlegg] = useState('')
+  const [selectedKunde, setSelectedKunde] = useState(state?.kundeId || '')
+  const [selectedAnlegg, setSelectedAnlegg] = useState(state?.anleggId || '')
   const [valgteKontakter, setValgteKontakter] = useState<Set<string>>(new Set())
   const [valgteDokumenter, setValgteDokumenter] = useState<Set<string>>(new Set())
   const [sendTilTekniker, setSendTilTekniker] = useState(false)

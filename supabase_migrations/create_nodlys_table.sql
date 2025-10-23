@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS nodlys (
   sist_kontrollert DATE,
   kommentar TEXT,
   opprettet_dato TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT nodlys_status_check CHECK (status IN ('OK', 'Defekt', 'Mangler', 'Utskiftet')),
+  CONSTRAINT nodlys_status_check CHECK (status IN ('OK', 'Defekt', 'Mangler', 'Utskiftet', 'Batterifeil', 'Skadet armatur')),
   CONSTRAINT nodlys_type_check CHECK (type IN ('LED', 'Halogen', 'Fluorescerende', 'Annet'))
 );
 

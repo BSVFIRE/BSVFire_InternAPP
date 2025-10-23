@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2 } from 'lucide-react'
+import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle } from 'lucide-react'
 import { GoogleMapsAddressAutocomplete } from '@/components/GoogleMapsAddressAutocomplete'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -27,6 +27,11 @@ interface Anlegg {
   kontrollportal_url: string | null
   opprettet_dato: string
   sist_oppdatert: string | null
+  brannalarm_fullfort: boolean | null
+  nodlys_fullfort: boolean | null
+  roykluker_fullfort: boolean | null
+  slukkeutstyr_fullfort: boolean | null
+  ekstern_fullfort: boolean | null
 }
 
 interface Kunde {
@@ -213,10 +218,14 @@ export function Anlegg() {
       <AnleggForm
         anlegg={selectedAnlegg}
         kunder={kunder}
-        onSave={async () => {
+        onSave={async (createdAnleggNavn) => {
           await loadData()
           setViewMode('list')
           setSelectedAnlegg(null)
+          // Hvis et nytt anlegg ble opprettet, sett søkefeltet til anleggsnavnet
+          if (createdAnleggNavn) {
+            setSearchTerm(createdAnleggNavn)
+          }
         }}
         onCancel={() => {
           setViewMode('list')
@@ -514,7 +523,7 @@ export function Anlegg() {
 interface AnleggFormProps {
   anlegg: Anlegg | null
   kunder: Kunde[]
-  onSave: () => void
+  onSave: (createdAnleggNavn?: string) => void
   onCancel: () => void
 }
 
@@ -533,6 +542,11 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
     kontroll_type: anlegg?.kontroll_type || [],
     unik_kode: anlegg?.unik_kode || '',
     kontrollportal_url: anlegg?.kontrollportal_url || '',
+    brannalarm_fullfort: anlegg?.brannalarm_fullfort || false,
+    nodlys_fullfort: anlegg?.nodlys_fullfort || false,
+    roykluker_fullfort: anlegg?.roykluker_fullfort || false,
+    slukkeutstyr_fullfort: anlegg?.slukkeutstyr_fullfort || false,
+    ekstern_fullfort: anlegg?.ekstern_fullfort || false,
   })
   const [saving, setSaving] = useState(false)
   const [alleKontaktpersoner, setAlleKontaktpersoner] = useState<Kontaktperson[]>([])
@@ -896,6 +910,7 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
       
       const dataToSave = {
         ...formData,
+        kundenr: formData.kundenr || null,
         org_nummer: formData.org_nummer || null,
         kunde_nummer: formData.kunde_nummer || null,
         adresse: formData.adresse || null,
@@ -906,9 +921,15 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
         kontroll_type: formData.kontroll_type.length > 0 ? formData.kontroll_type : null,
         unik_kode: formData.unik_kode || null,
         kontrollportal_url: formData.kontrollportal_url || null,
+        brannalarm_fullfort: formData.brannalarm_fullfort,
+        nodlys_fullfort: formData.nodlys_fullfort,
+        roykluker_fullfort: formData.roykluker_fullfort,
+        slukkeutstyr_fullfort: formData.slukkeutstyr_fullfort,
+        ekstern_fullfort: formData.ekstern_fullfort,
       }
 
       let anleggId: string
+      let isNewAnlegg = false
 
       if (anlegg) {
         // Update
@@ -938,6 +959,7 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
           throw error
         }
         anleggId = data.id
+        isNewAnlegg = true
 
         // Synkroniser til Kontrollportal (kun ved opprettelse)
         try {
@@ -983,7 +1005,8 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
         setVisSlettKundeDialog(false)
       }
 
-      onSave()
+      // Send anleggsnavnet til onSave hvis det er et nytt anlegg
+      onSave(isNewAnlegg ? formData.anleggsnavn : undefined)
     } catch (error) {
       log.error('Feil ved lagring av anlegg', { error, formData })
       alert('Kunne ikke lagre anlegg')
@@ -1329,6 +1352,86 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
               ))}
             </div>
           </div>
+
+          {/* Tjenestestatus */}
+          {anlegg && formData.kontroll_type.length > 0 && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-3">
+                Tjenestestatus 
+                <span className="text-xs text-gray-400 dark:text-gray-400 ml-2">
+                  ({formData.kontroll_type.filter(t => {
+                    if (t === 'Brannalarm') return formData.brannalarm_fullfort
+                    if (t === 'Nødlys') return formData.nodlys_fullfort
+                    if (t === 'Røykluker') return formData.roykluker_fullfort
+                    if (t === 'Slukkeutstyr') return formData.slukkeutstyr_fullfort
+                    if (t === 'Ekstern') return formData.ekstern_fullfort
+                    return false
+                  }).length} av {formData.kontroll_type.length} fullført)
+                </span>
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {formData.kontroll_type.map((type) => {
+                  const statusKey = type === 'Brannalarm' ? 'brannalarm_fullfort' :
+                                   type === 'Nødlys' ? 'nodlys_fullfort' :
+                                   type === 'Røykluker' ? 'roykluker_fullfort' :
+                                   type === 'Slukkeutstyr' ? 'slukkeutstyr_fullfort' :
+                                   type === 'Ekstern' ? 'ekstern_fullfort' : null
+                  
+                  if (!statusKey) return null
+                  
+                  const isFullfort = formData[statusKey as keyof typeof formData] as boolean
+                  
+                  return (
+                    <div
+                      key={type}
+                      className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                        isFullfort
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : 'bg-dark-100 border-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          isFullfort ? 'bg-green-500/20' : 'bg-gray-700'
+                        }`}>
+                          {isFullfort ? (
+                            <CheckCircle className="w-5 h-5 text-green-400" />
+                          ) : (
+                            <AlertCircle className="w-5 h-5 text-gray-400" />
+                          )}
+                        </div>
+                        <div>
+                          <p className={`font-medium ${
+                            isFullfort ? 'text-green-400' : 'text-gray-300'
+                          }`}>
+                            {type}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {isFullfort ? 'Fullført' : 'Ikke fullført'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({
+                          ...formData,
+                          [statusKey]: !isFullfort
+                        })}
+                        className={`p-2 rounded-lg transition-colors ${
+                          isFullfort
+                            ? 'hover:bg-red-500/10 text-red-400'
+                            : 'hover:bg-green-500/10 text-green-400'
+                        }`}
+                        title={isFullfort ? 'Marker som ikke fullført' : 'Marker som fullført'}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Kontaktpersoner */}
           <div className="md:col-span-2">

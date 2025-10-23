@@ -110,6 +110,7 @@ npm run build
 
 ### Under utvikling
 - 🚧 **Prosjekter** - Prosjektstyring
+- 🤖 **AI-assistent** - Intelligent søk og hjelp (se `AI_ASSISTANT_README.md`)
 
 ## 🔐 Autentisering
 
@@ -145,6 +146,7 @@ All dokumentasjon ligger i `docs/`-mappen:
 - **Admin**: Administrator-dokumentasjon
 - **Teknisk**: Teknisk dokumentasjon
 - **Import**: `NODLYS_IMPORT_GUIDE.md` - Guide for import av nødlysdata
+- **AI-assistent**: `AI_ASSISTANT_README.md` - Komplett guide for AI-assistent 🤖
 
 ## 🚀 Deployment
 

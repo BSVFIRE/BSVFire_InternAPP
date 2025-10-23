@@ -158,10 +158,14 @@ export function Kunder() {
     return (
       <KundeForm
         kunde={selectedKunde}
-        onSave={async () => {
+        onSave={async (createdKundeNavn) => {
           await loadKunder()
           setViewMode('list')
           setSelectedKunde(null)
+          // Hvis en ny kunde ble opprettet, sett søkefeltet til kundenavnet
+          if (createdKundeNavn) {
+            setSearchTerm(createdKundeNavn)
+          }
         }}
         onCancel={() => {
           setViewMode('list')
@@ -391,7 +395,7 @@ export function Kunder() {
 // Kunde Form Component
 interface KundeFormProps {
   kunde: Kunde | null
-  onSave: () => void
+  onSave: (createdKundeNavn?: string) => void
   onCancel: () => void
 }
 
@@ -553,6 +557,8 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
     setSaving(true)
 
     try {
+      let isNewKunde = false
+      
       if (kunde) {
         // Update
         const { error } = await supabase
@@ -571,9 +577,11 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
           .insert([formData])
 
         if (error) throw error
+        isNewKunde = true
       }
 
-      onSave()
+      // Send kundenavnet til onSave hvis det er en ny kunde
+      onSave(isNewKunde ? formData.navn : undefined)
     } catch (error) {
       log.error('Feil ved lagring av kunde', { error, formData })
       alert('Kunne ikke lagre kunde')

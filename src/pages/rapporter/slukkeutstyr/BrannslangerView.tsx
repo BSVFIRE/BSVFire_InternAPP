@@ -1,11 +1,14 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Download, Wifi, WifiOff } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Download, Wifi, WifiOff, Check } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BrannslangerPreview } from '../BrannslangerPreview'
 import { useAuthStore } from '@/store/authStore'
 import { KommentarViewBrannslanger } from './KommentarViewBrannslanger'
+import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
+import { SendRapportDialog } from '@/components/SendRapportDialog'
 
 interface Brannslange {
   id?: string
@@ -69,6 +72,7 @@ const etasjeAlternativer = [
 ]
 
 export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: BrannslangerViewProps) {
+  const navigate = useNavigate()
   const { user } = useAuthStore()
   const [slanger, setSlanger] = useState<Brannslange[]>([])
   const [loading, setLoading] = useState(false)
@@ -85,6 +89,10 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   const localStorageKey = `brannslanger_offline_${anleggId}`
   const [editingStatusIndex, setEditingStatusIndex] = useState<number | null>(null)
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
+  const [showFullfortDialog, setShowFullfortDialog] = useState(false)
+  const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
+  const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
+  const [kundeId, setKundeId] = useState<string | null>(null)
 
   useEffect(() => {
     loadSlanger()
@@ -136,6 +144,18 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   async function loadSlanger() {
     try {
       setLoading(true)
+      
+      // Hent kundeId fra anlegg
+      const { data: anleggData } = await supabase
+        .from('anlegg')
+        .select('kundenr')
+        .eq('id', anleggId)
+        .single()
+      
+      if (anleggData) {
+        setKundeId(anleggData.kundenr)
+      }
+      
       const { data, error } = await supabase
         .from('anleggsdata_brannslanger')
         .select('*')
@@ -832,13 +852,9 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
             storage_path: storagePath
           })
 
-        // Last ned PDF hvis mode er 'download'
-        if (mode === 'download') {
-          doc.save(fileName)
-          alert('Rapport lagret og lastet ned!')
-        } else {
-          alert('Rapport lagret!')
-        }
+        // Vis dialog for å sette tjeneste til fullført
+        setPendingPdfSave({ mode, doc, fileName })
+        setShowFullfortDialog(true)
       }
     } catch (error) {
       console.error('Feil ved generering av rapport:', error)
@@ -846,6 +862,75 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleTjenesteFullfort() {
+    try {
+      // Oppdater anlegg-tabellen med slukkeutstyr_fullfort = true
+      const { error } = await supabase
+        .from('anlegg')
+        .update({ slukkeutstyr_fullfort: true })
+        .eq('id', anleggId)
+
+      if (error) throw error
+
+      // Fullfør PDF-lagring
+      if (pendingPdfSave) {
+        const { mode, doc, fileName } = pendingPdfSave
+        if (mode === 'download') {
+          doc.save(fileName)
+        }
+      }
+
+      // Lukk fullført-dialogen og vis send rapport-dialogen
+      setShowFullfortDialog(false)
+      setShowSendRapportDialog(true)
+    } catch (error) {
+      console.error('Feil ved oppdatering av tjenestestatus:', error)
+      alert('Rapport lagret, men kunne ikke oppdatere status')
+      setShowFullfortDialog(false)
+      setPendingPdfSave(null)
+      setLoading(false)
+    }
+  }
+
+  function handleSendRapportConfirm() {
+    // Naviger til Send Rapporter med kunde og anlegg pre-valgt
+    setShowSendRapportDialog(false)
+    setPendingPdfSave(null)
+    setLoading(false)
+    
+    if (kundeId) {
+      navigate('/send-rapporter', { 
+        state: { 
+          kundeId: kundeId, 
+          anleggId: anleggId 
+        } 
+      })
+    }
+  }
+
+  function handleSendRapportCancel() {
+    // Lukk dialogen uten å navigere
+    setShowSendRapportDialog(false)
+    setPendingPdfSave(null)
+    setLoading(false)
+  }
+
+  function handleTjenesteAvbryt() {
+    // Fullfør PDF-lagring uten å oppdatere status
+    if (pendingPdfSave) {
+      const { mode, doc, fileName } = pendingPdfSave
+      if (mode === 'download') {
+        doc.save(fileName)
+        alert('Rapport lagret og lastet ned!')
+      } else {
+        alert('Rapport lagret!')
+      }
+    }
+    setShowFullfortDialog(false)
+    setPendingPdfSave(null)
+    setLoading(false)
   }
 
   function handleStatusChange(index: number, avvik: string) {
@@ -1017,7 +1102,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                     <th className="text-left py-3 px-4 text-gray-400 font-medium w-40">Modell</th>
                     <th className="text-left py-3 px-4 text-gray-400 font-medium w-20">Klasse</th>
                     <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">År</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Siste kontroll</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-36">Siste kontroll</th>
                     <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Trykktest</th>
                     <th className="text-left py-3 px-4 text-gray-400 font-medium w-32">Status</th>
                     <th className="text-right py-3 px-4 text-gray-400 font-medium w-20">Handlinger</th>
@@ -1142,17 +1227,30 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                         />
                       </td>
                       <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={slange.sistekontroll || ''}
-                          onChange={(e) => {
-                            const nyeSlanger = [...slanger]
-                            nyeSlanger[originalIndex].sistekontroll = e.target.value
-                            updateSlanger(nyeSlanger)
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                          placeholder="2025"
-                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={slange.sistekontroll || ''}
+                            onChange={(e) => {
+                              const nyeSlanger = [...slanger]
+                              nyeSlanger[originalIndex].sistekontroll = e.target.value
+                              updateSlanger(nyeSlanger)
+                            }}
+                            className="input py-1 px-2 text-sm w-full"
+                            placeholder="2025"
+                          />
+                          <button
+                            onClick={() => {
+                              const nyeSlanger = [...slanger]
+                              nyeSlanger[originalIndex].sistekontroll = new Date().getFullYear().toString()
+                              updateSlanger(nyeSlanger)
+                            }}
+                            className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-colors flex-shrink-0"
+                            title="Fyll inn nåværende år"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                       <td className="py-3 px-4">
                         <input
@@ -1516,6 +1614,21 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         kundeNavn={kundeNavn}
         anleggNavn={anleggNavn}
         onBack={() => {}}
+      />
+
+      {/* Dialog for å sette tjeneste til fullført */}
+      <TjenesteFullfortDialog
+        tjeneste="Slukkeutstyr"
+        isOpen={showFullfortDialog}
+        onConfirm={handleTjenesteFullfort}
+        onCancel={handleTjenesteAvbryt}
+      />
+
+      {/* Dialog for å navigere til Send Rapporter */}
+      <SendRapportDialog
+        isOpen={showSendRapportDialog}
+        onConfirm={handleSendRapportConfirm}
+        onCancel={handleSendRapportCancel}
       />
     </div>
   )

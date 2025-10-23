@@ -11,11 +11,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   db: {
     schema: 'public',
   },
-  global: {
-    headers: {
-      'x-application-name': 'bsv-fire-app',
-    },
-  },
   // Realtime subscriptions will automatically reconnect when connection is restored
   realtime: {
     params: {

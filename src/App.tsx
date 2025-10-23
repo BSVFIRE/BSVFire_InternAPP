@@ -23,7 +23,10 @@ import { AdminLogger } from './pages/AdminLogger'
 import { Priser } from './pages/Priser'
 import { TilbudServiceavtale } from './pages/TilbudServiceavtale'
 import { PrisAdministrasjon } from './pages/PrisAdministrasjon'
+import { AdminAIEmbeddings } from './pages/AdminAIEmbeddings'
+import { AdminAIKnowledge } from './pages/AdminAIKnowledge'
 import { OfflineIndicator } from './components/OfflineIndicator'
+import { AIChat } from './components/AIChat'
 
 // Placeholder pages
 
@@ -92,6 +95,8 @@ function App() {
                     <Route path="/tilbud-serviceavtale" element={<TilbudServiceavtale />} />
                     <Route path="/admin/prisadministrasjon" element={<PrisAdministrasjon />} />
                     <Route path="/admin/logger" element={<AdminLogger />} />
+                    <Route path="/admin/ai-embeddings" element={<AdminAIEmbeddings />} />
+                    <Route path="/admin/ai-knowledge" element={<AdminAIKnowledge />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>
@@ -99,6 +104,7 @@ function App() {
           />
         </Routes>
         <OfflineIndicator />
+        <AIChat />
       </BrowserRouter>
     </ErrorBoundary>
   )

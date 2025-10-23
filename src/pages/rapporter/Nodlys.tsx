@@ -9,6 +9,8 @@ import { cacheData } from '@/lib/offline'
 import { NodlysPreview } from './NodlysPreview'
 import { KommentarViewNodlys } from './KommentarViewNodlys'
 import { NodlysImport } from './NodlysImport'
+import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
+import { SendRapportDialog } from '@/components/SendRapportDialog'
 
 interface Kunde {
   id: string
@@ -59,7 +61,7 @@ interface NodlysProps {
   fromAnlegg?: boolean
 }
 
-const statusTyper = ['OK', 'Defekt', 'Mangler', 'Utskiftet']
+const statusTyper = ['OK', 'Defekt', 'Mangler', 'Utskiftet', 'Batterifeil', 'Skadet armatur']
 const etasjeOptions = ['-2.Etg', '-1.Etg', '0.Etg', '1.Etg', '2.Etg', '3.Etg', '4.Etg', '5.Etg', '6.Etg', '7.Etg', '8.Etg', '9.Etg', '10.Etg']
 const typeOptions = ['ML', 'LL', 'Strobe', 'Fluoriserende']
 
@@ -88,6 +90,9 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const [editValue, setEditValue] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
+  const [showFullfortDialog, setShowFullfortDialog] = useState(false)
+  const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
+  const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
 
   useEffect(() => {
     loadKunder()
@@ -294,6 +299,72 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   function cancelEditing() {
     setEditingCell(null)
     setEditValue('')
+  }
+
+  async function handleTjenesteFullfort() {
+    try {
+      // Oppdater anlegg-tabellen med nødlys_fullfort = true
+      const { error } = await supabase
+        .from('anlegg')
+        .update({ nodlys_fullfort: true })
+        .eq('id', selectedAnlegg)
+
+      if (error) throw error
+
+      // Fullfør PDF-lagring
+      if (pendingPdfSave) {
+        const { mode, doc, fileName } = pendingPdfSave
+        if (mode === 'download') {
+          doc.save(fileName)
+        }
+      }
+
+      // Lukk fullført-dialogen og vis send rapport-dialogen
+      setShowFullfortDialog(false)
+      setShowSendRapportDialog(true)
+    } catch (error) {
+      console.error('Feil ved oppdatering av tjenestestatus:', error)
+      alert('Rapport lagret, men kunne ikke oppdatere status')
+      setShowFullfortDialog(false)
+      setPendingPdfSave(null)
+      setLoading(false)
+    }
+  }
+
+  function handleSendRapportConfirm() {
+    // Naviger til Send Rapporter med kunde og anlegg pre-valgt
+    setShowSendRapportDialog(false)
+    setPendingPdfSave(null)
+    setLoading(false)
+    navigate('/send-rapporter', { 
+      state: { 
+        kundeId: selectedKunde, 
+        anleggId: selectedAnlegg 
+      } 
+    })
+  }
+
+  function handleSendRapportCancel() {
+    // Lukk dialogen uten å navigere
+    setShowSendRapportDialog(false)
+    setPendingPdfSave(null)
+    setLoading(false)
+  }
+
+  function handleTjenesteAvbryt() {
+    // Fullfør PDF-lagring uten å oppdatere status
+    if (pendingPdfSave) {
+      const { mode, doc, fileName } = pendingPdfSave
+      if (mode === 'download') {
+        doc.save(fileName)
+        alert('Rapport lagret og lastet ned!')
+      } else {
+        alert('Rapport lagret!')
+      }
+    }
+    setShowFullfortDialog(false)
+    setPendingPdfSave(null)
+    setLoading(false)
   }
 
   async function genererPDF(mode: 'preview' | 'save' | 'download' = 'preview') {
@@ -810,13 +881,9 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
             storage_path: storagePath
           })
 
-        // Last ned PDF hvis mode er 'download'
-        if (mode === 'download') {
-          doc.save(fileName)
-          alert('Rapport lagret og lastet ned!')
-        } else {
-          alert('Rapport lagret!')
-        }
+        // Vis dialog for å sette tjeneste til fullført
+        setPendingPdfSave({ mode, doc, fileName })
+        setShowFullfortDialog(true)
       }
     } catch (error) {
       console.error('Feil ved generering av rapport:', error)
@@ -1859,6 +1926,21 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           </div>
         </>
       )}
+
+      {/* Dialog for å sette tjeneste til fullført */}
+      <TjenesteFullfortDialog
+        tjeneste="Nødlys"
+        isOpen={showFullfortDialog}
+        onConfirm={handleTjenesteFullfort}
+        onCancel={handleTjenesteAvbryt}
+      />
+
+      {/* Dialog for å navigere til Send Rapporter */}
+      <SendRapportDialog
+        isOpen={showSendRapportDialog}
+        onConfirm={handleSendRapportConfirm}
+        onCancel={handleSendRapportCancel}
+      />
     </div>
   )
 }

@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Download, Eye, FileText } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BrannalarmPreview } from './BrannalarmPreview'
+import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
+import { SendRapportDialog } from '@/components/SendRapportDialog'
 
 interface FG790RapportViewProps {
   kontrollId: string
@@ -126,6 +129,7 @@ interface NettverkEnhet {
 }
 
 export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG790RapportViewProps) {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [anleggData, setAnleggData] = useState<AnleggData | null>(null)
@@ -139,6 +143,8 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
   const [primaerKontakt, setPrimaerKontakt] = useState<Kontaktperson | null>(null)
   const [kontrollorData, setKontrollorData] = useState<AnsattData | null>(null)
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
+  const [showFullfortDialog, setShowFullfortDialog] = useState(false)
+  const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -1184,8 +1190,8 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           // Fortsett likevel - rapporten er lagret
         }
 
-        alert('Rapport generert og lagret! Kontroll fullført ✓')
-        onBack()
+        // Vis dialog for å sette tjeneste til fullført
+        setShowFullfortDialog(true)
       }
     } catch (error: any) {
       console.error('Feil ved generering av PDF:', error)
@@ -1194,6 +1200,56 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
     } finally {
       setGenerating(false)
     }
+  }
+
+  async function handleTjenesteFullfort() {
+    try {
+      // Oppdater anlegg-tabellen med brannalarm_fullfort = true
+      const { error } = await supabase
+        .from('anlegg')
+        .update({ brannalarm_fullfort: true })
+        .eq('id', anleggId)
+
+      if (error) throw error
+
+      // Lukk fullført-dialogen og vis send rapport-dialogen
+      setShowFullfortDialog(false)
+      setShowSendRapportDialog(true)
+    } catch (error) {
+      console.error('Feil ved oppdatering av tjenestestatus:', error)
+      alert('Rapport lagret, men kunne ikke oppdatere status')
+      setShowFullfortDialog(false)
+      setGenerating(false)
+    }
+  }
+
+  function handleSendRapportConfirm() {
+    // Naviger til Send Rapporter med kunde og anlegg pre-valgt
+    setShowSendRapportDialog(false)
+    setGenerating(false)
+    
+    // Hent kundeId fra anleggData
+    if (anleggData) {
+      navigate('/send-rapporter', { 
+        state: { 
+          kundeId: anleggData.kundenr, 
+          anleggId: anleggId 
+        } 
+      })
+    }
+  }
+
+  function handleSendRapportCancel() {
+    // Lukk dialogen uten å navigere
+    setShowSendRapportDialog(false)
+    setGenerating(false)
+  }
+
+  function handleTjenesteAvbryt() {
+    alert('Rapport generert og lagret! Kontroll fullført ✓')
+    onBack()
+    setShowFullfortDialog(false)
+    setGenerating(false)
   }
 
   // Vis forhåndsvisning hvis PDF er generert
@@ -1354,6 +1410,21 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           </button>
         </div>
       </div>
+
+      {/* Dialog for å sette tjeneste til fullført */}
+      <TjenesteFullfortDialog
+        tjeneste="Brannalarm"
+        isOpen={showFullfortDialog}
+        onConfirm={handleTjenesteFullfort}
+        onCancel={handleTjenesteAvbryt}
+      />
+
+      {/* Dialog for å navigere til Send Rapporter */}
+      <SendRapportDialog
+        isOpen={showSendRapportDialog}
+        onConfirm={handleSendRapportConfirm}
+        onCancel={handleSendRapportCancel}
+      />
     </div>
   )
 }

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Storage Upload</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Test Storage Upload</h1>
+    <input type="file" id="fileInput" accept=".pdf">
+    <button onclick="testUpload()">Test Upload</button>
+    <div id="result"></div>
+
+    <script>
+        const supabase = window.supabase.createClient(
+            'https://snyzduzqyjsllzvwuahh.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNueXpkdXpxeWpzbGx6dnd1YWhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3ODk0NzEsImV4cCI6MjA2MDM2NTQ3MX0.WLOcnCSiNHTsFIf0S_2hM-y3QyEnM6lzGn4vcIXMLuc'
+        );
+
+        async function testUpload() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) {
+                alert('Select a file first');
+                return;
+            }
+
+            const result = document.getElementById('result');
+            result.innerHTML = 'Uploading...';
+
+            try {
+                const { data, error } = await supabase.storage
+                    .from('knowledge-base-pdfs')
+                    .upload(`test/${Date.now()}_${file.name}`, file);
+
+                if (error) {
+                    result.innerHTML = `<pre style="color:red">Error: ${JSON.stringify(error, null, 2)}</pre>`;
+                } else {
+                    result.innerHTML = `<pre style="color:green">Success: ${JSON.stringify(data, null, 2)}</pre>`;
+                }
+            } catch (e) {
+                result.innerHTML = `<pre style="color:red">Exception: ${e.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>

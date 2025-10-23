@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Save, Battery, Info, Server, CheckCircle, HelpCircle, Wifi, WifiOff, Clock, Eye, Download, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { useAuthStore } from '@/store/authStore'
 import { RoyklukerPreview } from '../RoyklukerPreview'
+import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
+import { SendRapportDialog } from '@/components/SendRapportDialog'
 
 interface RoyklukeSentral {
   id: string
@@ -97,6 +100,7 @@ const klassifiseringOptions = [
 ]
 
 export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
+  const navigate = useNavigate()
   const { user: _user } = useAuthStore()
   const [sentraler, setSentraler] = useState<RoyklukeSentral[]>([])
   const [selectedSentral, setSelectedSentral] = useState<string>('')
@@ -110,6 +114,10 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
   const [autoSaveTimeout, setAutoSaveTimeout] = useState<NodeJS.Timeout | null>(null)
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [showFullfortDialog, setShowFullfortDialog] = useState(false)
+  const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
+  const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
+  const [kundeId, setKundeId] = useState<string | null>(null)
 
   useEffect(() => {
     loadSentraler()
@@ -176,6 +184,17 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
 
   async function loadSentraler() {
     try {
+      // Hent kundeId fra anlegg
+      const { data: anleggData } = await supabase
+        .from('anlegg')
+        .select('kundenr')
+        .eq('id', anleggId)
+        .single()
+      
+      if (anleggData) {
+        setKundeId(anleggData.kundenr)
+      }
+      
       const { data: sentralData, error } = await supabase
         .from('roykluke_sentraler')
         .select('id, sentral_nr, plassering')
@@ -1140,13 +1159,9 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             storage_path: storagePath
           })
 
-        // Last ned PDF hvis mode er 'download'
-        if (mode === 'download') {
-          doc.save(fileName)
-          alert('Rapport lagret og lastet ned!')
-        } else {
-          alert('Rapport lagret!')
-        }
+        // Vis dialog for å sette tjeneste til fullført
+        setPendingPdfSave({ mode, doc, fileName })
+        setShowFullfortDialog(true)
       }
     } catch (error) {
       console.error('Feil ved generering av rapport:', error)
@@ -1154,6 +1169,75 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
     } finally {
       setGeneratingPdf(false)
     }
+  }
+
+  async function handleTjenesteFullfort() {
+    try {
+      // Oppdater anlegg-tabellen med roykluker_fullfort = true
+      const { error } = await supabase
+        .from('anlegg')
+        .update({ roykluker_fullfort: true })
+        .eq('id', anleggId)
+
+      if (error) throw error
+
+      // Fullfør PDF-lagring
+      if (pendingPdfSave) {
+        const { mode, doc, fileName } = pendingPdfSave
+        if (mode === 'download') {
+          doc.save(fileName)
+        }
+      }
+
+      // Lukk fullført-dialogen og vis send rapport-dialogen
+      setShowFullfortDialog(false)
+      setShowSendRapportDialog(true)
+    } catch (error) {
+      console.error('Feil ved oppdatering av tjenestestatus:', error)
+      alert('Rapport lagret, men kunne ikke oppdatere status')
+      setShowFullfortDialog(false)
+      setPendingPdfSave(null)
+      setGeneratingPdf(false)
+    }
+  }
+
+  function handleSendRapportConfirm() {
+    // Naviger til Send Rapporter med kunde og anlegg pre-valgt
+    setShowSendRapportDialog(false)
+    setPendingPdfSave(null)
+    setGeneratingPdf(false)
+    
+    if (kundeId) {
+      navigate('/send-rapporter', { 
+        state: { 
+          kundeId: kundeId, 
+          anleggId: anleggId 
+        } 
+      })
+    }
+  }
+
+  function handleSendRapportCancel() {
+    // Lukk dialogen uten å navigere
+    setShowSendRapportDialog(false)
+    setPendingPdfSave(null)
+    setGeneratingPdf(false)
+  }
+
+  function handleTjenesteAvbryt() {
+    // Fullfør PDF-lagring uten å oppdatere status
+    if (pendingPdfSave) {
+      const { mode, doc, fileName } = pendingPdfSave
+      if (mode === 'download') {
+        doc.save(fileName)
+        alert('Rapport lagret og lastet ned!')
+      } else {
+        alert('Rapport lagret!')
+      }
+    }
+    setShowFullfortDialog(false)
+    setPendingPdfSave(null)
+    setGeneratingPdf(false)
   }
 
   if (loading && !data) {
@@ -2126,6 +2210,21 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
           }}
         />
       )}
+
+      {/* Dialog for å sette tjeneste til fullført */}
+      <TjenesteFullfortDialog
+        tjeneste="Røykluker"
+        isOpen={showFullfortDialog}
+        onConfirm={handleTjenesteFullfort}
+        onCancel={handleTjenesteAvbryt}
+      />
+
+      {/* Dialog for å navigere til Send Rapporter */}
+      <SendRapportDialog
+        isOpen={showSendRapportDialog}
+        onConfirm={handleSendRapportConfirm}
+        onCancel={handleSendRapportCancel}
+      />
     </div>
   )
 }
