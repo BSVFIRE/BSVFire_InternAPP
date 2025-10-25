@@ -26,7 +26,7 @@ import { PrisAdministrasjon } from './pages/PrisAdministrasjon'
 import { AdminAIEmbeddings } from './pages/AdminAIEmbeddings'
 import { AdminAIKnowledge } from './pages/AdminAIKnowledge'
 import { OfflineIndicator } from './components/OfflineIndicator'
-import { AIChat } from './components/AIChat'
+import { AIAssistant } from './components/AIAssistant'
 
 // Placeholder pages
 
@@ -104,7 +104,7 @@ function App() {
           />
         </Routes>
         <OfflineIndicator />
-        <AIChat />
+        <AIAssistant />
       </BrowserRouter>
     </ErrorBoundary>
   )

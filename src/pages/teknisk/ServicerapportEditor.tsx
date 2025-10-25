@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Save, Eye } from 'lucide-react'
+import { ArrowLeft, Save, Eye, Sparkles } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { BSV_LOGO } from '@/assets/logoBase64'
 
 interface Servicerapport {
   id: string
@@ -58,6 +59,7 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
   const [anleggDetails, setAnleggDetails] = useState<AnleggDetails | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [aiLoading, setAiLoading] = useState(false)
 
   useEffect(() => {
     loadAnlegg()
@@ -203,6 +205,55 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  async function handleAiImprove() {
+    if (!formData.rapport_innhold.trim()) {
+      alert('Skriv inn stikkord eller en kort beskrivelse først')
+      return
+    }
+
+    setAiLoading(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-improve-servicerapport', {
+        body: {
+          keywords: formData.rapport_innhold,
+          anleggType: anlegg.find(a => a.id === formData.anlegg_id)?.anleggsnavn,
+          tekniker: formData.tekniker_navn
+        }
+      })
+
+      if (error) {
+        console.error('Supabase function error:', error)
+        throw error
+      }
+
+      if (data?.error) {
+        console.error('Function returned error:', data.error)
+        alert(`❌ Feil: ${data.error}\n\n${data.details || 'Sjekk at Azure OpenAI er konfigurert i Supabase.'}`)
+        return
+      }
+
+      if (data?.improvedReport) {
+        // Vis forbedret rapport i en dialog for godkjenning
+        const userApproved = confirm(
+          'AI har generert en forbedret rapport. Vil du erstatte den nåværende teksten?\n\n' +
+          'Klikk OK for å godkjenne, eller Avbryt for å beholde den nåværende teksten.'
+        )
+
+        if (userApproved) {
+          handleChange('rapport_innhold', data.improvedReport)
+          alert('✅ Rapporten er oppdatert med AI-forbedret innhold!')
+        }
+      } else {
+        alert('⚠️ Ingen forbedret rapport mottatt fra AI.')
+      }
+    } catch (error) {
+      console.error('Feil ved AI-forbedring:', error)
+      alert('❌ Kunne ikke forbedre rapporten med AI.\n\nSjekk at Azure OpenAI er konfigurert i Supabase Dashboard → Edge Functions → Secrets.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -246,10 +297,16 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
         </div>
 
         {/* Preview Content */}
-        <div className="card max-w-4xl mx-auto bg-white text-black p-8">
+        <div className="card max-w-4xl mx-auto !bg-white text-black p-8">
+          {/* Logo */}
+          <div className="mb-6">
+            <img src={BSV_LOGO} alt="BSV Logo" className="w-48 h-auto mb-4" />
+            <h1 className="text-3xl font-bold text-blue-600 uppercase mb-2">SERVICERAPPORT</h1>
+          </div>
+          
           {/* Header */}
-          <div className="border-b-2 border-gray-300 pb-4 mb-6">
-            <h1 className="text-2xl font-bold mb-4">{formData.header || 'Servicerapport'}</h1>
+          <div className="border-b-2 border-blue-600 pb-4 mb-6">
+            <h2 className="text-2xl font-bold mb-4">{formData.header || 'Servicerapport'}</h2>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="font-semibold">Anlegg:</span>{' '}
@@ -268,6 +325,20 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
           {/* Report Content */}
           <div className="prose prose-sm max-w-none">
             <div className="whitespace-pre-wrap">{formData.rapport_innhold || 'Ingen innhold ennå...'}</div>
+          </div>
+          
+          {/* Footer */}
+          <div className="mt-12 pt-6 border-t border-gray-300">
+            <p className="text-sm font-bold text-blue-600 mb-2">Brannteknisk Service og Vedlikehold AS</p>
+            <p className="text-xs text-gray-600">
+              Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600
+            </p>
+            <p className="text-xs text-gray-600">
+              Adresse: Sælenveien 44, 5151 Straumsgrend
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              Generert: {new Date().toLocaleDateString('nb-NO')} {new Date().toLocaleTimeString('nb-NO')}
+            </p>
           </div>
         </div>
       </div>
@@ -421,7 +492,19 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
 
         {/* Report Content Section */}
         <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Rapportinnhold</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Rapportinnhold</h2>
+            <button
+              type="button"
+              onClick={handleAiImprove}
+              disabled={aiLoading || !formData.rapport_innhold.trim()}
+              className="btn-primary flex items-center gap-2 text-sm"
+              title="Bruk AI til å forbedre rapporten"
+            >
+              <Sparkles className="w-4 h-4" />
+              {aiLoading ? 'Genererer...' : 'Forbedre med AI'}
+            </button>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Rapport tekst *
@@ -451,9 +534,13 @@ Eksempel:
    - Neste service"
               required
             />
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Tips: Bruk linjeskift for å strukturere rapporten. Teksten vil vises som du skriver den.
-            </p>
+            <div className="flex items-start gap-2 mt-2">
+              <div className="flex-1">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  💡 <strong>Tips:</strong> Skriv stikkord eller en kort beskrivelse, og klikk "Forbedre med AI" for å få en profesjonell rapport.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

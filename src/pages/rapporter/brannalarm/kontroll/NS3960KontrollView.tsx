@@ -92,6 +92,20 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
     loadData()
   }, [anleggId, kontrollId])
 
+  // Store current kontroll and anlegg IDs for AIAssistant
+  useEffect(() => {
+    if (currentKontrollId && anleggId) {
+      localStorage.setItem('current_kontroll_id', currentKontrollId)
+      localStorage.setItem('current_anlegg_id', anleggId)
+    }
+    
+    // Cleanup when leaving
+    return () => {
+      localStorage.removeItem('current_kontroll_id')
+      localStorage.removeItem('current_anlegg_id')
+    }
+  }, [currentKontrollId, anleggId])
+
   // Auto-save when data changes
   useEffect(() => {
     if (!loading && hasUnsavedChanges) {

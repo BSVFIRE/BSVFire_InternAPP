@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowLeft, Download } from 'lucide-react'
 import { generateServicerapportPDF } from './ServicerapportPDF'
+import { BSV_LOGO } from '@/assets/logoBase64'
 
 interface Servicerapport {
   id: string
@@ -64,10 +65,16 @@ export function ServicerapportPreview({ rapport, onBack }: ServicerapportPreview
       </div>
 
       {/* Preview Content */}
-      <div className="card max-w-4xl mx-auto bg-white text-black p-8 shadow-2xl">
+      <div className="card max-w-4xl mx-auto !bg-white text-black p-8 shadow-2xl">
+        {/* Logo */}
+        <div className="mb-6">
+          <img src={BSV_LOGO} alt="BSV Logo" className="w-48 h-auto mb-4" />
+          <h1 className="text-3xl font-bold text-blue-600 uppercase mb-2">SERVICERAPPORT</h1>
+        </div>
+        
         {/* Header Section */}
-        <div className="border-b-2 border-gray-300 pb-6 mb-6">
-          <h1 className="text-3xl font-bold mb-6 text-gray-900">{rapport.header}</h1>
+        <div className="border-b-2 border-blue-600 pb-6 mb-6">
+          <h2 className="text-2xl font-bold mb-6 text-gray-900">{rapport.header}</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <span className="font-semibold text-gray-700">Anlegg:</span>
@@ -97,7 +104,14 @@ export function ServicerapportPreview({ rapport, onBack }: ServicerapportPreview
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-gray-300">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm font-bold text-blue-600 mb-2">Brannteknisk Service og Vedlikehold AS</p>
+          <p className="text-xs text-gray-600">
+            Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600
+          </p>
+          <p className="text-xs text-gray-600">
+            Adresse: Sælenveien 44, 5151 Straumsgrend
+          </p>
+          <p className="text-xs text-gray-500 mt-2">
             Generert: {new Date().toLocaleDateString('nb-NO')} {new Date().toLocaleTimeString('nb-NO')}
           </p>
         </div>

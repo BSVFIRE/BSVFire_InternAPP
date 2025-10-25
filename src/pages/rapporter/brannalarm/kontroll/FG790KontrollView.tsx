@@ -91,6 +91,20 @@ export function FG790KontrollView({
     loadData()
   }, [anleggId, kontrollId])
 
+  // Store current kontroll and anlegg IDs for AIAssistant
+  useEffect(() => {
+    if (currentKontrollId && anleggId) {
+      localStorage.setItem('current_kontroll_id', currentKontrollId)
+      localStorage.setItem('current_anlegg_id', anleggId)
+    }
+    
+    // Cleanup when leaving
+    return () => {
+      localStorage.removeItem('current_kontroll_id')
+      localStorage.removeItem('current_anlegg_id')
+    }
+  }, [currentKontrollId, anleggId])
+
   // Autosave every 30 seconds if there are unsaved changes
   useEffect(() => {
     if (!hasUnsavedChanges || !currentKontrollId) return
@@ -949,7 +963,7 @@ export function FG790KontrollView({
       </div>
 
       {/* Fixed Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950 border-t border-gray-800">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950 border-t border-gray-800 z-50">
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
             <button

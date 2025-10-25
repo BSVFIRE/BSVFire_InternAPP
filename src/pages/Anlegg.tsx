@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle } from 'lucide-react'
+import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send } from 'lucide-react'
 import { GoogleMapsAddressAutocomplete } from '@/components/GoogleMapsAddressAutocomplete'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -56,6 +56,16 @@ interface Dokument {
   type: string | null
   opplastet_dato: string
   opprettet_av: string | null
+}
+
+interface InternKommentar {
+  id: string
+  anlegg_id: string
+  kunde: string | null
+  intern_kommentar: string
+  created_at: string
+  opplastet_date: string | null
+  oppdatert_dat: string | null
 }
 
 type SortOption = 'navn_asc' | 'navn_desc' | 'kunde' | 'poststed' | 'status' | 'kontroll_maaned'
@@ -1689,12 +1699,15 @@ interface AnleggDetailsProps {
 function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDetailsProps) {
   const [kontaktpersoner, setKontaktpersoner] = useState<Kontaktperson[]>([])
   const [dokumenter, setDokumenter] = useState<Dokument[]>([])
+  const [interneNotater, setInterneNotater] = useState<InternKommentar[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingDokumenter, setLoadingDokumenter] = useState(true)
+  const [loadingNotater, setLoadingNotater] = useState(true)
 
   useEffect(() => {
     loadKontaktpersoner()
     loadDokumenter()
+    loadInterneNotater()
   }, [anlegg.id])
 
   async function settPrimaerKontakt(kontaktpersonId: string) {
@@ -1755,6 +1768,48 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
       console.error('Feil ved lasting av kontaktpersoner:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadInterneNotater() {
+    try {
+      const { data, error } = await supabase
+        .from('intern_kommentar')
+        .select('*')
+        .eq('anlegg_id', anlegg.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      console.log('📝 Interne notater lastet:', data)
+      setInterneNotater(data || [])
+    } catch (error) {
+      console.error('Feil ved lasting av interne notater:', error)
+    } finally {
+      setLoadingNotater(false)
+    }
+  }
+
+  async function opprettInterntNotat(notat: string) {
+    try {
+      const { data, error } = await supabase
+        .from('intern_kommentar')
+        .insert([{
+          anlegg_id: anlegg.id,
+          kunde: kundeNavn,
+          intern_kommentar: notat
+        }])
+        .select()
+        .single()
+
+      if (error) throw error
+      
+      // Legg til det nye notatet i listen
+      setInterneNotater([data, ...interneNotater])
+      return true
+    } catch (error) {
+      console.error('Feil ved opprettelse av internt notat:', error)
+      alert('Kunne ikke opprette notat')
+      return false
     }
   }
 
@@ -1855,11 +1910,14 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
       kundeNavn={kundeNavn}
       kontaktpersoner={kontaktpersoner}
       dokumenter={dokumenter}
+      interneNotater={interneNotater}
       loadingKontakter={loading}
       loadingDokumenter={loadingDokumenter}
+      loadingNotater={loadingNotater}
       onEdit={onEdit}
       onClose={onClose}
       onSettPrimaer={settPrimaerKontakt}
+      onOpprettNotat={opprettInterntNotat}
     />
   )
 }
@@ -1870,15 +1928,20 @@ interface AnleggDetailsComponentProps {
   kundeNavn: string
   kontaktpersoner: Kontaktperson[]
   dokumenter: Dokument[]
+  interneNotater: InternKommentar[]
   loadingKontakter: boolean
   loadingDokumenter: boolean
+  loadingNotater: boolean
   onEdit: () => void
   onClose: () => void
   onSettPrimaer: (kontaktpersonId: string) => void
+  onOpprettNotat: (notat: string) => Promise<boolean>
 }
 
-function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, loadingKontakter, loadingDokumenter, onEdit, onClose, onSettPrimaer }: AnleggDetailsComponentProps) {
+function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interneNotater, loadingKontakter, loadingDokumenter, loadingNotater, onEdit, onClose, onSettPrimaer, onOpprettNotat }: AnleggDetailsComponentProps) {
   const navigate = useNavigate()
+  const [nyttNotat, setNyttNotat] = useState('')
+  const [lagreNotat, setLagreNotat] = useState(false)
 
   function handleKontrolltypeClick(type: string) {
     // Mapping fra kontrolltype til rapporttype
@@ -1899,6 +1962,19 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, loading
           rapportType 
         } 
       })
+    }
+  }
+
+  async function handleOpprettNotat(e: React.FormEvent) {
+    e.preventDefault()
+    if (!nyttNotat.trim()) return
+
+    setLagreNotat(true)
+    const success = await onOpprettNotat(nyttNotat)
+    setLagreNotat(false)
+
+    if (success) {
+      setNyttNotat('')
     }
   }
 
@@ -2144,6 +2220,67 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, loading
               </div>
             ) : (
               <p className="text-gray-400 dark:text-gray-400 text-center py-8">Ingen dokumenter lastet opp</p>
+            )}
+          </div>
+
+          {/* Interne Notater */}
+          <div className="card">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              Interne notater ({interneNotater.length})
+            </h2>
+            
+            {/* Opprett nytt notat */}
+            <form onSubmit={handleOpprettNotat} className="mb-6">
+              <div className="space-y-3">
+                <textarea
+                  value={nyttNotat}
+                  onChange={(e) => setNyttNotat(e.target.value)}
+                  placeholder="Skriv et internt notat..."
+                  className="input min-h-[100px] resize-y"
+                  disabled={lagreNotat}
+                />
+                <button
+                  type="submit"
+                  disabled={!nyttNotat.trim() || lagreNotat}
+                  className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send className="w-4 h-4" />
+                  {lagreNotat ? 'Lagrer...' : 'Legg til notat'}
+                </button>
+              </div>
+            </form>
+
+            {/* Liste over notater */}
+            {loadingNotater ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              </div>
+            ) : interneNotater.length > 0 ? (
+              <div className="space-y-3">
+                {interneNotater.map((notat) => (
+                  <div
+                    key={notat.id}
+                    className="p-4 bg-gray-50 dark:bg-dark-100 rounded-lg border-l-4 border-primary"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                        <MessageSquare className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-gray-900 dark:text-white whitespace-pre-wrap break-words">
+                          {notat.intern_kommentar || '(Tomt notat)'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-400 dark:text-gray-400">
+                          <Calendar className="w-3 h-3" />
+                          {formatDate(notat.created_at)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-400 dark:text-gray-400 text-center py-8">Ingen interne notater ennå</p>
             )}
           </div>
         </div>
