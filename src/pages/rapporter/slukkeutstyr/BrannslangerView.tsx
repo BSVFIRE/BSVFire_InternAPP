@@ -93,9 +93,11 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
   const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
   const [kundeId, setKundeId] = useState<string | null>(null)
+  const [evakueringsplanStatus, setEvakueringsplanStatus] = useState('')
 
   useEffect(() => {
     loadSlanger()
+    loadEvakueringsplan(anleggId)
   }, [anleggId])
 
   // Wrapper for setSlanger som også setter hasUnsavedChanges
@@ -191,6 +193,46 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       alert('Kunne ikke laste brannslanger')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadEvakueringsplan(anleggId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('evakueringsplan_status')
+        .select('status')
+        .eq('anlegg_id', anleggId)
+        .maybeSingle()
+
+      if (error) throw error
+      setEvakueringsplanStatus(data?.status || '')
+    } catch (error) {
+      console.error('Feil ved lasting av evakueringsplan:', error)
+    }
+  }
+
+  async function saveEvakueringsplan() {
+    try {
+      const { data: existing } = await supabase
+        .from('evakueringsplan_status')
+        .select('id')
+        .eq('anlegg_id', anleggId)
+        .maybeSingle()
+
+      if (existing) {
+        await supabase
+          .from('evakueringsplan_status')
+          .update({ status: evakueringsplanStatus })
+          .eq('anlegg_id', anleggId)
+      } else {
+        await supabase
+          .from('evakueringsplan_status')
+          .insert({ anlegg_id: anleggId, status: evakueringsplanStatus })
+      }
+      alert('Evakueringsplan-status lagret!')
+    } catch (error) {
+      console.error('Feil ved lagring:', error)
+      alert('Kunne ikke lagre evakueringsplan-status')
     }
   }
 
@@ -705,6 +747,28 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         alternateRowStyles: { fillColor: [245, 245, 245] },
         margin: { left: 10, right: 10, bottom: 30 },
       })
+
+      // Hent evakueringsplan-status
+      const { data: evakPlan } = await supabase
+        .from('evakueringsplan_status')
+        .select('status')
+        .eq('anlegg_id', anleggId)
+        .maybeSingle()
+
+      // Tilleggsinformasjon (Evakueringsplan)
+      if (evakPlan?.status) {
+        doc.setFontSize(14)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        yPos += 8
+        doc.text('Tilleggsinformasjon', 20, yPos)
+        yPos += 7
+
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'normal')
+        doc.text(`Evakueringsplaner: ${evakPlan.status}`, 20, yPos)
+        yPos += 5
+      }
 
       // Kommentarer seksjon - på ny side hvis det finnes kommentarer
       if (kommentarer && kommentarer.length > 0) {
@@ -1606,6 +1670,35 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
             </table>
           </div>
         )}
+      </div>
+
+      {/* Tilleggsinformasjon */}
+      <div className="card">
+        <h2 className="text-lg font-semibold text-white mb-4">Tilleggsinformasjon</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Evakueringsplaner
+            </label>
+            <select
+              value={evakueringsplanStatus}
+              onChange={(e) => setEvakueringsplanStatus(e.target.value)}
+              className="input"
+            >
+              <option value="">Velg status</option>
+              <option value="Ja">Ja</option>
+              <option value="Nei">Nei</option>
+              <option value="Må oppdateres">Må oppdateres</option>
+            </select>
+          </div>
+          <button
+            onClick={saveEvakueringsplan}
+            className="btn-primary"
+          >
+            <Save className="w-4 h-4" />
+            Lagre tilleggsinformasjon
+          </button>
+        </div>
       </div>
 
       {/* Kommentarer seksjon */}

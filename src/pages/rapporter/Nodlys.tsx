@@ -88,6 +88,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const [sortBy, setSortBy] = useState<'internnummer' | 'amatur_id' | 'fordeling' | 'kurs' | 'plassering' | 'etasje' | 'type' | 'status' | 'kontrollert'>('internnummer')
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [showFullfortDialog, setShowFullfortDialog] = useState(false)
@@ -262,7 +263,11 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   }
 
   async function saveInlineEdit(id: string, field: string) {
+    // Forhindre multiple samtidige lagringsoperasjoner
+    if (isSaving) return
+    
     try {
+      setIsSaving(true)
       const updateData = { id, [field]: editValue || null }
       
       if (isOnline) {
@@ -293,6 +298,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     } catch (error) {
       console.error('Feil ved oppdatering:', error)
       alert('Kunne ikke oppdatere felt')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -617,6 +624,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       const ok = nodlysListe.filter(n => n.status === 'OK').length
       const defekt = nodlysListe.filter(n => n.status === 'Defekt').length
       const kontrollert = nodlysListe.filter(n => n.kontrollert).length
+      const batterifeil = nodlysListe.filter(n => n.status === 'Batterifeil').length
+      const skadetArmatur = nodlysListe.filter(n => n.status === 'Skadet armatur').length
 
       // Statistikk - Profesjonell layout
       doc.setFillColor(41, 128, 185)
@@ -685,6 +694,37 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(100, 100, 100)
       doc.text('DEFEKT', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Ny rad for Batterifeil og Skadet armatur
+      yPos += boxHeight + 4
+      xPos = 17
+      
+      // Batterifeil
+      doc.setDrawColor(200, 200, 200)
+      doc.setLineWidth(0.5)
+      doc.setFillColor(254, 243, 199)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(217, 119, 6)
+      doc.text(batterifeil.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('BATTERIFEIL', xPos + boxWidth/2, yPos + 18, { align: 'center' })
+      
+      // Skadet armatur
+      xPos += boxWidth + 2
+      doc.setFillColor(254, 226, 226)
+      doc.rect(xPos, yPos, boxWidth, boxHeight, 'FD')
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(185, 28, 28)
+      doc.text(skadetArmatur.toString(), xPos + boxWidth/2, yPos + 12, { align: 'center' })
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('SKADET ARMATUR', xPos + boxWidth/2, yPos + 18, { align: 'center' })
       
       doc.setTextColor(0, 0, 0)
       yPos += boxHeight + 8
@@ -941,7 +981,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           <select
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
-            onBlur={() => saveInlineEdit(nodlysId, field)}
+            onBlur={() => {
+              // Delay to allow click events to register first
+              setTimeout(() => {
+                saveInlineEdit(nodlysId, field)
+              }, 150)
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') saveInlineEdit(nodlysId, field)
               if (e.key === 'Escape') cancelEditing()
@@ -963,7 +1008,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           <select
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
-            onBlur={() => saveInlineEdit(nodlysId, field)}
+            onBlur={() => {
+              // Delay to allow click events to register first
+              setTimeout(() => {
+                saveInlineEdit(nodlysId, field)
+              }, 150)
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') saveInlineEdit(nodlysId, field)
               if (e.key === 'Escape') cancelEditing()
@@ -994,11 +1044,11 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                 if (relatedTarget?.closest('.suggestion-item')) {
                   return // Ikke lagre hvis vi klikker på en suggestion
                 }
-                // Delay to allow click on suggestion
+                // Delay to allow click events to register first
                 setTimeout(() => {
                   saveInlineEdit(nodlysId, field)
                   setShowSuggestions(false)
-                }, 200)
+                }, 150)
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -1068,7 +1118,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           type="text"
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
-          onBlur={() => saveInlineEdit(nodlysId, field)}
+          onBlur={() => {
+            // Delay to allow click events to register first
+            setTimeout(() => {
+              saveInlineEdit(nodlysId, field)
+            }, 150)
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') saveInlineEdit(nodlysId, field)
             if (e.key === 'Escape') cancelEditing()
@@ -1081,7 +1136,11 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
     return (
       <span
-        onClick={() => startEditing(nodlysId, field, value)}
+        onMouseDown={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          startEditing(nodlysId, field, value)
+        }}
         className={`${className} cursor-pointer hover:bg-dark-100 px-2 py-1 rounded transition-colors`}
         title="Klikk for å redigere"
       >
@@ -1349,7 +1408,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                           <select
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => saveInlineEdit(nodlys.id, 'status')}
+                            onBlur={() => {
+                              // Delay to allow click events to register first
+                              setTimeout(() => {
+                                saveInlineEdit(nodlys.id, 'status')
+                              }, 150)
+                            }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') saveInlineEdit(nodlys.id, 'status')
                               if (e.key === 'Escape') cancelEditing()
@@ -1364,7 +1428,11 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                           </select>
                         ) : (
                           <span
-                            onClick={() => startEditing(nodlys.id, 'status', nodlys.status)}
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              startEditing(nodlys.id, 'status', nodlys.status)
+                            }}
                             className="cursor-pointer"
                             title="Klikk for å redigere"
                           >
@@ -1752,7 +1820,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                             <select
                               value={editValue}
                               onChange={(e) => setEditValue(e.target.value)}
-                              onBlur={() => saveInlineEdit(nodlys.id, 'status')}
+                              onBlur={() => {
+                                // Delay to allow click events to register first
+                                setTimeout(() => {
+                                  saveInlineEdit(nodlys.id, 'status')
+                                }, 150)
+                              }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') saveInlineEdit(nodlys.id, 'status')
                                 if (e.key === 'Escape') cancelEditing()
@@ -1767,7 +1840,11 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                             </select>
                           ) : (
                             <span
-                              onClick={() => startEditing(nodlys.id, 'status', nodlys.status)}
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                startEditing(nodlys.id, 'status', nodlys.status)
+                              }}
                               className="cursor-pointer"
                               title="Klikk for å redigere"
                             >

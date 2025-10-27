@@ -123,9 +123,7 @@ export function KommentarViewBrannslukkere({ anleggId, kundeNavn: _kundeNavn, an
       return d.toLocaleDateString('nb-NO', {
         year: 'numeric',
         month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        day: 'numeric'
       })
     } catch {
       return dato

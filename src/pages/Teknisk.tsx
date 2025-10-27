@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Settings, Radio, Bell, FileText, ClipboardList } from 'lucide-react'
 import { DetektorlisteView } from './teknisk/DetektorlisteView'
 import { ServicerapportView } from './teknisk/ServicerapportView'
+import { AlarmorganiseringView } from './teknisk/AlarmorganiseringView'
 import { useLocation } from 'react-router-dom'
 
 type TekniskView = 'oversikt' | 'detektorliste' | 'alarm' | 'prosjektering' | 'servicerapport'
@@ -25,6 +26,10 @@ export function Teknisk() {
 
   if (activeView === 'detektorliste') {
     return <DetektorlisteView onBack={() => setActiveView('oversikt')} />
+  }
+
+  if (activeView === 'alarm') {
+    return <AlarmorganiseringView onBack={() => setActiveView('oversikt')} />
   }
 
   if (activeView === 'servicerapport') {
@@ -64,7 +69,10 @@ export function Teknisk() {
           <p className="text-primary text-sm font-medium">Klikk for å åpne →</p>
         </button>
 
-        <div className="card hover:border-primary/50 transition-colors cursor-pointer">
+        <button
+          onClick={() => setActiveView('alarm')}
+          className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
+        >
           <div className="flex items-center gap-4 mb-4">
             <div className="w-12 h-12 bg-yellow-500/10 rounded-lg flex items-center justify-center">
               <Bell className="w-6 h-6 text-yellow-500" />
@@ -74,8 +82,8 @@ export function Teknisk() {
               <p className="text-sm text-gray-400 dark:text-gray-400">Organisering av alarmer</p>
             </div>
           </div>
-          <p className="text-gray-400 dark:text-gray-500 text-sm">Kommer snart...</p>
-        </div>
+          <p className="text-primary text-sm font-medium">Klikk for å åpne →</p>
+        </button>
 
         <button
           onClick={() => setActiveView('servicerapport')}
