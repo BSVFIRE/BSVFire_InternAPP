@@ -31,13 +31,13 @@ export function KommentarView({ anleggId, kundeNavn, anleggNavn }: KommentarView
   }, [anleggId])
 
   async function loadBrukerNavn() {
-    if (!user?.id) return
+    if (!user?.email) return
 
     try {
       const { data, error } = await supabase
         .from('ansatte')
         .select('navn')
-        .eq('bruker_id', user.id)
+        .eq('epost', user.email)
         .maybeSingle()
 
       if (error) throw error
