@@ -8,6 +8,7 @@ import {
   CheckSquare, 
   FileText, 
   FolderKanban,
+  Calendar,
   Moon,
   Sun,
   LogOut,
@@ -19,7 +20,8 @@ import {
   DollarSign,
   Sparkles,
   Menu,
-  X
+  X,
+  Building
 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
@@ -37,6 +39,7 @@ const navigation = [
   { name: 'Ordre', href: '/ordre', icon: ClipboardList },
   { name: 'Oppgaver', href: '/oppgaver', icon: CheckSquare },
   { name: 'Prosjekter', href: '/prosjekter', icon: FolderKanban },
+  { name: 'Møter', href: '/moter', icon: Calendar },
   { name: 'Rapporter', href: '/rapporter', icon: FileText },
   { name: 'Teknisk', href: '/teknisk', icon: Settings },
   { name: 'Dokumentasjon', href: '/dokumentasjon', icon: BookOpen },
@@ -44,6 +47,7 @@ const navigation = [
 
 const adminNavigation = [
   { name: 'Prisadministrasjon', href: '/admin/prisadministrasjon', icon: DollarSign },
+  { name: 'PowerOffice', href: '/admin/poweroffice', icon: Building },
   { name: 'System Logger', href: '/admin/logger', icon: Bug },
   { name: 'AI Embeddings', href: '/admin/ai-embeddings', icon: Sparkles },
   { name: 'AI Kunnskapsbase', href: '/admin/ai-knowledge', icon: BookOpen },

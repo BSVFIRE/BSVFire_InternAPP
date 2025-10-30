@@ -25,6 +25,8 @@ import { TilbudServiceavtale } from './pages/TilbudServiceavtale'
 import { PrisAdministrasjon } from './pages/PrisAdministrasjon'
 import { AdminAIEmbeddings } from './pages/AdminAIEmbeddings'
 import { AdminAIKnowledge } from './pages/AdminAIKnowledge'
+import { Moter } from './pages/Moter'
+import PowerOfficeTest from './pages/PowerOfficeTest'
 import { OfflineIndicator } from './components/OfflineIndicator'
 import { AIAssistant } from './components/AIAssistant'
 
@@ -84,6 +86,7 @@ function App() {
                     <Route path="/ordre" element={<Ordre />} />
                     <Route path="/oppgaver" element={<Oppgaver />} />
                     <Route path="/prosjekter" element={<Prosjekter />} />
+                    <Route path="/moter" element={<Moter />} />
                     <Route path="/rapporter" element={<Rapporter />} />
                     <Route path="/rapport-oversikt" element={<RapportOversikt />} />
                     <Route path="/send-rapporter" element={<SendRapporter />} />
@@ -94,9 +97,11 @@ function App() {
                     <Route path="/priser" element={<Priser />} />
                     <Route path="/tilbud-serviceavtale" element={<TilbudServiceavtale />} />
                     <Route path="/admin/prisadministrasjon" element={<PrisAdministrasjon />} />
+                    <Route path="/admin/poweroffice" element={<PowerOfficeTest />} />
                     <Route path="/admin/logger" element={<AdminLogger />} />
                     <Route path="/admin/ai-embeddings" element={<AdminAIEmbeddings />} />
                     <Route path="/admin/ai-knowledge" element={<AdminAIKnowledge />} />
+                    <Route path="/poweroffice-test" element={<PowerOfficeTest />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>
