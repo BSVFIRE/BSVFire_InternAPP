@@ -7,6 +7,10 @@ interface Kontaktperson {
   navn: string
   epost: string | null
   telefon: string | null
+  anlegg_kontaktpersoner?: Array<{
+    anlegg_id: string
+    primar: boolean
+  }>
 }
 
 interface ContactPersonSectionProps {
@@ -24,6 +28,9 @@ export function ContactPersonSection({ formData, setFormData }: ContactPersonSec
   const [contactSearchQuery, setContactSearchQuery] = useState('')
   const [showContactResults, setShowContactResults] = useState(false)
   const contactResultsRef = useRef<HTMLDivElement>(null)
+  
+  // Check if this is a new customer (not in database)
+  const isNewCustomer = !formData.kunde_id
 
   useEffect(() => {
     if (formData.anlegg_id) {
@@ -75,6 +82,24 @@ export function ContactPersonSection({ formData, setFormData }: ContactPersonSec
 
       if (error) throw error
       setKontaktpersoner(data || [])
+      
+      // Auto-select primary contact if exists and no contact is already selected
+      if (data && data.length > 0 && !formData.kontaktperson_id) {
+        const primaryContact = data.find(kp => 
+          kp.anlegg_kontaktpersoner?.some(ak => ak.primar === true)
+        )
+        
+        if (primaryContact) {
+          setFormData({
+            ...formData,
+            kontaktperson_id: primaryContact.id,
+            kontaktperson_navn: primaryContact.navn,
+            kontaktperson_epost: primaryContact.epost || '',
+            kontaktperson_telefon: primaryContact.telefon || ''
+          })
+          setContactSearchQuery(primaryContact.navn)
+        }
+      }
     } catch (error) {
       console.error('Feil ved lasting av kontaktpersoner for anlegg:', error)
       // Fallback to all contacts if junction table query fails
@@ -140,7 +165,55 @@ export function ContactPersonSection({ formData, setFormData }: ContactPersonSec
 
   return (
     <>
-      {!showKontaktpersonForm ? (
+      {isNewCustomer ? (
+        /* Manual input for new customers */
+        <div className="space-y-4">
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mb-4">
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              Fyll inn kontaktpersonens informasjon manuelt
+            </p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+              Navn
+            </label>
+            <input
+              type="text"
+              value={formData.kontaktperson_navn}
+              onChange={(e) => setFormData({ ...formData, kontaktperson_navn: e.target.value })}
+              className="input"
+              placeholder="Fornavn Etternavn"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+              E-post
+            </label>
+            <input
+              type="email"
+              value={formData.kontaktperson_epost}
+              onChange={(e) => setFormData({ ...formData, kontaktperson_epost: e.target.value })}
+              className="input"
+              placeholder="epost@eksempel.no"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+              Telefon
+            </label>
+            <input
+              type="tel"
+              value={formData.kontaktperson_telefon}
+              onChange={(e) => setFormData({ ...formData, kontaktperson_telefon: e.target.value })}
+              className="input"
+              placeholder="+47 123 45 678"
+            />
+          </div>
+        </div>
+      ) : !showKontaktpersonForm ? (
         <div className="space-y-3">
           <div className="relative" ref={contactResultsRef}>
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">

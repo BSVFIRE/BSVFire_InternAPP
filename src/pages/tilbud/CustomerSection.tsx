@@ -17,7 +17,7 @@ interface Kunde {
 
 interface Anlegg {
   id: string
-  navn: string
+  anleggsnavn: string
   kundenr: string
 }
 
@@ -29,6 +29,7 @@ interface CustomerSectionProps {
 export function CustomerSection({ formData, setFormData }: CustomerSectionProps) {
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
+  const [searchMode, setSearchMode] = useState<'existing' | 'new'>('existing')
   
   // Customer search
   const [customerSearchQuery, setCustomerSearchQuery] = useState('')
@@ -75,9 +76,9 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
     try {
       const { data, error } = await supabase
         .from('anlegg')
-        .select('id, navn, kundenr')
+        .select('id, anleggsnavn, kundenr')
         .eq('kundenr', kundeId)
-        .order('navn', { ascending: true })
+        .order('anleggsnavn', { ascending: true })
 
       if (error) throw error
       setAnlegg(data || [])
@@ -171,7 +172,12 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
       kunde_navn: kunde.navn,
       kunde_organisasjonsnummer: kunde.organisasjonsnummer || '',
       anlegg_id: '',
-      anlegg_navn: ''
+      anlegg_navn: '',
+      // Clear contact person when switching customers
+      kontaktperson_id: '',
+      kontaktperson_navn: '',
+      kontaktperson_epost: '',
+      kontaktperson_telefon: ''
     })
     setCustomerSearchQuery(kunde.navn)
     setShowCustomerResults(false)
@@ -184,8 +190,35 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
 
   return (
     <>
-      {/* Existing customer selection with search */}
-      <div className="relative" ref={customerResultsRef}>
+      {/* Toggle between existing and new customer */}
+      <div className="flex gap-2 mb-6">
+        <button
+          type="button"
+          onClick={() => setSearchMode('existing')}
+          className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
+            searchMode === 'existing'
+              ? 'bg-primary text-white shadow-md'
+              : 'bg-gray-100 dark:bg-dark-300 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-200'
+          }`}
+        >
+          Velg eksisterende kunde
+        </button>
+        <button
+          type="button"
+          onClick={() => setSearchMode('new')}
+          className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
+            searchMode === 'new'
+              ? 'bg-primary text-white shadow-md'
+              : 'bg-gray-100 dark:bg-dark-300 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-200'
+          }`}
+        >
+          Legg til ny kunde
+        </button>
+      </div>
+
+      {searchMode === 'existing' ? (
+        /* Existing customer selection with search */
+        <div className="relative" ref={customerResultsRef}>
         <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
           Velg eksisterende kunde
         </label>
@@ -234,10 +267,11 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
             <p className="text-gray-500 dark:text-gray-400 text-sm text-center">Ingen kunder funnet</p>
           </div>
         )}
-      </div>
-
-      {/* Brønnøysund Search */}
-      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-4">
+        </div>
+      ) : (
+        /* New customer - Brønnøysund Search */
+        <div className="space-y-4">
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-4">
         <div className="flex items-center gap-2">
           <ExternalLink className="w-5 h-5 text-primary" />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Søk i Brønnøysundregistrene</h3>
@@ -337,10 +371,12 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
             </button>
           </div>
         </div>
-      </div>
+          </div>
 
-      {/* Manual customer input */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Manual customer input */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Eller skriv inn manuelt</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
             Kundenavn <span className="text-red-500">*</span>
@@ -380,11 +416,14 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
             placeholder="F.eks. Oslo, Avdeling Nord, etc."
           />
         </div>
-      </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Anlegg selection */}
-      {formData.kunde_id && anlegg.length > 0 && (
-        <div>
+      {/* Anlegg selection - Only show for existing customers */}
+      {searchMode === 'existing' && formData.kunde_id && anlegg.length > 0 && (
+        <div className="mt-4">
           <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
             Velg anlegg (valgfritt)
           </label>
@@ -395,7 +434,7 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
               setFormData({
                 ...formData,
                 anlegg_id: e.target.value,
-                anlegg_navn: selectedAnlegg?.navn || ''
+                anlegg_navn: selectedAnlegg?.anleggsnavn || ''
               })
             }}
             className="input"
@@ -403,10 +442,19 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
             <option value="">Ingen anlegg valgt</option>
             {anlegg.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.navn}
+                {a.anleggsnavn}
               </option>
             ))}
           </select>
+        </div>
+      )}
+      
+      {/* Info message for new customers */}
+      {searchMode === 'new' && (
+        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            <strong>Merk:</strong> Ny kunde lagres kun som del av tilbudet. For å opprette kunde og anlegg i systemet, gå til Kunder-siden.
+          </p>
         </div>
       )}
     </>

@@ -19,6 +19,8 @@ interface TilbudFormProps {
 export function TilbudForm({ tilbud, onSave, onCancel }: TilbudFormProps) {
   const { user } = useAuthStore()
   
+  const DEFAULT_BESKRIVELSE = 'Kontroll blir utført 1 gang pr. kalenderår med ca. 12 mnd. intervall. Når det nærmer seg ny kontroll tar BSV kontakt med deres kontaktperson for nærmere avtale om kontroll-dato. Alle kontroller blir utført iht. gjeldende forskrifter.'
+  
   const [formData, setFormData] = useState({
     kunde_id: tilbud?.kunde_id || '',
     kunde_navn: tilbud?.kunde_navn || '',
@@ -36,13 +38,14 @@ export function TilbudForm({ tilbud, onSave, onCancel }: TilbudFormProps) {
     tjeneste_rokluker: tilbud?.tjeneste_rokluker || false,
     tjeneste_eksternt: tilbud?.tjeneste_eksternt || false,
     tilbud_nummer: tilbud?.tilbud_nummer || '',
-    beskrivelse: tilbud?.beskrivelse || '',
+    beskrivelse: tilbud?.beskrivelse || DEFAULT_BESKRIVELSE,
     notater: tilbud?.notater || '',
     status: tilbud?.status || 'utkast',
     pris_detaljer: tilbud?.pris_detaljer || {},
     total_pris: tilbud?.total_pris || 0,
     rabatt_prosent: tilbud?.rabatt_prosent || 0,
     timespris: tilbud?.timespris || 925,
+    betalingsbetingelser: tilbud?.betalingsbetingelser || 20,
     opprettet_av_navn: tilbud?.opprettet_av_navn || '',
   })
 
@@ -52,15 +55,77 @@ export function TilbudForm({ tilbud, onSave, onCancel }: TilbudFormProps) {
   // Fetch logged in user's name
   useEffect(() => {
     async function fetchUserName() {
-      if (user?.id && !formData.opprettet_av_navn) {
-        const { data } = await supabase
-          .from('ansatt')
-          .select('navn')
-          .eq('id', user.id)
-          .single()
+      if (user && !formData.opprettet_av_navn) {
+        console.log('Fetching user name for:', user.email)
+        console.log('User object:', { id: user.id, email: user.email, metadata: user.user_metadata })
         
-        if (data?.navn) {
+        // Try to find user by email in ansatte table
+        // First try with 'epost' column
+        console.log('Attempting to fetch from ansatte with email:', user.email)
+        let result = await supabase
+          .from('ansatte')
+          .select('navn, epost')
+          .eq('epost', user.email)
+          .maybeSingle()
+        
+        console.log('Raw result:', result)
+        let data = result.data
+        let error = result.error
+        
+        // If not found, try with 'email' column
+        if (!data) {
+          const result2 = await supabase
+            .from('ansatte')
+            .select('navn, email')
+            .eq('email', user.email)
+            .maybeSingle()
+          data = result2.data as any
+          error = result2.error
+        }
+        
+        console.log('Search result for', user.email, ':', { data, error })
+        
+        if (error || !data) {
+          if (error) {
+            console.error('Error fetching user name from ansatte by email:', error)
+          } else {
+            console.log('No match found for email:', user.email)
+          }
+          
+          // Fallback 1: Try by ID
+          const { data: dataById, error: errorById } = await supabase
+            .from('ansatte')
+            .select('navn')
+            .eq('id', user.id)
+            .single()
+          
+          if (!errorById && dataById?.navn) {
+            setFormData(prev => ({ ...prev, opprettet_av_navn: dataById.navn }))
+            console.log('Successfully fetched name from ansatte by ID:', dataById.navn)
+            return
+          }
+          
+          // Fallback 2: Try to get name from user metadata
+          if (user.user_metadata?.navn) {
+            setFormData(prev => ({ ...prev, opprettet_av_navn: user.user_metadata.navn }))
+            console.log('Using name from user metadata:', user.user_metadata.navn)
+          } else if (user.user_metadata?.full_name) {
+            setFormData(prev => ({ ...prev, opprettet_av_navn: user.user_metadata.full_name }))
+            console.log('Using full_name from user metadata:', user.user_metadata.full_name)
+          } else if (user.email) {
+            // Last resort: use email name part
+            const emailName = user.email.split('@')[0].replace(/[._]/g, ' ')
+            const capitalizedName = emailName.split(' ').map(word => 
+              word.charAt(0).toUpperCase() + word.slice(1)
+            ).join(' ')
+            setFormData(prev => ({ ...prev, opprettet_av_navn: capitalizedName }))
+            console.log('Using email-based name:', capitalizedName)
+          }
+        } else if (data?.navn) {
           setFormData(prev => ({ ...prev, opprettet_av_navn: data.navn }))
+          console.log('Successfully fetched name from ansatte by email:', data.navn)
+        } else {
+          console.warn('No name found in ansatte table for user:', user.email)
         }
       }
     }
@@ -167,7 +232,7 @@ export function TilbudForm({ tilbud, onSave, onCancel }: TilbudFormProps) {
         <div className="card space-y-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Tilleggsdetaljer</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
                 Tilbudsnummer
@@ -195,6 +260,20 @@ export function TilbudForm({ tilbud, onSave, onCancel }: TilbudFormProps) {
                 <option value="godkjent">Godkjent</option>
                 <option value="avvist">Avvist</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+                Betalingsbetingelser (dager)
+              </label>
+              <input
+                type="number"
+                value={formData.betalingsbetingelser}
+                onChange={(e) => setFormData({ ...formData, betalingsbetingelser: parseInt(e.target.value) || 20 })}
+                className="input"
+                placeholder="20"
+                min="1"
+              />
             </div>
           </div>
 

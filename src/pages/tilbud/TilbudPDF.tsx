@@ -26,6 +26,7 @@ interface TilbudData {
   total_pris: number
   rabatt_prosent?: number
   timespris?: number
+  betalingsbetingelser?: number
   
   // Metadata
   opprettet: string
@@ -229,7 +230,7 @@ export async function generateTilbudPDF(tilbudData: TilbudData) {
   if (selectedServices.length >= 2 && tilbudData.rabatt_prosent && tilbudData.rabatt_prosent > 0) {
     const rabattBelop = subtotal * (tilbudData.rabatt_prosent / 100)
     doc.setTextColor(0, 150, 0) // Green
-    doc.text(`Kvantumsrabatt (${tilbudData.rabatt_prosent}%):`, 130, yPos)
+    doc.text(`Kvantumsrabatt (${tilbudData.rabatt_prosent}%):`, 115, yPos)
     doc.text(`-${rabattBelop.toLocaleString('nb-NO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`, 190, yPos, { align: 'right' })
     yPos += 7
     
@@ -261,6 +262,9 @@ export async function generateTilbudPDF(tilbudData: TilbudData) {
   doc.setFontSize(9)
   doc.setTextColor(100, 100, 100)
   doc.text('Tilbudet er gyldig i 30 dager fra dato.', 20, yPos)
+  yPos += 5
+  const betalingsdager = tilbudData.betalingsbetingelser || 20
+  doc.text(`Betalingsbetingelser: ${betalingsdager} dager netto.`, 20, yPos)
   yPos += 5
   doc.text('Ved aksept, vennligst signer og returner tilbudet.', 20, yPos)
 
@@ -400,7 +404,7 @@ export async function generateTilbudPDF(tilbudData: TilbudData) {
   // BSV Fire signatur (høyre)
   yPos -= 28 // Reset to same height as kunde
   doc.setFont('helvetica', 'bold')
-  doc.text('BSV FIRE AS', rightCol, yPos)
+  doc.text('BRANNTEKNISK SERVICE OG VEDLIKEHOLD AS', rightCol, yPos)
   doc.setFont('helvetica', 'normal')
   yPos += 8
 

@@ -34,6 +34,7 @@ export interface ServiceavtaleTilbud {
   total_pris: number
   rabatt_prosent?: number
   timespris?: number
+  betalingsbetingelser?: number
   opprettet_av_navn?: string
   opprettet: string
   sist_oppdatert: string | null
