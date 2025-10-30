@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Eye, FileText, Plus } from 'lucide-react'
+import { ArrowLeft, Eye, FileText, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { ServicerapportEditor } from './ServicerapportEditor'
 import { ServicerapportPreview } from './ServicerapportPreview'
@@ -13,8 +13,8 @@ interface Servicerapport {
   tekniker_navn: string
   header: string
   rapport_innhold: string
-  created_at: string
-  updated_at: string
+  opprettet_dato?: string
+  sist_oppdatert?: string
 }
 
 interface ServicerapportViewProps {
@@ -82,9 +82,7 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
       rapport_dato: new Date().toISOString().split('T')[0],
       tekniker_navn: '',
       header: '',
-      rapport_innhold: '',
-      created_at: '',
-      updated_at: ''
+      rapport_innhold: ''
     }
     setSelectedRapport(newRapport)
     setIsEditing(true)
@@ -100,7 +98,7 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
       let savedRapport: Servicerapport = rapport
       
       if (rapport.id) {
-        // Update existing
+        // Update existing (sist_oppdatert oppdateres automatisk av trigger)
         const { error } = await supabase
           .from('servicerapporter')
           .update({
@@ -109,8 +107,7 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
             rapport_dato: rapport.rapport_dato,
             tekniker_navn: rapport.tekniker_navn,
             header: rapport.header,
-            rapport_innhold: rapport.rapport_innhold,
-            updated_at: new Date().toISOString()
+            rapport_innhold: rapport.rapport_innhold
           })
           .eq('id', rapport.id)
 
@@ -137,13 +134,33 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
       }
 
       await loadRapporter()
-      setIsEditing(false)
-      setSelectedRapport(null)
+      // Note: Don't close editor here - let ServicerapportEditor handle it after dialog
       return savedRapport
     } catch (error) {
       console.error('Feil ved lagring av servicerapport:', error)
       alert('Kunne ikke lagre servicerapport')
       throw error
+    }
+  }
+
+  async function handleDeleteRapport(rapport: Servicerapport) {
+    if (!confirm(`Er du sikker på at du vil slette rapporten "${rapport.header}"?\n\nDenne handlingen kan ikke angres.`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('servicerapporter')
+        .delete()
+        .eq('id', rapport.id)
+
+      if (error) throw error
+
+      alert('✅ Rapport slettet')
+      await loadRapporter()
+    } catch (error) {
+      console.error('Feil ved sletting av servicerapport:', error)
+      alert('Kunne ikke slette servicerapport')
     }
   }
 
@@ -239,6 +256,13 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
                     className="btn-secondary text-sm"
                   >
                     Rediger
+                  </button>
+                  <button
+                    onClick={() => handleDeleteRapport(rapport)}
+                    className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group"
+                    title="Slett rapport"
+                  >
+                    <Trash2 className="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-red-500" />
                   </button>
                 </div>
               </div>

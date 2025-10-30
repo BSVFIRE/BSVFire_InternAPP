@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Save, Eye, Sparkles } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { BSV_LOGO } from '@/assets/logoBase64'
+import { SendRapportDialog } from '@/components/SendRapportDialog'
 
 interface Servicerapport {
   id: string
@@ -12,8 +14,8 @@ interface Servicerapport {
   tekniker_navn: string
   header: string
   rapport_innhold: string
-  created_at: string
-  updated_at: string
+  opprettet_dato?: string
+  sist_oppdatert?: string
 }
 
 interface Anlegg {
@@ -51,6 +53,7 @@ interface ServicerapportEditorProps {
 }
 
 export function ServicerapportEditor({ rapport, onSave, onCancel }: ServicerapportEditorProps) {
+  const navigate = useNavigate()
   const [formData, setFormData] = useState<Servicerapport>(rapport)
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
   const [filteredAnlegg, setFilteredAnlegg] = useState<Anlegg[]>([])
@@ -60,6 +63,8 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
   const [showPreview, setShowPreview] = useState(false)
   const [loading, setLoading] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
+  const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
+  const [savedRapportData, setSavedRapportData] = useState<{ kundeId: string; anleggId: string } | null>(null)
 
   useEffect(() => {
     loadAnlegg()
@@ -266,15 +271,44 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
         const { generateServicerapportPDF } = await import('./ServicerapportPDF')
         const result = await generateServicerapportPDF(savedRapport, true)
         if (result.success) {
-          alert('✅ Servicerapport lagret og PDF generert!')
+          // Hent kunde-ID fra anlegget
+          const selectedAnlegg = anlegg.find(a => a.id === savedRapport.anlegg_id)
+          if (selectedAnlegg) {
+            setSavedRapportData({
+              kundeId: selectedAnlegg.kundenr,
+              anleggId: savedRapport.anlegg_id
+            })
+          }
+          // Vis dialog for å sende rapport
+          setShowSendRapportDialog(true)
         }
       }
     } catch (error) {
       console.error('Feil ved lagring/generering:', error)
       alert('Kunne ikke lagre servicerapport')
-    } finally {
       setLoading(false)
     }
+  }
+
+  function handleSendRapportConfirm() {
+    // Naviger til Send Rapporter med kunde og anlegg pre-valgt
+    setShowSendRapportDialog(false)
+    setLoading(false)
+    if (savedRapportData) {
+      navigate('/send-rapporter', { 
+        state: { 
+          kundeId: savedRapportData.kundeId, 
+          anleggId: savedRapportData.anleggId 
+        } 
+      })
+    }
+  }
+
+  function handleSendRapportCancel() {
+    // Lukk dialogen og editoren
+    setShowSendRapportDialog(false)
+    setLoading(false)
+    onCancel() // Lukk editoren og gå tilbake til listen
   }
 
   if (showPreview) {
@@ -346,7 +380,15 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Dialog */}
+      <SendRapportDialog
+        onConfirm={handleSendRapportConfirm}
+        onCancel={handleSendRapportCancel}
+        isOpen={showSendRapportDialog}
+      />
+
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -574,5 +616,6 @@ Eksempel:
         </div>
       </form>
     </div>
+    </>
   )
 }

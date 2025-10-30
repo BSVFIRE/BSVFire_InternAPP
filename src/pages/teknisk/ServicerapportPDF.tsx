@@ -6,12 +6,13 @@ interface Servicerapport {
   id: string
   anlegg_id: string
   anlegg_navn?: string
+  ordre_id?: string
   rapport_dato: string
   tekniker_navn: string
   header: string
   rapport_innhold: string
-  created_at: string
-  updated_at: string
+  opprettet_dato?: string
+  sist_oppdatert?: string
 }
 
 const styles = StyleSheet.create({
