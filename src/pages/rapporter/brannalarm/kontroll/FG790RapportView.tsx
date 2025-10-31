@@ -1112,6 +1112,68 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
             yPos += 5
           }
 
+          // Kommentar (hvis finnes)
+          if (punkt.kommentar) {
+            doc.setFont('helvetica', 'bold')
+            doc.text('Kommentar:', 25, yPos)
+            yPos += 5
+            doc.setFont('helvetica', 'normal')
+            const kommentarLines = doc.splitTextToSize(punkt.kommentar || '', 165)
+            doc.text(kommentarLines, 25, yPos)
+            yPos += kommentarLines.length * 5 + 8
+          } else {
+            yPos += 3
+          }
+
+          // Sjekk igjen om vi trenger ny side for neste avvik
+          if (yPos > 250 && index < avvikPunkter.length - 1) {
+            doc.addPage()
+            yPos = 20
+          }
+        })
+      }
+
+      // Kommentarer (uten avvik) - vises separat
+      const kommentarPunkter = kontrollpunkter.filter(p => !p.avvik_type && p.kommentar && p.kommentar.trim() !== '')
+      console.log('📝 Kommentarpunkter funnet:', kommentarPunkter.length)
+      if (kommentarPunkter.length > 0) {
+        // Start på ny side hvis ikke nok plass
+        if (yPos > 200) {
+          doc.addPage()
+          yPos = 20
+        } else if (yPos > 100) {
+          // Legg til litt mellomrom hvis vi fortsetter på samme side
+          yPos += 10
+        }
+
+        doc.setFontSize(14)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Kommentarer', 20, yPos)
+        yPos += 10
+
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'normal')
+
+        kommentarPunkter.forEach((punkt, index) => {
+          // Sjekk om vi trenger ny side
+          if (yPos > 250) {
+            doc.addPage()
+            yPos = 20
+          }
+
+          // Kommentar nummer og kontrollpunkt
+          doc.setFont('helvetica', 'bold')
+          const tittelLines = doc.splitTextToSize(`${index + 1}. ${punkt.tittel}`, 170)
+          doc.text(tittelLines, 20, yPos)
+          yPos += tittelLines.length * 6
+
+          // Status
+          doc.setFont('helvetica', 'normal')
+          if (punkt.status) {
+            doc.text(`Status: ${punkt.status}`, 25, yPos)
+            yPos += 5
+          }
+
           // Kommentar
           doc.setFont('helvetica', 'bold')
           doc.text('Kommentar:', 25, yPos)
@@ -1121,14 +1183,16 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           doc.text(kommentarLines, 25, yPos)
           yPos += kommentarLines.length * 5 + 8
 
-          // Sjekk igjen om vi trenger ny side for neste avvik
-          if (yPos > 250 && index < avvikPunkter.length - 1) {
+          // Sjekk igjen om vi trenger ny side for neste kommentar
+          if (yPos > 250 && index < kommentarPunkter.length - 1) {
             doc.addPage()
             yPos = 20
           }
         })
+      }
 
-        // Legg til footer på siste side
+      // Legg til footer på siste side (etter både avvik og kommentarer)
+      if (avvikPunkter.length > 0 || kommentarPunkter.length > 0) {
         const totalPages = (doc as any).internal.getNumberOfPages()
         addFooter(totalPages)
       }
