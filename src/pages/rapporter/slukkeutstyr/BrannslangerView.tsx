@@ -94,10 +94,15 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
   const [kundeId, setKundeId] = useState<string | null>(null)
   const [evakueringsplanStatus, setEvakueringsplanStatus] = useState('')
+  
+  // Autocomplete for produsent
+  const [produsentOptions, setProdusentOptions] = useState<string[]>([])
+  const [showProdusentSuggestions, setShowProdusentSuggestions] = useState<number | null>(null)
 
   useEffect(() => {
     loadSlanger()
     loadEvakueringsplan(anleggId)
+    loadProdusentOptions()
   }, [anleggId])
 
   // Wrapper for setSlanger som også setter hasUnsavedChanges
@@ -204,10 +209,28 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         .eq('anlegg_id', anleggId)
         .maybeSingle()
 
-      if (error) throw error
+      if (error && error.code !== 'PGRST116') throw error
       setEvakueringsplanStatus(data?.status || '')
     } catch (error) {
       console.error('Feil ved lasting av evakueringsplan:', error)
+    }
+  }
+
+  async function loadProdusentOptions() {
+    try {
+      const { data, error } = await supabase
+        .from('anleggsdata_brannslanger')
+        .select('produsent')
+        .eq('anlegg_id', anleggId)
+        .not('produsent', 'is', null)
+        .neq('produsent', '')
+      
+      if (!error && data) {
+        const uniqueProdusenter = Array.from(new Set(data.map(s => s.produsent).filter((v): v is string => v !== null && v !== ''))).sort()
+        setProdusentOptions(uniqueProdusenter)
+      }
+    } catch (error) {
+      console.error('Feil ved lasting av produsenter:', error)
     }
   }
 
@@ -705,6 +728,27 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       doc.setTextColor(0, 0, 0)
       yPos += boxHeight + 8
 
+      // Hent evakueringsplan-status for tilleggsinformasjon
+      const { data: evakPlan } = await supabase
+        .from('evakueringsplan_status')
+        .select('status')
+        .eq('anlegg_id', anleggId)
+        .maybeSingle()
+
+      // Tilleggsinformasjon (Evakueringsplan) - på side 1 etter trykktest
+      if (evakPlan?.status) {
+        yPos += 8
+        doc.setFontSize(14)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text('Tilleggsinformasjon', 17, yPos)
+        yPos += 7
+
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'normal')
+        doc.text(`Evakueringsplaner: ${evakPlan.status}`, 17, yPos)
+      }
+
       // Ny side for tabell
       doc.addPage()
       yPos = 20
@@ -747,28 +791,6 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         alternateRowStyles: { fillColor: [245, 245, 245] },
         margin: { left: 10, right: 10, bottom: 30 },
       })
-
-      // Hent evakueringsplan-status
-      const { data: evakPlan } = await supabase
-        .from('evakueringsplan_status')
-        .select('status')
-        .eq('anlegg_id', anleggId)
-        .maybeSingle()
-
-      // Tilleggsinformasjon (Evakueringsplan)
-      if (evakPlan?.status) {
-        doc.setFontSize(14)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(0, 0, 0)
-        yPos += 8
-        doc.text('Tilleggsinformasjon', 20, yPos)
-        yPos += 7
-
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'normal')
-        doc.text(`Evakueringsplaner: ${evakPlan.status}`, 20, yPos)
-        yPos += 5
-      }
 
       // Kommentarer seksjon - på ny side hvis det finnes kommentarer
       if (kommentarer && kommentarer.length > 0) {
@@ -1156,7 +1178,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
             </div>
           ) : (
             <div className="overflow-x-auto bg-dark-100 rounded-lg">
-              <table className="w-full">
+              <table className="w-full min-w-[1400px]">
                 <thead>
                   <tr className="border-b border-gray-800">
                     <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Nr</th>
@@ -1231,17 +1253,50 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                         </select>
                       </td>
                       <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={slange.produsent || ''}
-                          onChange={(e) => {
-                            const nyeSlanger = [...slanger]
-                            nyeSlanger[originalIndex].produsent = e.target.value
-                            updateSlanger(nyeSlanger)
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                          placeholder="NOHA"
-                        />
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={slange.produsent || ''}
+                            onChange={(e) => {
+                              const nyeSlanger = [...slanger]
+                              nyeSlanger[originalIndex].produsent = e.target.value
+                              updateSlanger(nyeSlanger)
+                              setShowProdusentSuggestions(e.target.value.length > 0 ? index : null)
+                            }}
+                            onFocus={() => {
+                              if (slange.produsent && slange.produsent.length > 0) {
+                                setShowProdusentSuggestions(index)
+                              }
+                            }}
+                            onBlur={() => setTimeout(() => setShowProdusentSuggestions(null), 200)}
+                            className="input py-1 px-2 text-sm w-full"
+                            placeholder="Skriv eller velg produsent..."
+                          />
+                          {showProdusentSuggestions === index && produsentOptions.filter(opt => 
+                            opt.toLowerCase().startsWith((slange.produsent || '').toLowerCase())
+                          ).length > 0 && (
+                            <div className="absolute z-50 w-full mt-1 bg-dark-100 border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                              {produsentOptions
+                                .filter(opt => opt.toLowerCase().startsWith((slange.produsent || '').toLowerCase()))
+                                .map((option, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      const nyeSlanger = [...slanger]
+                                      nyeSlanger[originalIndex].produsent = option
+                                      updateSlanger(nyeSlanger)
+                                      setShowProdusentSuggestions(null)
+                                    }}
+                                    className="w-full text-left px-3 py-2 hover:bg-primary/20 text-gray-300 text-sm transition-colors"
+                                  >
+                                    {option}
+                                  </button>
+                                ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4">
                         <select
@@ -1309,7 +1364,11 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                               nyeSlanger[originalIndex].sistekontroll = new Date().getFullYear().toString()
                               updateSlanger(nyeSlanger)
                             }}
-                            className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-colors flex-shrink-0"
+                            className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                              slange.sistekontroll === new Date().getFullYear().toString()
+                                ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
+                                : 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
+                            }`}
                             title="Fyll inn nåværende år"
                           >
                             <Check className="w-4 h-4" />
@@ -1611,7 +1670,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-gray-800">
                   <th className="text-left py-3 px-4 text-gray-400 font-medium">Nr</th>
