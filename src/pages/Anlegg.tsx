@@ -84,7 +84,7 @@ interface Oppgave {
   tekniker_id: string | null
   tekniker_navn?: string | null
   opprettet: string
-  created_at?: string
+  opprettet_dato?: string
 }
 
 type SortOption = 'navn_asc' | 'navn_desc' | 'kunde' | 'poststed' | 'status' | 'kontroll_maaned'
@@ -2108,12 +2108,26 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
           tittel,
           status,
           tekniker_id,
-          created_at
+          opprettet_dato
         `)
         .eq('anlegg_id', anlegg.id)
-        .order('created_at', { ascending: false })
+        .order('opprettet_dato', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        // Hvis kolonner ikke finnes, prøv uten sortering
+        if (error.code === '42703') {
+          console.log('Oppgaver-kolonner finnes ikke, laster uten sortering')
+          const { data: fallbackData } = await supabase
+            .from('oppgaver')
+            .select('id, tittel, status, tekniker_id')
+            .eq('anlegg_id', anlegg.id)
+          
+          setOppgaver(fallbackData?.map(o => ({ ...o, opprettet: new Date().toISOString(), tekniker_navn: null })) || [])
+          setLoadingOppgaver(false)
+          return
+        }
+        throw error
+      }
       
       // Hent tekniker-navn for hver oppgave
       const oppgaverWithTeknikerNames = await Promise.all(
@@ -2129,7 +2143,7 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
           }
           return {
             ...oppgave,
-            opprettet: oppgave.created_at || oppgave.created_at,
+            opprettet: oppgave.opprettet_dato || new Date().toISOString(),
             tekniker_navn: teknikerNavn
           }
         })
