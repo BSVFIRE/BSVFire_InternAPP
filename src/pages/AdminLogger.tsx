@@ -41,12 +41,15 @@ export function AdminLogger() {
   const [searchTerm, setSearchTerm] = useState('')
   const [levelFilter, setLevelFilter] = useState<LogLevel>('all')
   const [namespaceFilter, setNamespaceFilter] = useState<string>('all')
+  const [userFilter, setUserFilter] = useState<string>('all')
   const [selectedLog, setSelectedLog] = useState<SystemLog | null>(null)
   const [namespaces, setNamespaces] = useState<string[]>([])
+  const [users, setUsers] = useState<Array<{ email: string; id: string }>>([])
 
   useEffect(() => {
     loadLogs()
     loadNamespaces()
+    loadUsers()
   }, [levelFilter])
 
   async function loadLogs() {
@@ -89,6 +92,24 @@ export function AdminLogger() {
       }
     } catch (error) {
       console.error('Feil ved lasting av namespaces:', error)
+    }
+  }
+
+  async function loadUsers() {
+    try {
+      const { data } = await supabase
+        .from('system_logs')
+        .select('user_email, user_id')
+        .not('user_email', 'is', null)
+
+      if (data) {
+        const uniqueUsers = Array.from(
+          new Map(data.map(d => [d.user_email, { email: d.user_email, id: d.user_id }])).values()
+        )
+        setUsers(uniqueUsers as Array<{ email: string; id: string }>)
+      }
+    } catch (error) {
+      console.error('Feil ved lasting av brukere:', error)
     }
   }
 
@@ -147,7 +168,10 @@ export function AdminLogger() {
     const matchesNamespace = 
       namespaceFilter === 'all' || log.namespace === namespaceFilter
 
-    return matchesSearch && matchesNamespace
+    const matchesUser = 
+      userFilter === 'all' || log.user_email === userFilter
+
+    return matchesSearch && matchesNamespace && matchesUser
   })
 
   const stats = {
@@ -294,6 +318,18 @@ export function AdminLogger() {
               ))}
             </select>
           </div>
+          <div className="md:w-48">
+            <select
+              value={userFilter}
+              onChange={(e) => setUserFilter(e.target.value)}
+              className="input"
+            >
+              <option value="all">Alle brukere</option>
+              {users.map(user => (
+                <option key={user.id} value={user.email}>{user.email}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -312,7 +348,7 @@ export function AdminLogger() {
           <div className="text-center py-12">
             <Filter className="w-12 h-12 text-gray-500 dark:text-gray-600 mx-auto mb-4" />
             <p className="text-gray-400 dark:text-gray-400">
-              {searchTerm || levelFilter !== 'all' || namespaceFilter !== 'all'
+              {searchTerm || levelFilter !== 'all' || namespaceFilter !== 'all' || userFilter !== 'all'
                 ? 'Ingen logger funnet med valgte filtre'
                 : 'Ingen logger ennå'}
             </p>

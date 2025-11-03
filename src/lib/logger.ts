@@ -13,6 +13,15 @@ import { supabase } from './supabase'
 const isDev = import.meta.env.DEV
 const isTest = import.meta.env.MODE === 'test'
 
+// Store original console methods before they might be overridden
+const originalConsole = {
+  log: console.log,
+  debug: console.debug,
+  info: console.info,
+  warn: console.warn,
+  error: console.error
+}
+
 // Log levels that should be saved to database
 const DB_LOG_LEVELS = ['warn', 'error'] as const
 type DbLogLevel = typeof DB_LOG_LEVELS[number]
@@ -31,8 +40,18 @@ async function saveLogToDatabase(
     // Don't save logs in test mode
     if (isTest) return
 
-    // Get current user info
-    const { data: { user } } = await supabase.auth.getUser()
+    // Get current user info (but don't wait for it to avoid blocking)
+    let user_id: string | null = null
+    let user_email: string | null = null
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      user_id = user?.id || null
+      user_email = user?.email || null
+    } catch (err) {
+      // If we can't get user info, continue without it
+      originalConsole.debug('Could not get user info for logging:', err)
+    }
     
     // Prepare log entry
     const logEntry = {
@@ -41,8 +60,8 @@ async function saveLogToDatabase(
       data: data ? JSON.stringify(data) : null,
       namespace: namespace || 'unknown',
       page_url: window.location.href,
-      user_id: user?.id || null,
-      user_email: user?.email || null,
+      user_id,
+      user_email,
       user_agent: navigator.userAgent,
       browser_info: {
         language: navigator.language,
@@ -59,13 +78,13 @@ async function saveLogToDatabase(
     // Save to database (fire and forget - don't wait for response)
     supabase.from('system_logs').insert([logEntry]).then(({ error }) => {
       if (error && isDev) {
-        console.error('Failed to save log to database:', error)
+        originalConsole.error('Failed to save log to database:', error)
       }
     })
   } catch (error) {
     // Silently fail - we don't want logging to break the app
     if (isDev) {
-      console.error('Error in saveLogToDatabase:', error)
+      originalConsole.error('Error in saveLogToDatabase:', error)
     }
   }
 }
@@ -77,7 +96,7 @@ export const logger = {
    */
   log: (...args: any[]) => {
     if (isDev && !isTest) {
-      console.log(...args)
+      originalConsole.log(...args)
     }
   },
 
@@ -87,7 +106,7 @@ export const logger = {
    */
   debug: (...args: any[]) => {
     if (isDev && !isTest) {
-      console.debug(...args)
+      originalConsole.debug(...args)
     }
   },
 
@@ -97,7 +116,7 @@ export const logger = {
    */
   info: (...args: any[]) => {
     if (isDev && !isTest) {
-      console.info(...args)
+      originalConsole.info(...args)
     }
   },
 
@@ -108,7 +127,7 @@ export const logger = {
    */
   warn: (...args: any[]) => {
     if (isDev && !isTest) {
-      console.warn(...args)
+      originalConsole.warn(...args)
     }
     
     // Save to database for admin review
@@ -124,7 +143,7 @@ export const logger = {
    * Errors are saved to database for admin review
    */
   error: (...args: any[]) => {
-    console.error(...args)
+    originalConsole.error(...args)
     
     // Save to database for admin review
     const message = args.map(arg => 
@@ -196,7 +215,7 @@ export function createLogger(namespace: string) {
     info: (...args: any[]) => logger.info(`[${namespace}]`, ...args),
     warn: (...args: any[]) => {
       if (isDev && !isTest) {
-        console.warn(`[${namespace}]`, ...args)
+        originalConsole.warn(`[${namespace}]`, ...args)
       }
       const message = args.map(arg => 
         typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
@@ -204,7 +223,7 @@ export function createLogger(namespace: string) {
       saveLogToDatabase('warn', namespace, message, args.length > 1 ? args.slice(1) : undefined)
     },
     error: (...args: any[]) => {
-      console.error(`[${namespace}]`, ...args)
+      originalConsole.error(`[${namespace}]`, ...args)
       const message = args.map(arg => 
         typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
       ).join(' ')

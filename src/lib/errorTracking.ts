@@ -27,9 +27,14 @@ export function setupErrorTracking() {
 
   // Override console.error to also log to database
   const originalConsoleError = console.error
+  let isLogging = false // Prevent infinite loops
+  
   console.error = (...args: any[]) => {
     // Call original console.error
     originalConsoleError(...args)
+    
+    // Prevent infinite loops - don't log if we're already logging
+    if (isLogging) return
     
     // Also log to database
     const message = args.map(arg => 
@@ -38,8 +43,13 @@ export function setupErrorTracking() {
     
     // Only log to database if it's not already a logger call
     const stack = new Error().stack || ''
-    if (!stack.includes('logger.ts')) {
-      logger.error(message, args.length > 1 ? args.slice(1) : undefined)
+    if (!stack.includes('logger.ts') && !stack.includes('errorTracking.ts')) {
+      isLogging = true
+      try {
+        logger.error(message, args.length > 1 ? args.slice(1) : undefined)
+      } finally {
+        isLogging = false
+      }
     }
   }
 }
