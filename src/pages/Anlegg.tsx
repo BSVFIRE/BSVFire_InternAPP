@@ -84,6 +84,7 @@ interface Oppgave {
   tekniker_id: string | null
   tekniker_navn?: string | null
   opprettet: string
+  created_at?: string
 }
 
 type SortOption = 'navn_asc' | 'navn_desc' | 'kunde' | 'poststed' | 'status' | 'kontroll_maaned'
@@ -1854,6 +1855,7 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
     loadInterneNotater()
     loadOrdre()
     loadOppgaver()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anlegg.id])
 
   async function settPrimaerKontakt(kontaktpersonId: string) {
@@ -2106,10 +2108,10 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
           tittel,
           status,
           tekniker_id,
-          opprettet
+          created_at
         `)
         .eq('anlegg_id', anlegg.id)
-        .order('opprettet', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (error) throw error
       
@@ -2127,6 +2129,7 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
           }
           return {
             ...oppgave,
+            opprettet: oppgave.created_at || oppgave.created_at,
             tekniker_navn: teknikerNavn
           }
         })

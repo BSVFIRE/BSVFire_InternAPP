@@ -87,7 +87,15 @@ export function Meldinger() {
 
       const { data, error } = await query
 
-      if (error) throw error
+      if (error) {
+        // Hvis kolonner ikke finnes ennå, vis feilmelding
+        if (error.code === '42703') {
+          setError('Meldingssystem er ikke konfigurert ennå. Kjør database-migrasjon: add_meldinger_system.sql')
+          setLoading(false)
+          return
+        }
+        throw error
+      }
 
       // Transform data
       const transformedData: Melding[] = (data || []).map((m: any) => ({

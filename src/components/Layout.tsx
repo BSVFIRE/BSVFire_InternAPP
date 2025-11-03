@@ -86,11 +86,20 @@ export function Layout({ children }: LayoutProps) {
         
         if (ansatt) {
           // Hent antall uleste meldinger
-          const { count } = await supabase
+          const { count, error } = await supabase
             .from('intern_kommentar')
             .select('*', { count: 'exact', head: true })
             .eq('mottaker_id', ansatt.id)
             .eq('lest', false)
+          
+          if (error) {
+            // Hvis kolonner ikke finnes ennå, ignorer feilen
+            if (error.code === '42703') {
+              console.log('Meldingssystem-kolonner finnes ikke ennå. Kjør database-migrasjon.')
+              return
+            }
+            throw error
+          }
           
           setUlestemeldinger(count || 0)
         }

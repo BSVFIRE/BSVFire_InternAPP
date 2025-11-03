@@ -270,7 +270,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
         // Hent kontrolldata
         const { data: kontrollData, error: kontrollError } = await supabase
           .from('anleggsdata_kontroll')
-          .select('merknader, har_feil, feil_kommentar, har_utkoblinger, utkobling_kommentar')
+          .select('merknader, har_feil, feil_kommentar')
           .eq('id', idToUse)
           .single()
         
@@ -280,8 +280,6 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           setMerknader(kontrollData.merknader || '')
           setHarFeil(kontrollData.har_feil || false)
           setFeilKommentar(kontrollData.feil_kommentar || '')
-          setHarUtkoblinger(kontrollData.har_utkoblinger || false)
-          setUtkoblingKommentar(kontrollData.utkobling_kommentar || '')
         }
         
         // Hent kontrollpunkter
@@ -317,8 +315,6 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           merknader: kontrollData?.merknader || '',
           harFeil: kontrollData?.har_feil || false,
           feilKommentar: kontrollData?.feil_kommentar || '',
-          harUtkoblinger: kontrollData?.har_utkoblinger || false,
-          utkoblingKommentar: kontrollData?.utkobling_kommentar || '',
           data: kontrollpunkter ? Object.fromEntries(
             kontrollpunkter.map(p => [p.kontrollpunkt_navn, {
               kontrollpunkt_navn: p.kontrollpunkt_navn,
@@ -357,8 +353,6 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
       merknader,
       harFeil,
       feilKommentar,
-      harUtkoblinger,
-      utkoblingKommentar,
       data
     })
     
@@ -372,8 +366,6 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
         merknader,
         har_feil: harFeil,
         feil_kommentar: feilKommentar,
-        har_utkoblinger: harUtkoblinger,
-        utkobling_kommentar: utkoblingKommentar,
         updated_at: new Date().toISOString(),
       })
       
@@ -411,8 +403,6 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           merknader,
           har_feil: harFeil,
           feil_kommentar: feilKommentar,
-          har_utkoblinger: harUtkoblinger,
-          utkobling_kommentar: utkoblingKommentar,
           updated_at: new Date().toISOString(),
         })
         .eq('id', currentKontrollId)
@@ -528,8 +518,6 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
       merknader,
       harFeil,
       feilKommentar,
-      harUtkoblinger,
-      utkoblingKommentar,
       data
     })
     
@@ -549,8 +537,6 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           merknader,
           har_feil: harFeil,
           feil_kommentar: feilKommentar,
-          har_utkoblinger: harUtkoblinger,
-          utkobling_kommentar: utkoblingKommentar,
           updated_at: new Date().toISOString(),
         })
         .eq('id', currentKontrollId)
@@ -720,7 +706,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
               <span className="text-sm font-semibold text-white">{progress}%</span>
             </div>
             <div className="w-full bg-gray-800 rounded-full h-2 mb-3">
-              <div
+              <div 
                 className="bg-green-500 h-2 rounded-full transition-all"
                 style={{ width: `${progress}%` }}
               />
