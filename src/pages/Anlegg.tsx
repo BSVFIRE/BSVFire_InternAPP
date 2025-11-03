@@ -2205,6 +2205,8 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
   const [lagreNotat, setLagreNotat] = useState(false)
   const [mottakerId, setMottakerId] = useState<string>('')
   const [teknikere, setTeknikere] = useState<{id: string, navn: string}[]>([])
+  const [visAlleOrdre, setVisAlleOrdre] = useState(false)
+  const [visAlleOppgaver, setVisAlleOppgaver] = useState(false)
 
   // Last inn teknikere for dropdown
   useEffect(() => {
@@ -2602,17 +2604,27 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
             
             {/* Ordre */}
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                <ClipboardList className="w-4 h-4" />
-                Ordre ({ordre.length})
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                  <ClipboardList className="w-4 h-4" />
+                  Ordre ({visAlleOrdre ? ordre.length : ordre.filter(o => o.status !== 'Fullført' && o.status !== 'Fakturert').length})
+                </h3>
+                <button
+                  onClick={() => setVisAlleOrdre(!visAlleOrdre)}
+                  className="text-xs text-primary hover:text-primary-600 transition-colors"
+                >
+                  {visAlleOrdre ? 'Vis kun aktive' : 'Vis alle'}
+                </button>
+              </div>
               {loadingOrdre ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="w-5 h-5 animate-spin text-primary" />
                 </div>
               ) : ordre.length > 0 ? (
                 <div className="space-y-2">
-                  {ordre.map((o) => (
+                  {ordre
+                    .filter(o => visAlleOrdre || (o.status !== 'Fullført' && o.status !== 'Fakturert'))
+                    .map((o) => (
                     <div
                       key={o.id}
                       className="p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors cursor-pointer"
@@ -2652,17 +2664,27 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
 
             {/* Oppgaver */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                Oppgaver ({oppgaver.length})
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  Oppgaver ({visAlleOppgaver ? oppgaver.length : oppgaver.filter(o => o.status !== 'Fullført' && o.status !== 'Avbrutt').length})
+                </h3>
+                <button
+                  onClick={() => setVisAlleOppgaver(!visAlleOppgaver)}
+                  className="text-xs text-primary hover:text-primary-600 transition-colors"
+                >
+                  {visAlleOppgaver ? 'Vis kun aktive' : 'Vis alle'}
+                </button>
+              </div>
               {loadingOppgaver ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="w-5 h-5 animate-spin text-primary" />
                 </div>
               ) : oppgaver.length > 0 ? (
                 <div className="space-y-2">
-                  {oppgaver.map((opp) => (
+                  {oppgaver
+                    .filter(o => visAlleOppgaver || (o.status !== 'Fullført' && o.status !== 'Avbrutt'))
+                    .map((opp) => (
                     <div
                       key={opp.id}
                       className="p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors cursor-pointer"
