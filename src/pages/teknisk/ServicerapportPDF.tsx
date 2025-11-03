@@ -11,6 +11,7 @@ interface Servicerapport {
   tekniker_navn: string
   header: string
   rapport_innhold: string
+  image_urls?: string[]
   opprettet_dato?: string
   sist_oppdatert?: string
 }
@@ -21,6 +22,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Helvetica',
     backgroundColor: '#ffffff',
+  },
+  imagePage: {
+    padding: 40,
+    fontSize: 11,
+    fontFamily: 'Helvetica',
+    backgroundColor: '#ffffff',
+  },
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  imageContainer: {
+    width: '48%',
+    marginBottom: 15,
+    border: '1px solid #e0e0e0',
+    padding: 5,
+  },
+  image: {
+    width: '100%',
+    maxHeight: 200,
+  },
+  imageCaption: {
+    fontSize: 8,
+    color: '#666',
+    marginTop: 5,
+    textAlign: 'center',
   },
   header: {
     marginBottom: 30,
@@ -106,9 +134,10 @@ const styles = StyleSheet.create({
 
 interface ServicerapportPDFDocumentProps {
   rapport: Servicerapport
+  imageDataUrls?: string[]
 }
 
-function ServicerapportPDFDocument({ rapport }: ServicerapportPDFDocumentProps) {
+function ServicerapportPDFDocument({ rapport, imageDataUrls = [] }: ServicerapportPDFDocumentProps) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -163,13 +192,194 @@ function ServicerapportPDFDocument({ rapport }: ServicerapportPDFDocumentProps) 
           </Text>
         </View>
       </Page>
+
+      {/* Image Pages - 4 bilder per side */}
+      {imageDataUrls.length > 0 && (() => {
+        const imagesPerPage = 4
+        const totalPages = Math.ceil(imageDataUrls.length / imagesPerPage)
+        
+        return Array.from({ length: totalPages }, (_, pageIndex) => {
+          const startIndex = pageIndex * imagesPerPage
+          const endIndex = Math.min(startIndex + imagesPerPage, imageDataUrls.length)
+          const pageImages = imageDataUrls.slice(startIndex, endIndex)
+          
+          return (
+            <Page key={`image-page-${pageIndex}`} size="A4" style={styles.imagePage}>
+              {/* Header */}
+              <View style={styles.header}>
+                <Image src={BSV_LOGO} style={styles.logo} />
+                <Text style={styles.mainTitle}>Servicerapport - Bilder</Text>
+                <Text style={styles.title}>{rapport.header}</Text>
+                {totalPages > 1 && (
+                  <Text style={{ fontSize: 9, color: '#666', marginTop: 5 }}>
+                    Side {pageIndex + 1} av {totalPages}
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* Images Grid */}
+              <View style={styles.imageGrid}>
+                {pageImages.map((dataUrl, imageIndex) => {
+                  const globalIndex = startIndex + imageIndex
+                  console.log(`🖼️ Rendering bilde ${globalIndex + 1} i PDF, data URL lengde:`, dataUrl?.length || 0)
+                  return (
+                    <View key={globalIndex} style={styles.imageContainer}>
+                      {dataUrl && dataUrl.length > 0 ? (
+                        <Image src={dataUrl} style={styles.image} />
+                      ) : (
+                        <View style={{ ...styles.image, backgroundColor: '#f0f0f0', alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ fontSize: 10, color: '#999' }}>Bilde kunne ikke lastes</Text>
+                        </View>
+                      )}
+                      <Text style={styles.imageCaption}>Bilde {globalIndex + 1}</Text>
+                    </View>
+                  )
+                })}
+              </View>
+
+              {/* Footer */}
+              <View style={styles.footer}>
+                <Text style={styles.footerCompany}>Brannteknisk Service og Vedlikehold AS</Text>
+                <Text style={styles.footerInfo}>
+                  Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600
+                </Text>
+                <Text style={styles.footerInfo}>
+                  Adresse: Sælenveien 44, 5151 Straumsgrend
+                </Text>
+                <Text style={{ fontSize: 7, color: '#999', marginTop: 5 }}>
+                  Generert: {new Date().toLocaleDateString('nb-NO')} {new Date().toLocaleTimeString('nb-NO')}
+                </Text>
+              </View>
+            </Page>
+          )
+        })
+      })()}
     </Document>
   )
 }
 
 export async function generateServicerapportPDF(rapport: Servicerapport, saveToStorage: boolean = false) {
   try {
-    const blob = await pdf(<ServicerapportPDFDocument rapport={rapport} />).toBlob()
+    console.log('📄 Genererer PDF for rapport:', rapport.id)
+    console.log('   Anlegg:', rapport.anlegg_navn)
+    console.log('   Bilder:', rapport.image_urls?.length || 0)
+    
+    // Hent bilder fra storage hvis de finnes
+    let imageDataUrls: string[] = []
+    if (rapport.image_urls && rapport.image_urls.length > 0) {
+      const { supabase } = await import('@/lib/supabase')
+      
+      console.log('🖼️ Laster ned bilder fra storage...')
+      for (const imagePath of rapport.image_urls) {
+        try {
+          console.log('   Laster ned:', imagePath)
+          
+          // Prøv først å laste ned bildet
+          const { data: blob, error: downloadError } = await supabase.storage
+            .from('anlegg.dokumenter')
+            .download(imagePath)
+          
+          if (downloadError) {
+            console.error('❌ Feil ved nedlasting av bilde:', downloadError)
+            console.log('   Prøver signed URL i stedet...')
+            
+            // Fallback: Bruk signed URL
+            const { data: signedData, error: signedError } = await supabase.storage
+              .from('anlegg.dokumenter')
+              .createSignedUrl(imagePath, 60 * 60) // 1 time
+            
+            if (signedError || !signedData?.signedUrl) {
+              console.error('❌ Kunne ikke lage signed URL:', signedError)
+              continue
+            }
+            
+            console.log('   ✅ Signed URL opprettet')
+            
+            // Last ned via signed URL
+            const response = await fetch(signedData.signedUrl)
+            if (!response.ok) {
+              console.error('❌ Kunne ikke laste ned via signed URL:', response.status)
+              continue
+            }
+            
+            const arrayBuffer = await response.arrayBuffer()
+            const base64 = btoa(
+              new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+            )
+            const mimeType = response.headers.get('content-type') || 'image/jpeg'
+            const dataUrl = `data:${mimeType};base64,${base64}`
+            
+            console.log('   ✅ Konvertert til data URL via signed URL, lengde:', dataUrl.length)
+            imageDataUrls.push(dataUrl)
+            continue
+          }
+          
+          console.log('   ✅ Lastet ned, størrelse:', blob.size, 'bytes')
+          
+          // Komprimer bildet hvis det er for stort (over 500KB)
+          let finalBlob = blob
+          if (blob.size > 500000) {
+            console.log('   🔄 Komprimerer bilde (for stort)...')
+            try {
+              // Last bilde til canvas for komprimering
+              const imageBitmap = await createImageBitmap(blob)
+              const canvas = document.createElement('canvas')
+              
+              // Beregn ny størrelse (maks 1200px bredde)
+              const maxWidth = 1200
+              const scale = Math.min(1, maxWidth / imageBitmap.width)
+              canvas.width = imageBitmap.width * scale
+              canvas.height = imageBitmap.height * scale
+              
+              const ctx = canvas.getContext('2d')
+              if (ctx) {
+                ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height)
+                
+                // Konverter til blob med kvalitet 0.7
+                finalBlob = await new Promise<Blob>((resolve) => {
+                  canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.7)
+                })
+                
+                console.log('   ✅ Komprimert fra', blob.size, 'til', finalBlob.size, 'bytes')
+              }
+            } catch (error) {
+              console.error('   ⚠️ Kunne ikke komprimere, bruker original:', error)
+            }
+          }
+          
+          // Konverter blob til data URL
+          const reader = new FileReader()
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => {
+              const result = reader.result as string
+              console.log('   📊 Data URL starter med:', result.substring(0, 30))
+              resolve(result)
+            }
+            reader.onerror = (error) => {
+              console.error('   ❌ FileReader error:', error)
+              reject(error)
+            }
+            reader.readAsDataURL(finalBlob)
+          })
+          
+          console.log('   ✅ Konvertert til data URL, lengde:', dataUrl.length)
+          imageDataUrls.push(dataUrl)
+        } catch (error) {
+          console.error('❌ Feil ved konvertering av bilde:', error)
+        }
+      }
+      console.log('✅ Totalt', imageDataUrls.length, 'bilder lastet')
+      console.log('📊 Data URL info:')
+      imageDataUrls.forEach((url, i) => {
+        console.log(`   Bilde ${i + 1}: ${url.substring(0, 50)}... (${url.length} tegn)`)
+      })
+    }
+    
+    console.log('🎨 Genererer PDF-dokument med', imageDataUrls.length, 'bilder...')
+    const blob = await pdf(<ServicerapportPDFDocument rapport={rapport} imageDataUrls={imageDataUrls} />).toBlob()
+    console.log('✅ PDF generert, størrelse:', blob.size, 'bytes')
     
     if (saveToStorage && rapport.anlegg_id) {
       // Importer supabase dynamisk for å unngå sirkulære avhengigheter

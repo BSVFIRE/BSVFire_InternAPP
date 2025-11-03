@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Save, Eye, Sparkles } from 'lucide-react'
+import { ArrowLeft, Save, Eye, Sparkles, Upload, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { BSV_LOGO } from '@/assets/logoBase64'
@@ -14,6 +14,7 @@ interface Servicerapport {
   tekniker_navn: string
   header: string
   rapport_innhold: string
+  image_urls?: string[]
   opprettet_dato?: string
   sist_oppdatert?: string
 }
@@ -65,10 +66,15 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
   const [aiLoading, setAiLoading] = useState(false)
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
   const [savedRapportData, setSavedRapportData] = useState<{ kundeId: string; anleggId: string } | null>(null)
+  const [selectedImages, setSelectedImages] = useState<File[]>([])
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([])
+  const [existingImagePaths, setExistingImagePaths] = useState<string[]>([])
+  const [uploadingImages, setUploadingImages] = useState(false)
 
   useEffect(() => {
     loadAnlegg()
     loadAnsatte()
+    loadExistingImages()
   }, [])
 
   useEffect(() => {
@@ -78,6 +84,30 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
       setAnleggDetails(null)
     }
   }, [formData.anlegg_id, anlegg])
+
+  async function loadExistingImages() {
+    // Last inn eksisterende bilder hvis rapporten har noen
+    if (rapport.image_urls && rapport.image_urls.length > 0) {
+      const urls: string[] = []
+      
+      for (const imagePath of rapport.image_urls) {
+        try {
+          const { data } = await supabase.storage
+            .from('anlegg.dokumenter')
+            .createSignedUrl(imagePath, 60 * 60) // 1 time
+          
+          if (data?.signedUrl) {
+            urls.push(data.signedUrl)
+          }
+        } catch (error) {
+          console.error('Feil ved lasting av bilde:', error)
+        }
+      }
+      
+      setImagePreviewUrls(urls)
+      setExistingImagePaths(rapport.image_urls)
+    }
+  }
 
   useEffect(() => {
     // Filter anlegg based on search
@@ -263,8 +293,18 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
     e.preventDefault()
     setLoading(true)
     try {
-      // Lagre rapporten først og få tilbake den lagrede rapporten med ID
-      const savedRapport = await onSave(formData)
+      // Last opp bilder først hvis det finnes noen
+      let imageUrls: string[] = existingImagePaths // Start med eksisterende bilder
+      if (selectedImages.length > 0) {
+        setUploadingImages(true)
+        const uploadedUrls = await uploadImages(selectedImages, formData.anlegg_id)
+        imageUrls = [...imageUrls, ...uploadedUrls]
+        setUploadingImages(false)
+      }
+
+      // Lagre rapporten med bildene
+      const rapportWithImages = { ...formData, image_urls: imageUrls }
+      const savedRapport = await onSave(rapportWithImages)
       
       // Generer og lagre PDF til storage
       if (savedRapport.anlegg_id && savedRapport.id) {
@@ -309,6 +349,68 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
     setShowSendRapportDialog(false)
     setLoading(false)
     onCancel() // Lukk editoren og gå tilbake til listen
+  }
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || [])
+    const imageFiles = files.filter(file => file.type.startsWith('image/'))
+    
+    if (imageFiles.length !== files.length) {
+      alert('Kun bildefiler er tillatt (JPG, PNG, etc.)')
+    }
+    
+    // Opprett preview URLs
+    const newPreviewUrls = imageFiles.map(file => URL.createObjectURL(file))
+    setImagePreviewUrls(prev => [...prev, ...newPreviewUrls])
+    setSelectedImages(prev => [...prev, ...imageFiles])
+  }
+
+  function removeImage(index: number) {
+    const existingCount = existingImagePaths.length
+    
+    if (index < existingCount) {
+      // Fjern eksisterende bilde
+      setExistingImagePaths(prev => prev.filter((_, i) => i !== index))
+      setImagePreviewUrls(prev => prev.filter((_, i) => i !== index))
+    } else {
+      // Fjern nytt bilde
+      const newImageIndex = index - existingCount
+      URL.revokeObjectURL(imagePreviewUrls[index])
+      setImagePreviewUrls(prev => prev.filter((_, i) => i !== index))
+      setSelectedImages(prev => prev.filter((_, i) => i !== newImageIndex))
+    }
+  }
+
+  async function uploadImages(images: File[], anleggId: string): Promise<string[]> {
+    const uploadedUrls: string[] = []
+    
+    for (const image of images) {
+      try {
+        const timestamp = Date.now()
+        const safeFileName = image.name.replace(/[^a-zA-Z0-9.]/g, '_')
+        const fileName = `servicerapport_${timestamp}_${safeFileName}`
+        const filePath = `anlegg/${anleggId}/servicerapporter/${fileName}`
+        
+        const { error: uploadError } = await supabase.storage
+          .from('anlegg.dokumenter')
+          .upload(filePath, image, {
+            contentType: image.type,
+            upsert: false
+          })
+        
+        if (uploadError) {
+          console.error('Feil ved opplasting av bilde:', uploadError)
+          throw uploadError
+        }
+        
+        uploadedUrls.push(filePath)
+      } catch (error) {
+        console.error('Feil ved opplasting av bilde:', error)
+        throw error
+      }
+    }
+    
+    return uploadedUrls
   }
 
   if (showPreview) {
@@ -360,6 +462,27 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
           <div className="prose prose-sm max-w-none">
             <div className="whitespace-pre-wrap">{formData.rapport_innhold || 'Ingen innhold ennå...'}</div>
           </div>
+
+          {/* Images Preview */}
+          {imagePreviewUrls.length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold mb-4">Bilder</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {imagePreviewUrls.map((url, index) => (
+                  <div key={index} className="border border-gray-300 rounded-lg overflow-hidden">
+                    <img
+                      src={url}
+                      alt={`Bilde ${index + 1}`}
+                      className="w-full h-48 object-contain bg-gray-50"
+                    />
+                    <div className="p-2 bg-gray-100 text-center">
+                      <p className="text-xs text-gray-600">Bilde {index + 1}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           
           {/* Footer */}
           <div className="mt-12 pt-6 border-t border-gray-300">
@@ -586,6 +709,81 @@ Eksempel:
           </div>
         </div>
 
+        {/* Image Upload Section */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Bilder</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Vises på side 2 i PDF</p>
+          </div>
+          
+          <div className="space-y-4">
+            {/* File input */}
+            <label className="block">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageSelect}
+                className="hidden"
+                id="image-upload"
+              />
+              <label
+                htmlFor="image-upload"
+                className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 dark:border-gray-600 rounded-lg cursor-pointer hover:border-primary transition-colors"
+              >
+                <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                <span className="text-sm text-gray-600 dark:text-gray-400">Klikk for å velge bilder</span>
+                <span className="text-xs text-gray-500 mt-1">eller dra og slipp her</span>
+              </label>
+            </label>
+
+            {/* Image previews */}
+            {imagePreviewUrls.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Bilder ({imagePreviewUrls.length})
+                  {existingImagePaths.length > 0 && (
+                    <span className="text-xs text-gray-500 ml-2">
+                      ({existingImagePaths.length} eksisterende, {selectedImages.length} nye)
+                    </span>
+                  )}
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {imagePreviewUrls.map((url, index) => {
+                    const isExisting = index < existingImagePaths.length
+                    const fileName = isExisting 
+                      ? existingImagePaths[index].split('/').pop() 
+                      : selectedImages[index - existingImagePaths.length]?.name
+                    
+                    return (
+                      <div key={index} className="relative group">
+                        <img
+                          src={url}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute top-2 right-2 p-1 bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-4 h-4 text-white" />
+                        </button>
+                        <div className="absolute bottom-2 left-2 right-2 bg-black/50 rounded px-2 py-1">
+                          <p className="text-xs text-white truncate">{fileName}</p>
+                          {isExisting && (
+                            <p className="text-xs text-green-400">Eksisterende</p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Action Buttons */}
         <div className="flex items-center justify-between">
           <button
@@ -606,11 +804,11 @@ Eksempel:
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || uploadingImages}
               className="btn-primary flex items-center gap-2"
             >
               <Save className="w-5 h-5" />
-              {loading ? 'Lagrer og genererer...' : 'Lagre og generer rapport'}
+              {uploadingImages ? 'Laster opp bilder...' : loading ? 'Lagrer og genererer...' : 'Lagre og generer rapport'}
             </button>
           </div>
         </div>

@@ -13,6 +13,7 @@ interface Servicerapport {
   tekniker_navn: string
   header: string
   rapport_innhold: string
+  image_urls?: string[]
   opprettet_dato?: string
   sist_oppdatert?: string
 }
@@ -107,11 +108,21 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
             rapport_dato: rapport.rapport_dato,
             tekniker_navn: rapport.tekniker_navn,
             header: rapport.header,
-            rapport_innhold: rapport.rapport_innhold
+            rapport_innhold: rapport.rapport_innhold,
+            image_urls: rapport.image_urls || []
           })
           .eq('id', rapport.id)
 
         if (error) throw error
+        
+        // Hent anleggsnavn for den oppdaterte rapporten
+        const { data: anleggData } = await supabase
+          .from('anlegg')
+          .select('anleggsnavn')
+          .eq('id', rapport.anlegg_id)
+          .single()
+        
+        savedRapport = { ...rapport, anlegg_navn: anleggData?.anleggsnavn }
       } else {
         // Create new
         const { data, error } = await supabase
@@ -122,14 +133,27 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
             rapport_dato: rapport.rapport_dato,
             tekniker_navn: rapport.tekniker_navn,
             header: rapport.header,
-            rapport_innhold: rapport.rapport_innhold
+            rapport_innhold: rapport.rapport_innhold,
+            image_urls: rapport.image_urls || []
           })
           .select()
           .single()
 
         if (error) throw error
         if (data) {
-          savedRapport = { ...rapport, id: data.id }
+          // Hent anleggsnavn for den nye rapporten
+          const { data: anleggData } = await supabase
+            .from('anlegg')
+            .select('anleggsnavn')
+            .eq('id', rapport.anlegg_id)
+            .single()
+          
+          savedRapport = { 
+            ...rapport, 
+            id: data.id,
+            anlegg_navn: anleggData?.anleggsnavn,
+            image_urls: data.image_urls || []
+          }
         }
       }
 
