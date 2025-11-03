@@ -26,6 +26,8 @@ import { PrisAdministrasjon } from './pages/PrisAdministrasjon'
 import { AdminAIEmbeddings } from './pages/AdminAIEmbeddings'
 import { AdminAIKnowledge } from './pages/AdminAIKnowledge'
 import { Moter } from './pages/Moter'
+import { Kontrollplan } from './pages/Kontrollplan'
+import { Meldinger } from './pages/Meldinger'
 import PowerOfficeTest from './pages/PowerOfficeTest'
 import { OfflineIndicator } from './components/OfflineIndicator'
 import { AIAssistant } from './components/AIAssistant'
@@ -82,9 +84,11 @@ function App() {
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/kunder" element={<Kunder />} />
                     <Route path="/anlegg" element={<Anlegg />} />
+                    <Route path="/kontrollplan" element={<Kontrollplan />} />
                     <Route path="/kontaktpersoner" element={<Kontaktpersoner />} />
                     <Route path="/ordre" element={<Ordre />} />
                     <Route path="/oppgaver" element={<Oppgaver />} />
+                    <Route path="/meldinger" element={<Meldinger />} />
                     <Route path="/prosjekter" element={<Prosjekter />} />
                     <Route path="/moter" element={<Moter />} />
                     <Route path="/rapporter" element={<Rapporter />} />

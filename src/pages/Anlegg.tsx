@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send } from 'lucide-react'
+import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send } from 'lucide-react'
 import { GoogleMapsAddressAutocomplete } from '@/components/GoogleMapsAddressAutocomplete'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -32,6 +32,7 @@ interface Anlegg {
   roykluker_fullfort: boolean | null
   slukkeutstyr_fullfort: boolean | null
   ekstern_fullfort: boolean | null
+  skjult: boolean | null
 }
 
 interface Kunde {
@@ -68,12 +69,34 @@ interface InternKommentar {
   oppdatert_dat: string | null
 }
 
+interface Ordre {
+  id: string
+  ordrenr: string | null
+  status: string | null
+  tekniker: string | null
+  opprettet: string
+}
+
+interface Oppgave {
+  id: string
+  tittel: string
+  status: string | null
+  tekniker_id: string | null
+  tekniker_navn?: string | null
+  opprettet: string
+}
+
 type SortOption = 'navn_asc' | 'navn_desc' | 'kunde' | 'poststed' | 'status' | 'kontroll_maaned'
 
 export function Anlegg() {
   const navigate = useNavigate()
   const location = useLocation()
-  const state = location.state as { editAnleggId?: string; viewAnleggId?: string } | null
+  const state = location.state as { 
+    editAnleggId?: string; 
+    viewAnleggId?: string;
+    returnTo?: string;
+    kontrollplanState?: any;
+  } | null
   
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
   const [kunder, setKunder] = useState<Kunde[]>([])
@@ -83,6 +106,8 @@ export function Anlegg() {
   const [selectedAnlegg, setSelectedAnlegg] = useState<Anlegg | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'view'>('list')
   const [sortBy, setSortBy] = useState<SortOption>('navn_asc')
+  const [scrollPosition, setScrollPosition] = useState(0)
+  const [visSkjulteAnlegg, setVisSkjulteAnlegg] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -111,6 +136,16 @@ export function Anlegg() {
       }
     }
   }, [state?.viewAnleggId, anlegg])
+
+  // Gjenopprett scroll-posisjon når vi går tilbake til listen
+  useEffect(() => {
+    if (viewMode === 'list' && scrollPosition > 0) {
+      // Bruk setTimeout for å sikre at DOM er oppdatert
+      setTimeout(() => {
+        window.scrollTo(0, scrollPosition)
+      }, 0)
+    }
+  }, [viewMode, scrollPosition])
 
   async function loadData() {
     try {
@@ -148,17 +183,51 @@ export function Anlegg() {
     }
   }
 
+  async function toggleSkjultAnlegg(id: string, currentSkjult: boolean) {
+    try {
+      const { error } = await supabase
+        .from('anlegg')
+        .update({ skjult: !currentSkjult })
+        .eq('id', id)
+      
+      if (error) throw error
+      await loadData()
+    } catch (error) {
+      log.error('Feil ved endring av skjult-status', { error, anleggId: id })
+      alert('Kunne ikke endre skjult-status')
+    }
+  }
+
   function getKundeNavn(kundenr: string): string {
     const kunde = kunder.find(k => k.id === kundenr)
     return kunde?.navn || 'Ukjent kunde'
   }
 
-  const filteredAnlegg = anlegg.filter(a =>
-    a.anleggsnavn.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.adresse?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.poststed?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    getKundeNavn(a.kundenr).toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Tell skjulte anlegg som matcher søket
+  const skjulteAnleggSomMatcherSok = anlegg.filter(a => {
+    if (!a.skjult) return false
+    return (
+      a.anleggsnavn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.adresse?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.poststed?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getKundeNavn(a.kundenr).toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }).length
+
+  const filteredAnlegg = anlegg.filter(a => {
+    // Filtrer ut skjulte anlegg hvis toggle er av
+    if (!visSkjulteAnlegg && a.skjult) {
+      return false
+    }
+    
+    // Søkefiltrering
+    return (
+      a.anleggsnavn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.adresse?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.poststed?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getKundeNavn(a.kundenr).toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  })
 
   // Sortering
   const sortedAnlegg = [...filteredAnlegg].sort((a, b) => {
@@ -252,8 +321,18 @@ export function Anlegg() {
         kundeNavn={getKundeNavn(selectedAnlegg.kundenr)}
         onEdit={() => setViewMode('edit')}
         onClose={() => {
-          setViewMode('list')
-          setSelectedAnlegg(null)
+          // Hvis vi kom fra kontrollplan, naviger tilbake dit
+          if (state?.returnTo === 'kontrollplan' && state?.kontrollplanState) {
+            navigate('/kontrollplan', {
+              state: {
+                fromAnlegg: true,
+                kontrollplanState: state.kontrollplanState
+              }
+            })
+          } else {
+            setViewMode('list')
+            setSelectedAnlegg(null)
+          }
         }}
       />
     )
@@ -306,6 +385,17 @@ export function Anlegg() {
               <option value="status">Status</option>
             </select>
           </div>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={visSkjulteAnlegg}
+                onChange={(e) => setVisSkjulteAnlegg(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 dark:border-gray-700 text-primary focus:ring-primary"
+              />
+              <span className="text-sm text-gray-600 dark:text-gray-400">Vis skjulte</span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -350,13 +440,13 @@ export function Anlegg() {
         </div>
         <div className="card">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-500/10 rounded-lg">
-              <Calendar className="w-6 h-6 text-blue-500" />
+            <div className="p-3 bg-orange-500/10 rounded-lg">
+              <EyeOff className="w-6 h-6 text-orange-500" />
             </div>
             <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Planlagt</p>
+              <p className="text-gray-400 dark:text-gray-400 text-sm">Skjulte</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {anlegg.filter(a => a.kontroll_status === ANLEGG_STATUSER.PLANLAGT).length}
+                {anlegg.filter(a => a.skjult).length}
               </p>
             </div>
           </div>
@@ -369,8 +459,13 @@ export function Anlegg() {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Anleggsliste
             <span className="ml-2 text-sm text-gray-400 dark:text-gray-400 font-normal">
-              ({sortedAnlegg.length} {sortedAnlegg.length === 1 ? 'anlegg' : 'anlegg'})
+              ({sortedAnlegg.length} anlegg)
             </span>
+            {anlegg.filter(a => a.skjult).length > 0 && (
+              <span className="ml-3 text-sm text-orange-500 dark:text-orange-400 font-normal">
+                Skjulte ({anlegg.filter(a => a.skjult).length} anlegg)
+              </span>
+            )}
           </h2>
         </div>
         
@@ -380,6 +475,17 @@ export function Anlegg() {
             <p className="text-gray-400 dark:text-gray-400">
               {searchTerm ? 'Ingen anlegg funnet' : 'Ingen anlegg registrert ennå'}
             </p>
+            {searchTerm && !visSkjulteAnlegg && skjulteAnleggSomMatcherSok > 0 && (
+              <p className="text-orange-500 dark:text-orange-400 text-sm mt-2">
+                {skjulteAnleggSomMatcherSok} skjult{skjulteAnleggSomMatcherSok === 1 ? 'e' : ''} anlegg funnet. 
+                <button 
+                  onClick={() => setVisSkjulteAnlegg(true)}
+                  className="ml-1 underline hover:text-orange-600"
+                >
+                  Vis skjulte
+                </button>
+              </p>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -399,18 +505,29 @@ export function Anlegg() {
                   <tr
                     key={anlegg.id}
                     onClick={() => {
+                      // Lagre scroll-posisjon før vi går til visning
+                      setScrollPosition(window.scrollY)
                       setSelectedAnlegg(anlegg)
                       setViewMode('view')
                     }}
-                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer"
+                    className={`border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer ${
+                      anlegg.skjult ? 'opacity-50' : ''
+                    }`}
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                           <Building2 className="w-5 h-5 text-primary" />
                         </div>
-                        <div>
-                          <p className="text-gray-900 dark:text-white font-medium">{anlegg.anleggsnavn}</p>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-gray-900 dark:text-white font-medium">{anlegg.anleggsnavn}</p>
+                            {anlegg.kontroll_maaned === 'NA' && (
+                              <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                Ikke kontaktskunde
+                              </span>
+                            )}
+                          </div>
                           {anlegg.kontroll_maaned && anlegg.kontroll_maaned !== 'NA' && (
                             <p className="text-sm text-gray-400 dark:text-gray-400">Kontroll: {anlegg.kontroll_maaned}</p>
                           )}
@@ -487,6 +604,8 @@ export function Anlegg() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
+                            // Lagre scroll-posisjon før vi går til visning
+                            setScrollPosition(window.scrollY)
                             setSelectedAnlegg(anlegg)
                             setViewMode('view')
                           }}
@@ -498,6 +617,8 @@ export function Anlegg() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
+                            // Lagre scroll-posisjon før vi går til redigering
+                            setScrollPosition(window.scrollY)
                             setSelectedAnlegg(anlegg)
                             setViewMode('edit')
                           }}
@@ -505,6 +626,20 @@ export function Anlegg() {
                           title="Rediger"
                         >
                           <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleSkjultAnlegg(anlegg.id, anlegg.skjult || false)
+                          }}
+                          className={`p-2 text-gray-400 dark:text-gray-400 rounded-lg transition-colors ${
+                            anlegg.skjult 
+                              ? 'hover:text-green-400 hover:bg-green-500/10' 
+                              : 'hover:text-orange-400 hover:bg-orange-500/10'
+                          }`}
+                          title={anlegg.skjult ? 'Vis anlegg' : 'Skjul anlegg'}
+                        >
+                          {anlegg.skjult ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                         </button>
                         <button
                           onClick={(e) => {
@@ -1325,6 +1460,11 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
           <div>
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Status
+              {anlegg && formData.kontroll_type.length > 0 && (
+                <span className="text-xs text-gray-400 dark:text-gray-400 ml-2">
+                  (oppdateres automatisk når alle tjenester er fullført)
+                </span>
+              )}
             </label>
             <select
               value={formData.kontroll_status}
@@ -1700,14 +1840,20 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
   const [kontaktpersoner, setKontaktpersoner] = useState<Kontaktperson[]>([])
   const [dokumenter, setDokumenter] = useState<Dokument[]>([])
   const [interneNotater, setInterneNotater] = useState<InternKommentar[]>([])
+  const [ordre, setOrdre] = useState<Ordre[]>([])
+  const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingDokumenter, setLoadingDokumenter] = useState(true)
   const [loadingNotater, setLoadingNotater] = useState(true)
+  const [loadingOrdre, setLoadingOrdre] = useState(true)
+  const [loadingOppgaver, setLoadingOppgaver] = useState(true)
 
   useEffect(() => {
     loadKontaktpersoner()
     loadDokumenter()
     loadInterneNotater()
+    loadOrdre()
+    loadOppgaver()
   }, [anlegg.id])
 
   async function settPrimaerKontakt(kontaktpersonId: string) {
@@ -1789,14 +1935,15 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
     }
   }
 
-  async function opprettInterntNotat(notat: string) {
+  async function opprettInterntNotat(notat: string, mottakerId?: string) {
     try {
       const { data, error } = await supabase
         .from('intern_kommentar')
         .insert([{
           anlegg_id: anlegg.id,
           kunde: kundeNavn,
-          intern_kommentar: notat
+          intern_kommentar: notat,
+          mottaker_id: mottakerId || null
         }])
         .select()
         .single()
@@ -1904,6 +2051,95 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
     }
   }
 
+  async function loadOrdre() {
+    try {
+      const { data, error } = await supabase
+        .from('ordre')
+        .select(`
+          id,
+          ordre_nummer,
+          status,
+          tekniker_id,
+          opprettet_dato
+        `)
+        .eq('anlegg_id', anlegg.id)
+        .order('opprettet_dato', { ascending: false })
+
+      if (error) throw error
+      
+      // Hent tekniker-navn for hver ordre
+      const ordreWithTeknikerNames = await Promise.all(
+        (data || []).map(async (ordre) => {
+          let teknikerNavn = null
+          if (ordre.tekniker_id) {
+            const { data: tekniker } = await supabase
+              .from('ansatte')
+              .select('navn')
+              .eq('id', ordre.tekniker_id)
+              .single()
+            teknikerNavn = tekniker?.navn || null
+          }
+          return {
+            id: ordre.id,
+            ordrenr: ordre.ordre_nummer,
+            status: ordre.status,
+            tekniker: teknikerNavn,
+            opprettet: ordre.opprettet_dato
+          }
+        })
+      )
+      
+      setOrdre(ordreWithTeknikerNames)
+    } catch (error) {
+      console.error('Feil ved lasting av ordre:', error)
+    } finally {
+      setLoadingOrdre(false)
+    }
+  }
+
+  async function loadOppgaver() {
+    try {
+      const { data, error } = await supabase
+        .from('oppgaver')
+        .select(`
+          id,
+          tittel,
+          status,
+          tekniker_id,
+          opprettet
+        `)
+        .eq('anlegg_id', anlegg.id)
+        .order('opprettet', { ascending: false })
+
+      if (error) throw error
+      
+      // Hent tekniker-navn for hver oppgave
+      const oppgaverWithTeknikerNames = await Promise.all(
+        (data || []).map(async (oppgave) => {
+          let teknikerNavn = null
+          if (oppgave.tekniker_id) {
+            const { data: tekniker } = await supabase
+              .from('ansatte')
+              .select('navn')
+              .eq('id', oppgave.tekniker_id)
+              .single()
+            teknikerNavn = tekniker?.navn || null
+          }
+          return {
+            ...oppgave,
+            tekniker_navn: teknikerNavn
+          }
+        })
+      )
+      
+      setOppgaver(oppgaverWithTeknikerNames)
+    } catch (error) {
+      console.error('Feil ved lasting av oppgaver:', error)
+    } finally {
+      setLoadingOppgaver(false)
+    }
+  }
+
   return (
     <AnleggDetails
       anlegg={anlegg}
@@ -1911,9 +2147,13 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
       kontaktpersoner={kontaktpersoner}
       dokumenter={dokumenter}
       interneNotater={interneNotater}
+      ordre={ordre}
+      oppgaver={oppgaver}
       loadingKontakter={loading}
       loadingDokumenter={loadingDokumenter}
       loadingNotater={loadingNotater}
+      loadingOrdre={loadingOrdre}
+      loadingOppgaver={loadingOppgaver}
       onEdit={onEdit}
       onClose={onClose}
       onSettPrimaer={settPrimaerKontakt}
@@ -1929,19 +2169,37 @@ interface AnleggDetailsComponentProps {
   kontaktpersoner: Kontaktperson[]
   dokumenter: Dokument[]
   interneNotater: InternKommentar[]
+  ordre: Ordre[]
+  oppgaver: Oppgave[]
   loadingKontakter: boolean
   loadingDokumenter: boolean
   loadingNotater: boolean
+  loadingOrdre: boolean
+  loadingOppgaver: boolean
   onEdit: () => void
   onClose: () => void
-  onSettPrimaer: (kontaktpersonId: string) => void
-  onOpprettNotat: (notat: string) => Promise<boolean>
+  onSettPrimaer: (kontaktpersonId: string) => Promise<void>
+  onOpprettNotat: (notat: string, mottakerId?: string) => Promise<boolean>
 }
 
-function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interneNotater, loadingKontakter, loadingDokumenter, loadingNotater, onEdit, onClose, onSettPrimaer, onOpprettNotat }: AnleggDetailsComponentProps) {
+function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interneNotater, ordre, oppgaver, loadingKontakter, loadingDokumenter, loadingNotater, loadingOrdre, loadingOppgaver, onEdit, onClose, onSettPrimaer, onOpprettNotat }: AnleggDetailsComponentProps) {
   const navigate = useNavigate()
   const [nyttNotat, setNyttNotat] = useState('')
   const [lagreNotat, setLagreNotat] = useState(false)
+  const [mottakerId, setMottakerId] = useState<string>('')
+  const [teknikere, setTeknikere] = useState<{id: string, navn: string}[]>([])
+
+  // Last inn teknikere for dropdown
+  useEffect(() => {
+    async function loadTeknikere() {
+      const { data } = await supabase
+        .from('ansatte')
+        .select('id, navn')
+        .order('navn')
+      setTeknikere(data || [])
+    }
+    loadTeknikere()
+  }, [])
 
   function handleKontrolltypeClick(type: string) {
     // Mapping fra kontrolltype til rapporttype
@@ -1970,11 +2228,12 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
     if (!nyttNotat.trim()) return
 
     setLagreNotat(true)
-    const success = await onOpprettNotat(nyttNotat)
+    const success = await onOpprettNotat(nyttNotat, mottakerId || undefined)
     setLagreNotat(false)
 
     if (success) {
       setNyttNotat('')
+      setMottakerId('')
     }
   }
 
@@ -2232,10 +2491,28 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
             {/* Opprett nytt notat */}
             <form onSubmit={handleOpprettNotat} className="mb-6">
               <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Send til tekniker (valgfritt)
+                  </label>
+                  <select
+                    value={mottakerId}
+                    onChange={(e) => setMottakerId(e.target.value)}
+                    className="input"
+                    disabled={lagreNotat}
+                  >
+                    <option value="">Ingen (kun internt notat)</option>
+                    {teknikere.map((tek) => (
+                      <option key={tek.id} value={tek.id}>
+                        {tek.navn}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <textarea
                   value={nyttNotat}
                   onChange={(e) => setNyttNotat(e.target.value)}
-                  placeholder="Skriv et internt notat..."
+                  placeholder={mottakerId ? "Skriv melding til tekniker..." : "Skriv et internt notat..."}
                   className="input min-h-[100px] resize-y"
                   disabled={lagreNotat}
                 />
@@ -2245,7 +2522,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                   className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="w-4 h-4" />
-                  {lagreNotat ? 'Lagrer...' : 'Legg til notat'}
+                  {lagreNotat ? 'Lagrer...' : (mottakerId ? 'Send melding' : 'Legg til notat')}
                 </button>
               </div>
             </form>
@@ -2298,6 +2575,111 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                   <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Sist oppdatert</p>
                   <p className="text-gray-900 dark:text-white text-sm">{formatDate(anlegg.sist_oppdatert)}</p>
                 </div>
+              )}
+            </div>
+          </div>
+
+          {/* Ordre og Oppgaver */}
+          <div className="card">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Ordre og Oppgaver</h2>
+            
+            {/* Ordre */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                <ClipboardList className="w-4 h-4" />
+                Ordre ({ordre.length})
+              </h3>
+              {loadingOrdre ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                </div>
+              ) : ordre.length > 0 ? (
+                <div className="space-y-2">
+                  {ordre.map((o) => (
+                    <div
+                      key={o.id}
+                      className="p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors cursor-pointer"
+                      onClick={() => navigate('/ordre', { state: { ordreId: o.id } })}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {o.ordrenr || 'Uten ordrenr'}
+                          </p>
+                          {o.tekniker && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              Tekniker: {o.tekniker}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {o.status && (
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              o.status === 'Fullført' ? 'bg-green-500/10 text-green-500' :
+                              o.status === 'Pågår' ? 'bg-blue-500/10 text-blue-500' :
+                              'bg-gray-500/10 text-gray-500'
+                            }`}>
+                              {o.status}
+                            </span>
+                          )}
+                          <ExternalLink className="w-4 h-4 text-gray-400" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 dark:text-gray-500 italic">Ingen ordre registrert</p>
+              )}
+            </div>
+
+            {/* Oppgaver */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                Oppgaver ({oppgaver.length})
+              </h3>
+              {loadingOppgaver ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                </div>
+              ) : oppgaver.length > 0 ? (
+                <div className="space-y-2">
+                  {oppgaver.map((opp) => (
+                    <div
+                      key={opp.id}
+                      className="p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors cursor-pointer"
+                      onClick={() => navigate('/oppgaver', { state: { oppgaveId: opp.id } })}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {opp.tittel}
+                          </p>
+                          {opp.tekniker_navn && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              Tekniker: {opp.tekniker_navn}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {opp.status && (
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              opp.status === 'Fullført' ? 'bg-green-500/10 text-green-500' :
+                              opp.status === 'Pågår' ? 'bg-blue-500/10 text-blue-500' :
+                              'bg-gray-500/10 text-gray-500'
+                            }`}>
+                              {opp.status}
+                            </span>
+                          )}
+                          <ExternalLink className="w-4 h-4 text-gray-400" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 dark:text-gray-500 italic">Ingen oppgaver registrert</p>
               )}
             </div>
           </div>

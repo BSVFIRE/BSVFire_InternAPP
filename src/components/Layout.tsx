@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   Home, 
@@ -21,11 +21,13 @@ import {
   Sparkles,
   Menu,
   X,
-  Building
+  Building,
+  Inbox
 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
 import { OfflineInfoDialog } from './OfflineInfoDialog'
+import { supabase } from '@/lib/supabase'
 
 interface LayoutProps {
   children: ReactNode
@@ -35,9 +37,11 @@ const navigation = [
   { name: 'Hjem', href: '/', icon: Home },
   { name: 'Kunder', href: '/kunder', icon: Users },
   { name: 'Anlegg', href: '/anlegg', icon: Building2 },
+  { name: 'Kontrollplan', href: '/kontrollplan', icon: Calendar },
   { name: 'Kontaktpersoner', href: '/kontaktpersoner', icon: Users },
   { name: 'Ordre', href: '/ordre', icon: ClipboardList },
   { name: 'Oppgaver', href: '/oppgaver', icon: CheckSquare },
+  { name: 'Meldinger', href: '/meldinger', icon: Inbox },
   { name: 'Prosjekter', href: '/prosjekter', icon: FolderKanban },
   { name: 'Møter', href: '/moter', icon: Calendar },
   { name: 'Rapporter', href: '/rapporter', icon: FileText },
@@ -62,9 +66,45 @@ export function Layout({ children }: LayoutProps) {
   const { user, signOut } = useAuthStore()
   const [showOfflineInfo, setShowOfflineInfo] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [ulestemeldinger, setUlestemeldinger] = useState(0)
   
   // Sjekk om bruker er admin
   const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email)
+
+  // Hent antall uleste meldinger
+  useEffect(() => {
+    async function loadUlestemeldinger() {
+      if (!user?.email) return
+      
+      try {
+        // Finn ansatt basert på email
+        const { data: ansatt } = await supabase
+          .from('ansatte')
+          .select('id')
+          .eq('epost', user.email)
+          .single()
+        
+        if (ansatt) {
+          // Hent antall uleste meldinger
+          const { count } = await supabase
+            .from('intern_kommentar')
+            .select('*', { count: 'exact', head: true })
+            .eq('mottaker_id', ansatt.id)
+            .eq('lest', false)
+          
+          setUlestemeldinger(count || 0)
+        }
+      } catch (error) {
+        console.error('Feil ved henting av uleste meldinger:', error)
+      }
+    }
+
+    loadUlestemeldinger()
+    
+    // Oppdater hver 30. sekund
+    const interval = setInterval(loadUlestemeldinger, 30000)
+    return () => clearInterval(interval)
+  }, [user])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark">
@@ -107,12 +147,14 @@ export function Layout({ children }: LayoutProps) {
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href
+              const showBadge = item.href === '/meldinger' && ulestemeldinger > 0
+              
               return (
                 <Link
                   key={item.name}
                   to={item.href}
                   className={`
-                    flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                    flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all relative
                     ${isActive 
                       ? 'bg-primary text-white shadow-lg shadow-primary/20' 
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100'
@@ -121,6 +163,11 @@ export function Layout({ children }: LayoutProps) {
                 >
                   <item.icon className="w-5 h-5" />
                   {item.name}
+                  {showBadge && (
+                    <span className="ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full">
+                      {ulestemeldinger > 99 ? '99+' : ulestemeldinger}
+                    </span>
+                  )}
                 </Link>
               )
             })}
