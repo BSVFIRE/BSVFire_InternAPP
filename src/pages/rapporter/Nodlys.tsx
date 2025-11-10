@@ -94,6 +94,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const [showFullfortDialog, setShowFullfortDialog] = useState(false)
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
   const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
+  const [unsavedChanges, setUnsavedChanges] = useState<Map<string, Partial<NodlysEnhet>>>(new Map())
+  const [originalData, setOriginalData] = useState<NodlysEnhet[]>([])
 
   useEffect(() => {
     loadKunder()
@@ -163,6 +165,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
         if (error) throw error
         setNodlysListe(data || [])
+        setOriginalData(data || [])
+        setUnsavedChanges(new Map())
         // Cache data for offline use
         cacheData(`nodlys_${anleggId}`, data || [])
       } else {
@@ -171,6 +175,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         const cached = getCachedData<NodlysEnhet[]>(`nodlys_${anleggId}`)
         if (cached) {
           setNodlysListe(cached)
+          setOriginalData(cached)
+          setUnsavedChanges(new Map())
           console.log('📦 Bruker cached nødlysdata (offline)')
         } else {
           console.log('⚠️ Ingen cached data tilgjengelig')
@@ -262,45 +268,80 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     setEditValue(currentValue || '')
   }
 
+  function trackChange(id: string, field: string, value: string | boolean | null) {
+    const newChanges = new Map(unsavedChanges)
+    const existing = newChanges.get(id) || {}
+    newChanges.set(id, { ...existing, [field]: value })
+    setUnsavedChanges(newChanges)
+  }
+
   async function saveInlineEdit(id: string, field: string) {
-    // Forhindre multiple samtidige lagringsoperasjoner
-    if (isSaving) return
+    // Oppdater lokal state (ikke lagre til database ennå)
+    const updatedList = nodlysListe.map(n => 
+      n.id === id ? { ...n, [field]: editValue || null } : n
+    )
+    setNodlysListe(updatedList)
+    
+    // Track endringen
+    trackChange(id, field, editValue || null)
+    
+    setEditingCell(null)
+    setEditValue('')
+  }
+
+  async function saveAllChanges() {
+    if (unsavedChanges.size === 0) return
     
     try {
       setIsSaving(true)
-      const updateData = { id, [field]: editValue || null }
+      
+      // Batch update alle endringer
+      const updates = Array.from(unsavedChanges.entries()).map(([id, changes]) => ({
+        id,
+        ...changes
+      }))
       
       if (isOnline) {
-        // Online: oppdater direkte i databasen
-        const { error } = await supabase
-          .from('anleggsdata_nodlys')
-          .update({ [field]: editValue || null })
-          .eq('id', id)
+        // Online: oppdater alle i databasen
+        for (const update of updates) {
+          const { id, ...fields } = update
+          const { error } = await supabase
+            .from('anleggsdata_nodlys')
+            .update(fields)
+            .eq('id', id)
 
-        if (error) throw error
+          if (error) throw error
+        }
+        
+        alert(`✅ ${updates.length} endring${updates.length > 1 ? 'er' : ''} lagret!`)
       } else {
-        // Offline: legg i kø for senere synkronisering
-        queueUpdate('anleggsdata_nodlys', updateData)
-        console.log('📝 Endring lagret lokalt - synkroniseres når du er online igjen')
+        // Offline: legg alle i kø for senere synkronisering
+        updates.forEach(update => {
+          queueUpdate('anleggsdata_nodlys', update)
+        })
+        console.log(`📝 ${updates.length} endring${updates.length > 1 ? 'er' : ''} lagret lokalt - synkroniseres når du er online igjen`)
+        alert(`📝 ${updates.length} endring${updates.length > 1 ? 'er' : ''} lagret lokalt`)
       }
 
-      // Oppdater lokal state uansett (optimistisk oppdatering)
-      const updatedList = nodlysListe.map(n => 
-        n.id === id ? { ...n, [field]: editValue || null } : n
-      )
-      setNodlysListe(updatedList)
-      
       // Cache oppdatert liste
-      cacheData(`nodlys_${selectedAnlegg}`, updatedList)
+      cacheData(`nodlys_${selectedAnlegg}`, nodlysListe)
       
-      setEditingCell(null)
-      setEditValue('')
+      // Reset unsaved changes og oppdater original data
+      setOriginalData(nodlysListe)
+      setUnsavedChanges(new Map())
     } catch (error) {
-      console.error('Feil ved oppdatering:', error)
-      alert('Kunne ikke oppdatere felt')
+      console.error('Feil ved lagring av endringer:', error)
+      alert('Kunne ikke lagre endringer')
     } finally {
       setIsSaving(false)
     }
+  }
+
+  function discardChanges() {
+    if (!confirm('Er du sikker på at du vil forkaste alle ulagrede endringer?')) return
+    
+    setNodlysListe(originalData)
+    setUnsavedChanges(new Map())
   }
 
   function cancelEditing() {
@@ -1070,37 +1111,22 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                   <div
                     key={idx}
                     className="suggestion-item w-full text-left px-3 py-2 hover:bg-primary/20 text-gray-300 text-sm transition-colors cursor-pointer"
-                    onMouseDown={async (e) => {
+                    onMouseDown={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
                       setShowSuggestions(false)
                       
-                      // Lagre direkte med den valgte verdien
-                      try {
-                        if (isOnline) {
-                          const { error } = await supabase
-                            .from('anleggsdata_nodlys')
-                            .update({ [field]: suggestion })
-                            .eq('id', nodlysId)
-
-                          if (error) throw error
-                        } else {
-                          queueUpdate('anleggsdata_nodlys', { id: nodlysId, [field]: suggestion })
-                        }
-
-                        // Oppdater lokal state
-                        const updatedList = nodlysListe.map(n => 
-                          n.id === nodlysId ? { ...n, [field]: suggestion } : n
-                        )
-                        setNodlysListe(updatedList)
-                        cacheData(`nodlys_${selectedAnlegg}`, updatedList)
-                        
-                        setEditingCell(null)
-                        setEditValue('')
-                      } catch (error) {
-                        console.error('Feil ved oppdatering:', error)
-                        alert('Kunne ikke oppdatere felt')
-                      }
+                      // Oppdater lokal state
+                      const updatedList = nodlysListe.map(n => 
+                        n.id === nodlysId ? { ...n, [field]: suggestion } : n
+                      )
+                      setNodlysListe(updatedList)
+                      
+                      // Track endringen
+                      trackChange(nodlysId, field, suggestion)
+                      
+                      setEditingCell(null)
+                      setEditValue('')
                     }}
                   >
                     {suggestion}
@@ -1134,15 +1160,14 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       )
     }
 
+    // Display mode
+    const hasUnsavedChange = unsavedChanges.has(nodlysId) && field in (unsavedChanges.get(nodlysId) || {})
+    
     return (
       <span
-        onMouseDown={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          startEditing(nodlysId, field, value)
-        }}
-        className={`${className} cursor-pointer hover:bg-dark-100 px-2 py-1 rounded transition-colors`}
-        title="Klikk for å redigere"
+        onClick={() => startEditing(nodlysId, field, value)}
+        className={`${className} ${hasUnsavedChange ? 'bg-yellow-500/20 border border-yellow-500/50' : ''} cursor-pointer hover:bg-dark-100 px-2 py-1 rounded transition-colors`}
+        title={hasUnsavedChange ? "Ulagret endring - klikk for å redigere" : "Klikk for å redigere"}
       >
         {value || '-'}
       </span>
@@ -1334,6 +1359,51 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
             </div>
           </div>
 
+          {/* Lagre endringer banner */}
+          {unsavedChanges.size > 0 && (
+            <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                  <div>
+                    <p className="text-yellow-500 font-medium">
+                      {unsavedChanges.size} ulagret{unsavedChanges.size > 1 ? 'e' : ''} endring{unsavedChanges.size > 1 ? 'er' : ''}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Endringene dine er ikke lagret til databasen ennå
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={discardChanges}
+                    className="btn-secondary text-sm"
+                    disabled={isSaving}
+                  >
+                    Forkast
+                  </button>
+                  <button
+                    onClick={saveAllChanges}
+                    className="btn-primary flex items-center gap-2"
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Lagrer...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Lagre alle endringer
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Tabell i fullskjerm */}
           {loading ? (
             <div className="text-center py-12">
@@ -1433,8 +1503,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                               e.stopPropagation()
                               startEditing(nodlys.id, 'status', nodlys.status)
                             }}
-                            className="cursor-pointer"
-                            title="Klikk for å redigere"
+                            className={`cursor-pointer ${
+                              unsavedChanges.has(nodlys.id) && 'status' in (unsavedChanges.get(nodlys.id) || {})
+                                ? 'bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded'
+                                : ''
+                            }`}
+                            title={unsavedChanges.has(nodlys.id) && 'status' in (unsavedChanges.get(nodlys.id) || {}) ? "Ulagret endring - klikk for å redigere" : "Klikk for å redigere"}
                           >
                             {nodlys.status ? (
                               <span className={`badge ${
@@ -1453,44 +1527,30 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-center">
-                          <input
-                            type="checkbox"
-                            checked={nodlys.kontrollert === true}
-                            onChange={async (e) => {
-                              const newValue = e.target.checked
-                              
-                              // Oppdater lokal state først (optimistisk oppdatering)
-                              const updatedList = nodlysListe.map(n => 
-                                n.id === nodlys.id ? { ...n, kontrollert: newValue } : n
-                              )
-                              setNodlysListe(updatedList)
-                              
-                              try {
-                                if (isOnline) {
-                                  const { error } = await supabase
-                                    .from('anleggsdata_nodlys')
-                                    .update({ kontrollert: newValue })
-                                    .eq('id', nodlys.id)
-                                  
-                                  if (error) throw error
-                                } else {
-                                  queueUpdate('anleggsdata_nodlys', { id: nodlys.id, kontrollert: newValue })
-                                  console.log('📝 Kontrollstatus lagret lokalt')
-                                }
-                                // Cache oppdatert liste
-                                cacheData(`nodlys_${selectedAnlegg}`, updatedList)
-                              } catch (error) {
-                                console.error('Feil ved oppdatering:', error)
-                                alert('Kunne ikke oppdatere kontrollstatus')
-                                // Reverter ved feil
-                                setNodlysListe(prev => prev.map(n => 
-                                  n.id === nodlys.id ? { ...n, kontrollert: !newValue } : n
-                                ))
-                              }
-                            }}
-                            className="w-5 h-5 text-green-600 bg-dark-100 border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
-                            title={nodlys.kontrollert ? 'Marker som ikke kontrollert' : 'Marker som kontrollert'}
-                          />
+                          <div className={`${
+                            unsavedChanges.has(nodlys.id) && 'kontrollert' in (unsavedChanges.get(nodlys.id) || {})
+                              ? 'bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded'
+                              : ''
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={nodlys.kontrollert === true}
+                              onChange={(e) => {
+                                const newValue = e.target.checked
+                                
+                                // Oppdater lokal state
+                                const updatedList = nodlysListe.map(n => 
+                                  n.id === nodlys.id ? { ...n, kontrollert: newValue } : n
+                                )
+                                setNodlysListe(updatedList)
+                                
+                                // Track endringen
+                                trackChange(nodlys.id, 'kontrollert', newValue)
+                              }}
+                              className="w-5 h-5 text-green-600 bg-dark-100 border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+                              title={nodlys.kontrollert ? 'Marker som ikke kontrollert' : 'Marker som kontrollert'}
+                            />
+                          </div>
                         </div>
                       </td>
                       <td className="py-3 px-4">
@@ -1682,6 +1742,51 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
             </div>
           </div>
 
+          {/* Lagre endringer banner */}
+          {unsavedChanges.size > 0 && (
+            <div className="card bg-yellow-500/10 border-yellow-500/30">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                  <div>
+                    <p className="text-yellow-500 font-medium">
+                      {unsavedChanges.size} ulagret{unsavedChanges.size > 1 ? 'e' : ''} endring{unsavedChanges.size > 1 ? 'er' : ''}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Endringene dine er ikke lagret til databasen ennå
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={discardChanges}
+                    className="btn-secondary text-sm"
+                    disabled={isSaving}
+                  >
+                    Forkast
+                  </button>
+                  <button
+                    onClick={saveAllChanges}
+                    className="btn-primary flex items-center gap-2"
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Lagrer...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Lagre alle endringer
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Search and Sort */}
           <div className="card">
             <div className="flex flex-col md:flex-row gap-4">
@@ -1845,8 +1950,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                                 e.stopPropagation()
                                 startEditing(nodlys.id, 'status', nodlys.status)
                               }}
-                              className="cursor-pointer"
-                              title="Klikk for å redigere"
+                              className={`cursor-pointer ${
+                                unsavedChanges.has(nodlys.id) && 'status' in (unsavedChanges.get(nodlys.id) || {})
+                                  ? 'bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded'
+                                  : ''
+                              }`}
+                              title={unsavedChanges.has(nodlys.id) && 'status' in (unsavedChanges.get(nodlys.id) || {}) ? "Ulagret endring - klikk for å redigere" : "Klikk for å redigere"}
                             >
                               {nodlys.status ? (
                                 <span className={`badge ${
@@ -1865,44 +1974,30 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center justify-center">
-                            <input
-                              type="checkbox"
-                              checked={nodlys.kontrollert === true}
-                              onChange={async (e) => {
-                                const newValue = e.target.checked
-                                
-                                // Oppdater lokal state først (optimistisk oppdatering)
-                                const updatedList = nodlysListe.map(n => 
-                                  n.id === nodlys.id ? { ...n, kontrollert: newValue } : n
-                                )
-                                setNodlysListe(updatedList)
-                                
-                                try {
-                                  if (isOnline) {
-                                    const { error } = await supabase
-                                      .from('anleggsdata_nodlys')
-                                      .update({ kontrollert: newValue })
-                                      .eq('id', nodlys.id)
-                                    
-                                    if (error) throw error
-                                  } else {
-                                    queueUpdate('anleggsdata_nodlys', { id: nodlys.id, kontrollert: newValue })
-                                    console.log('📝 Kontrollstatus lagret lokalt')
-                                  }
-                                  // Cache oppdatert liste
-                                  cacheData(`nodlys_${selectedAnlegg}`, updatedList)
-                                } catch (error) {
-                                  console.error('Feil ved oppdatering:', error)
-                                  alert('Kunne ikke oppdatere kontrollstatus')
-                                  // Reverter ved feil
-                                  setNodlysListe(prev => prev.map(n => 
-                                    n.id === nodlys.id ? { ...n, kontrollert: !newValue } : n
-                                  ))
-                                }
-                              }}
-                              className="w-5 h-5 text-green-600 bg-dark-100 border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
-                              title={nodlys.kontrollert ? 'Marker som ikke kontrollert' : 'Marker som kontrollert'}
-                            />
+                            <div className={`${
+                              unsavedChanges.has(nodlys.id) && 'kontrollert' in (unsavedChanges.get(nodlys.id) || {})
+                                ? 'bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded'
+                                : ''
+                            }`}>
+                              <input
+                                type="checkbox"
+                                checked={nodlys.kontrollert === true}
+                                onChange={(e) => {
+                                  const newValue = e.target.checked
+                                  
+                                  // Oppdater lokal state
+                                  const updatedList = nodlysListe.map(n => 
+                                    n.id === nodlys.id ? { ...n, kontrollert: newValue } : n
+                                  )
+                                  setNodlysListe(updatedList)
+                                  
+                                  // Track endringen
+                                  trackChange(nodlys.id, 'kontrollert', newValue)
+                                }}
+                                className="w-5 h-5 text-green-600 bg-dark-100 border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+                                title={nodlys.kontrollert ? 'Marker som ikke kontrollert' : 'Marker som kontrollert'}
+                              />
+                            </div>
                           </div>
                         </td>
                         <td className="py-3 px-4">
