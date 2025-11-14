@@ -12,6 +12,58 @@ interface GodkjenningResult {
 }
 
 /**
+ * Oppretter priser for anlegget basert på tilbudets pris_detaljer
+ * @param anlegg_id - ID til anlegget
+ * @param kunde_id - ID til kunden
+ * @param tilbud - Tilbudsobjektet
+ */
+async function opprettPriserForAnlegg(anlegg_id: string, kunde_id: string, tilbud: ServiceavtaleTilbud): Promise<void> {
+  if (!kunde_id) return
+  try {
+    console.log('🔍 Oppretter priser for anlegg:', anlegg_id)
+    console.log('📊 Tilbud pris_detaljer:', tilbud.pris_detaljer)
+
+    // Bygg pris-objektet basert på tilbudets pris_detaljer
+    const prisData: any = {
+      anlegg_id: anlegg_id,
+      // kundenummer utelates - ikke relevant for priser fra tilbud
+      prisbrannalarm: tilbud.pris_detaljer?.brannalarm?.pris || null,
+      prisnodlys: tilbud.pris_detaljer?.nodlys?.pris || null,
+      prisekstern: tilbud.pris_detaljer?.eksternt?.pris || null,
+      prisslukkeutstyr: tilbud.pris_detaljer?.slukkeutstyr?.pris || null,
+      prisroykluker: tilbud.pris_detaljer?.rokluker?.pris || null
+    }
+
+    console.log('💰 PrisData som skal lagres:', prisData)
+
+    // Sjekk om det finnes noen priser å lagre
+    const harPriser = Object.values(prisData).some(pris => 
+      pris !== null && pris !== undefined && pris !== anlegg_id
+    )
+
+    console.log('✅ Har priser å lagre:', harPriser)
+
+    if (harPriser) {
+      const { error: prisError } = await supabase
+        .from('priser_kundenummer')
+        .insert(prisData)
+
+      if (prisError) {
+        console.error('❌ Kunne ikke opprette priser:', prisError)
+        // Ikke kast feil, anlegget er allerede opprettet
+      } else {
+        console.log('✅ Priser opprettet!')
+      }
+    } else {
+      console.log('⚠️ Ingen priser å lagre')
+    }
+  } catch (error) {
+    console.error('Feil ved opprettelse av priser:', error)
+    // Ikke kast feil, anlegget er allerede opprettet
+  }
+}
+
+/**
  * Håndterer godkjenning av tilbud:
  * 1. Oppretter kunde hvis den ikke eksisterer
  * 2. Oppretter anlegg hvis det ikke eksisterer
@@ -61,7 +113,9 @@ export async function handleTilbudGodkjenning(tilbud: ServiceavtaleTilbud): Prom
       anlegg_id = nyttAnlegg.id
 
       // Opprett priser for anlegget basert på tilbudet
-      await opprettPriserForAnlegg(anlegg_id, kunde_id, tilbud)
+      // kunde_id er garantert satt her (enten fra tilbud eller opprettet i steg 1)
+      // @ts-expect-error - kunde_id er garantert string her (enten fra tilbud eller opprettet i steg 1)
+      await opprettPriserForAnlegg(anlegg_id, kunde_id || '', tilbud)
     }
 
     // 3. Håndter kontaktperson
@@ -210,53 +264,4 @@ async function genererOgLagreTilbudPDF(tilbud: ServiceavtaleTilbud, anlegg_id: s
 
   // Returner filePath (ikke full URL, da signed URL genereres ved visning)
   return filePath
-}
-
-/**
- * Oppretter priser for anlegget basert på tilbudets pris_detaljer
- */
-async function opprettPriserForAnlegg(anlegg_id: string, kunde_id: string | null, tilbud: ServiceavtaleTilbud): Promise<void> {
-  if (!kunde_id) return
-  try {
-    console.log('🔍 Oppretter priser for anlegg:', anlegg_id)
-    console.log('📊 Tilbud pris_detaljer:', tilbud.pris_detaljer)
-
-    // Bygg pris-objektet basert på tilbudets pris_detaljer
-    const prisData: any = {
-      anlegg_id: anlegg_id,
-      // kundenummer utelates - ikke relevant for priser fra tilbud
-      prisbrannalarm: tilbud.pris_detaljer?.brannalarm?.pris || null,
-      prisnodlys: tilbud.pris_detaljer?.nodlys?.pris || null,
-      prisekstern: tilbud.pris_detaljer?.eksternt?.pris || null,
-      prisslukkeutstyr: tilbud.pris_detaljer?.slukkeutstyr?.pris || null,
-      prisroykluker: tilbud.pris_detaljer?.rokluker?.pris || null
-    }
-
-    console.log('💰 PrisData som skal lagres:', prisData)
-
-    // Sjekk om det finnes noen priser å lagre
-    const harPriser = Object.values(prisData).some(pris => 
-      pris !== null && pris !== undefined && pris !== anlegg_id
-    )
-
-    console.log('✅ Har priser å lagre:', harPriser)
-
-    if (harPriser) {
-      const { error: prisError } = await supabase
-        .from('priser_kundenummer')
-        .insert(prisData)
-
-      if (prisError) {
-        console.error('❌ Kunne ikke opprette priser:', prisError)
-        // Ikke kast feil, anlegget er allerede opprettet
-      } else {
-        console.log('✅ Priser opprettet!')
-      }
-    } else {
-      console.log('⚠️ Ingen priser å lagre')
-    }
-  } catch (error) {
-    console.error('Feil ved opprettelse av priser:', error)
-    // Ikke kast feil, anlegget er allerede opprettet
-  }
 }
