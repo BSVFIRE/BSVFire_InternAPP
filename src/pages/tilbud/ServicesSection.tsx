@@ -34,6 +34,16 @@ export function ServicesSection({ formData, setFormData }: ServicesSectionProps)
     }
   ]
 
+  const eksternTyper = [
+    'Sprinkler',
+    'Elektro',
+    'Ventilasjon',
+    'Rør',
+    'Gass anlegg',
+    'Slukke anlegg',
+    'Annet'
+  ]
+
   return (
     <>
       <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -98,6 +108,44 @@ export function ServicesSection({ formData, setFormData }: ServicesSectionProps)
           )
         })}
       </div>
+
+      {/* Ekstern type selection - shown when Eksternt is selected */}
+      {formData.tjeneste_eksternt && (
+        <div className="mt-4 p-4 bg-green-500/5 border-2 border-green-500/20 rounded-lg">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Type ekstern tjeneste <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={formData.ekstern_type || ''}
+            onChange={(e) => setFormData({ ...formData, ekstern_type: e.target.value })}
+            className="input"
+            required={formData.tjeneste_eksternt}
+          >
+            <option value="">Velg type ekstern tjeneste</option>
+            {eksternTyper.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+          
+          {/* Show text input if "Annet" is selected */}
+          {formData.ekstern_type === 'Annet' && (
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Spesifiser type
+              </label>
+              <input
+                type="text"
+                value={formData.ekstern_type_annet || ''}
+                onChange={(e) => setFormData({ ...formData, ekstern_type_annet: e.target.value })}
+                className="input"
+                placeholder="Beskriv type ekstern tjeneste..."
+              />
+            </div>
+          )}
+        </div>
+      )}
     </>
   )
 }

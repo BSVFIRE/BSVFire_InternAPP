@@ -20,6 +20,8 @@ interface TilbudData {
   tjeneste_slukkeutstyr?: boolean
   tjeneste_rokluker?: boolean
   tjeneste_eksternt?: boolean
+  ekstern_type?: string
+  ekstern_type_annet?: string
   
   // Pricing
   pris_detaljer: any
@@ -181,7 +183,15 @@ export async function generateTilbudPDF(tilbudData: TilbudData) {
   selectedServices.forEach(tjeneste => {
     const detaljer = tilbudData.pris_detaljer?.[tjeneste]
     if (detaljer && detaljer.pris > 0) {
-      const beskrivelse = tjenesteLabels[tjeneste]
+      let beskrivelse = tjenesteLabels[tjeneste]
+      
+      // Add ekstern type to description if it's an external service
+      if (tjeneste === 'eksternt' && tilbudData.ekstern_type) {
+        const typeText = tilbudData.ekstern_type === 'Annet' && tilbudData.ekstern_type_annet
+          ? tilbudData.ekstern_type_annet
+          : tilbudData.ekstern_type
+        beskrivelse = `Eksternt - ${typeText}`
+      }
 
       tableData.push([
         beskrivelse,

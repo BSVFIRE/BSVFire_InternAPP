@@ -25,7 +25,7 @@ interface Anlegg {
   kontroll_type: string[] | null
   unik_kode: string | null
   kontrollportal_url: string | null
-  opprettet_dato: string
+  created_at: string
   sist_oppdatert: string | null
   brannalarm_fullfort: boolean | null
   nodlys_fullfort: boolean | null
@@ -33,6 +33,12 @@ interface Anlegg {
   slukkeutstyr_fullfort: boolean | null
   ekstern_fullfort: boolean | null
   skjult: boolean | null
+  ekstern_type: string | null
+  ekstern_firma: string | null
+  ekstern_kontaktperson: string | null
+  ekstern_telefon: string | null
+  ekstern_epost: string | null
+  ekstern_kontaktperson_id: string | null
 }
 
 interface Kunde {
@@ -47,6 +53,16 @@ interface Kontaktperson {
   telefon: string | null
   rolle: string | null
   primar: boolean
+}
+
+interface EksternKontaktperson {
+  id: string
+  navn: string
+  firma: string | null
+  telefon: string | null
+  epost: string | null
+  ekstern_type: string | null
+  notater: string | null
 }
 
 interface Dokument {
@@ -103,16 +119,38 @@ export function Anlegg() {
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState(() => {
+    // Last inn lagret søketerm fra localStorage
+    return localStorage.getItem('anlegg_search') || ''
+  })
   const [selectedAnlegg, setSelectedAnlegg] = useState<Anlegg | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'view'>('list')
-  const [sortBy, setSortBy] = useState<SortOption>('navn_asc')
-  const [scrollPosition, setScrollPosition] = useState(0)
-  const [visSkjulteAnlegg, setVisSkjulteAnlegg] = useState(false)
+  const [sortBy, setSortBy] = useState<SortOption>(() => {
+    // Last inn lagret sortering fra localStorage
+    const saved = localStorage.getItem('anlegg_sort')
+    return (saved as SortOption) || 'navn_asc'
+  })
+  const [scrollPosition, setScrollPosition] = useState(() => {
+    // Last inn lagret scroll-posisjon fra sessionStorage (ikke localStorage, da vi vil nullstille ved ny session)
+    const saved = sessionStorage.getItem('anlegg_scroll')
+    return saved ? parseInt(saved, 10) : 0
+  })
+  const [visSkjulteAnlegg, setVisSkjulteAnlegg] = useState(() => {
+    // Last inn lagret innstilling fra localStorage
+    const saved = localStorage.getItem('anlegg_vis_skjulte')
+    return saved === 'true'
+  })
 
   useEffect(() => {
     loadData()
   }, [])
+
+  // Helper-funksjon for å lagre scroll-posisjon
+  const saveScrollPosition = () => {
+    const pos = window.scrollY
+    setScrollPosition(pos)
+    sessionStorage.setItem('anlegg_scroll', String(pos))
+  }
 
   // Åpne anlegg i redigeringsmodus hvis sendt via state
   useEffect(() => {
@@ -138,14 +176,26 @@ export function Anlegg() {
     }
   }, [state?.viewAnleggId, anlegg])
 
-  // Gjenopprett scroll-posisjon når vi går tilbake til listen
+  // Håndter scroll-posisjon basert på viewMode
   useEffect(() => {
-    if (viewMode === 'list' && scrollPosition > 0) {
-      // Bruk setTimeout for å sikre at DOM er oppdatert
-      setTimeout(() => {
-        window.scrollTo(0, scrollPosition)
-      }, 0)
+    if (viewMode === 'list') {
+      // Gjenopprett scroll-posisjon når vi går tilbake til listen
+      // Bruk flere forsøk for å sikre at scroll settes riktig
+      const scrollToPosition = () => {
+        window.scrollTo({ top: scrollPosition, behavior: 'instant' })
+      }
+      
+      requestAnimationFrame(() => {
+        scrollToPosition()
+        setTimeout(scrollToPosition, 50)
+        setTimeout(scrollToPosition, 100)
+        setTimeout(scrollToPosition, 200)
+      })
+    } else if (viewMode === 'create') {
+      // Scroll til toppen kun når vi oppretter nytt anlegg
+      window.scrollTo({ top: 0, behavior: 'instant' })
     }
+    // IKKE scroll til toppen for 'view' eller 'edit' - la dem beholde sin posisjon
   }, [viewMode, scrollPosition])
 
   async function loadData() {
@@ -299,17 +349,49 @@ export function Anlegg() {
         anlegg={selectedAnlegg}
         kunder={kunder}
         onSave={async (createdAnleggNavn) => {
-          await loadData()
-          setViewMode('list')
-          setSelectedAnlegg(null)
-          // Hvis et nytt anlegg ble opprettet, sett søkefeltet til anleggsnavnet
-          if (createdAnleggNavn) {
-            setSearchTerm(createdAnleggNavn)
+          // Hvis vi redigerer et eksisterende anlegg, gå tilbake til visning
+          if (selectedAnlegg) {
+            // Oppdater selectedAnlegg med fersk data fra databasen
+            const { data: updatedAnlegg } = await supabase
+              .from('anlegg')
+              .select('*')
+              .eq('id', selectedAnlegg.id)
+              .single()
+            
+            if (updatedAnlegg) {
+              setSelectedAnlegg(updatedAnlegg)
+              // Oppdater også anlegget i listen i bakgrunnen (uten å trigge re-render av hele listen)
+              setAnlegg(prev => {
+                const index = prev.findIndex(a => a.id === updatedAnlegg.id)
+                if (index !== -1) {
+                  const newAnlegg = [...prev]
+                  newAnlegg[index] = updatedAnlegg
+                  return newAnlegg
+                }
+                return prev
+              })
+            }
+            setViewMode('view')
+          } else {
+            // Hvis vi oppretter nytt anlegg, last inn data på nytt
+            await loadData()
+            setViewMode('list')
+            setSelectedAnlegg(null)
+            // Sett søkefeltet til anleggsnavnet
+            if (createdAnleggNavn) {
+              setSearchTerm(createdAnleggNavn)
+            }
           }
         }}
         onCancel={() => {
-          setViewMode('list')
-          setSelectedAnlegg(null)
+          // Hvis vi redigerer et eksisterende anlegg, gå tilbake til visning
+          if (selectedAnlegg) {
+            setViewMode('view')
+          } else {
+            // Hvis vi oppretter nytt anlegg, gå tilbake til listen
+            setViewMode('list')
+            setSelectedAnlegg(null)
+          }
         }}
       />
     )
@@ -320,7 +402,11 @@ export function Anlegg() {
       <AnleggDetailsWrapper
         anlegg={selectedAnlegg}
         kundeNavn={getKundeNavn(selectedAnlegg.kundenr)}
-        onEdit={() => setViewMode('edit')}
+        onEdit={() => {
+          // Lagre scroll-posisjon før vi går til redigering
+          saveScrollPosition()
+          setViewMode('edit')
+        }}
         onClose={() => {
           // Hvis vi kom fra kontrollplan, naviger tilbake dit
           if (state?.returnTo === 'kontrollplan' && state?.kontrollplanState) {
@@ -349,6 +435,8 @@ export function Anlegg() {
         </div>
         <button
           onClick={() => {
+            // Lagre scroll-posisjon før vi går til opprettelse
+            saveScrollPosition()
             setSelectedAnlegg(null)
             setViewMode('create')
           }}
@@ -368,14 +456,24 @@ export function Anlegg() {
               type="text"
               placeholder="Søk etter anlegg, kunde, adresse..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                const newSearch = e.target.value
+                setSearchTerm(newSearch)
+                // Lagre søketerm til localStorage
+                localStorage.setItem('anlegg_search', newSearch)
+              }}
               className="input pl-10"
             />
           </div>
           <div className="md:w-64">
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              onChange={(e) => {
+                const newSort = e.target.value as SortOption
+                setSortBy(newSort)
+                // Lagre sortering til localStorage
+                localStorage.setItem('anlegg_sort', newSort)
+              }}
               className="input"
             >
               <option value="navn_asc">Navn (A-Å)</option>
@@ -391,7 +489,12 @@ export function Anlegg() {
               <input
                 type="checkbox"
                 checked={visSkjulteAnlegg}
-                onChange={(e) => setVisSkjulteAnlegg(e.target.checked)}
+                onChange={(e) => {
+                  const newValue = e.target.checked
+                  setVisSkjulteAnlegg(newValue)
+                  // Lagre innstilling til localStorage
+                  localStorage.setItem('anlegg_vis_skjulte', String(newValue))
+                }}
                 className="w-4 h-4 rounded border-gray-300 dark:border-gray-700 text-primary focus:ring-primary"
               />
               <span className="text-sm text-gray-600 dark:text-gray-400">Vis skjulte</span>
@@ -480,7 +583,10 @@ export function Anlegg() {
               <p className="text-orange-500 dark:text-orange-400 text-sm mt-2">
                 {skjulteAnleggSomMatcherSok} skjult{skjulteAnleggSomMatcherSok === 1 ? 'e' : ''} anlegg funnet. 
                 <button 
-                  onClick={() => setVisSkjulteAnlegg(true)}
+                  onClick={() => {
+                    setVisSkjulteAnlegg(true)
+                    localStorage.setItem('anlegg_vis_skjulte', 'true')
+                  }}
                   className="ml-1 underline hover:text-orange-600"
                 >
                   Vis skjulte
@@ -507,9 +613,11 @@ export function Anlegg() {
                     key={anlegg.id}
                     onClick={() => {
                       // Lagre scroll-posisjon før vi går til visning
-                      setScrollPosition(window.scrollY)
+                      saveScrollPosition()
                       setSelectedAnlegg(anlegg)
                       setViewMode('view')
+                      // Scroll til toppen når vi åpner anlegg fra listen
+                      setTimeout(() => window.scrollTo({ top: 0, behavior: 'instant' }), 0)
                     }}
                     className={`border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer ${
                       anlegg.skjult ? 'opacity-50' : ''
@@ -606,9 +714,11 @@ export function Anlegg() {
                           onClick={(e) => {
                             e.stopPropagation()
                             // Lagre scroll-posisjon før vi går til visning
-                            setScrollPosition(window.scrollY)
+                            saveScrollPosition()
                             setSelectedAnlegg(anlegg)
                             setViewMode('view')
+                            // Scroll til toppen når vi åpner anlegg
+                            setTimeout(() => window.scrollTo({ top: 0, behavior: 'instant' }), 0)
                           }}
                           className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                           title="Vis detaljer"
@@ -619,9 +729,11 @@ export function Anlegg() {
                           onClick={(e) => {
                             e.stopPropagation()
                             // Lagre scroll-posisjon før vi går til redigering
-                            setScrollPosition(window.scrollY)
+                            saveScrollPosition()
                             setSelectedAnlegg(anlegg)
                             setViewMode('edit')
+                            // Scroll til toppen når vi åpner redigering
+                            setTimeout(() => window.scrollTo({ top: 0, behavior: 'instant' }), 0)
                           }}
                           className="p-2 text-gray-400 dark:text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
                           title="Rediger"
@@ -693,9 +805,16 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
     roykluker_fullfort: anlegg?.roykluker_fullfort || false,
     slukkeutstyr_fullfort: anlegg?.slukkeutstyr_fullfort || false,
     ekstern_fullfort: anlegg?.ekstern_fullfort || false,
+    ekstern_type: anlegg?.ekstern_type || '',
+    ekstern_firma: anlegg?.ekstern_firma || '',
+    ekstern_kontaktperson: anlegg?.ekstern_kontaktperson || '',
+    ekstern_telefon: anlegg?.ekstern_telefon || '',
+    ekstern_epost: anlegg?.ekstern_epost || '',
+    ekstern_kontaktperson_id: anlegg?.ekstern_kontaktperson_id || '',
   })
   const [saving, setSaving] = useState(false)
   const [alleKontaktpersoner, setAlleKontaktpersoner] = useState<Kontaktperson[]>([])
+  const [eksterneKontaktpersoner, setEksterneKontaktpersoner] = useState<EksternKontaktperson[]>([])
   const [valgteKontakter, setValgteKontakter] = useState<string[]>([])
   const [primaerKontakt, setPrimaerKontakt] = useState<string>('')
   const [visNyKontakt, setVisNyKontakt] = useState(false)
@@ -719,9 +838,13 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
   const [brregSearching, setBrregSearching] = useState(false)
   const brregSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const brregResultsRef = useRef<HTMLDivElement>(null)
+  const [eksternKontaktSok, setEksternKontaktSok] = useState('')
+  const [visEksternDropdown, setVisEksternDropdown] = useState(false)
+  const eksternDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadKontaktpersoner()
+    loadEksterneKontaktpersoner()
     if (anlegg) {
       loadAnleggsKontakter()
     }
@@ -737,11 +860,24 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
     }
   }, [formData.kundenr, kunder])
 
+  // Initialiser ekstern kontaktsøk med valgt kontakt
+  useEffect(() => {
+    if (formData.ekstern_kontaktperson_id && eksterneKontaktpersoner.length > 0) {
+      const kontakt = eksterneKontaktpersoner.find(k => k.id === formData.ekstern_kontaktperson_id)
+      if (kontakt) {
+        setEksternKontaktSok(kontakt.navn)
+      }
+    }
+  }, [formData.ekstern_kontaktperson_id, eksterneKontaktpersoner])
+
   // Lukk dropdown ved klikk utenfor
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (kundeDropdownRef.current && !kundeDropdownRef.current.contains(event.target as Node)) {
         setVisKundeListe(false)
+      }
+      if (eksternDropdownRef.current && !eksternDropdownRef.current.contains(event.target as Node)) {
+        setVisEksternDropdown(false)
       }
     }
 
@@ -762,6 +898,20 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
       setAlleKontaktpersoner(data || [])
     } catch (error) {
       log.error('Feil ved lasting av kontaktpersoner', { error })
+    }
+  }
+
+  async function loadEksterneKontaktpersoner() {
+    try {
+      const { data, error } = await supabase
+        .from('kontaktperson_ekstern')
+        .select('*')
+        .order('navn')
+
+      if (error) throw error
+      setEksterneKontaktpersoner(data || [])
+    } catch (error) {
+      log.error('Feil ved lasting av eksterne kontaktpersoner', { error })
     }
   }
 
@@ -1072,6 +1222,12 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
         roykluker_fullfort: formData.roykluker_fullfort,
         slukkeutstyr_fullfort: formData.slukkeutstyr_fullfort,
         ekstern_fullfort: formData.ekstern_fullfort,
+        ekstern_type: formData.ekstern_type || null,
+        ekstern_firma: formData.ekstern_firma || null,
+        ekstern_kontaktperson: formData.ekstern_kontaktperson || null,
+        ekstern_telefon: formData.ekstern_telefon || null,
+        ekstern_epost: formData.ekstern_epost || null,
+        ekstern_kontaktperson_id: formData.ekstern_kontaktperson_id || null,
       }
 
       let anleggId: string
@@ -1503,6 +1659,174 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
               ))}
             </div>
           </div>
+
+          {/* Ekstern informasjon */}
+          {formData.kontroll_type.includes('Ekstern') && (
+            <div className="md:col-span-2">
+              <div className="p-4 bg-green-500/5 border-2 border-green-500/20 rounded-lg space-y-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Ekstern informasjon
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/ekstern-kontaktpersoner', { 
+                      state: { 
+                        returnTo: 'anlegg',
+                        anleggId: anlegg?.id,
+                        editMode: true
+                      } 
+                    })}
+                    className="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Administrer eksterne kontakter
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="relative" ref={eksternDropdownRef}>
+                    <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+                      Velg ekstern kontaktperson
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={eksternKontaktSok}
+                        onChange={(e) => {
+                          setEksternKontaktSok(e.target.value)
+                          setVisEksternDropdown(true)
+                        }}
+                        onFocus={() => setVisEksternDropdown(true)}
+                        placeholder="Søk etter kontaktperson..."
+                        className="input pr-20"
+                      />
+                      {formData.ekstern_kontaktperson_id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              ekstern_kontaktperson_id: '',
+                              ekstern_type: '',
+                              ekstern_firma: '',
+                              ekstern_kontaktperson: '',
+                              ekstern_telefon: '',
+                              ekstern_epost: '',
+                            })
+                            setEksternKontaktSok('')
+                          }}
+                          className="absolute right-10 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors"
+                          title="Tøm valg"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    </div>
+                    
+                    {visEksternDropdown && (() => {
+                      const filteredKontakter = eksterneKontaktpersoner.filter(k => {
+                        const searchLower = eksternKontaktSok.toLowerCase()
+                        return (
+                          k.navn.toLowerCase().includes(searchLower) ||
+                          k.firma?.toLowerCase().includes(searchLower) ||
+                          k.ekstern_type?.toLowerCase().includes(searchLower)
+                        )
+                      })
+                      
+                      return (
+                        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-dark-200 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                          {filteredKontakter.length > 0 && (
+                            <div className="px-4 py-2 bg-gray-50 dark:bg-dark-100 border-b border-gray-200 dark:border-gray-700">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {filteredKontakter.length} kontakt{filteredKontakter.length !== 1 ? 'er' : ''} funnet
+                              </p>
+                            </div>
+                          )}
+                          {filteredKontakter.map((kontakt) => (
+                            <button
+                              key={kontakt.id}
+                              type="button"
+                              onClick={() => {
+                                setFormData({
+                                  ...formData,
+                                  ekstern_kontaktperson_id: kontakt.id,
+                                  ekstern_type: kontakt.ekstern_type || '',
+                                  ekstern_firma: kontakt.firma || '',
+                                  ekstern_kontaktperson: kontakt.navn,
+                                  ekstern_telefon: kontakt.telefon || '',
+                                  ekstern_epost: kontakt.epost || '',
+                                })
+                                setEksternKontaktSok(kontakt.navn)
+                                setVisEksternDropdown(false)
+                              }}
+                              className={`w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors border-b border-gray-100 dark:border-gray-800 last:border-b-0 ${
+                                formData.ekstern_kontaktperson_id === kontakt.id ? 'bg-primary/10' : ''
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <User className="w-4 h-4 text-primary" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-gray-900 dark:text-white font-medium">{kontakt.navn}</p>
+                                  {kontakt.firma && (
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">{kontakt.firma}</p>
+                                  )}
+                                  {kontakt.ekstern_type && (
+                                    <span className="inline-block mt-1 text-xs px-2 py-0.5 bg-primary/10 text-primary rounded">
+                                      {kontakt.ekstern_type}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                          {filteredKontakter.length === 0 && (
+                            <div className="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
+                              <User className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm">Ingen kontakter funnet</p>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Vis valgt kontaktinformasjon */}
+                  {formData.ekstern_kontaktperson_id && (
+                    <div className="p-3 bg-white dark:bg-dark-200 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Valgt kontakt:</h4>
+                      <div className="space-y-1 text-sm">
+                        {formData.ekstern_kontaktperson && (
+                          <p className="text-gray-900 dark:text-white font-medium">{formData.ekstern_kontaktperson}</p>
+                        )}
+                        {formData.ekstern_firma && (
+                          <p className="text-gray-600 dark:text-gray-300">{formData.ekstern_firma}</p>
+                        )}
+                        {formData.ekstern_type && (
+                          <span className="badge badge-info text-xs">{formData.ekstern_type}</span>
+                        )}
+                        {formData.ekstern_telefon && (
+                          <p className="text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                            <Phone className="w-3 h-3" />
+                            {formData.ekstern_telefon}
+                          </p>
+                        )}
+                        {formData.ekstern_epost && (
+                          <p className="text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                            <Mail className="w-3 h-3" />
+                            {formData.ekstern_epost}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Tjenestestatus */}
           {anlegg && formData.kontroll_type.length > 0 && (
@@ -1998,10 +2322,31 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
       // Kombiner dokumenter fra tabell og storage
       const combinedDocs: Dokument[] = []
 
-      // Legg til dokumenter fra tabell
+      // Legg til dokumenter fra tabell med signed URLs
       if (dbDocs) {
         console.log('✅ Legger til', dbDocs.length, 'dokumenter fra tabell')
-        combinedDocs.push(...dbDocs)
+        for (const doc of dbDocs) {
+          // Generer signed URL hvis url er en filePath (ikke allerede en full URL)
+          if (doc.url && !doc.url.startsWith('http')) {
+            const { data: urlData, error: urlError } = await supabase
+              .storage
+              .from('anlegg.dokumenter')
+              .createSignedUrl(doc.url, 60 * 60 * 24 * 7) // 7 dager
+
+            if (urlError) {
+              console.error('❌ Feil ved generering av URL for', doc.filnavn, ':', urlError)
+              combinedDocs.push(doc) // Legg til uten URL
+            } else if (urlData) {
+              combinedDocs.push({
+                ...doc,
+                url: urlData.signedUrl
+              })
+            }
+          } else {
+            // URL er allerede en full URL
+            combinedDocs.push(doc)
+          }
+        }
       }
 
       // Legg til dokumenter fra storage som ikke finnes i tabellen
@@ -2389,6 +2734,60 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
             </div>
           </div>
 
+          {/* Ekstern informasjon */}
+          {anlegg.kontroll_type?.includes('Ekstern') && (
+            <div className="card">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Ekstern informasjon</h2>
+              <div className="space-y-4">
+                {anlegg.ekstern_type && (
+                  <div>
+                    <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Type ekstern tjeneste</p>
+                    <p className="text-gray-900 dark:text-white">{anlegg.ekstern_type}</p>
+                  </div>
+                )}
+                {anlegg.ekstern_firma && (
+                  <div>
+                    <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Firma</p>
+                    <p className="text-gray-900 dark:text-white">{anlegg.ekstern_firma}</p>
+                  </div>
+                )}
+                {anlegg.ekstern_kontaktperson && (
+                  <div>
+                    <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Kontaktperson</p>
+                    <p className="text-gray-900 dark:text-white">{anlegg.ekstern_kontaktperson}</p>
+                  </div>
+                )}
+                {anlegg.ekstern_telefon && (
+                  <div>
+                    <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Telefon</p>
+                    <a 
+                      href={`tel:${anlegg.ekstern_telefon}`}
+                      className="text-primary hover:text-primary/80 transition-colors flex items-center gap-2"
+                    >
+                      <Phone className="w-4 h-4" />
+                      {anlegg.ekstern_telefon}
+                    </a>
+                  </div>
+                )}
+                {anlegg.ekstern_epost && (
+                  <div>
+                    <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">E-post</p>
+                    <a 
+                      href={`mailto:${anlegg.ekstern_epost}`}
+                      className="text-primary hover:text-primary/80 transition-colors flex items-center gap-2"
+                    >
+                      <Mail className="w-4 h-4" />
+                      {anlegg.ekstern_epost}
+                    </a>
+                  </div>
+                )}
+                {!anlegg.ekstern_type && !anlegg.ekstern_firma && !anlegg.ekstern_kontaktperson && !anlegg.ekstern_telefon && !anlegg.ekstern_epost && (
+                  <p className="text-gray-400 dark:text-gray-500 text-sm italic">Ingen ekstern informasjon registrert</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Kontaktpersoner */}
           <div className="card">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
@@ -2587,7 +2986,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
             <div className="space-y-3">
               <div>
                 <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Opprettet</p>
-                <p className="text-gray-900 dark:text-white text-sm">{formatDate(anlegg.opprettet_dato)}</p>
+                <p className="text-gray-900 dark:text-white text-sm">{formatDate(anlegg.created_at)}</p>
               </div>
               {anlegg.sist_oppdatert && (
                 <div>

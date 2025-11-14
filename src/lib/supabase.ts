@@ -52,7 +52,7 @@ export type Database = {
           kontroll_type: string[] | null
           unik_kode: string | null
           kontrollportal_url: string | null
-          opprettet_dato: string
+          created_at: string
           sist_oppdatert: string | null
         }
       }

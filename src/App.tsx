@@ -10,6 +10,7 @@ import { Dashboard } from './pages/Dashboard'
 import { Kunder } from './pages/Kunder'
 import { Anlegg } from './pages/Anlegg'
 import { Kontaktpersoner } from './pages/Kontaktpersoner'
+import { EksternKontaktpersoner } from './pages/EksternKontaktpersoner'
 import { Ordre } from './pages/Ordre'
 import { Oppgaver } from './pages/Oppgaver'
 import { Rapporter } from './pages/Rapporter'
@@ -86,6 +87,7 @@ function App() {
                     <Route path="/anlegg" element={<Anlegg />} />
                     <Route path="/kontrollplan" element={<Kontrollplan />} />
                     <Route path="/kontaktpersoner" element={<Kontaktpersoner />} />
+                    <Route path="/ekstern-kontaktpersoner" element={<EksternKontaktpersoner />} />
                     <Route path="/ordre" element={<Ordre />} />
                     <Route path="/oppgaver" element={<Oppgaver />} />
                     <Route path="/meldinger" element={<Meldinger />} />

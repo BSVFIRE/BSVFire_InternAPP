@@ -7,7 +7,8 @@ import {
 import { formatDate } from '@/lib/utils'
 import { TilbudForm } from './tilbud/TilbudForm'
 import { TilbudDetails } from './tilbud/TilbudDetails'
-import { StatusBadge } from './tilbud/StatusBadge'
+import { StatusDropdown } from './tilbud/StatusDropdown'
+import { handleTilbudGodkjenning } from '@/lib/tilbudGodkjenning'
 
 export interface ServiceavtaleTilbud {
   id: string
@@ -26,6 +27,8 @@ export interface ServiceavtaleTilbud {
   tjeneste_slukkeutstyr: boolean
   tjeneste_rokluker: boolean
   tjeneste_eksternt: boolean
+  ekstern_type: string | null
+  ekstern_type_annet: string | null
   tilbud_nummer: string | null
   beskrivelse: string | null
   notater: string | null
@@ -87,6 +90,81 @@ export function TilbudServiceavtale() {
     } catch (error) {
       console.error('Feil ved sletting:', error)
       alert('Kunne ikke slette tilbud')
+    }
+  }
+
+  async function updateStatus(id: string, newStatus: 'utkast' | 'sendt' | 'godkjent' | 'avvist') {
+    try {
+      const updateData: any = { status: newStatus }
+      
+      // Sett sendt_dato hvis status endres til 'sendt'
+      if (newStatus === 'sendt') {
+        updateData.sendt_dato = new Date().toISOString()
+      }
+
+      // Hvis status endres til 'godkjent', håndter opprettelse av kunde/anlegg/kontaktperson og PDF
+      if (newStatus === 'godkjent') {
+        const tilbudData = tilbud.find(t => t.id === id)
+        if (!tilbudData) {
+          throw new Error('Fant ikke tilbudet')
+        }
+
+        // Sjekk at nødvendig informasjon er fylt ut
+        if (!tilbudData.anlegg_navn) {
+          alert('Anleggsnavn må være fylt ut før tilbudet kan godkjennes.')
+          throw new Error('Anleggsnavn mangler')
+        }
+
+        // Bekreft godkjenning
+        const bekreftelse = confirm(
+          `Godkjenne tilbud for ${tilbudData.kunde_navn}?\n\n` +
+          `Dette vil:\n` +
+          `• Opprette kunde, anlegg og kontaktperson hvis de ikke eksisterer\n` +
+          `• Generere og lagre PDF på anlegget\n` +
+          `• Endre status til "Godkjent"\n\n` +
+          `Vil du fortsette?`
+        )
+
+        if (!bekreftelse) {
+          throw new Error('Godkjenning avbrutt av bruker')
+        }
+
+        // Håndter godkjenning (opprett kunde/anlegg/kontaktperson og lagre PDF)
+        const result = await handleTilbudGodkjenning(tilbudData)
+        
+        if (!result.success) {
+          alert(`Feil ved godkjenning: ${result.error}`)
+          throw new Error(result.error)
+        }
+
+        // Vis suksessmelding med detaljer
+        let melding = `✓ Tilbudet er godkjent!\n\n`
+        
+        if (!tilbudData.kunde_id) {
+          melding += `✓ Kunde opprettet: ${tilbudData.kunde_navn}\n`
+        }
+        if (!tilbudData.anlegg_id) {
+          melding += `✓ Anlegg opprettet: ${tilbudData.anlegg_navn}\n`
+        }
+        if (!tilbudData.kontaktperson_id && tilbudData.kontaktperson_navn) {
+          melding += `✓ Kontaktperson opprettet: ${tilbudData.kontaktperson_navn}\n`
+        }
+        melding += `✓ PDF lagret på anlegget`
+        
+        alert(melding)
+      }
+
+      // Oppdater status i databasen
+      const { error } = await supabase
+        .from('serviceavtale_tilbud')
+        .update(updateData)
+        .eq('id', id)
+
+      if (error) throw error
+      await loadTilbud()
+    } catch (error) {
+      console.error('Feil ved oppdatering av status:', error)
+      throw error
     }
   }
 
@@ -326,13 +404,19 @@ export function TilbudServiceavtale() {
                         )}
                         {t.tjeneste_eksternt && (
                           <span className="px-2 py-0.5 text-xs font-medium bg-green-500/10 text-green-600 dark:text-green-400 rounded-full">
-                            Eksternt
+                            {t.ekstern_type 
+                              ? `Eksternt - ${t.ekstern_type === 'Annet' && t.ekstern_type_annet ? t.ekstern_type_annet : t.ekstern_type}`
+                              : 'Eksternt'
+                            }
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-4">
-                      <StatusBadge status={t.status} />
+                    <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                      <StatusDropdown 
+                        currentStatus={t.status}
+                        onStatusChange={(newStatus) => updateStatus(t.id, newStatus)}
+                      />
                     </td>
                     <td className="py-3 px-4 text-right">
                       {t.total_pris > 0 ? (

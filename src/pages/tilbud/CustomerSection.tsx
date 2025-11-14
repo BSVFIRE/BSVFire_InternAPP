@@ -406,14 +406,31 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
 
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-            Lokasjon
+            Anleggsnavn <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={formData.anlegg_navn || ''}
+            onChange={(e) => setFormData({ ...formData, anlegg_navn: e.target.value })}
+            className="input"
+            placeholder="F.eks. Hovedkontor, Avdeling Oslo, etc."
+            required
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Påkrevd for å kunne godkjenne tilbudet
+          </p>
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+            Lokasjon/Adresse
           </label>
           <input
             type="text"
             value={formData.lokasjon || ''}
             onChange={(e) => setFormData({ ...formData, lokasjon: e.target.value })}
             className="input"
-            placeholder="F.eks. Oslo, Avdeling Nord, etc."
+            placeholder="F.eks. Storgata 1, 0123 Oslo"
           />
         </div>
             </div>
@@ -422,30 +439,54 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
       )}
 
       {/* Anlegg selection - Only show for existing customers */}
-      {searchMode === 'existing' && formData.kunde_id && anlegg.length > 0 && (
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-            Velg anlegg (valgfritt)
-          </label>
-          <select
-            value={formData.anlegg_id}
-            onChange={(e) => {
-              const selectedAnlegg = anlegg.find(a => a.id === e.target.value)
-              setFormData({
-                ...formData,
-                anlegg_id: e.target.value,
-                anlegg_navn: selectedAnlegg?.anleggsnavn || ''
-              })
-            }}
-            className="input"
-          >
-            <option value="">Ingen anlegg valgt</option>
-            {anlegg.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.anleggsnavn}
-              </option>
-            ))}
-          </select>
+      {searchMode === 'existing' && formData.kunde_id && (
+        <div className="mt-4 space-y-4">
+          {anlegg.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+                Velg eksisterende anlegg
+              </label>
+              <select
+                value={formData.anlegg_id}
+                onChange={(e) => {
+                  const selectedAnlegg = anlegg.find(a => a.id === e.target.value)
+                  setFormData({
+                    ...formData,
+                    anlegg_id: e.target.value,
+                    anlegg_navn: selectedAnlegg?.anleggsnavn || ''
+                  })
+                }}
+                className="input"
+              >
+                <option value="">Velg anlegg eller opprett nytt under</option>
+                {anlegg.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.anleggsnavn}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          
+          {/* Allow creating new anlegg for existing customer */}
+          {!formData.anlegg_id && (
+            <div>
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+                {anlegg.length > 0 ? 'Eller opprett nytt anlegg' : 'Opprett nytt anlegg'} <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.anlegg_navn || ''}
+                onChange={(e) => setFormData({ ...formData, anlegg_navn: e.target.value })}
+                className="input"
+                placeholder="F.eks. Hovedkontor, Avdeling Oslo, etc."
+                required
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Påkrevd for å kunne godkjenne tilbudet. Anlegget opprettes automatisk ved godkjenning.
+              </p>
+            </div>
+          )}
         </div>
       )}
       
@@ -453,7 +494,7 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
       {searchMode === 'new' && (
         <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <p className="text-sm text-blue-800 dark:text-blue-300">
-            <strong>Merk:</strong> Ny kunde lagres kun som del av tilbudet. For å opprette kunde og anlegg i systemet, gå til Kunder-siden.
+            <strong>Merk:</strong> Når tilbudet godkjennes, vil kunde, anlegg og kontaktperson automatisk opprettes i systemet, og PDF lagres på anlegget.
           </p>
         </div>
       )}

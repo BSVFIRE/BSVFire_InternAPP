@@ -30,10 +30,21 @@ export function Kunder() {
   const [selectedKunde, setSelectedKunde] = useState<Kunde | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'view'>('list')
   const [sortBy, setSortBy] = useState<SortOption>('navn_asc')
+  const scrollPositionRef = useRef<number>(0)
 
   useEffect(() => {
     loadKunder()
   }, [])
+
+  // Restore scroll position when returning to list view
+  useEffect(() => {
+    if (viewMode === 'list' && scrollPositionRef.current > 0) {
+      // Use setTimeout to ensure DOM is ready
+      setTimeout(() => {
+        window.scrollTo(0, scrollPositionRef.current)
+      }, 0)
+    }
+  }, [viewMode])
 
   async function loadKunder() {
     try {
@@ -165,6 +176,7 @@ export function Kunder() {
           // Hvis en ny kunde ble opprettet, sett søkefeltet til kundenavnet
           if (createdKundeNavn) {
             setSearchTerm(createdKundeNavn)
+            scrollPositionRef.current = 0 // Reset scroll for new customer
           }
         }}
         onCancel={() => {
@@ -188,6 +200,15 @@ export function Kunder() {
     )
   }
 
+  // Function to save scroll position before changing view
+  const handleViewChange = (mode: 'create' | 'edit' | 'view', kunde?: Kunde | null) => {
+    scrollPositionRef.current = window.scrollY
+    setViewMode(mode)
+    if (kunde !== undefined) {
+      setSelectedKunde(kunde)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -198,6 +219,7 @@ export function Kunder() {
         </div>
         <button
           onClick={() => {
+            scrollPositionRef.current = 0 // Reset scroll for new customer
             setSelectedKunde(null)
             setViewMode('create')
           }}
@@ -312,10 +334,7 @@ export function Kunder() {
                 {sortedKunder.map((kunde) => (
                   <tr
                     key={kunde.id}
-                    onClick={() => {
-                      setSelectedKunde(kunde)
-                      setViewMode('view')
-                    }}
+                    onClick={() => handleViewChange('view', kunde)}
                     className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer"
                   >
                     <td className="py-3 px-4">
@@ -353,20 +372,14 @@ export function Kunder() {
                     <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => {
-                            setSelectedKunde(kunde)
-                            setViewMode('view')
-                          }}
+                          onClick={() => handleViewChange('view', kunde)}
                           className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                           title="Vis detaljer"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => {
-                            setSelectedKunde(kunde)
-                            setViewMode('edit')
-                          }}
+                          onClick={() => handleViewChange('edit', kunde)}
                           className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
                           title="Rediger"
                         >
@@ -404,6 +417,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
     navn: kunde?.navn || '',
     organisasjonsnummer: kunde?.organisasjonsnummer || '',
     kontaktperson_id: kunde?.kontaktperson_id || '',
+    kunde_nummer: kunde?.kunde_nummer || '',
   })
   const [kontaktpersoner, setKontaktpersoner] = useState<any[]>([])
   const [kontaktpersonSearch, setKontaktpersonSearch] = useState('')
@@ -546,6 +560,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
       navn: company.navn,
       organisasjonsnummer: formatOrgNumber(company.organisasjonsnummer),
       kontaktperson_id: formData.kontaktperson_id, // Keep existing contact
+      kunde_nummer: formData.kunde_nummer, // Keep existing customer number
     })
     setSearchQuery('')
     setOrgNumberLookup('')
@@ -559,12 +574,20 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
     try {
       let isNewKunde = false
       
+      // Prepare data - convert empty strings to null
+      const dataToSave = {
+        navn: formData.navn,
+        organisasjonsnummer: formData.organisasjonsnummer || null,
+        kontaktperson_id: formData.kontaktperson_id || null,
+        kunde_nummer: formData.kunde_nummer || null,
+      }
+      
       if (kunde) {
         // Update
         const { error } = await supabase
           .from('customer')
           .update({
-            ...formData,
+            ...dataToSave,
             sist_oppdatert: new Date().toISOString(),
           })
           .eq('id', kunde.id)
@@ -574,7 +597,7 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
         // Create
         const { error } = await supabase
           .from('customer')
-          .insert([formData])
+          .insert([dataToSave])
 
         if (error) throw error
         isNewKunde = true
@@ -736,6 +759,19 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
               onChange={(e) => setFormData({ ...formData, organisasjonsnummer: e.target.value })}
               className="input"
               placeholder="123 456 789"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+              Kundenummer
+            </label>
+            <input
+              type="text"
+              value={formData.kunde_nummer}
+              onChange={(e) => setFormData({ ...formData, kunde_nummer: e.target.value })}
+              className="input"
+              placeholder="10549"
             />
           </div>
 
@@ -957,6 +993,10 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
           <div className="card">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kontaktinformasjon</h2>
             <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Kundenummer</p>
+                <p className="text-gray-900 dark:text-white">{kunde.kunde_nummer || '-'}</p>
+              </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Organisasjonsnummer</p>
                 <p className="text-gray-900 dark:text-white">{kunde.organisasjonsnummer || '-'}</p>

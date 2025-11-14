@@ -28,23 +28,30 @@ function AutocompleteInput({
   const inputRef = useRef<HTMLInputElement>(null)
   const places = useMapsLibrary('places')
   const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!places || !inputRef.current) return
 
-    const options: google.maps.places.AutocompleteOptions = {
-      componentRestrictions: { country: 'no' }, // Begrens til Norge
-      fields: ['address_components', 'formatted_address', 'geometry'],
-      types: ['address']
-    }
-
-    const autocompleteInstance = new places.Autocomplete(inputRef.current, options)
-    setAutocomplete(autocompleteInstance)
-
-    return () => {
-      if (autocompleteInstance) {
-        google.maps.event.clearInstanceListeners(autocompleteInstance)
+    try {
+      const options: google.maps.places.AutocompleteOptions = {
+        componentRestrictions: { country: 'no' }, // Begrens til Norge
+        fields: ['address_components', 'formatted_address', 'geometry'],
+        types: ['address']
       }
+
+      const autocompleteInstance = new places.Autocomplete(inputRef.current, options)
+      setAutocomplete(autocompleteInstance)
+      setError(null)
+
+      return () => {
+        if (autocompleteInstance) {
+          google.maps.event.clearInstanceListeners(autocompleteInstance)
+        }
+      }
+    } catch (err) {
+      console.error('Google Maps Autocomplete error:', err)
+      setError('Kunne ikke laste Google Maps. Sjekk API-nøkkel.')
     }
   }, [places])
 
@@ -111,6 +118,12 @@ function AutocompleteInput({
         placeholder={placeholder || 'Søk adresse...'}
         required={required}
       />
+      {error && (
+        <p className="text-xs text-red-500 mt-1">{error}</p>
+      )}
+      {!places && !error && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Laster Google Maps...</p>
+      )}
     </div>
   )
 }

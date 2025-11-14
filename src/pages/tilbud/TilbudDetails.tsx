@@ -140,6 +140,13 @@ export function TilbudDetails({ tilbud, onEdit, onClose }: TilbudDetailsProps) {
             <p className={`font-medium ${tilbud.tjeneste_eksternt ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
               Eksternt {tilbud.tjeneste_eksternt ? '✓' : '✗'}
             </p>
+            {tilbud.tjeneste_eksternt && tilbud.ekstern_type && (
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                {tilbud.ekstern_type === 'Annet' && tilbud.ekstern_type_annet 
+                  ? tilbud.ekstern_type_annet 
+                  : tilbud.ekstern_type}
+              </p>
+            )}
           </div>
         </div>
       </div>
