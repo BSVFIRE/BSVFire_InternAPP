@@ -227,8 +227,8 @@ export function Ordre() {
   const filteredOrdre = ordre.filter(o => {
     const matchesSearch = 
       o.ordre_nummer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.anlegg.anleggsnavn.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.customer.navn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.anlegg?.anleggsnavn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.customer?.navn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.kommentar?.toLowerCase().includes(searchTerm.toLowerCase())
     
@@ -260,9 +260,9 @@ export function Ordre() {
       case 'status':
         return a.status.localeCompare(b.status, 'nb-NO')
       case 'kunde':
-        return a.customer.navn.localeCompare(b.customer.navn, 'nb-NO')
+        return (a.customer?.navn || '').localeCompare(b.customer?.navn || '', 'nb-NO')
       case 'anlegg':
-        return a.anlegg.anleggsnavn.localeCompare(b.anlegg.anleggsnavn, 'nb-NO')
+        return (a.anlegg?.anleggsnavn || '').localeCompare(b.anlegg?.anleggsnavn || '', 'nb-NO')
       case 'tekniker':
         const aNavn = a.tekniker?.navn || 'Ikke tildelt'
         const bNavn = b.tekniker?.navn || 'Ikke tildelt'
@@ -642,12 +642,12 @@ export function Ordre() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-gray-500 dark:text-gray-300">
-                      {ordre.customer.navn}
+                      {ordre.customer?.navn || 'Ukjent kunde'}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
                         <Building2 className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-                        {ordre.anlegg.anleggsnavn}
+                        {ordre.anlegg?.anleggsnavn || 'Ukjent anlegg'}
                       </div>
                     </td>
                     <td className="py-3 px-4">
@@ -676,7 +676,7 @@ export function Ordre() {
                               state: { 
                                 openServicerapport: true, 
                                 anleggId: ordre.anlegg_id,
-                                anleggNavn: ordre.anlegg.anleggsnavn,
+                                anleggNavn: ordre.anlegg?.anleggsnavn || '',
                                 ordreId: ordre.id
                               } 
                             })}
@@ -1422,7 +1422,7 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
                 {ordre.ordre_nummer}
               </span>
             </div>
-            <p className="text-gray-400 dark:text-gray-400">{ordre.customer.navn} - {ordre.anlegg.anleggsnavn}</p>
+            <p className="text-gray-400 dark:text-gray-400">{ordre.customer?.navn || 'Ukjent kunde'} - {ordre.anlegg?.anleggsnavn || 'Ukjent anlegg'}</p>
           </div>
           <div className="flex items-center gap-3">
             {ordre.status !== 'Fullført' && ordre.status !== 'Fakturert' && (
@@ -1461,11 +1461,11 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
               </div>
               <div>
                 <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Kunde</p>
-                <p className="text-gray-900 dark:text-white">{ordre.customer.navn}</p>
+                <p className="text-gray-900 dark:text-white">{ordre.customer?.navn || 'Ukjent kunde'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Anlegg</p>
-                <p className="text-gray-900 dark:text-white">{ordre.anlegg.anleggsnavn}</p>
+                <p className="text-gray-900 dark:text-white">{ordre.anlegg?.anleggsnavn || 'Ukjent anlegg'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Tekniker</p>
