@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Search, User, Mail, Phone, Building2, Trash2, Eye, Star, Pencil, Save, X as XIcon } from 'lucide-react'
+import { Search, User, Mail, Phone, Building2, Trash2, Eye, Star, Pencil, Save, X as XIcon, LayoutGrid, Table } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useLocation, useNavigate } from 'react-router-dom'
 
@@ -42,6 +42,9 @@ export function Kontaktpersoner() {
   const [selectedKontakt, setSelectedKontakt] = useState<KontaktpersonMedAnlegg | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'view'>('list')
   const [sortBy, setSortBy] = useState<SortOption>('navn_asc')
+  const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
+    return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
+  })
 
   useEffect(() => {
     loadKontaktpersoner()
@@ -199,10 +202,10 @@ export function Kontaktpersoner() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Kontaktpersoner</h1>
-          <p className="text-gray-400 dark:text-gray-400">Administrer kontaktpersoner på tvers av anlegg</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">Kontaktpersoner</h1>
+          <p className="text-sm sm:text-base text-gray-400 dark:text-gray-400">Administrer kontaktpersoner på tvers av anlegg</p>
         </div>
       </div>
 
@@ -235,39 +238,39 @@ export function Kontaktpersoner() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-primary/10 rounded-lg">
-              <User className="w-6 h-6 text-primary" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-primary/10 rounded-lg flex-shrink-0">
+              <User className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Totalt kontakter</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{kontaktpersoner.length}</p>
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Totalt kontakter</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{kontaktpersoner.length}</p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-green-500/10 rounded-lg">
-              <Mail className="w-6 h-6 text-green-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-green-500/10 rounded-lg flex-shrink-0">
+              <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Med e-post</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Med e-post</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {kontaktpersoner.filter(k => k.epost).length}
               </p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-500/10 rounded-lg">
-              <Phone className="w-6 h-6 text-blue-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-blue-500/10 rounded-lg flex-shrink-0">
+              <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Med telefon</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Med telefon</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {kontaktpersoner.filter(k => k.telefon).length}
               </p>
             </div>
@@ -277,13 +280,37 @@ export function Kontaktpersoner() {
 
       {/* Kontaktperson Liste */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
             Kontaktpersonliste
-            <span className="ml-2 text-sm text-gray-400 dark:text-gray-400 font-normal">
+            <span className="ml-2 text-xs sm:text-sm text-gray-400 dark:text-gray-400 font-normal">
               ({sortedKontakter.length} {sortedKontakter.length === 1 ? 'person' : 'personer'})
             </span>
           </h2>
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
+            <button
+              onClick={() => setDisplayMode('table')}
+              className={`p-2 rounded transition-colors ${
+                displayMode === 'table'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              title="Tabellvisning"
+            >
+              <Table className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setDisplayMode('cards')}
+              className={`p-2 rounded transition-colors ${
+                displayMode === 'cards'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              title="Kortvisning"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         
         {sortedKontakter.length === 0 ? (
@@ -292,6 +319,88 @@ export function Kontaktpersoner() {
             <p className="text-gray-400 dark:text-gray-400">
               {searchTerm ? 'Ingen kontaktpersoner funnet' : 'Ingen kontaktpersoner registrert ennå'}
             </p>
+          </div>
+        ) : displayMode === 'cards' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sortedKontakter.map((kontakt) => (
+              <div
+                key={kontakt.id}
+                onClick={() => {
+                  setSelectedKontakt(kontakt)
+                  setViewMode('view')
+                }}
+                className="bg-gray-50 dark:bg-dark-100 rounded-lg p-4 border border-gray-200 dark:border-gray-800 hover:border-primary/50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                      <User className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-gray-900 dark:text-white font-medium truncate">{kontakt.navn}</p>
+                      {kontakt.rolle && (
+                        <span className="badge badge-info text-xs mt-1">{kontakt.rolle}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedKontakt(kontakt)
+                        setViewMode('view')
+                      }}
+                      className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-colors touch-target"
+                      title="Vis detaljer"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteKontaktperson(kontakt.id)
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors touch-target"
+                      title="Slett"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2 text-sm">
+                  {kontakt.epost && (
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
+                      <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <span className="truncate">{kontakt.epost}</span>
+                    </div>
+                  )}
+                  {kontakt.telefon && (
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
+                      <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <span>{kontakt.telefon}</span>
+                    </div>
+                  )}
+                  {kontakt.anlegg.length > 0 && (
+                    <div className="pt-2 border-t border-gray-200 dark:border-gray-800">
+                      <p className="text-xs text-gray-400 mb-1">Anlegg ({kontakt.anlegg.length})</p>
+                      {kontakt.anlegg.slice(0, 2).map((anlegg, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-300 mb-1">
+                          {anlegg.primar && (
+                            <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+                          )}
+                          <Building2 className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <span className="truncate">{anlegg.anlegg.anleggsnavn}</span>
+                        </div>
+                      ))}
+                      {kontakt.anlegg.length > 2 && (
+                        <p className="text-xs text-gray-400">+{kontakt.anlegg.length - 2} flere</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -476,36 +585,36 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{kontakt.navn}</h1>
-          <p className="text-gray-400 dark:text-gray-400">{kontakt.rolle || 'Ingen rolle'}</p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2 truncate">{kontakt.navn}</h1>
+          <p className="text-sm sm:text-base text-gray-400 dark:text-gray-400">{kontakt.rolle || 'Ingen rolle'}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           {isEditing ? (
             <>
               <button
                 onClick={handleCancel}
                 disabled={saving}
-                className="btn-secondary flex items-center gap-2"
+                className="btn-secondary flex items-center gap-2 text-sm sm:text-base"
               >
                 <XIcon className="w-4 h-4" />
-                Avbryt
+                <span className="hidden xs:inline">Avbryt</span>
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="btn-primary flex items-center gap-2"
+                className="btn-primary flex items-center gap-2 text-sm sm:text-base"
               >
                 {saving ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                     Lagrer...
-                  </>
+                  </>  
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    Lagre
+                    <span className="hidden xs:inline">Lagre</span>
                   </>
                 )}
               </button>
@@ -513,22 +622,22 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
           ) : (
             <button
               onClick={() => setIsEditing(true)}
-              className="btn-primary flex items-center gap-2"
+              className="btn-primary flex items-center gap-2 text-sm sm:text-base"
             >
               <Pencil className="w-4 h-4" />
-              Rediger
+              <span className="hidden xs:inline">Rediger</span>
             </button>
           )}
-          <button onClick={onClose} className="btn-secondary">
+          <button onClick={onClose} className="btn-secondary text-sm sm:text-base">
             Tilbake
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kontaktinformasjon</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">Kontaktinformasjon</h2>
             {isEditing ? (
               <div className="space-y-4">
                 <div>
@@ -596,7 +705,7 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
           </div>
 
           <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
               Tilknyttede anlegg ({kontakt.anlegg.length})
             </h2>
             {kontakt.anlegg.length > 0 ? (
@@ -634,9 +743,9 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Metadata</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">Metadata</h2>
             <div className="space-y-3">
               <div>
                 <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Opprettet</p>

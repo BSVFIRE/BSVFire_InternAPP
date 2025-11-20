@@ -428,10 +428,10 @@ export function Anlegg() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Anlegg</h1>
-          <p className="text-gray-400 dark:text-gray-400">Administrer anlegg og installasjoner</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">Anlegg</h1>
+          <p className="text-sm sm:text-base text-gray-400 dark:text-gray-400">Administrer anlegg og installasjoner</p>
         </div>
         <button
           onClick={() => {
@@ -440,10 +440,11 @@ export function Anlegg() {
             setSelectedAnlegg(null)
             setViewMode('create')
           }}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 self-start sm:self-auto"
         >
           <Plus className="w-5 h-5" />
-          Nytt anlegg
+          <span className="hidden xs:inline">Nytt anlegg</span>
+          <span className="xs:hidden">Nytt</span>
         </button>
       </div>
 
@@ -504,52 +505,52 @@ export function Anlegg() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-primary/10 rounded-lg">
-              <Building2 className="w-6 h-6 text-primary" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-primary/10 rounded-lg flex-shrink-0">
+              <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Totalt anlegg</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{anlegg.length}</p>
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Totalt anlegg</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{anlegg.length}</p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-green-500/10 rounded-lg">
-              <Calendar className="w-6 h-6 text-green-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-green-500/10 rounded-lg flex-shrink-0">
+              <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Utført</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Utført</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {anlegg.filter(a => a.kontroll_status === ANLEGG_STATUSER.UTFORT).length}
               </p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-red-500/10 rounded-lg">
-              <AlertCircle className="w-6 h-6 text-red-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-red-500/10 rounded-lg flex-shrink-0">
+              <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Ikke utført</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Ikke utført</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {anlegg.filter(a => a.kontroll_status === ANLEGG_STATUSER.IKKE_UTFORT).length}
               </p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-orange-500/10 rounded-lg">
-              <EyeOff className="w-6 h-6 text-orange-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-orange-500/10 rounded-lg flex-shrink-0">
+              <EyeOff className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Skjulte</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Skjulte</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {anlegg.filter(a => a.skjult).length}
               </p>
             </div>
@@ -595,20 +596,92 @@ export function Anlegg() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-800">
-                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Anlegg</th>
-                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Kunde</th>
-                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Adresse</th>
-                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Kontrolltype</th>
-                  <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Status</th>
-                  <th className="text-right py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Handlinger</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedAnlegg.map((anlegg) => (
+          <>
+            {/* Mobile kortvisning */}
+            <div className="block lg:hidden space-y-3">
+              {sortedAnlegg.map((anlegg) => (
+                <div
+                  key={anlegg.id}
+                  onClick={() => {
+                    saveScrollPosition()
+                    setSelectedAnlegg(anlegg)
+                    setViewMode('view')
+                    setTimeout(() => window.scrollTo({ top: 0, behavior: 'instant' }), 0)
+                  }}
+                  className={`p-4 bg-gray-50 dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-primary transition-colors cursor-pointer ${
+                    anlegg.skjult ? 'opacity-50' : ''
+                  }`}
+                >
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Building2 className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-gray-900 dark:text-white font-medium truncate">{anlegg.anleggsnavn}</p>
+                        {anlegg.kontroll_maaned === 'NA' && (
+                          <span className="text-xs text-gray-400 dark:text-gray-500 italic flex-shrink-0">
+                            Ikke kontaktskunde
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{getKundeNavn(anlegg.kundenr)}</p>
+                    </div>
+                  </div>
+                  
+                  {anlegg.adresse && (
+                    <div className="flex items-start gap-2 mb-2 text-sm text-gray-500 dark:text-gray-400">
+                      <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p>{anlegg.adresse}</p>
+                        {anlegg.postnummer && anlegg.poststed && (
+                          <p>{anlegg.postnummer} {anlegg.poststed}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    {anlegg.kontroll_status && (
+                      <span className={`badge ${ANLEGG_STATUS_COLORS[anlegg.kontroll_status] || 'badge-info'} text-xs`}>
+                        {anlegg.kontroll_status}
+                      </span>
+                    )}
+                    {anlegg.kontroll_maaned && anlegg.kontroll_maaned !== 'NA' && (
+                      <span className="badge badge-info text-xs">
+                        {anlegg.kontroll_maaned}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {anlegg.kontroll_type && anlegg.kontroll_type.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {anlegg.kontroll_type.map((type, idx) => (
+                        <span key={idx} className="badge badge-info text-xs">
+                          {type}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            {/* Desktop tabellvisning */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-800">
+                    <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Anlegg</th>
+                    <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Kunde</th>
+                    <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Adresse</th>
+                    <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Kontrolltype</th>
+                    <th className="text-left py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Status</th>
+                    <th className="text-right py-3 px-4 text-gray-400 dark:text-gray-400 font-medium">Handlinger</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedAnlegg.map((anlegg) => (
                   <tr
                     key={anlegg.id}
                     onClick={() => {
@@ -771,6 +844,7 @@ export function Anlegg() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>
@@ -2603,32 +2677,33 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{anlegg.anleggsnavn}</h1>
-          <p className="text-gray-400 dark:text-gray-400">{kundeNavn}</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-2 leading-tight">{anlegg.anleggsnavn}</h1>
+          <p className="text-sm sm:text-base text-gray-400 dark:text-gray-400">{kundeNavn}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button 
             onClick={() => navigate('/priser', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-secondary flex items-center gap-2 text-sm sm:text-base"
             title="Kontrollpriser"
           >
             <DollarSign className="w-4 h-4" />
-            Priser
+            <span className="hidden xs:inline">Priser</span>
           </button>
           <button 
             onClick={() => navigate('/ordre', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id } })}
-            className="btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700"
+            className="btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700 text-sm sm:text-base"
           >
             <ClipboardList className="w-4 h-4" />
-            Opprett ordre
+            <span className="hidden xs:inline">Opprett ordre</span>
+            <span className="xs:hidden">Ordre</span>
           </button>
-          <button onClick={onEdit} className="btn-primary flex items-center gap-2">
+          <button onClick={onEdit} className="btn-primary flex items-center gap-2 text-sm sm:text-base">
             <Edit className="w-4 h-4" />
-            Rediger
+            <span className="hidden xs:inline">Rediger</span>
           </button>
-          <button onClick={onClose} className="btn-secondary">
+          <button onClick={onClose} className="btn-secondary text-sm sm:text-base">
             Tilbake
           </button>
         </div>
@@ -2637,7 +2712,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Anleggsinformasjon</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">Anleggsinformasjon</h2>
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Adresse</p>
@@ -2682,7 +2757,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
           </div>
 
           <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kontrollinfo</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">Kontrollinfo</h2>
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Kontrollmåned</p>
@@ -2737,7 +2812,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
           {/* Ekstern informasjon */}
           {anlegg.kontroll_type?.includes('Ekstern') && (
             <div className="card">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Ekstern informasjon</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">Ekstern informasjon</h2>
               <div className="space-y-4">
                 {anlegg.ekstern_type && (
                   <div>
@@ -2790,7 +2865,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
 
           {/* Kontaktpersoner */}
           <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
               Kontaktpersoner ({kontaktpersoner.length})
             </h2>
             {loadingKontakter ? (
@@ -2802,14 +2877,14 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                 {kontaktpersoner.map((kontakt) => (
                   <div
                     key={kontakt.id}
-                    className="flex items-start justify-between p-4 bg-gray-50 dark:bg-dark-100 rounded-lg"
+                    className="flex flex-col sm:flex-row sm:items-start sm:justify-between p-4 bg-gray-50 dark:bg-dark-100 rounded-lg gap-3"
                   >
                     <div className="flex items-start gap-3 flex-1">
                       <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                         <User className="w-5 h-5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
                           <p className="text-gray-900 dark:text-white font-medium">{kontakt.navn}</p>
                           {kontakt.primar && (
                             <div className="flex items-center gap-1 text-yellow-500">
@@ -2823,16 +2898,16 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                         )}
                         <div className="space-y-1">
                           {kontakt.epost && (
-                            <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-400">
-                              <Mail className="w-3 h-3" />
+                            <a href={`mailto:${kontakt.epost}`} className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-400 hover:text-primary transition-colors break-all">
+                              <Mail className="w-3 h-3 flex-shrink-0" />
                               {kontakt.epost}
-                            </div>
+                            </a>
                           )}
                           {kontakt.telefon && (
-                            <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-400">
-                              <Phone className="w-3 h-3" />
+                            <a href={`tel:${kontakt.telefon}`} className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-400 hover:text-primary transition-colors">
+                              <Phone className="w-3 h-3 flex-shrink-0" />
                               {kontakt.telefon}
-                            </div>
+                            </a>
                           )}
                         </div>
                       </div>
@@ -2840,11 +2915,12 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                     {!kontakt.primar && (
                       <button
                         onClick={() => onSettPrimaer(kontakt.id)}
-                        className="btn-secondary text-xs flex items-center gap-1 ml-3"
+                        className="btn-secondary text-xs flex items-center gap-1 self-start sm:ml-3 touch-target"
                         title="Sett som primær kontaktperson"
                       >
                         <Star className="w-3 h-3" />
-                        Sett som primær
+                        <span className="hidden xs:inline">Sett som primær</span>
+                        <span className="xs:hidden">Primær</span>
                       </button>
                     )}
                   </div>
@@ -2857,7 +2933,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
 
           {/* Dokumenter */}
           <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
               Dokumenter ({dokumenter.length})
             </h2>
             {loadingDokumenter ? (
@@ -2902,7 +2978,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
 
           {/* Interne Notater */}
           <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
               Interne notater ({interneNotater.length})
             </h2>
             

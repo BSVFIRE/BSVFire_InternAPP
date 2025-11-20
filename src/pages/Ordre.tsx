@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Plus, Search, ClipboardList, Building2, User, Eye, Trash2, Calendar, Edit, CheckCircle, FileText } from 'lucide-react'
+import { Plus, Search, ClipboardList, Building2, User, Eye, Trash2, Calendar, Edit, CheckCircle, FileText, LayoutGrid, Table } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ORDRE_STATUSER, ORDRE_STATUS_COLORS } from '@/lib/constants'
@@ -72,6 +72,9 @@ export function Ordre() {
   const [prefilledData, setPrefilledData] = useState<{ kundeId?: string; anleggId?: string } | null>(null)
   const [inkluderFullforte, setInkluderFullforte] = useState(false)
   const [inkluderFakturerte, setInkluderFakturerte] = useState(false)
+  const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
+    return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
+  })
 
   useEffect(() => {
     loadOrdre()
@@ -419,19 +422,19 @@ export function Ordre() {
 
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Ordre</h1>
-          <p className="text-gray-400 dark:text-gray-400">Administrer serviceordre</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">Ordre</h1>
+          <p className="text-sm sm:text-base text-gray-400 dark:text-gray-400">Administrer serviceordre</p>
         </div>
         <button
           onClick={() => {
             setSelectedOrdre(null)
             setViewMode('create')
           }}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 self-start sm:self-auto"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
           Ny ordre
         </button>
       </div>
@@ -516,52 +519,52 @@ export function Ordre() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-primary/10 rounded-lg">
-              <ClipboardList className="w-6 h-6 text-primary" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-primary/10 rounded-lg flex-shrink-0">
+              <ClipboardList className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Totalt ordre</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{ordre.length}</p>
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Totalt ordre</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{ordre.length}</p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-yellow-500/10 rounded-lg">
-              <Calendar className="w-6 h-6 text-yellow-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-yellow-500/10 rounded-lg flex-shrink-0">
+              <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Ventende</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Ventende</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {ordre.filter(o => o.status === ORDRE_STATUSER.VENTENDE).length}
               </p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-500/10 rounded-lg">
-              <ClipboardList className="w-6 h-6 text-blue-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-blue-500/10 rounded-lg flex-shrink-0">
+              <ClipboardList className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Pågående</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Pågående</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {ordre.filter(o => o.status === ORDRE_STATUSER.PAGAENDE).length}
               </p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-green-500/10 rounded-lg">
-              <ClipboardList className="w-6 h-6 text-green-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-green-500/10 rounded-lg flex-shrink-0">
+              <ClipboardList className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Fullført</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Fullført</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {ordre.filter(o => o.status === ORDRE_STATUSER.FULLFORT).length}
               </p>
             </div>
@@ -571,13 +574,37 @@ export function Ordre() {
 
       {/* Ordre Liste */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
             Ordreliste
-            <span className="ml-2 text-sm text-gray-400 dark:text-gray-400 font-normal">
+            <span className="ml-2 text-xs sm:text-sm text-gray-400 dark:text-gray-400 font-normal">
               ({sortedOrdre.length} {sortedOrdre.length === 1 ? 'ordre' : 'ordre'})
             </span>
           </h2>
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
+            <button
+              onClick={() => setDisplayMode('table')}
+              className={`p-2 rounded transition-colors ${
+                displayMode === 'table'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              title="Tabellvisning"
+            >
+              <Table className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setDisplayMode('cards')}
+              className={`p-2 rounded transition-colors ${
+                displayMode === 'cards'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              title="Kortvisning"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         
         {sortedOrdre.length === 0 ? (
@@ -586,6 +613,110 @@ export function Ordre() {
             <p className="text-gray-400 dark:text-gray-400">
               {searchTerm || filterStatus !== 'alle' ? 'Ingen ordre funnet' : 'Ingen ordre registrert ennå'}
             </p>
+          </div>
+        ) : displayMode === 'cards' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sortedOrdre.map((ordre) => (
+              <div
+                key={ordre.id}
+                onClick={() => {
+                  setSelectedOrdre(ordre)
+                  setViewMode('edit')
+                }}
+                className="bg-gray-50 dark:bg-dark-100 rounded-lg p-4 border border-gray-200 dark:border-gray-800 hover:border-primary/50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <ClipboardList className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-primary font-mono font-medium text-sm truncate">{ordre.ordre_nummer}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{ordre.type}</p>
+                    </div>
+                  </div>
+                  <span className={`badge text-xs ${ORDRE_STATUS_COLORS[ordre.status] || 'badge-info'}`}>
+                    {ordre.status}
+                  </span>
+                </div>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
+                    <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span className="truncate">{ordre.customer?.navn || 'Ukjent kunde'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
+                    <Building2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span className="truncate">{ordre.anlegg?.anleggsnavn || 'Ukjent anlegg'}</span>
+                  </div>
+                  {ordre.tekniker && (
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
+                      <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <span title={ordre.tekniker.navn}>{getInitials(ordre.tekniker.navn)}</span>
+                    </div>
+                  )}
+                  {ordre.kontrolltype && ordre.kontrolltype.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {ordre.kontrolltype.slice(0, 2).map((type, idx) => (
+                        <span key={idx} className="badge badge-info text-xs">
+                          {type}
+                        </span>
+                      ))}
+                      {ordre.kontrolltype.length > 2 && (
+                        <span className="text-xs text-gray-400">+{ordre.kontrolltype.length - 2}</span>
+                      )}
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                    <span className="text-xs text-gray-400">{formatDate(ordre.opprettet_dato)}</span>
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      {ordre.type.toLowerCase() !== 'årskontroll' && ordre.type.toLowerCase() !== 'kontroll' && (
+                        <button
+                          onClick={() => navigate('/teknisk', { 
+                            state: { 
+                              openServicerapport: true, 
+                              anleggId: ordre.anlegg_id,
+                              anleggNavn: ordre.anlegg?.anleggsnavn || '',
+                              ordreId: ordre.id
+                            } 
+                          })}
+                          className={`p-2 rounded transition-colors touch-target ${
+                            (ordre as any).har_servicerapport 
+                              ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10' 
+                              : 'text-gray-400 hover:text-purple-400 hover:bg-purple-500/10'
+                          }`}
+                          title={(ordre as any).har_servicerapport ? "Servicerapport opprettet" : "Opprett servicerapport"}
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedOrdre(ordre)
+                          setViewMode('view')
+                        }}
+                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-colors touch-target"
+                        title="Vis detaljer"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedOrdre(ordre)
+                          setViewMode('edit')
+                        }}
+                        className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors touch-target"
+                        title="Rediger"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">

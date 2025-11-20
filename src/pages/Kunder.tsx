@@ -212,10 +212,10 @@ export function Kunder() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Kunder</h1>
-          <p className="text-gray-500 dark:text-gray-400">Administrer kunderegisteret</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">Kunder</h1>
+          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">Administrer kunderegisteret</p>
         </div>
         <button
           onClick={() => {
@@ -223,10 +223,11 @@ export function Kunder() {
             setSelectedKunde(null)
             setViewMode('create')
           }}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 self-start sm:self-auto"
         >
           <Plus className="w-5 h-5" />
-          Ny kunde
+          <span className="hidden xs:inline">Ny kunde</span>
+          <span className="xs:hidden">Ny</span>
         </button>
       </div>
 
@@ -260,39 +261,39 @@ export function Kunder() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-primary/10 rounded-lg">
-              <Building className="w-6 h-6 text-primary" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-primary/10 rounded-lg flex-shrink-0">
+              <Building className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Totalt kunder</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{kunder.length}</p>
+            <div className="min-w-0">
+              <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm truncate">Totalt kunder</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{kunder.length}</p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-green-500/10 rounded-lg">
-              <Building className="w-6 h-6 text-green-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-green-500/10 rounded-lg flex-shrink-0">
+              <Building className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
             </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Med kontaktperson</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm truncate">Med kontaktperson</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {kunder.filter(k => k.kontaktperson_id).length}
               </p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-yellow-500/10 rounded-lg">
-              <Building2 className="w-6 h-6 text-yellow-600" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-yellow-500/10 rounded-lg flex-shrink-0">
+              <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
             </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Uten anlegg</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm truncate">Uten anlegg</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {kunder.filter(k => (k.anlegg_count || 0) === 0).length}
               </p>
             </div>
@@ -319,19 +320,66 @@ export function Kunder() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-800">
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Navn</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Antall anlegg</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Kundenummer</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Opprettet</th>
-                  <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Handlinger</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedKunder.map((kunde) => (
+          <>
+            {/* Mobile kortvisning */}
+            <div className="block lg:hidden space-y-3">
+              {sortedKunder.map((kunde) => (
+                <div
+                  key={kunde.id}
+                  onClick={() => handleViewChange('view', kunde)}
+                  className="p-4 bg-gray-50 dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-primary transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Building className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <p className="text-gray-900 dark:text-white font-medium">{kunde.navn}</p>
+                        {kunde.anlegg_count === 0 && (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 rounded-full flex-shrink-0">
+                            Ingen anlegg
+                          </span>
+                        )}
+                      </div>
+                      {kunde.organisasjonsnummer && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Org.nr: {kunde.organisasjonsnummer}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-4">
+                      <span className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                        <Building2 className="w-4 h-4" />
+                        {kunde.anlegg_count || 0} anlegg
+                      </span>
+                      {kunde.kunde_nummer && (
+                        <span className="text-gray-500 dark:text-gray-400">
+                          #{kunde.kunde_nummer}
+                        </span>
+                      )}
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Desktop tabellvisning */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-800">
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Navn</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Antall anlegg</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Kundenummer</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Opprettet</th>
+                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Handlinger</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedKunder.map((kunde) => (
                   <tr
                     key={kunde.id}
                     onClick={() => handleViewChange('view', kunde)}
@@ -399,6 +447,7 @@ export function Kunder() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>
@@ -972,17 +1021,17 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{kunde.navn}</h1>
-          <p className="text-gray-500 dark:text-gray-400">Kundedetaljer</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-2 leading-tight">{kunde.navn}</h1>
+          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">Kundedetaljer</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={onEdit} className="btn-primary flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={onEdit} className="btn-primary flex items-center gap-2 text-sm sm:text-base">
             <Edit className="w-4 h-4" />
-            Rediger
+            <span className="hidden xs:inline">Rediger</span>
           </button>
-          <button onClick={onClose} className="btn-secondary">
+          <button onClick={onClose} className="btn-secondary text-sm sm:text-base">
             Tilbake
           </button>
         </div>
@@ -991,7 +1040,7 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kontaktinformasjon</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">Kontaktinformasjon</h2>
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Kundenummer</p>
@@ -1026,7 +1075,7 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
           <div className="card">
             <div className="flex items-center gap-2 mb-4">
               <Building2 className="w-5 h-5 text-primary" />
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Anlegg</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Anlegg</h2>
             </div>
             {loadingPriser ? (
               <div className="text-center py-4">

@@ -414,68 +414,68 @@ export function Dashboard() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Dashboard</h1>
-          <p className="text-gray-400 dark:text-gray-400">Oversikt over aktiviteter og statistikk</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">Dashboard</h1>
+          <p className="text-sm sm:text-base text-gray-400 dark:text-gray-400">Oversikt over aktiviteter og statistikk</p>
         </div>
         
         {/* Toggle for egne vs alle */}
-        <div className="flex items-center gap-3 bg-gray-100 dark:bg-dark-200 rounded-lg p-1">
+        <div className="flex items-center gap-2 bg-gray-100 dark:bg-dark-200 rounded-lg p-1">
           <button
             onClick={() => setVisAlle(false)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-md transition-all min-h-[44px] text-sm ${
               !visAlle 
                 ? 'bg-primary text-gray-900 dark:text-white shadow-lg' 
                 : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:text-white'
             }`}
           >
             <User className="w-4 h-4" />
-            Mine
+            <span className="hidden sm:inline">Mine</span>
           </button>
           <button
             onClick={() => setVisAlle(true)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-md transition-all min-h-[44px] text-sm ${
               visAlle 
                 ? 'bg-primary text-gray-900 dark:text-white shadow-lg' 
                 : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:text-white'
             }`}
           >
             <Users className="w-4 h-4" />
-            Alle
+            <span className="hidden sm:inline">Alle</span>
           </button>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {statCards.map((card) => (
           <div key={card.title} className="card hover:shadow-xl transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div className={`p-3 bg-gradient-to-br ${card.color} rounded-lg`}>
-                <card.icon className="w-6 h-6 text-gray-900 dark:text-white" />
+            <div className="flex items-start justify-between mb-2 sm:mb-4">
+              <div className={`p-2 sm:p-3 bg-gradient-to-br ${card.color} rounded-lg flex-shrink-0`}>
+                <card.icon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-900 dark:text-white" />
               </div>
-              <TrendingUp className="w-5 h-5 text-green-500" />
+              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
             </div>
             
-            <h3 className="text-gray-400 dark:text-gray-400 text-sm font-medium mb-1">{card.title}</h3>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white mb-4">{card.total}</p>
+            <h3 className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm font-medium mb-1 truncate">{card.title}</h3>
+            <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-2 sm:mb-3">{card.total}</p>
             
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm">
               {card.showSubStats ? (
                 <>
                   {card.fullfort !== undefined && card.fullfort > 0 && (
                     <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-gray-400 dark:text-gray-400">
+                      <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                      <span className="text-gray-400 dark:text-gray-400 truncate">
                         {card.fullfort} fullført
                       </span>
                     </div>
                   )}
                   {card.fakturert !== undefined && card.fakturert > 0 && (
                     <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span className="text-gray-400 dark:text-gray-400">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                      <span className="text-gray-400 dark:text-gray-400 truncate">
                         {card.fakturert} fakturert
                       </span>
                     </div>
@@ -485,16 +485,16 @@ export function Dashboard() {
                 <>
                   {card.active !== undefined && card.active > 0 && (
                     <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-primary rounded-full"></div>
-                      <span className="text-gray-400 dark:text-gray-400">
+                      <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
+                      <span className="text-gray-400 dark:text-gray-400 truncate">
                         {card.active} aktive
                       </span>
                     </div>
                   )}
                   {card.completed !== undefined && card.completed > 0 && (
                     <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-gray-400 dark:text-gray-400">
+                      <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                      <span className="text-gray-400 dark:text-gray-400 truncate">
                         {card.completed} fullført
                       </span>
                     </div>
@@ -507,10 +507,10 @@ export function Dashboard() {
       </div>
 
       {/* Ordre og Oppgaver */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <div className="card">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kommende ordre</h2>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">Kommende ordre</h2>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
             {kommendeOrdre.length === 0 ? (
               <div className="text-center py-8 text-gray-400 dark:text-gray-500">
                 Ingen aktive ordre
@@ -529,12 +529,12 @@ export function Dashboard() {
                   <div 
                     key={ordre.id} 
                     onClick={() => navigate('/ordre', { state: { selectedOrdreId: ordre.id } })}
-                    className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors"
+                    className="flex items-center gap-2 sm:gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors touch-target"
                   >
-                    <div className={`w-2 h-2 ${statusFarge} rounded-full`}></div>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-200">Ordre #{ordre.ordrenummer}</p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                    <div className={`w-2 h-2 ${statusFarge} rounded-full flex-shrink-0`}></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm text-gray-200 font-medium">Ordre #{ordre.ordrenummer}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
                         {ordre.kundenavn || ordre.anleggsnavn || 'Ingen kunde/anlegg'}
                       </p>
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{tidTekst}</p>
@@ -547,8 +547,8 @@ export function Dashboard() {
         </div>
 
         <div className="card">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Kommende oppgaver</h2>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">Kommende oppgaver</h2>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
           {kommendeOppgaver.length === 0 ? (
             <div className="col-span-full text-center py-8 text-gray-400 dark:text-gray-500">
               Ingen kommende oppgaver
@@ -567,11 +567,11 @@ export function Dashboard() {
                 <div 
                   key={oppgave.id} 
                   onClick={() => navigate('/oppgaver', { state: { selectedOppgaveId: oppgave.id } })}
-                  className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors"
+                  className="flex items-center gap-2 sm:gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors touch-target"
                 >
-                  <div className={`w-2 h-2 ${prikkeFarge} rounded-full`}></div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-200">{oppgave.tittel}</p>
+                  <div className={`w-2 h-2 ${prikkeFarge} rounded-full flex-shrink-0`}></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-gray-200 truncate">{oppgave.tittel}</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500">{forfallTekst}</p>
                   </div>
                 </div>
@@ -584,14 +584,14 @@ export function Dashboard() {
 
       {/* Siste aktivitet - full bredde */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Siste aktivitet</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
+          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 dark:text-white">Siste aktivitet</h2>
           
           {/* Tidsfilter */}
-          <div className="flex items-center gap-2 bg-gray-100 dark:bg-dark-200 rounded-lg p-1 flex-shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 bg-gray-100 dark:bg-dark-200 rounded-lg p-1 flex-shrink-0 overflow-x-auto">
             <button
               onClick={() => setTidsFilter('dag')}
-              className={`px-3 py-1 text-xs rounded-md transition-all ${
+              className={`px-3 py-2 text-xs rounded-md transition-all whitespace-nowrap min-h-[36px] ${
                 tidsFilter === 'dag' 
                   ? 'bg-primary text-gray-900 dark:text-white' 
                   : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -601,7 +601,7 @@ export function Dashboard() {
             </button>
             <button
               onClick={() => setTidsFilter('uke')}
-              className={`px-3 py-1 text-xs rounded-md transition-all ${
+              className={`px-3 py-2 text-xs rounded-md transition-all whitespace-nowrap min-h-[36px] ${
                 tidsFilter === 'uke' 
                   ? 'bg-primary text-gray-900 dark:text-white' 
                   : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -611,7 +611,7 @@ export function Dashboard() {
             </button>
             <button
               onClick={() => setTidsFilter('maned')}
-              className={`px-3 py-1 text-xs rounded-md transition-all ${
+              className={`px-3 py-2 text-xs rounded-md transition-all whitespace-nowrap min-h-[36px] ${
                 tidsFilter === 'maned' 
                   ? 'bg-primary text-gray-900 dark:text-white' 
                   : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -621,7 +621,7 @@ export function Dashboard() {
             </button>
             <button
               onClick={() => setTidsFilter('ar')}
-              className={`px-3 py-1 text-xs rounded-md transition-all ${
+              className={`px-3 py-2 text-xs rounded-md transition-all whitespace-nowrap min-h-[36px] ${
                 tidsFilter === 'ar' 
                   ? 'bg-primary text-gray-900 dark:text-white' 
                   : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -632,7 +632,7 @@ export function Dashboard() {
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
           {aktiviteter.length === 0 ? (
             <div className="col-span-full text-center py-8 text-gray-400 dark:text-gray-500">
               Ingen aktiviteter i valgt periode
@@ -656,12 +656,12 @@ export function Dashboard() {
                       navigate('/oppgaver', { state: { selectedOppgaveId: aktivitet.id } })
                     }
                   }}
-                  className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors"
+                  className="flex items-center gap-2 sm:gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors touch-target"
                 >
-                  <Ikon className={`w-5 h-5 ${ikonFarge}`} />
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-200">{aktivitet.tittel}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">{aktivitet.beskrivelse}</p>
+                  <Ikon className={`w-4 h-4 sm:w-5 sm:h-5 ${ikonFarge} flex-shrink-0`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-gray-200 truncate">{aktivitet.tittel}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{aktivitet.beskrivelse}</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                       {formaterTidSiden(aktivitet.tidspunkt)}
                     </p>

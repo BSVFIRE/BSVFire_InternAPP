@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { Plus, Search, CheckSquare, Building2, User, Eye, Trash2, Calendar, Edit } from 'lucide-react'
+import { Plus, Search, CheckSquare, Building2, User, Eye, Trash2, Calendar, Edit, LayoutGrid, Table } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { OPPGAVE_STATUSER, OPPGAVE_STATUS_COLORS, PRIORITETER, PRIORITET_COLORS } from '@/lib/constants'
 
@@ -73,6 +73,9 @@ export function Oppgaver() {
   const [filterPrioritet, setFilterPrioritet] = useState<string>('alle')
   const [filterTekniker, setFilterTekniker] = useState<string>('alle')
   const [inkluderFullforte, setInkluderFullforte] = useState(false)
+  const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
+    return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
+  })
 
   useEffect(() => {
     loadOppgaver()
@@ -250,19 +253,19 @@ export function Oppgaver() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Oppgaver</h1>
-          <p className="text-gray-400 dark:text-gray-400">Administrer arbeidsoppgaver</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">Oppgaver</h1>
+          <p className="text-sm sm:text-base text-gray-400 dark:text-gray-400">Administrer arbeidsoppgaver</p>
         </div>
         <button
           onClick={() => {
             setSelectedOppgave(null)
             setViewMode('create')
           }}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 self-start sm:self-auto"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
           Ny oppgave
         </button>
       </div>
@@ -343,52 +346,52 @@ export function Oppgaver() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-primary/10 rounded-lg">
-              <CheckSquare className="w-6 h-6 text-primary" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-primary/10 rounded-lg flex-shrink-0">
+              <CheckSquare className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Totalt oppgaver</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{oppgaver.length}</p>
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Totalt oppgaver</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{oppgaver.length}</p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-gray-500/10 rounded-lg">
-              <Calendar className="w-6 h-6 text-gray-400 dark:text-gray-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-gray-500/10 rounded-lg flex-shrink-0">
+              <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 dark:text-gray-500" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Ikke påbegynt</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Ikke påbegynt</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {oppgaver.filter(o => o.status === 'Ikke påbegynt').length}
               </p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-500/10 rounded-lg">
-              <CheckSquare className="w-6 h-6 text-blue-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-blue-500/10 rounded-lg flex-shrink-0">
+              <CheckSquare className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Pågående</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Pågående</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {oppgaver.filter(o => o.status === OPPGAVE_STATUSER.PAGAENDE).length}
               </p>
             </div>
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-green-500/10 rounded-lg">
-              <CheckSquare className="w-6 h-6 text-green-500" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-green-500/10 rounded-lg flex-shrink-0">
+              <CheckSquare className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
             </div>
-            <div>
-              <p className="text-gray-400 dark:text-gray-400 text-sm">Fullført</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm truncate">Fullført</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 {oppgaver.filter(o => o.status === OPPGAVE_STATUSER.FULLFORT).length}
               </p>
             </div>
@@ -398,13 +401,37 @@ export function Oppgaver() {
 
       {/* Oppgave Liste */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
             Oppgaveliste
-            <span className="ml-2 text-sm text-gray-400 dark:text-gray-400 font-normal">
+            <span className="ml-2 text-xs sm:text-sm text-gray-400 dark:text-gray-400 font-normal">
               ({sortedOppgaver.length} {sortedOppgaver.length === 1 ? 'oppgave' : 'oppgaver'})
             </span>
           </h2>
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
+            <button
+              onClick={() => setDisplayMode('table')}
+              className={`p-2 rounded transition-colors ${
+                displayMode === 'table'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              title="Tabellvisning"
+            >
+              <Table className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setDisplayMode('cards')}
+              className={`p-2 rounded transition-colors ${
+                displayMode === 'cards'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              title="Kortvisning"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         
         {sortedOppgaver.length === 0 ? (
@@ -415,6 +442,104 @@ export function Oppgaver() {
                 ? 'Ingen oppgaver funnet'
                 : 'Ingen oppgaver registrert ennå'}
             </p>
+          </div>
+        ) : displayMode === 'cards' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sortedOppgaver.map((oppgave) => (
+              <div
+                key={oppgave.id}
+                onClick={() => {
+                  setSelectedOppgave(oppgave)
+                  setViewMode('edit')
+                }}
+                className="bg-gray-50 dark:bg-dark-100 rounded-lg p-4 border border-gray-200 dark:border-gray-800 hover:border-primary/50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <CheckSquare className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-primary font-mono font-medium text-sm truncate">{oppgave.oppgave_nummer}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{oppgave.type}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1 items-end flex-shrink-0">
+                    <span className={`badge text-xs ${OPPGAVE_STATUS_COLORS[oppgave.status] || 'badge-info'}`}>
+                      {oppgave.status}
+                    </span>
+                    {oppgave.prioritet && (
+                      <span className={`badge text-xs ${PRIORITET_COLORS[oppgave.prioritet] || 'badge-info'}`}>
+                        {oppgave.prioritet}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="space-y-2 text-sm">
+                  {oppgave.beskrivelse && (
+                    <p className="text-gray-500 dark:text-gray-300 text-xs line-clamp-2">
+                      {oppgave.beskrivelse}
+                    </p>
+                  )}
+                  {oppgave.customer && (
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
+                      <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <span className="truncate">{oppgave.customer.navn}</span>
+                    </div>
+                  )}
+                  {oppgave.anlegg && (
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
+                      <Building2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <span className="truncate">{oppgave.anlegg.anleggsnavn}</span>
+                    </div>
+                  )}
+                  {oppgave.tekniker && (
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300">
+                      <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <span title={oppgave.tekniker.navn}>{getInitials(oppgave.tekniker.navn)}</span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                    <span className="text-xs text-gray-400">{formatDate(oppgave.opprettet_dato)}</span>
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedOppgave(oppgave)
+                          setViewMode('view')
+                        }}
+                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-colors touch-target"
+                        title="Vis detaljer"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedOppgave(oppgave)
+                          setViewMode('edit')
+                        }}
+                        className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors touch-target"
+                        title="Rediger"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteOppgave(oppgave.id)
+                        }}
+                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors touch-target"
+                        title="Slett"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">

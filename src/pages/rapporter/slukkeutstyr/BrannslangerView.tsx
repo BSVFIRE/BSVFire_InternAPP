@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Download, Wifi, WifiOff, Check } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Download, Wifi, WifiOff, Check, LayoutGrid, Table } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -94,6 +94,10 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
   const [kundeId, setKundeId] = useState<string | null>(null)
   const [evakueringsplanStatus, setEvakueringsplanStatus] = useState('')
+  const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
+    // Auto-switch to cards on mobile
+    return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
+  })
   
   // Autocomplete for produsent
   const [produsentOptions, setProdusentOptions] = useState<string[]>([])
@@ -1129,38 +1133,40 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   if (isFullscreen) {
     return (
       <div className="fixed inset-0 z-50 bg-dark-200 overflow-auto">
-        <div className="min-h-screen p-4">
+        <div className="min-h-screen p-4 sm:p-6">
           {/* Header med lukkeknapp */}
-          <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-800">
-            <div className="flex items-center gap-4">
-              <h2 className="text-2xl font-bold text-white">
+          <div className="flex flex-col gap-4 mb-4 pb-4 border-b border-gray-800">
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="text-lg sm:text-2xl font-bold text-white leading-tight">
                 Brannslanger - {kundeNavn} - {anleggNavn}
-                <span className="ml-3 text-lg text-gray-400 font-normal">
+                <span className="block sm:inline sm:ml-3 text-sm sm:text-lg text-gray-400 font-normal mt-1 sm:mt-0">
                   ({sortedSlanger.length} {sortedSlanger.length === 1 ? 'enhet' : 'enheter'})
                 </span>
               </h2>
+              <button
+                onClick={() => setIsFullscreen(false)}
+                className="p-2 sm:p-3 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0 touch-target"
+                title="Lukk fullskjerm"
+              >
+                <Minimize2 className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={leggTilNye}
-                className="btn-primary flex items-center gap-2"
+                className="btn-primary flex items-center gap-2 text-sm sm:text-base"
               >
-                <Plus className="w-5 h-5" />
-                Legg til ({antallNye})
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="hidden xs:inline">Legg til ({antallNye})</span>
+                <span className="xs:hidden">+{antallNye}</span>
               </button>
               <button
                 onClick={lagreAlle}
-                className="btn-primary flex items-center gap-2"
+                className="btn-primary flex items-center gap-2 text-sm sm:text-base"
               >
-                <Save className="w-5 h-5" />
-                Lagre alle
-              </button>
-              <button
-                onClick={() => setIsFullscreen(false)}
-                className="p-3 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                title="Lukk fullskjerm"
-              >
-                <Minimize2 className="w-6 h-6" />
+                <Save className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="hidden xs:inline">Lagre alle</span>
+                <span className="xs:hidden">Lagre</span>
               </button>
             </div>
           </div>
@@ -1573,22 +1579,22 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       </div>
 
       {/* Statistikk */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="card bg-blue-500/10 border-blue-500/20">
-          <p className="text-sm text-gray-400 mb-1">Totalt</p>
-          <p className="text-2xl font-bold text-white">{totalt}</p>
+          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">Totalt</p>
+          <p className="text-xl sm:text-2xl font-bold text-white">{totalt}</p>
         </div>
         <div className="card bg-green-500/10 border-green-500/20">
-          <p className="text-sm text-gray-400 mb-1">OK</p>
-          <p className="text-2xl font-bold text-green-400">{ok}</p>
+          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">OK</p>
+          <p className="text-xl sm:text-2xl font-bold text-green-400">{ok}</p>
         </div>
         <div className="card bg-gray-500/10 border-gray-500/20">
-          <p className="text-sm text-gray-400 mb-1">Ikke kontrollert</p>
-          <p className="text-2xl font-bold text-gray-400">{ikkeKontrollert}</p>
+          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">Ikke kontrollert</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-400">{ikkeKontrollert}</p>
         </div>
         <div className="card bg-red-500/10 border-red-500/20">
-          <p className="text-sm text-gray-400 mb-1">Avvik</p>
-          <p className="text-2xl font-bold text-red-400">{avvik}</p>
+          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">Avvik</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-400">{avvik}</p>
         </div>
       </div>
 
@@ -1640,21 +1646,48 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
 
       {/* Kompakt tabell-visning */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-800">
           <h2 className="text-lg font-semibold text-white">
             Brannslanger
             <span className="ml-2 text-sm text-gray-400 font-normal">
               ({sortedSlanger.length} {sortedSlanger.length === 1 ? 'enhet' : 'enheter'})
             </span>
           </h2>
-          <button
-            onClick={() => setIsFullscreen(true)}
-            className="btn-secondary flex items-center gap-2"
-            title="Åpne i fullskjerm for detaljert redigering"
-          >
-            <Maximize2 className="w-5 h-5" />
-            Rediger i fullskjerm
-          </button>
+          <div className="flex items-center gap-2">
+            {/* View toggle */}
+            <div className="flex items-center gap-1 bg-dark-100 rounded-lg p-1">
+              <button
+                onClick={() => setDisplayMode('table')}
+                className={`p-2 rounded transition-colors ${
+                  displayMode === 'table'
+                    ? 'bg-primary text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                title="Tabellvisning"
+              >
+                <Table className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setDisplayMode('cards')}
+                className={`p-2 rounded transition-colors ${
+                  displayMode === 'cards'
+                    ? 'bg-primary text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                title="Kortvisning"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+            </div>
+            <button
+              onClick={() => setIsFullscreen(true)}
+              className="btn-secondary flex items-center gap-2"
+              title="Åpne i fullskjerm for detaljert redigering"
+            >
+              <Maximize2 className="w-5 h-5" />
+              <span className="hidden sm:inline">Rediger i fullskjerm</span>
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -1668,7 +1701,101 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
             <p className="text-gray-400">Ingen brannslanger funnet</p>
             <p className="text-sm text-gray-500 mt-2">Klikk "Legg til" for å registrere nye brannslanger</p>
           </div>
+        ) : displayMode === 'cards' ? (
+          /* Kortvisning - Mobile-vennlig */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sortedSlanger.map((slange, index) => (
+              <div
+                key={slange.id || `new-${index}`}
+                className="bg-dark-100 rounded-lg p-4 border border-gray-800 hover:border-blue-500/50 transition-colors"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Shield className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">Nr: {slange.slangenummer || '-'}</p>
+                      <p className="text-xs text-gray-400">{slange.modell || 'Ingen modell'}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (confirm('Er du sikker på at du vil slette denne brannslangen?')) {
+                        if (slange.id) {
+                          await supabase
+                            .from('anleggsdata_brannslanger')
+                            .delete()
+                            .eq('id', slange.id)
+                          await loadSlanger()
+                        } else {
+                          updateSlanger(slanger.filter(s => s !== slange))
+                        }
+                      }
+                    }}
+                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors touch-target"
+                    title="Slett"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Plassering:</span>
+                    <span className="text-gray-200 text-right">{slange.plassering || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Etasje:</span>
+                    <span className="text-gray-200">{slange.etasje || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Produsent:</span>
+                    <span className="text-gray-200">{slange.produsent || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Brannklasse:</span>
+                    <span className="text-gray-200">{slange.brannklasse || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Produksjonsår:</span>
+                    <span className="text-gray-200">{slange.produksjonsaar || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Siste kontroll:</span>
+                    <span className="text-gray-200">{slange.sistekontroll || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Trykktest:</span>
+                    <span className="text-gray-200">{slange.trykktest || '-'}</span>
+                  </div>
+                  <div className="pt-2 border-t border-gray-800">
+                    <span className="text-gray-400 text-xs block mb-2">Status:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {slange.type_avvik && slange.type_avvik.length > 0 ? (
+                        slange.type_avvik.map((avvik: string, i: number) => (
+                          <span
+                            key={i}
+                            className={`badge text-xs ${
+                              avvik === 'OK' ? 'bg-green-900/30 text-green-400 border-green-800' :
+                              avvik.includes('Ikke') ? 'bg-yellow-900/30 text-yellow-400 border-yellow-800' :
+                              'bg-red-900/30 text-red-400 border-red-800'
+                            }`}
+                          >
+                            {avvik}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="badge bg-green-900/30 text-green-400 border-green-800 text-xs">OK</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
+          /* Tabellvisning */
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px]">
               <thead>

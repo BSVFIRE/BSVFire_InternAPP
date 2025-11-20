@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Calendar, ChevronLeft, ChevronRight, CheckCircle, Clock, XCircle, Building2, Search, Eye } from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, CheckCircle, Clock, XCircle, Building2, Search, Eye, Ban } from 'lucide-react'
 import { MAANEDER, KONTROLLTYPER, ANLEGG_STATUSER } from '@/lib/constants'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -109,7 +109,7 @@ export function Kontrollplan() {
     }
   }
 
-  function getAnleggKontrollStatus(anlegg: Anlegg): 'utfort' | 'planlagt' | 'ikke_utfort' | 'utsatt' {
+  function getAnleggKontrollStatus(anlegg: Anlegg): 'utfort' | 'planlagt' | 'ikke_utfort' | 'utsatt' | 'oppsagt' {
     // Bruk den faktiske statusen fra anlegget
     const status = anlegg.kontroll_status
 
@@ -123,6 +123,10 @@ export function Kontrollplan() {
 
     if (status === ANLEGG_STATUSER.UTSATT) {
       return 'utsatt'
+    }
+
+    if (status === ANLEGG_STATUSER.OPPSAGT) {
+      return 'oppsagt'
     }
 
     // Standard til "ikke utført"
@@ -159,6 +163,7 @@ export function Kontrollplan() {
     planlagt: filteredAnlegg.filter(a => getAnleggKontrollStatus(a) === 'planlagt'),
     ikkeUtfort: filteredAnlegg.filter(a => getAnleggKontrollStatus(a) === 'ikke_utfort'),
     utsatt: filteredAnlegg.filter(a => getAnleggKontrollStatus(a) === 'utsatt'),
+    oppsagt: filteredAnlegg.filter(a => getAnleggKontrollStatus(a) === 'oppsagt'),
   }
 
   // Beregn statistikk
@@ -227,91 +232,91 @@ export function Kontrollplan() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <Calendar className="w-8 h-8 text-primary" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2 sm:gap-3">
+            <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
             Kontrollplan
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 mt-1">
             Planlegg og følg opp kontroller måned for måned
           </p>
         </div>
       </div>
 
       {/* Månedsvelger */}
-      <div className="bg-white dark:bg-dark-50 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
+      <div className="bg-white dark:bg-dark-50 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 sm:p-6">
         <div className="flex items-center justify-between">
           <button
             onClick={() => changeMonth('prev')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors touch-target"
           >
-            <ChevronLeft className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600 dark:text-gray-400" />
           </button>
           
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
               {selectedMonth}
             </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
               {stats.total} anlegg totalt
             </p>
           </div>
 
           <button
             onClick={() => changeMonth('next')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors touch-target"
           >
-            <ChevronRight className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600 dark:text-gray-400" />
           </button>
         </div>
       </div>
 
       {/* Statistikk */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-6 border border-green-200 dark:border-green-800">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 sm:p-6 border border-green-200 dark:border-green-800">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-green-600 dark:text-green-400">Utført</p>
-              <p className="text-3xl font-bold text-green-700 dark:text-green-300 mt-2">
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400 truncate">Utført</p>
+              <p className="text-2xl sm:text-3xl font-bold text-green-700 dark:text-green-300 mt-1 sm:mt-2">
                 {stats.utfort}
               </p>
             </div>
-            <CheckCircle className="w-12 h-12 text-green-500 dark:text-green-400 opacity-50" />
+            <CheckCircle className="w-8 h-8 sm:w-12 sm:h-12 text-green-500 dark:text-green-400 opacity-50 flex-shrink-0" />
           </div>
         </div>
 
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6 border border-blue-200 dark:border-blue-800">
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 sm:p-6 border border-blue-200 dark:border-blue-800">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Planlagt</p>
-              <p className="text-3xl font-bold text-blue-700 dark:text-blue-300 mt-2">
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Planlagt</p>
+              <p className="text-2xl sm:text-3xl font-bold text-blue-700 dark:text-blue-300 mt-1 sm:mt-2">
                 {stats.planlagt}
               </p>
             </div>
-            <Clock className="w-12 h-12 text-blue-500 dark:text-blue-400 opacity-50" />
+            <Clock className="w-8 h-8 sm:w-12 sm:h-12 text-blue-500 dark:text-blue-400 opacity-50 flex-shrink-0" />
           </div>
         </div>
 
-        <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-6 border border-red-200 dark:border-red-800">
+        <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 sm:p-6 border border-red-200 dark:border-red-800">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-red-600 dark:text-red-400">Ikke utført</p>
-              <p className="text-3xl font-bold text-red-700 dark:text-red-300 mt-2">
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-red-600 dark:text-red-400 truncate">Ikke utført</p>
+              <p className="text-2xl sm:text-3xl font-bold text-red-700 dark:text-red-300 mt-1 sm:mt-2">
                 {stats.ikkeUtfort}
               </p>
             </div>
-            <XCircle className="w-12 h-12 text-red-500 dark:text-red-400 opacity-50" />
+            <XCircle className="w-8 h-8 sm:w-12 sm:h-12 text-red-500 dark:text-red-400 opacity-50 flex-shrink-0" />
           </div>
         </div>
 
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-6 border border-yellow-200 dark:border-yellow-800">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4 sm:p-6 border border-yellow-200 dark:border-yellow-800">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">Utsatt</p>
-              <p className="text-3xl font-bold text-yellow-700 dark:text-yellow-300 mt-2">
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-yellow-600 dark:text-yellow-400 truncate">Utsatt</p>
+              <p className="text-2xl sm:text-3xl font-bold text-yellow-700 dark:text-yellow-300 mt-1 sm:mt-2">
                 {stats.utsatt}
               </p>
             </div>
-            <Clock className="w-12 h-12 text-yellow-500 dark:text-yellow-400 opacity-50" />
+            <Clock className="w-8 h-8 sm:w-12 sm:h-12 text-yellow-500 dark:text-yellow-400 opacity-50 flex-shrink-0" />
           </div>
         </div>
       </div>
@@ -411,6 +416,21 @@ export function Kontrollplan() {
           />
         )}
 
+        {/* Oppsagt */}
+        {groupedAnlegg.oppsagt.length > 0 && (
+          <AnleggGroup
+            title="Oppsagt"
+            icon={Ban}
+            iconColor="text-gray-500"
+            bgColor="bg-gray-50 dark:bg-gray-900/20"
+            borderColor="border-gray-200 dark:border-gray-800"
+            anlegg={groupedAnlegg.oppsagt}
+            kunder={kunder}
+            onViewAnlegg={handleViewAnlegg}
+            onStatusChange={handleStatusChange}
+          />
+        )}
+
         {/* Ingen anlegg */}
         {filteredAnlegg.length === 0 && (
           <div className="text-center py-12 bg-white dark:bg-dark-50 rounded-xl border border-gray-200 dark:border-gray-800">
@@ -471,33 +491,33 @@ function AnleggGroup({ title, icon: Icon, iconColor, bgColor, borderColor, anleg
           {anlegg.map(a => (
             <div
               key={a.id}
-              className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors"
+              className="px-4 sm:px-6 py-4 hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors"
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <Building2 className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                    <h4 className="font-medium text-gray-900 dark:text-white truncate">
+                  <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                    <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 flex-shrink-0" />
+                    <h4 className="font-medium text-gray-900 dark:text-white truncate text-sm sm:text-base">
                       {a.anleggsnavn}
                     </h4>
                   </div>
                   
-                  <div className="ml-8 space-y-1">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <div className="ml-0 sm:ml-8 space-y-1">
+                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                       <span className="font-medium">Kunde:</span> {getKundeNavn(a.kundenr)}
                     </p>
                     {a.adresse && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                         <span className="font-medium">Adresse:</span> {a.adresse}
                         {a.poststed && `, ${a.poststed}`}
                       </p>
                     )}
                     {a.kontroll_type && a.kontroll_type.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
+                      <div className="flex flex-wrap gap-1 sm:gap-2 mt-2">
                         {a.kontroll_type.map(type => (
                           <span
                             key={type}
-                            className="px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300 rounded"
+                            className="px-2 py-0.5 sm:py-1 text-xs font-medium bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300 rounded"
                           >
                             {type}
                           </span>
@@ -507,7 +527,7 @@ function AnleggGroup({ title, icon: Icon, iconColor, bgColor, borderColor, anleg
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-start">
                   <select
                     value={a.kontroll_status || ''}
                     onChange={(e) => {
@@ -515,7 +535,7 @@ function AnleggGroup({ title, icon: Icon, iconColor, bgColor, borderColor, anleg
                       onStatusChange(a.id, e.target.value)
                     }}
                     onClick={(e) => e.stopPropagation()}
-                    className="px-3 py-1.5 text-sm bg-white dark:bg-dark-100 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-gray-900 dark:text-white cursor-pointer hover:border-primary transition-colors"
+                    className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-white dark:bg-dark-100 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-gray-900 dark:text-white cursor-pointer hover:border-primary transition-colors touch-target"
                   >
                     <option value={ANLEGG_STATUSER.IKKE_UTFORT}>{ANLEGG_STATUSER.IKKE_UTFORT}</option>
                     <option value={ANLEGG_STATUSER.PLANLAGT}>{ANLEGG_STATUSER.PLANLAGT}</option>
@@ -525,10 +545,10 @@ function AnleggGroup({ title, icon: Icon, iconColor, bgColor, borderColor, anleg
                   </select>
                   <button
                     onClick={() => onViewAnlegg(a.id)}
-                    className="flex-shrink-0 p-2 text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
+                    className="flex-shrink-0 p-2 text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors touch-target"
                     title="Vis anlegg"
                   >
-                    <Eye className="w-5 h-5" />
+                    <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>

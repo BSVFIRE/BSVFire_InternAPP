@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Download, Upload } from 'lucide-react'
+import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Download, Upload, LayoutGrid, Table } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -96,6 +96,10 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
   const [unsavedChanges, setUnsavedChanges] = useState<Map<string, Partial<NodlysEnhet>>>(new Map())
   const [originalData, setOriginalData] = useState<NodlysEnhet[]>([])
+  const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
+    // Auto-switch to cards on mobile
+    return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
+  })
 
   useEffect(() => {
     loadKunder()
@@ -1318,43 +1322,45 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   if (isFullscreen) {
     return (
       <div className="fixed inset-0 z-50 bg-dark-200 overflow-auto">
-        <div className="min-h-screen p-4">
+        <div className="min-h-screen p-4 sm:p-6">
           {/* Header med lukkeknapp */}
-          <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-800">
-            <div className="flex items-center gap-4">
-              <h2 className="text-2xl font-bold text-white">
+          <div className="flex flex-col gap-4 mb-4 pb-4 border-b border-gray-800">
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="text-lg sm:text-2xl font-bold text-white leading-tight">
                 Nødlysenheter - {selectedKundeNavn} - {selectedAnleggNavn}
-                <span className="ml-3 text-lg text-gray-400 font-normal">
+                <span className="block sm:inline sm:ml-3 text-sm sm:text-lg text-gray-400 font-normal mt-1 sm:mt-0">
                   ({sortedNodlys.length} {sortedNodlys.length === 1 ? 'enhet' : 'enheter'})
                 </span>
               </h2>
+              <button
+                onClick={() => setIsFullscreen(false)}
+                className="p-2 sm:p-3 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0 touch-target"
+                title="Lukk fullskjerm"
+              >
+                <Minimize2 className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => {
                   setViewMode('bulk')
                 }}
-                className="btn-primary flex items-center gap-2"
+                className="btn-primary flex items-center gap-2 text-sm sm:text-base"
               >
-                <Plus className="w-5 h-5" />
-                Legg til flere
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="hidden xs:inline">Legg til flere</span>
+                <span className="xs:hidden">Flere</span>
               </button>
               <button
                 onClick={() => {
                   setSelectedNodlys(null)
                   setViewMode('create')
                 }}
-                className="btn-primary flex items-center gap-2"
+                className="btn-primary flex items-center gap-2 text-sm sm:text-base"
               >
-                <Plus className="w-5 h-5" />
-                Ny nødlysenhet
-              </button>
-              <button
-                onClick={() => setIsFullscreen(false)}
-                className="p-3 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                title="Lukk fullskjerm"
-              >
-                <Minimize2 className="w-6 h-6" />
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="hidden xs:inline">Ny nødlysenhet</span>
+                <span className="xs:hidden">Ny</span>
               </button>
             </div>
           </div>
@@ -1822,20 +1828,47 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
           {/* Nødlys Tabell */}
           <div className="card">
-            <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-800">
               <h2 className="text-lg font-semibold text-white">
                 Nødlysenheter
                 <span className="ml-2 text-sm text-gray-400 font-normal">
                   ({sortedNodlys.length} {sortedNodlys.length === 1 ? 'enhet' : 'enheter'})
                 </span>
               </h2>
-              <button
-                onClick={() => setIsFullscreen(true)}
-                className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                title="Fullskjerm"
-              >
-                <Maximize2 className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* View toggle */}
+                <div className="flex items-center gap-1 bg-dark-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setDisplayMode('table')}
+                    className={`p-2 rounded transition-colors ${
+                      displayMode === 'table'
+                        ? 'bg-primary text-white'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                    title="Tabellvisning"
+                  >
+                    <Table className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setDisplayMode('cards')}
+                    className={`p-2 rounded transition-colors ${
+                      displayMode === 'cards'
+                        ? 'bg-primary text-white'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                    title="Kortvisning"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                  </button>
+                </div>
+                <button
+                  onClick={() => setIsFullscreen(true)}
+                  className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                  title="Fullskjerm"
+                >
+                  <Maximize2 className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {loading ? (
@@ -1862,7 +1895,107 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                   </button>
                 )}
               </div>
+            ) : displayMode === 'cards' ? (
+              /* Kortvisning - Mobile-vennlig */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {sortedNodlys.map((nodlys) => (
+                  <div
+                    key={nodlys.id}
+                    className="bg-dark-100 rounded-lg p-4 border border-gray-800 hover:border-primary/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-yellow-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Lightbulb className="w-5 h-5 text-yellow-500" />
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">{nodlys.internnummer || '-'}</p>
+                          <p className="text-xs text-gray-400">Armatur: {nodlys.amatur_id || '-'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setSelectedNodlys(nodlys)
+                            setViewMode('edit')
+                          }}
+                          className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors touch-target"
+                          title="Rediger"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteNodlys(nodlys.id)}
+                          className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors touch-target"
+                          title="Slett"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Fordeling:</span>
+                        <span className="text-gray-200">{nodlys.fordeling || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Kurs:</span>
+                        <span className="text-gray-200">{nodlys.kurs || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Etasje:</span>
+                        <span className="text-gray-200">{nodlys.etasje || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Plassering:</span>
+                        <span className="text-gray-200 text-right">{nodlys.plassering || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Produsent:</span>
+                        <span className="text-gray-200">{nodlys.produsent || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Type:</span>
+                        <span className="text-gray-200">{nodlys.type || '-'}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-gray-800">
+                        <span className="text-gray-400">Status:</span>
+                        {nodlys.status ? (
+                          <span className={`badge ${
+                            nodlys.status === 'OK' ? 'bg-green-900/30 text-green-400 border-green-800' :
+                            nodlys.status === 'Defekt' ? 'bg-red-900/30 text-red-400 border-red-800' :
+                            nodlys.status === 'Mangler' ? 'bg-yellow-900/30 text-yellow-400 border-yellow-800' :
+                            'bg-blue-900/30 text-blue-400 border-blue-800'
+                          }`}>
+                            {nodlys.status}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Kontrollert:</span>
+                        <input
+                          type="checkbox"
+                          checked={nodlys.kontrollert === true}
+                          onChange={(e) => {
+                            const newValue = e.target.checked
+                            const updatedList = nodlysListe.map(n => 
+                              n.id === nodlys.id ? { ...n, kontrollert: newValue } : n
+                            )
+                            setNodlysListe(updatedList)
+                            trackChange(nodlys.id, 'kontrollert', newValue)
+                          }}
+                          className="w-5 h-5 text-green-600 bg-dark-100 border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
+              /* Tabellvisning */
               <div className="overflow-x-auto">
                 <table className="w-full table-fixed">
                   <thead>

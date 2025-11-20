@@ -128,7 +128,7 @@ export function Layout({ children }: LayoutProps) {
       {/* Mobile menu button */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-white dark:bg-dark-50 rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+        className="fixed top-4 left-4 z-50 lg:hidden p-3 bg-white dark:bg-dark-50 rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 min-w-[44px] min-h-[44px] flex items-center justify-center"
       >
         {isSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
       </button>
@@ -162,8 +162,9 @@ export function Layout({ children }: LayoutProps) {
                 <Link
                   key={item.name}
                   to={item.href}
+                  onClick={() => setIsSidebarOpen(false)}
                   className={`
-                    flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all relative
+                    flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all relative min-h-[44px]
                     ${isActive 
                       ? 'bg-primary text-white shadow-lg shadow-primary/20' 
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100'
@@ -196,8 +197,9 @@ export function Layout({ children }: LayoutProps) {
                     <Link
                       key={item.name}
                       to={item.href}
+                      onClick={() => setIsSidebarOpen(false)}
                       className={`
-                        flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                        flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all min-h-[44px]
                         ${isActive 
                           ? 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30' 
                           : 'text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10'
@@ -268,7 +270,7 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Main Content */}
       <main className="lg:pl-64">
-        <div className="p-8">
+        <div className="p-4 sm:p-6 lg:p-8 pt-20 lg:pt-8">
           {children}
         </div>
       </main>
