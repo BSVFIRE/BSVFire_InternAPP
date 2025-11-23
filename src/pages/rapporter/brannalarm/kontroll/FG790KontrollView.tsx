@@ -40,7 +40,10 @@ export function FG790KontrollView({
   const [saving, setSaving] = useState(false)
   const [anleggsNavn, setAnleggsNavn] = useState(initialAnleggsNavn)
   const [currentKontrollId, setCurrentKontrollId] = useState<string | undefined>(kontrollId)
-  const [collapsedPosisjoner, setCollapsedPosisjoner] = useState<Set<string>>(new Set())
+  const [collapsedPosisjoner, setCollapsedPosisjoner] = useState<Set<string>>(() => {
+    // Start med alle posisjoner lukket
+    return new Set(Object.keys(KONTROLLPUNKTER_FG790))
+  })
   const [showReferanseDialog, setShowReferanseDialog] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [fullscreenPunkt, setFullscreenPunkt] = useState<string | null>(null)
@@ -447,30 +450,30 @@ export function FG790KontrollView({
     <div className="min-h-screen pb-20">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800">
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg">
+        <div className="p-3 sm:p-4">
+          <div className="flex flex-col gap-3 mb-3 sm:mb-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg flex-shrink-0">
                 <ArrowLeft className="w-5 h-5 text-gray-400" />
               </button>
-              <div>
-                <h1 className="text-xl font-bold text-white">FG790 Kontroll</h1>
-                <p className="text-sm text-gray-400">{anleggsNavn}</p>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl font-bold text-white truncate">FG790 Kontroll</h1>
+                <p className="text-xs sm:text-sm text-gray-400 truncate">{anleggsNavn}</p>
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {/* Offline/Online indicator */}
               {!isOnline && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs">
-                  <WifiOff className="w-4 h-4" />
-                  Offline
+                <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs">
+                  <WifiOff className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Offline</span>
                 </div>
               )}
               {isSyncing && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs">
+                <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs">
                   <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                  Synkroniserer...
+                  <span className="hidden xs:inline">Synkroniserer...</span>
                 </div>
               )}
               
@@ -485,32 +488,32 @@ export function FG790KontrollView({
                     setIsFullscreen(false)
                   }
                 }}
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+                className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0"
                 title={isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
               >
                 {isFullscreen ? (
-                  <Minimize2 className="w-5 h-5 text-gray-400" />
+                  <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                 ) : (
-                  <Maximize2 className="w-5 h-5 text-gray-400" />
+                  <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                 )}
               </button>
             </div>
           </div>
 
           {/* Totalsum Score */}
-          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-lg p-4 mb-3 border border-gray-700">
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-lg p-3 sm:p-4 mb-3 border border-gray-700">
             <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-400 mb-1">Totalsum</div>
-                <div className="text-3xl font-bold text-white">
+              <div className="min-w-0 flex-1">
+                <div className="text-xs sm:text-sm text-gray-400 mb-1">Totalsum</div>
+                <div className="text-2xl sm:text-3xl font-bold text-white">
                   {sluttScore.toFixed(1)}
-                  <span className="text-lg text-gray-400 ml-1">/ 100</span>
+                  <span className="text-base sm:text-lg text-gray-400 ml-1">/ 100</span>
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-gray-500 mt-1 truncate">
                   100 - {totalPoengTrekk.toFixed(1)} poeng trekk
                 </div>
               </div>
-              <div className={`text-6xl ${
+              <div className={`text-4xl sm:text-6xl flex-shrink-0 ${
                 sluttScore >= 90 ? 'text-green-500' :
                 sluttScore >= 70 ? 'text-yellow-500' :
                 sluttScore >= 50 ? 'text-orange-500' :
@@ -527,8 +530,8 @@ export function FG790KontrollView({
           {/* Progress */}
           <div className="bg-gray-900 rounded-lg p-3 mb-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-400">Fremdrift</span>
-              <span className="text-sm font-semibold text-white">{progress}%</span>
+              <span className="text-xs sm:text-sm text-gray-400">Fremdrift</span>
+              <span className="text-sm sm:text-base font-semibold text-white">{progress}%</span>
             </div>
             <div className="w-full bg-gray-800 rounded-full h-2 mb-3">
               <div
@@ -536,7 +539,7 @@ export function FG790KontrollView({
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <div className="grid grid-cols-4 gap-2 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <div className="text-center">
                 <div className="text-gray-400">Kontrollert</div>
                 <div className="text-green-400 font-semibold">{kontrollertePunkter}/{totalPunkter}</div>
@@ -738,7 +741,7 @@ export function FG790KontrollView({
                               }`}
                             >
                               <div className="flex items-start justify-between mb-2">
-                                <p className="text-white font-medium flex-1">{tittel}</p>
+                                <p className="text-sm sm:text-base text-white font-medium flex-1">{tittel}</p>
                                 
                                 {/* Info knapp for referanse */}
                                 {KONTROLLPUNKT_REFERANSER[tittel] && (

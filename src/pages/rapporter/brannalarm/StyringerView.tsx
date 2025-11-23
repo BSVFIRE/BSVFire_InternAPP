@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Check } from 'lucide-react'
+import { ArrowLeft, Check, AlertCircle, Eye, Filter, Wifi, WifiOff } from 'lucide-react'
 import { BrannalarmStyring } from '../Brannalarm'
 
 interface StyringerViewProps {
@@ -35,6 +35,9 @@ const styringTyper = [
 export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave }: StyringerViewProps) {
   const [localStyringer, setLocalStyringer] = useState<Record<string, any>>({})
   const [saving, setSaving] = useState(false)
+  const [filterKategori, setFilterKategori] = useState<string>('all')
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
 
   useEffect(() => {
     const initial: Record<string, any> = {}
@@ -72,8 +75,8 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
           .insert(data)
       }
 
+      setLastSaved(new Date())
       onSave(anleggId)
-      onBack()
     } catch (error) {
       console.error('Feil ved lagring:', error)
       alert('Feil ved lagring av styringer')
@@ -82,114 +85,197 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
     }
   }
 
+  const kategorier = ['all', ...Array.from(new Set(styringTyper.map(s => s.kategori)))]
+  const filteredStyringer = styringTyper.filter(({ kategori }) => {
+    if (filterKategori === 'all') return true
+    return kategori === filterKategori
+  })
+  const aktiveStyringer = styringTyper.filter(({ key }) => localStyringer[key]?.aktiv).length
+  const totalKomponenter = styringTyper.reduce((sum, { key }) => 
+    sum + (localStyringer[key]?.antall || 0), 0
+  )
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0">
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Brannalarm styringer</h1>
-            <p className="text-gray-400 mt-1">{anleggsNavn}</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Brannalarm styringer</h1>
+            <p className="text-sm sm:text-base text-gray-400 mt-1 truncate">{anleggsNavn}</p>
           </div>
         </div>
-        <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
-          {saving ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Lagrer...
-            </>
-          ) : (
-            <>
-              <Check className="w-4 h-4" />
-              Lagre styringer
-            </>
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            {isOnline ? (
+              <>
+                <Wifi className="w-4 h-4 text-green-400" />
+                <span className="text-xs sm:text-sm text-green-400">Online</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-4 h-4 text-yellow-400" />
+                <span className="text-xs sm:text-sm text-yellow-400">Offline</span>
+              </>
+            )}
+          </div>
+          {saving && (
+            <span className="text-xs sm:text-sm text-gray-400 flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+              <span className="hidden sm:inline">Lagrer...</span>
+            </span>
           )}
-        </button>
+          {!saving && lastSaved && (
+            <span className="text-xs sm:text-sm text-green-400 hidden sm:inline">
+              Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 text-sm sm:text-base min-w-[44px] justify-center">
+            {saving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="hidden sm:inline">Lagrer...</span>
+              </>
+            ) : (
+              <>
+                <Check className="w-5 h-5" />
+                <span className="hidden sm:inline">Lagre</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      <div className="space-y-4">
-        {styringTyper.map(({ key, navn, icon }) => {
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <div className="card bg-blue-500/10 border-blue-500/20">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <Check className="w-6 h-6 text-blue-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-gray-400 truncate">Totalt komponenter</div>
+              <div className="text-2xl font-bold text-white">{totalKomponenter}</div>
+            </div>
+          </div>
+        </div>
+        <div className="card bg-green-500/10 border-green-500/20">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-6 h-6 text-green-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-gray-400 truncate">Aktive enhetstyper</div>
+              <div className="text-2xl font-bold text-white">{aktiveStyringer}</div>
+            </div>
+          </div>
+        </div>
+        <div className="card bg-gray-500/10 border-gray-500/20 col-span-2 sm:col-span-1">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-lg bg-gray-500/20 flex items-center justify-center flex-shrink-0">
+              <Eye className="w-6 h-6 text-gray-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-gray-400 truncate">Enhetstyper</div>
+              <div className="text-2xl font-bold text-white">{styringTyper.length}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-2 flex-wrap overflow-x-auto pb-2 sm:pb-0">
+        <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        {kategorier.map((kat) => (
+          <button
+            key={kat}
+            onClick={() => setFilterKategori(kat)}
+            className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors whitespace-nowrap ${
+              filterKategori === kat ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            {kat === 'all' ? 'Alle' : kat}
+          </button>
+        ))}
+      </div>
+
+      {/* Styringer List */}
+      <div className="space-y-3 pb-20">
+        {filteredStyringer.map(({ key, navn, icon }) => {
           const isActive = localStyringer[key]?.aktiv || false
+          console.log(`${navn}: isActive=${isActive}, data=`, localStyringer[key])
           
           return (
-            <div key={key} className={`card transition-all ${isActive ? 'border-primary/30 bg-primary/5' : ''}`}>
-              <button
-                onClick={() => {
-                  setLocalStyringer(prev => ({
-                    ...prev,
-                    [key]: {
-                      ...prev[key],
-                      aktiv: !prev[key]?.aktiv
-                    }
-                  }))
-                }}
-                className="w-full flex items-center gap-4 p-4 text-left hover:bg-white/5 rounded-lg transition-colors"
-              >
-                <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${isActive ? 'bg-primary/20' : 'bg-gray-800'}`}>
-                  {icon}
-                </div>
-                <div className="flex-1">
-                  <h3 className={`font-semibold ${isActive ? 'text-primary' : 'text-white'}`}>{navn}</h3>
-                </div>
-                <div className={`w-12 h-6 rounded-full transition-colors relative ${isActive ? 'bg-primary' : 'bg-gray-700'}`}>
-                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${isActive ? 'translate-x-7' : 'translate-x-1'}`} />
-                </div>
-              </button>
-
+            <div key={key} className={`card ${isActive ? 'border-primary/30 bg-primary/5' : ''}`}>
+              {/* Første rad: Navn, Toggle, Antall */}
+              <div className={`flex items-center gap-3 ${isActive ? 'mb-3' : ''}`}>
+                <span className="text-2xl flex-shrink-0">{icon}</span>
+                <span className={`font-medium text-sm flex-1 ${isActive ? 'text-white' : 'text-gray-400'}`}>
+                  {navn}
+                </span>
+                <button
+                  onClick={() => {
+                    setLocalStyringer(prev => ({
+                      ...prev,
+                      [key]: { ...prev[key], aktiv: !prev[key]?.aktiv }
+                    }))
+                  }}
+                  className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${
+                    isActive ? 'bg-primary' : 'bg-gray-700'
+                  }`}
+                >
+                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                    isActive ? 'translate-x-5' : 'translate-x-1'
+                  }`} />
+                </button>
+                <input
+                  type="number"
+                  value={localStyringer[key]?.antall || 0}
+                  onChange={(e) => {
+                    setLocalStyringer(prev => ({
+                      ...prev,
+                      [key]: { ...prev[key], antall: parseInt(e.target.value) || 0 }
+                    }))
+                  }}
+                  disabled={!isActive}
+                  className="input text-center w-16 text-sm flex-shrink-0"
+                  min="0"
+                />
+              </div>
+              
+              {/* Andre rad: Status og Notat (kun hvis aktiv) */}
               {isActive && (
-                <div className="px-4 pb-4 space-y-4 border-t border-white/10 pt-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Antall</label>
-                    <input
-                      type="number"
-                      value={localStyringer[key]?.antall || 0}
-                      onChange={(e) => {
-                        setLocalStyringer(prev => ({
-                          ...prev,
-                          [key]: { ...prev[key], antall: parseInt(e.target.value) || 0 }
-                        }))
-                      }}
-                      className="input"
-                      min="0"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-                    <select
-                      value={localStyringer[key]?.status || ''}
-                      onChange={(e) => {
-                        setLocalStyringer(prev => ({
-                          ...prev,
-                          [key]: { ...prev[key], status: e.target.value }
-                        }))
-                      }}
-                      className="input"
-                    >
-                      <option value="">-- Velg status --</option>
-                      {statusOptions.map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Notat</label>
-                    <textarea
-                      value={localStyringer[key]?.note || ''}
-                      onChange={(e) => {
-                        setLocalStyringer(prev => ({
-                          ...prev,
-                          [key]: { ...prev[key], note: e.target.value }
-                        }))
-                      }}
-                      className="input"
-                      rows={3}
-                      placeholder="Legg til notat..."
-                    />
-                  </div>
+                <div className="space-y-2 pt-3 border-t border-gray-800">
+                  <select
+                    value={localStyringer[key]?.status || ''}
+                    onChange={(e) => {
+                      setLocalStyringer(prev => ({
+                        ...prev,
+                        [key]: { ...prev[key], status: e.target.value }
+                      }))
+                    }}
+                    className="input text-sm w-full"
+                  >
+                    <option value="">-- Velg status --</option>
+                    {statusOptions.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                  <textarea
+                    value={localStyringer[key]?.note || ''}
+                    onChange={(e) => {
+                      setLocalStyringer(prev => ({
+                        ...prev,
+                        [key]: { ...prev[key], note: e.target.value }
+                      }))
+                    }}
+                    className="input text-sm w-full"
+                    rows={2}
+                    placeholder="Legg til notat..."
+                  />
                 </div>
               )}
             </div>

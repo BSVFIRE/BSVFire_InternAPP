@@ -5,6 +5,7 @@ import { useThemeStore } from './store/themeStore'
 import { Layout } from './components/Layout'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { setupErrorTracking } from './lib/errorTracking'
+import { useScrollToInput } from './hooks/useKeyboardHeight'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Kunder } from './pages/Kunder'
@@ -61,6 +62,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function App() {
   const initialize = useAuthStore((state) => state.initialize)
   const theme = useThemeStore((state) => state.theme)
+  
+  // Aktiver keyboard-håndtering for mobil
+  useScrollToInput()
 
   useEffect(() => {
     initialize()

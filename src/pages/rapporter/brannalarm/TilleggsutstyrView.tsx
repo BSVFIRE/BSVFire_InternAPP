@@ -281,56 +281,57 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0">
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Tilleggsutstyr</h1>
-            <p className="text-gray-400 mt-1">{anleggsNavn}</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Tilleggsutstyr</h1>
+            <p className="text-sm sm:text-base text-gray-400 mt-1 truncate">{anleggsNavn}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             {isOnline ? (
               <>
                 <Wifi className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-green-400">Online</span>
+                <span className="text-xs sm:text-sm text-green-400">Online</span>
               </>
             ) : (
               <>
                 <WifiOff className="w-4 h-4 text-yellow-400" />
-                <span className="text-sm text-yellow-400">Offline</span>
+                <span className="text-xs sm:text-sm text-yellow-400">Offline</span>
               </>
             )}
           </div>
           {pendingChanges > 0 && (
-            <span className="text-sm text-orange-400">{pendingChanges} endring venter</span>
+            <span className="text-xs sm:text-sm text-orange-400">{pendingChanges} endring venter</span>
           )}
           {saving && (
-            <span className="text-sm text-gray-400 flex items-center gap-2">
+            <span className="text-xs sm:text-sm text-gray-400 flex items-center gap-2">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-              {isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}
+              <span className="hidden sm:inline">{isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}</span>
             </span>
           )}
           {!saving && lastSaved && pendingChanges === 0 && (
-            <span className="text-sm text-green-400">
+            <span className="text-xs sm:text-sm text-green-400 hidden sm:inline">
               Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
+          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 text-sm sm:text-base min-w-[44px] justify-center">
             {saving ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Lagrer...
+                <span className="hidden sm:inline">Lagrer...</span>
               </>
             ) : (
               <>
-                <Check className="w-4 h-4" />
-                Lagre
+                <Check className="w-5 h-5" />
+                <span className="hidden sm:inline">Lagre</span>
               </>
             )}
           </button>

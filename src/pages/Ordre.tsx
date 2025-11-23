@@ -1544,70 +1544,71 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
         </div>
       )}
 
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 sm:space-y-6 pb-20">
+        <div className="space-y-4">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{ordre.type}</h1>
-              <span className="text-primary font-mono font-medium text-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white truncate">{ordre.type}</h1>
+              <span className="text-primary font-mono font-medium text-sm sm:text-base lg:text-lg">
                 {ordre.ordre_nummer}
               </span>
             </div>
-            <p className="text-gray-400 dark:text-gray-400">{ordre.customer?.navn || 'Ukjent kunde'} - {ordre.anlegg?.anleggsnavn || 'Ukjent anlegg'}</p>
+            <p className="text-sm sm:text-base text-gray-400 dark:text-gray-400 truncate">{ordre.customer?.navn || 'Ukjent kunde'} - {ordre.anlegg?.anleggsnavn || 'Ukjent anlegg'}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {ordre.status !== 'Fullført' && ordre.status !== 'Fakturert' && (
               <button 
                 onClick={() => setShowAvsluttDialog(true)}
-                className="btn-primary bg-green-600 hover:bg-green-700 flex items-center gap-2"
+                className="btn-primary bg-green-600 hover:bg-green-700 flex items-center gap-2 text-sm sm:text-base"
               >
                 <CheckCircle className="w-4 h-4" />
-                Avslutt ordre
+                <span className="hidden xs:inline">Avslutt ordre</span>
+                <span className="xs:hidden">Avslutt</span>
               </button>
             )}
-            <button onClick={onEdit} className="btn-primary flex items-center gap-2">
+            <button onClick={onEdit} className="btn-primary flex items-center gap-2 text-sm sm:text-base">
               <Edit className="w-4 h-4" />
               Rediger
             </button>
-            <button onClick={onClose} className="btn-secondary">
+            <button onClick={onClose} className="btn-secondary text-sm sm:text-base">
               Tilbake
             </button>
           </div>
         </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Ordreinformasjon</h2>
-            <div className="space-y-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">Ordreinformasjon</h2>
+            <div className="space-y-3 sm:space-y-4">
               <div>
-                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Type</p>
-                <p className="text-gray-900 dark:text-white">{ordre.type}</p>
+                <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 mb-1">Type</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white">{ordre.type}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Status</p>
+                <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 mb-1">Status</p>
                 <span className={`badge ${ORDRE_STATUS_COLORS[ordre.status] || 'badge-info'}`}>
                   {ordre.status}
                 </span>
               </div>
               <div>
-                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Kunde</p>
-                <p className="text-gray-900 dark:text-white">{ordre.customer?.navn || 'Ukjent kunde'}</p>
+                <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 mb-1">Kunde</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white truncate">{ordre.customer?.navn || 'Ukjent kunde'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Anlegg</p>
-                <p className="text-gray-900 dark:text-white">{ordre.anlegg?.anleggsnavn || 'Ukjent anlegg'}</p>
+                <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 mb-1">Anlegg</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white truncate">{ordre.anlegg?.anleggsnavn || 'Ukjent anlegg'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Tekniker</p>
-                <p className="text-gray-900 dark:text-white">{ordre.tekniker?.navn || 'Ikke tildelt'}</p>
+                <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 mb-1">Tekniker</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white">{ordre.tekniker?.navn || 'Ikke tildelt'}</p>
               </div>
               {ordre.kontrolltype && ordre.kontrolltype.length > 0 && (
                 <div>
-                  <p className="text-sm text-gray-400 dark:text-gray-400 mb-2">Kontrolltyper</p>
+                  <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 mb-2">Kontrolltyper</p>
                   <div className="flex flex-wrap gap-2">
                     {ordre.kontrolltype.map((type, idx) => (
-                      <span key={idx} className="badge badge-info">
+                      <span key={idx} className="badge badge-info text-xs">
                         {type}
                       </span>
                     ))}
@@ -1616,26 +1617,26 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
               )}
               {ordre.kommentar && (
                 <div>
-                  <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Kommentar</p>
-                  <p className="text-gray-900 dark:text-white">{ordre.kommentar}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 mb-1">Kommentar</p>
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">{ordre.kommentar}</p>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Metadata</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">Metadata</h2>
             <div className="space-y-3">
               <div>
-                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Opprettet</p>
-                <p className="text-gray-900 dark:text-white text-sm">{formatDate(ordre.opprettet_dato)}</p>
+                <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 mb-1">Opprettet</p>
+                <p className="text-sm text-gray-900 dark:text-white">{formatDate(ordre.opprettet_dato)}</p>
               </div>
               {ordre.sist_oppdatert && (
                 <div>
-                  <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Sist oppdatert</p>
-                  <p className="text-gray-900 dark:text-white text-sm">{formatDate(ordre.sist_oppdatert)}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 mb-1">Sist oppdatert</p>
+                  <p className="text-sm text-gray-900 dark:text-white">{formatDate(ordre.sist_oppdatert)}</p>
                 </div>
               )}
             </div>

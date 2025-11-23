@@ -7,8 +7,33 @@
     @apply border-gray-300 dark:border-gray-700;
   }
   
+  :root {
+    --keyboard-height: 0px;
+  }
+  
   body {
     @apply bg-white text-gray-900 dark:bg-dark dark:text-gray-100 antialiased;
+  }
+  
+  /* Bedre keyboard-håndtering på mobil */
+  @supports (height: 100dvh) {
+    body {
+      min-height: 100dvh;
+    }
+  }
+  
+  /* Forhindre zoom på input focus på iOS */
+  @media screen and (max-width: 640px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="password"],
+    input[type="search"],
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
   }
 }
 

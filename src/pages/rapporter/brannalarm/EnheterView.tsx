@@ -177,62 +177,62 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0">
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Brannalarm enheter</h1>
-            <p className="text-gray-400 mt-1">{anleggsNavn}</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Brannalarm enheter</h1>
+            <p className="text-sm sm:text-base text-gray-400 mt-1 truncate">{anleggsNavn}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           {/* Online/Offline status */}
           <div className="flex items-center gap-2">
             {isOnline ? (
               <>
                 <Wifi className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-green-400">Online</span>
+                <span className="text-xs sm:text-sm text-green-400">Online</span>
               </>
             ) : (
               <>
                 <WifiOff className="w-4 h-4 text-yellow-400" />
-                <span className="text-sm text-yellow-400">Offline</span>
+                <span className="text-xs sm:text-sm text-yellow-400">Offline</span>
               </>
             )}
           </div>
           
           {/* Pending changes */}
           {pendingChanges > 0 && (
-            <span className="text-sm text-orange-400 flex items-center gap-2">
-              {pendingChanges} endring venter på synkronisering
+            <span className="text-xs sm:text-sm text-orange-400 flex items-center gap-2">
+              {pendingChanges} endring venter
             </span>
           )}
           
           {/* Lagringsstatus */}
           {saving && (
-            <span className="text-sm text-gray-400 flex items-center gap-2">
+            <span className="text-xs sm:text-sm text-gray-400 flex items-center gap-2">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-              {isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}
+              <span className="hidden sm:inline">{isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}</span>
             </span>
           )}
           {!saving && lastSaved && pendingChanges === 0 && (
-            <span className="text-sm text-green-400">
+            <span className="text-xs sm:text-sm text-green-400 hidden sm:inline">
               Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
           
-          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
+          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 text-sm sm:text-base min-w-[44px] justify-center">
             {saving ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Lagrer...
+                <span className="hidden sm:inline">Lagrer...</span>
               </>
             ) : (
               <>
-                <Check className="w-4 h-4" />
-                Lagre enheter
+                <Check className="w-5 h-5" />
+                <span className="hidden sm:inline">Lagre</span>
               </>
             )}
           </button>
@@ -240,53 +240,53 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <div className="card bg-blue-500/10 border-blue-500/20">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Check className="w-5 h-5 text-blue-400" />
+            <div className="w-12 h-12 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <Check className="w-6 h-6 text-blue-400" />
             </div>
-            <div>
+            <div className="min-w-0">
+              <div className="text-xs text-gray-400 truncate">Totalt komponenter</div>
               <div className="text-2xl font-bold text-white">{totalKomponenter}</div>
-              <div className="text-sm text-gray-400">Totalt komponenter</div>
             </div>
           </div>
         </div>
 
         <div className="card bg-green-500/10 border-green-500/20">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-green-400" />
+            <div className="w-12 h-12 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-6 h-6 text-green-400" />
             </div>
-            <div>
+            <div className="min-w-0">
+              <div className="text-xs text-gray-400 truncate">Aktive enhetstyper</div>
               <div className="text-2xl font-bold text-white">{aktiveEnheter}</div>
-              <div className="text-sm text-gray-400">Aktive enhetstyper</div>
             </div>
           </div>
         </div>
 
-        <div className="card bg-gray-500/10 border-gray-500/20">
+        <div className="card bg-gray-500/10 border-gray-500/20 col-span-2 sm:col-span-1">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gray-500/20 flex items-center justify-center">
-              <Eye className="w-5 h-5 text-gray-400" />
+            <div className="w-12 h-12 rounded-lg bg-gray-500/20 flex items-center justify-center flex-shrink-0">
+              <Eye className="w-6 h-6 text-gray-400" />
             </div>
-            <div>
+            <div className="min-w-0">
+              <div className="text-xs text-gray-400 truncate">Enhetstyper</div>
               <div className="text-2xl font-bold text-white">{enhetsTyper.length}</div>
-              <div className="text-sm text-gray-400">Enhetstyper</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Filters and View Toggle */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Filter className="w-4 h-4 text-gray-400" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-2 flex-wrap overflow-x-auto pb-2 sm:pb-0">
+          <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
           {kategorier.map((kat) => (
             <button
               key={kat}
               onClick={() => setFilterKategori(kat)}
-              className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+              className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors whitespace-nowrap ${
                 filterKategori === kat ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               }`}
             >
@@ -295,10 +295,10 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => setViewMode('compact')}
-            className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors ${
               viewMode === 'compact' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
             }`}
           >
@@ -306,7 +306,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
           </button>
           <button
             onClick={() => setViewMode('detailed')}
-            className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors ${
               viewMode === 'detailed' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
             }`}
           >
@@ -317,98 +317,80 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
 
       {/* Enheter Table/Grid */}
       {viewMode === 'compact' ? (
-        <div className="card overflow-hidden p-0">
-          <table className="w-full">
-            <thead className="bg-gray-800/50">
-              <tr>
-                <th className="text-left p-4 text-sm font-medium text-gray-400">Enhet</th>
-                <th className="text-center p-4 text-sm font-medium text-gray-400 w-24">Aktiv</th>
-                <th className="text-center p-4 text-sm font-medium text-gray-400 w-32">Antall</th>
-                <th className="text-left p-4 text-sm font-medium text-gray-400 w-48">Type/Modell</th>
-                <th className="text-left p-4 text-sm font-medium text-gray-400">Notat</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEnheter.map(({ key, navn, icon }) => {
-                const isActive = localEnheter[key]?.aktiv || false
+        <div className="space-y-3 pb-20">
+          {filteredEnheter.map(({ key, navn, icon }) => {
+            const isActive = localEnheter[key]?.aktiv || false
+            
+            return (
+              <div key={key} className={`card ${isActive ? 'border-primary/30 bg-primary/5' : ''}`}>
+                {/* Første rad: Navn, Toggle, Antall */}
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-2xl flex-shrink-0">{icon}</span>
+                  <span className={`font-medium text-sm flex-1 ${isActive ? 'text-white' : 'text-gray-400'}`}>
+                    {navn}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setLocalEnheter(prev => ({
+                        ...prev,
+                        [key]: { ...prev[key], aktiv: !prev[key]?.aktiv }
+                      }))
+                    }}
+                    className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${
+                      isActive ? 'bg-primary' : 'bg-gray-700'
+                    }`}
+                  >
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                      isActive ? 'translate-x-5' : 'translate-x-1'
+                    }`} />
+                  </button>
+                  <input
+                    type="number"
+                    value={localEnheter[key]?.antall || 0}
+                    onChange={(e) => {
+                      setLocalEnheter(prev => ({
+                        ...prev,
+                        [key]: { ...prev[key], antall: parseInt(e.target.value) || 0 }
+                      }))
+                    }}
+                    disabled={!isActive}
+                    className="input text-center w-16 text-sm flex-shrink-0"
+                    min="0"
+                  />
+                </div>
                 
-                return (
-                  <tr key={key} className={`border-t border-gray-800 ${isActive ? 'bg-primary/5' : ''}`}>
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{icon}</span>
-                        <span className={`font-medium ${isActive ? 'text-white' : 'text-gray-400'}`}>
-                          {navn}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-center">
-                      <button
-                        onClick={() => {
-                          setLocalEnheter(prev => ({
-                            ...prev,
-                            [key]: { ...prev[key], aktiv: !prev[key]?.aktiv }
-                          }))
-                        }}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${
-                          isActive ? 'bg-primary' : 'bg-gray-700'
-                        }`}
-                      >
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                          isActive ? 'translate-x-7' : 'translate-x-1'
-                        }`} />
-                      </button>
-                    </td>
-                    <td className="p-4">
-                      <input
-                        type="number"
-                        value={localEnheter[key]?.antall || 0}
-                        onChange={(e) => {
-                          setLocalEnheter(prev => ({
-                            ...prev,
-                            [key]: { ...prev[key], antall: parseInt(e.target.value) || 0 }
-                          }))
-                        }}
-                        disabled={!isActive}
-                        className="input text-center w-20"
-                        min="0"
-                      />
-                    </td>
-                    <td className="p-4">
-                      <input
-                        type="text"
-                        value={localEnheter[key]?.type || ''}
-                        onChange={(e) => {
-                          setLocalEnheter(prev => ({
-                            ...prev,
-                            [key]: { ...prev[key], type: e.target.value }
-                          }))
-                        }}
-                        disabled={!isActive}
-                        placeholder="Type/modell..."
-                        className="input text-sm"
-                      />
-                    </td>
-                    <td className="p-4">
-                      <input
-                        type="text"
-                        value={localEnheter[key]?.note || ''}
-                        onChange={(e) => {
-                          setLocalEnheter(prev => ({
-                            ...prev,
-                            [key]: { ...prev[key], note: e.target.value }
-                          }))
-                        }}
-                        disabled={!isActive}
-                        placeholder="Legg til notat..."
-                        className="input text-sm"
-                      />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                {/* Andre rad: Type/Modell og Notat (kun hvis aktiv) */}
+                {isActive && (
+                  <div className="space-y-2 pt-3 border-t border-gray-800">
+                    <input
+                      type="text"
+                      value={localEnheter[key]?.type || ''}
+                      onChange={(e) => {
+                        setLocalEnheter(prev => ({
+                          ...prev,
+                          [key]: { ...prev[key], type: e.target.value }
+                        }))
+                      }}
+                      placeholder="Type/modell..."
+                      className="input text-sm w-full"
+                    />
+                    <input
+                      type="text"
+                      value={localEnheter[key]?.note || ''}
+                      onChange={(e) => {
+                        setLocalEnheter(prev => ({
+                          ...prev,
+                          [key]: { ...prev[key], note: e.target.value }
+                        }))
+                      }}
+                      placeholder="Legg til notat..."
+                      className="input text-sm w-full"
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <div className="space-y-4">

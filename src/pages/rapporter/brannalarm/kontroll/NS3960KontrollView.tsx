@@ -632,57 +632,62 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
     <div className="min-h-screen pb-20">
       {/* Fixed Header */}
       <div className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800">
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg">
+        <div className="p-3 sm:p-4">
+          <div className="flex flex-col gap-3 mb-3 sm:mb-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg flex-shrink-0">
                 <ArrowLeft className="w-5 h-5 text-gray-400" />
               </button>
-              <div>
-                <h1 className="text-xl font-bold text-white">NS3960 Kontroll</h1>
-                <p className="text-sm text-gray-400">{anleggsNavn}</p>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl font-bold text-white truncate">NS3960 Kontroll</h1>
+                <p className="text-xs sm:text-sm text-gray-400 truncate">{anleggsNavn}</p>
               </div>
+              <button
+                onClick={() => setShowSearch(!showSearch)}
+                className="p-2 hover:bg-white/5 rounded-lg flex-shrink-0 sm:hidden">
+                <Search className="w-5 h-5 text-gray-400" />
+              </button>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {/* Offline/Online indicator */}
               {!isOnline && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs">
-                  <WifiOff className="w-4 h-4" />
-                  Offline
+                <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs">
+                  <WifiOff className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Offline</span>
                 </div>
               )}
               {isSyncing && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs">
+                <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs">
                   <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                  Synkroniserer...
+                  <span className="hidden xs:inline">Synkroniserer...</span>
                 </div>
               )}
               {/* Auto-save indicator */}
               {autoSaving && (
-                <div className="flex items-center gap-2 text-xs text-blue-400">
+                <div className="flex items-center gap-1 sm:gap-2 text-xs text-blue-400">
                   <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                  Lagrer...
+                  <span className="hidden xs:inline">Lagrer...</span>
                 </div>
               )}
               {lastSaved && !autoSaving && (
-                <div className="flex items-center gap-2 text-xs text-green-400">
+                <div className="flex items-center gap-1 sm:gap-2 text-xs text-green-400">
                   {isOnline && <Wifi className="w-3 h-3" />}
-                  Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
+                  <span className="hidden sm:inline">Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
               )}
               <button
                 onClick={() => setShowSearch(!showSearch)}
-                className="p-2 hover:bg-white/5 rounded-lg"
+                className="p-2 hover:bg-white/5 rounded-lg hidden sm:block"
               >
                 <Search className="w-5 h-5 text-gray-400" />
               </button>
               <button 
                 onClick={() => setShowOnlyUnchecked(!showOnlyUnchecked)}
-                className={`btn-secondary text-sm ${showOnlyUnchecked ? 'bg-primary text-white' : ''}`}
+                className={`btn-secondary text-xs sm:text-sm px-2 sm:px-3 ${showOnlyUnchecked ? 'bg-primary text-white' : ''}`}
               >
                 {showOnlyUnchecked ? 'Vis alle' : 'Kun ukontrollerte'}
               </button>
-              <button onClick={loadData} className="btn-secondary text-sm">
+              <button onClick={loadData} className="btn-secondary text-xs sm:text-sm px-2 sm:px-3">
                 Oppdater
               </button>
             </div>
@@ -702,8 +707,8 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           {/* Progress */}
           <div className="bg-gray-900 rounded-lg p-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-400">Fremdrift</span>
-              <span className="text-sm font-semibold text-white">{progress}%</span>
+              <span className="text-xs sm:text-sm text-gray-400">Fremdrift</span>
+              <span className="text-sm sm:text-base font-semibold text-white">{progress}%</span>
             </div>
             <div className="w-full bg-gray-800 rounded-full h-2 mb-3">
               <div 
@@ -711,17 +716,17 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <div className="grid grid-cols-3 gap-3 text-xs">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 text-xs">
               <div className="text-center">
-                <div className="text-gray-400">Kontrollert</div>
+                <div className="text-gray-400 truncate">Kontrollert</div>
                 <div className="text-green-400 font-semibold">{kontrollertePunkter}/{totalPunkter}</div>
               </div>
               <div className="text-center">
-                <div className="text-gray-400">Avvik</div>
+                <div className="text-gray-400 truncate">Avvik</div>
                 <div className="text-orange-400 font-semibold">{avvikPunkter}</div>
               </div>
               <div className="text-center">
-                <div className="text-gray-400">Gjenstår</div>
+                <div className="text-gray-400 truncate">Gjenstår</div>
                 <div className="text-blue-400 font-semibold">{totalPunkter - kontrollertePunkter}</div>
               </div>
             </div>

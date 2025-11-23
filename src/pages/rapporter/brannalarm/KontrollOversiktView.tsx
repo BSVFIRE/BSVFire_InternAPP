@@ -325,31 +325,32 @@ export function KontrollOversiktView({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0">
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Kontroller</h1>
-            <p className="text-gray-400 mt-1">{anleggsNavn}</p>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Kontroller</h1>
+            <p className="text-sm sm:text-base text-gray-400 mt-1 truncate">{anleggsNavn}</p>
             {(leverandor || sentraltype) && (
-              <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
-                {leverandor && <span>Leverandør: {leverandor}</span>}
-                {sentraltype && <span>Sentraltype: {sentraltype}</span>}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2 text-xs sm:text-sm text-gray-400">
+                {leverandor && <span className="truncate">Leverandør: {leverandor}</span>}
+                {sentraltype && <span className="truncate">Sentraltype: {sentraltype}</span>}
               </div>
             )}
           </div>
+          <button onClick={onStartNy} className="btn-primary flex items-center gap-2 text-sm sm:text-base flex-shrink-0">
+            <Plus className="w-4 h-4" />
+            <span className="hidden xs:inline">Start ny kontroll</span>
+            <span className="xs:hidden">Start</span>
+          </button>
         </div>
-        <button onClick={onStartNy} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          Start ny kontroll
-        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Main content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Utkast */}
@@ -357,14 +358,14 @@ export function KontrollOversiktView({
             <div className="space-y-4">
               {utkast.map((u) => (
                 <div key={u.id} className="card border-yellow-500/30 bg-yellow-500/5">
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
                         <Clock className="w-6 h-6 text-yellow-400" />
                       </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-white">Pågående utkast</h3>
-                        <p className="text-sm text-gray-400">
+                      <div className="min-w-0">
+                        <h3 className="text-base sm:text-lg font-semibold text-white">Pågående utkast</h3>
+                        <p className="text-xs sm:text-sm text-gray-400 truncate">
                           {u.rapport_type} • Opprettet {new Date(u.dato).toLocaleDateString('nb-NO')}
                         </p>
                       </div>
@@ -372,21 +373,21 @@ export function KontrollOversiktView({
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleDeleteUtkast(u.id, u.rapport_type)}
-                        className="btn-secondary flex items-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                        className="btn-secondary flex items-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 text-sm"
                       >
                         <Trash2 className="w-4 h-4" />
                         Slett
                       </button>
                       <button
                         onClick={() => onOpenKontroll(u.id, u.rapport_type)}
-                        className="btn-primary flex items-center gap-2"
+                        className="btn-primary flex items-center gap-2 text-sm"
                       >
                         <Edit className="w-4 h-4" />
                         Fortsett
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-xs sm:text-sm text-gray-400">
                     Du har et utkast som ikke er fullført. Fortsett arbeidet eller start en ny kontroll.
                   </p>
                 </div>
@@ -396,13 +397,13 @@ export function KontrollOversiktView({
 
           {/* Tidligere kontroller */}
           <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Tidligere kontroller</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-white">Tidligere kontroller</h3>
               {years.length > 0 && (
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="input py-1 px-3 text-sm"
+                  className="input py-1 px-3 text-xs sm:text-sm"
                 >
                   <option value={new Date().getFullYear()}>Alle år</option>
                   {years.map(year => (
@@ -425,15 +426,15 @@ export function KontrollOversiktView({
                   .map(kontroll => (
                     <div
                       key={kontroll.id}
-                      className="flex items-center justify-between p-4 rounded-lg border border-gray-800 hover:border-gray-700 transition-colors"
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 rounded-lg border border-gray-800 hover:border-gray-700 transition-colors"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
                           <FileText className="w-5 h-5 text-gray-400" />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-white">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="font-medium text-sm sm:text-base text-white">
                               {kontroll.rapport_type} Kontroll
                             </span>
                             <span className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${getStatusColor(kontroll.kontroll_status)}`}>
@@ -442,7 +443,7 @@ export function KontrollOversiktView({
                                kontroll.kontroll_status === 'sendt' ? 'Sendt' : 'Ferdig'}
                             </span>
                           </div>
-                          <div className="flex items-center gap-3 text-sm text-gray-400">
+                          <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-400 flex-wrap">
                             <span>{new Date(kontroll.dato).toLocaleDateString('nb-NO')}</span>
                             {kontroll.har_feil && (
                               <span className="flex items-center gap-1 text-red-400">
@@ -461,7 +462,7 @@ export function KontrollOversiktView({
                       </div>
                       <button
                         onClick={() => onOpenKontroll(kontroll.id, kontroll.rapport_type)}
-                        className="btn-secondary flex items-center gap-2"
+                        className="btn-secondary flex items-center gap-2 text-sm self-start sm:self-auto"
                       >
                         <Eye className="w-4 h-4" />
                         Åpne

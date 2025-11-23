@@ -159,53 +159,55 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0">
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Brannalarm nettverk</h1>
-            <p className="text-gray-400 mt-1">{anleggsNavn}</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Brannalarm nettverk</h1>
+            <p className="text-sm sm:text-base text-gray-400 mt-1 truncate">{anleggsNavn}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             {isOnline ? (
               <>
                 <Wifi className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-green-400">Online</span>
+                <span className="text-xs sm:text-sm text-green-400">Online</span>
               </>
             ) : (
               <>
                 <WifiOff className="w-4 h-4 text-yellow-400" />
-                <span className="text-sm text-yellow-400">Offline</span>
+                <span className="text-xs sm:text-sm text-yellow-400">Offline</span>
               </>
             )}
           </div>
           {pendingChanges > 0 && (
-            <span className="text-sm text-orange-400">{pendingChanges} endringer venter</span>
+            <span className="text-xs sm:text-sm text-orange-400">{pendingChanges} endringer venter</span>
           )}
-          <button onClick={() => openDialog()} className="btn-primary flex items-center gap-2">
+          <button onClick={() => openDialog()} className="btn-primary flex items-center gap-2 text-sm sm:text-base">
             <Plus className="w-4 h-4" />
-            Nytt system
+            <span className="hidden xs:inline">Nytt system</span>
+            <span className="xs:hidden">Ny</span>
           </button>
         </div>
       </div>
 
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Søk i nettverk, plassering, type eller SW-versjon..."
+              placeholder="Søk i nettverk..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10"
+              className="input pl-10 text-sm"
             />
           </div>
-          <div className="text-sm text-gray-400">
+          <div className="text-xs sm:text-sm text-gray-400 whitespace-nowrap">
             {searchTerm ? `Viser: ${filteredNettverk.length} av ${nettverkListe.length}` : `Totalt: ${nettverkListe.length}`} systemer
           </div>
         </div>
@@ -223,7 +225,7 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 pb-20">
             {filteredNettverk.map((system) => (
               <div key={system.id} className="card bg-gray-800/50 hover:bg-gray-800 transition-colors">
                 <div className="flex items-start justify-between mb-3">
