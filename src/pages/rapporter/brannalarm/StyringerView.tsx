@@ -36,7 +36,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
   const [localStyringer, setLocalStyringer] = useState<Record<string, any>>({})
   const [saving, setSaving] = useState(false)
   const [filterKategori, setFilterKategori] = useState<string>('all')
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [isOnline] = useState(navigator.onLine)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
 
   useEffect(() => {
