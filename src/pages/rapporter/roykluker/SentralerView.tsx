@@ -121,10 +121,13 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
     if (!sentral.id) return
 
     try {
+      // Fjern kun id og created_at (read-only felter)
+      const { id, created_at, ...updateData } = sentral
+      
       const { error } = await supabase
         .from('roykluke_sentraler')
-        .update(sentral)
-        .eq('id', sentral.id)
+        .update(updateData)
+        .eq('id', id)
 
       if (error) throw error
       setEditingSentral(null)
@@ -184,15 +187,21 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
     if (!luke.id) return
 
     try {
+      // Fjern kun id og created_at (read-only felter)
+      const { id, created_at, ...updateData } = luke
+      
       const { error } = await supabase
         .from('roykluke_luker')
-        .update(luke)
-        .eq('id', luke.id)
+        .update(updateData)
+        .eq('id', id)
 
-      if (error) throw error
-    } catch (error) {
+      if (error) {
+        console.error('Database error:', error)
+        throw error
+      }
+    } catch (error: any) {
       console.error('Feil ved lagring av luke:', error)
-      alert('Kunne ikke lagre luke')
+      alert(`Kunne ikke lagre luke: ${error?.message || 'Ukjent feil'}`)
     }
   }
 

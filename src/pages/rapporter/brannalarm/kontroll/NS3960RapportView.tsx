@@ -1021,7 +1021,14 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
       const pdfBlob = doc.output('blob')
       const datoForFilnavn = kontrollData.dato ? new Date(kontrollData.dato) : new Date()
       const year = datoForFilnavn.getFullYear()
-      const fileName = `Rapport_Brannalarm_NS3960_${year}_${anleggData.anleggsnavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+      // Konverter norske bokstaver til vanlige for storage (Supabase støtter ikke æøå i filnavn)
+      const anleggsnavnForStorage = anleggData.anleggsnavn
+        .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
+        .replace(/ø/g, 'o').replace(/Ø/g, 'O')
+        .replace(/å/g, 'a').replace(/Å/g, 'A')
+        .replace(/\s+/g, '_')  // Erstatt mellomrom med underscore
+        .replace(/[^a-zA-Z0-9._-]/g, '_')  // Fjern alle spesialtegn utenom punktum og bindestrek
+      const fileName = `Rapport_Brannalarm_NS3960_${year}_${anleggsnavnForStorage}.pdf`
 
       if (preview) {
         // Forhåndsvisning

@@ -1126,7 +1126,14 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       }
 
       const pdfBlob = doc.output('blob')
-      const fileName = `Rapport_Roykluker_${new Date().getFullYear()}_${anleggNavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+      // Konverter norske bokstaver til vanlige for storage (Supabase støtter ikke æøå i filnavn)
+      const anleggsnavnForStorage = anleggNavn
+        .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
+        .replace(/ø/g, 'o').replace(/Ø/g, 'O')
+        .replace(/å/g, 'a').replace(/Å/g, 'A')
+        .replace(/\s+/g, '_')  // Erstatt mellomrom med underscore
+        .replace(/[^a-zA-Z0-9._-]/g, '_')  // Fjern alle spesialtegn utenom punktum og bindestrek
+      const fileName = `Rapport_Roykluker_${new Date().getFullYear()}_${anleggsnavnForStorage}.pdf`
 
       if (mode === 'preview') {
         setPreviewPdf({ blob: pdfBlob, fileName })

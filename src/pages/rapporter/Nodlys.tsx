@@ -100,6 +100,33 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     // Auto-switch to cards on mobile
     return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
   })
+  const statusSelectRef = useRef<HTMLSelectElement>(null)
+  const scrollPositionRef = useRef<number>(0)
+
+  // Focus status select without scrolling
+  useEffect(() => {
+    if (editingCell?.field === 'status' && statusSelectRef.current) {
+      // Lagre scroll-posisjon før fokusering
+      const scrollContainer = document.querySelector('.overflow-x-auto') || window
+      scrollPositionRef.current = scrollContainer instanceof Window ? window.scrollY : scrollContainer.scrollTop
+      
+      // Bruk setTimeout for å sikre at DOM er ferdig oppdatert
+      setTimeout(() => {
+        if (statusSelectRef.current) {
+          statusSelectRef.current.focus({ preventScroll: true })
+          
+          // Gjenopprett scroll-posisjon som backup
+          setTimeout(() => {
+            if (scrollContainer instanceof Window) {
+              window.scrollTo(0, scrollPositionRef.current)
+            } else {
+              scrollContainer.scrollTop = scrollPositionRef.current
+            }
+          }, 0)
+        }
+      }, 0)
+    }
+  }, [editingCell])
 
   useEffect(() => {
     loadKunder()
@@ -251,6 +278,13 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
 
   async function deleteNodlys(id: string) {
+    // Sjekk om det finnes ulagrede endringer
+    if (unsavedChanges.size > 0) {
+      if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du sletter nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette med slettingen?')) {
+        return
+      }
+    }
+    
     if (!confirm('Er du sikker på at du vil slette denne nødlysenheten?')) return
 
     try {
@@ -342,7 +376,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   }
 
   function discardChanges() {
-    if (!confirm('Er du sikker på at du vil forkaste alle ulagrede endringer?')) return
+    if (!confirm('⚠️ Er du sikker på at du vil forkaste alle ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '?\n\nDisse endringene kan ikke gjenopprettes.')) return
     
     setNodlysListe(originalData)
     setUnsavedChanges(new Map())
@@ -931,7 +965,14 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       }
 
       const pdfBlob = doc.output('blob')
-      const fileName = `Rapport_Nodlys_${new Date().getFullYear()}_${(anleggData?.anleggsnavn || 'Anlegg').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+      // Konverter norske bokstaver til vanlige for storage (Supabase støtter ikke æøå i filnavn)
+      const anleggsnavnForStorage = (anleggData?.anleggsnavn || 'Anlegg')
+        .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
+        .replace(/ø/g, 'o').replace(/Ø/g, 'O')
+        .replace(/å/g, 'a').replace(/Å/g, 'A')
+        .replace(/\s+/g, '_')  // Erstatt mellomrom med underscore
+        .replace(/[^a-zA-Z0-9._-]/g, '_')  // Fjern alle spesialtegn utenom punktum og bindestrek
+      const fileName = `Rapport_Nodlys_${new Date().getFullYear()}_${anleggsnavnForStorage}.pdf`
 
       if (mode === 'preview') {
         // Vis forhåndsvisning
@@ -1002,6 +1043,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     const [showSuggestions, setShowSuggestions] = useState(false)
     const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
     const inputRef = useRef<HTMLInputElement>(null)
+    const selectRef = useRef<HTMLSelectElement>(null)
 
     // Håndter autocomplete for fordeling, kurs, produsent
     const isAutocompleteField = field === 'fordeling' || field === 'kurs' || field === 'produsent'
@@ -1019,24 +1061,66 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       }
     }, [editValue, isEditing, isAutocompleteField, field])
 
+    // Focus input/select without scrolling
+    useEffect(() => {
+      if (isEditing) {
+        // Lagre scroll-posisjon før fokusering
+        const scrollContainer = document.querySelector('.overflow-x-auto') || window
+        const scrollPos = scrollContainer instanceof Window ? window.scrollY : scrollContainer.scrollTop
+        
+        // Bruk setTimeout for å sikre at DOM er ferdig oppdatert
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.focus({ preventScroll: true })
+          } else if (selectRef.current) {
+            selectRef.current.focus({ preventScroll: true })
+          }
+          
+          // Gjenopprett scroll-posisjon som backup
+          setTimeout(() => {
+            if (scrollContainer instanceof Window) {
+              window.scrollTo(0, scrollPos)
+            } else {
+              scrollContainer.scrollTop = scrollPos
+            }
+          }, 0)
+        }, 0)
+      }
+    }, [isEditing])
+
     if (isEditing) {
       // Etasje dropdown
       if (isEtasjeField) {
         return (
           <select
+            ref={selectRef}
             value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={() => {
-              // Delay to allow click events to register first
+            onChange={(e) => {
+              const newValue = e.target.value
+              setEditValue(newValue)
+              // Lagre umiddelbart når bruker velger fra dropdown
               setTimeout(() => {
-                saveInlineEdit(nodlysId, field)
+                const updatedList = nodlysListe.map(n => 
+                  n.id === nodlysId ? { ...n, [field]: newValue || null } : n
+                )
+                setNodlysListe(updatedList)
+                trackChange(nodlysId, field, newValue || null)
+                setEditingCell(null)
+                setEditValue('')
+              }, 0)
+            }}
+            onBlur={() => {
+              // Backup: lagre hvis ikke allerede lagret
+              setTimeout(() => {
+                if (editingCell?.id === nodlysId && editingCell?.field === field) {
+                  saveInlineEdit(nodlysId, field)
+                }
               }, 150)
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') saveInlineEdit(nodlysId, field)
               if (e.key === 'Escape') cancelEditing()
             }}
-            autoFocus
             className="input py-1 px-2 text-sm w-full"
           >
             <option value="">Velg etasje</option>
@@ -1051,19 +1135,34 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       if (isTypeField) {
         return (
           <select
+            ref={selectRef}
             value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={() => {
-              // Delay to allow click events to register first
+            onChange={(e) => {
+              const newValue = e.target.value
+              setEditValue(newValue)
+              // Lagre umiddelbart når bruker velger fra dropdown
               setTimeout(() => {
-                saveInlineEdit(nodlysId, field)
+                const updatedList = nodlysListe.map(n => 
+                  n.id === nodlysId ? { ...n, [field]: newValue || null } : n
+                )
+                setNodlysListe(updatedList)
+                trackChange(nodlysId, field, newValue || null)
+                setEditingCell(null)
+                setEditValue('')
+              }, 0)
+            }}
+            onBlur={() => {
+              // Backup: lagre hvis ikke allerede lagret
+              setTimeout(() => {
+                if (editingCell?.id === nodlysId && editingCell?.field === field) {
+                  saveInlineEdit(nodlysId, field)
+                }
               }, 150)
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') saveInlineEdit(nodlysId, field)
               if (e.key === 'Escape') cancelEditing()
             }}
-            autoFocus
             className="input py-1 px-2 text-sm w-full"
           >
             <option value="">Velg type</option>
@@ -1105,7 +1204,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                   setShowSuggestions(false)
                 }
               }}
-              autoFocus
               className="input py-1 px-2 text-sm w-full"
               placeholder={`Skriv eller velg ${field}...`}
             />
@@ -1145,6 +1243,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       // Standard text input for other fields
       return (
         <input
+          ref={inputRef}
           type="text"
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
@@ -1158,7 +1257,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
             if (e.key === 'Enter') saveInlineEdit(nodlysId, field)
             if (e.key === 'Escape') cancelEditing()
           }}
-          autoFocus
           className="input py-1 px-2 text-sm w-full"
         />
       )
@@ -1482,19 +1580,34 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                       <td className="py-3 px-4">
                         {editingCell?.id === nodlys.id && editingCell?.field === 'status' ? (
                           <select
+                            ref={statusSelectRef}
                             value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => {
-                              // Delay to allow click events to register first
+                            onChange={(e) => {
+                              const newValue = e.target.value
+                              setEditValue(newValue)
+                              // Lagre umiddelbart når bruker velger fra dropdown
                               setTimeout(() => {
-                                saveInlineEdit(nodlys.id, 'status')
+                                const updatedList = nodlysListe.map(n => 
+                                  n.id === nodlys.id ? { ...n, status: newValue || null } : n
+                                )
+                                setNodlysListe(updatedList)
+                                trackChange(nodlys.id, 'status', newValue || null)
+                                setEditingCell(null)
+                                setEditValue('')
+                              }, 0)
+                            }}
+                            onBlur={() => {
+                              // Backup: lagre hvis ikke allerede lagret
+                              setTimeout(() => {
+                                if (editingCell?.id === nodlys.id && editingCell?.field === 'status') {
+                                  saveInlineEdit(nodlys.id, 'status')
+                                }
                               }, 150)
                             }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') saveInlineEdit(nodlys.id, 'status')
                               if (e.key === 'Escape') cancelEditing()
                             }}
-                            autoFocus
                             className="input py-1 px-2 text-sm"
                           >
                             <option value="">Velg status</option>
@@ -1598,6 +1711,13 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         <div className="flex items-center gap-4">
           <button
             onClick={() => {
+              // Sjekk om det finnes ulagrede endringer
+              if (unsavedChanges.size > 0) {
+                if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du går tilbake nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
+                  return
+                }
+              }
+              
               if (fromAnlegg && state?.anleggId) {
                 // Naviger tilbake til anleggsvisningen
                 navigate('/anlegg', { state: { viewAnleggId: state.anleggId } })
@@ -1636,6 +1756,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
               <select
                 value={selectedKunde}
                 onChange={(e) => {
+                  // Sjekk om det finnes ulagrede endringer
+                  if (unsavedChanges.size > 0 && e.target.value !== selectedKunde) {
+                    if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du bytter kunde nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
+                      return
+                    }
+                  }
                   setSelectedKunde(e.target.value)
                   setSelectedAnlegg('')
                 }}
@@ -1678,7 +1804,15 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                 />
                 <select
                   value={selectedAnlegg}
-                  onChange={(e) => setSelectedAnlegg(e.target.value)}
+                  onChange={(e) => {
+                    // Sjekk om det finnes ulagrede endringer
+                    if (unsavedChanges.size > 0 && e.target.value !== selectedAnlegg) {
+                      if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du bytter anlegg nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
+                        return
+                      }
+                    }
+                    setSelectedAnlegg(e.target.value)
+                  }}
                   className="input"
                   size={Math.min(anlegg.filter(a => 
                     a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase())
@@ -2056,19 +2190,34 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                         <td className="py-3 px-4">
                           {editingCell?.id === nodlys.id && editingCell?.field === 'status' ? (
                             <select
+                              ref={statusSelectRef}
                               value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onBlur={() => {
-                                // Delay to allow click events to register first
+                              onChange={(e) => {
+                                const newValue = e.target.value
+                                setEditValue(newValue)
+                                // Lagre umiddelbart når bruker velger fra dropdown
                                 setTimeout(() => {
-                                  saveInlineEdit(nodlys.id, 'status')
+                                  const updatedList = nodlysListe.map(n => 
+                                    n.id === nodlys.id ? { ...n, status: newValue || null } : n
+                                  )
+                                  setNodlysListe(updatedList)
+                                  trackChange(nodlys.id, 'status', newValue || null)
+                                  setEditingCell(null)
+                                  setEditValue('')
+                                }, 0)
+                              }}
+                              onBlur={() => {
+                                // Backup: lagre hvis ikke allerede lagret
+                                setTimeout(() => {
+                                  if (editingCell?.id === nodlys.id && editingCell?.field === 'status') {
+                                    saveInlineEdit(nodlys.id, 'status')
+                                  }
                                 }, 150)
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') saveInlineEdit(nodlys.id, 'status')
                                 if (e.key === 'Escape') cancelEditing()
                               }}
-                              autoFocus
                               className="input py-1 px-2 text-sm"
                             >
                               <option value="">Velg status</option>

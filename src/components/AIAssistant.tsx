@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, X, Loader2, Sparkles, MessageSquare, Mic, MicOff, Save, Trash2, Volume2 } from 'lucide-react'
+import { Send, X, Loader2, Sparkles, MessageSquare, Mic, MicOff, Save, Trash2, Volume2, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 interface Message {
@@ -21,6 +21,7 @@ interface AIAssistantProps {
 
 export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId }: AIAssistantProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [isMinimized, setIsMinimized] = useState(false)
   const [activeTab, setActiveTab] = useState<'chat' | 'notes'>('chat')
   const [detectedKontrollId, setDetectedKontrollId] = useState<string | undefined>(propKontrollId)
   const [detectedAnleggId, setDetectedAnleggId] = useState<string | undefined>(propAnleggId)
@@ -314,14 +315,38 @@ export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId
   }
 
   if (!isOpen) {
+    // Minimized state - small tab on the side
+    if (isMinimized) {
+      return (
+        <button
+          onClick={() => setIsMinimized(false)}
+          className="fixed bottom-6 right-0 z-50 p-2 bg-teal-500 hover:bg-teal-600 text-white rounded-l-lg shadow-lg transition-all"
+          title="Vis AI-assistent"
+        >
+          <Sparkles className="w-5 h-5" />
+        </button>
+      )
+    }
+    
+    // Full size button
     return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 bg-teal-500 text-white p-4 rounded-full shadow-lg hover:bg-teal-600 transition-all z-50 flex items-center gap-2"
-        title="Åpne AI-assistent"
-      >
-        <Sparkles className="w-6 h-6" />
-      </button>
+      <div className="fixed bottom-6 right-6 z-50 group">
+        <button
+          onClick={() => setIsOpen(true)}
+          className="bg-teal-500 text-white p-4 rounded-full shadow-lg hover:bg-teal-600 transition-all flex items-center gap-2"
+          title="Åpne AI-assistent"
+        >
+          <Sparkles className="w-6 h-6" />
+        </button>
+        {/* Minimize button */}
+        <button
+          onClick={() => setIsMinimized(true)}
+          className="absolute -top-2 -left-2 w-6 h-6 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Skjul knapp"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
     )
   }
 

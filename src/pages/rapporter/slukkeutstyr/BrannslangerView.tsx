@@ -400,6 +400,13 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   }
 
   async function deleteSlange(id: string) {
+    // Sjekk om det finnes ulagrede endringer
+    if (hasUnsavedChanges) {
+      if (!confirm('⚠️ ADVARSEL: Du har ulagrede endringer!\n\nHvis du sletter nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette med slettingen?')) {
+        return
+      }
+    }
+    
     if (!confirm('Er du sikker på at du vil slette denne brannslangen?')) return
 
     try {
@@ -909,7 +916,14 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       }
 
       const pdfBlob = doc.output('blob')
-      const fileName = `Rapport_Brannslanger_${new Date().getFullYear()}_${anleggNavn.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+      // Konverter norske bokstaver til vanlige for storage (Supabase støtter ikke æøå i filnavn)
+      const anleggsnavnForStorage = anleggNavn
+        .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
+        .replace(/ø/g, 'o').replace(/Ø/g, 'O')
+        .replace(/å/g, 'a').replace(/Å/g, 'A')
+        .replace(/\s+/g, '_')  // Erstatt mellomrom med underscore
+        .replace(/[^a-zA-Z0-9._-]/g, '_')  // Fjern alle spesialtegn utenom punktum og bindestrek
+      const fileName = `Rapport_Brannslanger_${new Date().getFullYear()}_${anleggsnavnForStorage}.pdf`
 
       if (mode === 'preview') {
         setPreviewPdf({ blob: pdfBlob, fileName })
@@ -1497,7 +1511,15 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={onBack}
+            onClick={() => {
+              // Sjekk om det finnes ulagrede endringer
+              if (hasUnsavedChanges) {
+                if (!confirm('⚠️ ADVARSEL: Du har ulagrede endringer!\n\nHvis du går tilbake nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
+                  return
+                }
+              }
+              onBack()
+            }}
             className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
