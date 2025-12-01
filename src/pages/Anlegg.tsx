@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
 import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send } from 'lucide-react'
 import { GoogleMapsAddressAutocomplete } from '@/components/GoogleMapsAddressAutocomplete'
+import { AnleggTodoList } from '@/components/AnleggTodoList'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ANLEGG_STATUSER, ANLEGG_STATUS_COLORS, KONTROLLTYPER, MAANEDER } from '@/lib/constants'
@@ -140,6 +141,7 @@ export function Anlegg() {
     const saved = localStorage.getItem('anlegg_vis_skjulte')
     return saved === 'true'
   })
+  const [todoCountsMap, setTodoCountsMap] = useState<Record<string, number>>({})
 
   useEffect(() => {
     loadData()
@@ -213,6 +215,9 @@ export function Anlegg() {
 
       setAnlegg(anleggResponse.data || [])
       setKunder(kunderResponse.data || [])
+      
+      // Last todo-tellinger
+      await loadTodoCounts()
     } catch (err) {
       log.error('Feil ved lasting av anlegg og kunder', { error: err })
       setError(err instanceof Error ? err.message : 'Kunne ikke laste data')
@@ -221,16 +226,53 @@ export function Anlegg() {
     }
   }
 
+  async function loadTodoCounts() {
+    try {
+      // Hent antall åpne todos for alle anlegg
+      const { data, error } = await supabase
+        .from('anlegg_todos')
+        .select('anlegg_id')
+        .eq('fullfort', false)
+
+      if (error) {
+        log.error('Feil ved lasting av todo-tellinger', { error })
+        return
+      }
+
+      // Tell antall per anlegg
+      const counts: Record<string, number> = {}
+      data?.forEach(todo => {
+        counts[todo.anlegg_id] = (counts[todo.anlegg_id] || 0) + 1
+      })
+
+      setTodoCountsMap(counts)
+    } catch (error) {
+      log.error('Feil ved lasting av todo-tellinger', { error })
+    }
+  }
+
   async function deleteAnlegg(id: string) {
     if (!confirm('Er du sikker på at du vil slette dette anlegget?')) return
 
     try {
       const { error } = await supabase.from('anlegg').delete().eq('id', id)
-      if (error) throw error
+      if (error) {
+        log.error('Feil ved sletting av anlegg', { error, anleggId: id })
+        
+        // Gi mer spesifikk feilmelding basert på feilkode
+        if (error.code === '23503') {
+          alert('Kan ikke slette anlegget fordi det har tilknyttede data (ordre, kontakter, etc.). Vennligst slett disse først, eller kontakt administrator for å aktivere automatisk sletting.')
+        } else if (error.code === '42501') {
+          alert('Du har ikke tillatelse til å slette dette anlegget.')
+        } else {
+          alert(`Kunne ikke slette anlegg: ${error.message}`)
+        }
+        return
+      }
       await loadData()
-    } catch (error) {
-      log.error('Feil ved sletting av anlegg', { error, anleggId: id })
-      alert('Kunne ikke slette anlegg')
+    } catch (error: any) {
+      log.error('Uventet feil ved sletting av anlegg', { error, anleggId: id })
+      alert(`Kunne ikke slette anlegg: ${error?.message || 'Ukjent feil'}`)
     }
   }
 
@@ -421,6 +463,7 @@ export function Anlegg() {
             setSelectedAnlegg(null)
           }
         }}
+        onTodoChange={() => loadTodoCounts()}
       />
     )
   }
@@ -652,6 +695,12 @@ export function Anlegg() {
                         {anlegg.kontroll_maaned}
                       </span>
                     )}
+                    {todoCountsMap[anlegg.id] > 0 && (
+                      <span className="badge bg-orange-500/10 text-orange-500 border-orange-500/30 text-xs flex items-center gap-1">
+                        <ClipboardList className="w-3 h-3" />
+                        {todoCountsMap[anlegg.id]} åpen{todoCountsMap[anlegg.id] === 1 ? '' : 'e'}
+                      </span>
+                    )}
                   </div>
                   
                   {anlegg.kontroll_type && anlegg.kontroll_type.length > 0 && (
@@ -751,13 +800,21 @@ export function Anlegg() {
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      {anlegg.kontroll_status ? (
-                        <span className={`badge ${ANLEGG_STATUS_COLORS[anlegg.kontroll_status] || 'badge-info'}`}>
-                          {anlegg.kontroll_status}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">-</span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {anlegg.kontroll_status ? (
+                          <span className={`badge ${ANLEGG_STATUS_COLORS[anlegg.kontroll_status] || 'badge-info'}`}>
+                            {anlegg.kontroll_status}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-500">-</span>
+                        )}
+                        {todoCountsMap[anlegg.id] > 0 && (
+                          <span className="badge bg-orange-500/10 text-orange-500 border-orange-500/30 text-xs flex items-center gap-1 w-fit">
+                            <ClipboardList className="w-3 h-3" />
+                            {todoCountsMap[anlegg.id]} åpen{todoCountsMap[anlegg.id] === 1 ? '' : 'e'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-end gap-2">
@@ -2233,9 +2290,10 @@ interface AnleggDetailsProps {
   kundeNavn: string
   onEdit: () => void
   onClose: () => void
+  onTodoChange?: () => void
 }
 
-function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDetailsProps) {
+function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose, onTodoChange }: AnleggDetailsProps) {
   const [kontaktpersoner, setKontaktpersoner] = useState<Kontaktperson[]>([])
   const [dokumenter, setDokumenter] = useState<Dokument[]>([])
   const [interneNotater, setInterneNotater] = useState<InternKommentar[]>([])
@@ -2594,6 +2652,7 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose }: AnleggDeta
       onClose={onClose}
       onSettPrimaer={settPrimaerKontakt}
       onOpprettNotat={opprettInterntNotat}
+      onTodoChange={onTodoChange}
     />
   )
 }
@@ -2616,9 +2675,10 @@ interface AnleggDetailsComponentProps {
   onClose: () => void
   onSettPrimaer: (kontaktpersonId: string) => Promise<void>
   onOpprettNotat: (notat: string, mottakerId?: string) => Promise<boolean>
+  onTodoChange?: () => void
 }
 
-function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interneNotater, ordre, oppgaver, loadingKontakter, loadingDokumenter, loadingNotater, loadingOrdre, loadingOppgaver, onEdit, onClose, onSettPrimaer, onOpprettNotat }: AnleggDetailsComponentProps) {
+function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interneNotater, ordre, oppgaver, loadingKontakter, loadingDokumenter, loadingNotater, loadingOrdre, loadingOppgaver, onEdit, onClose, onSettPrimaer, onOpprettNotat, onTodoChange }: AnleggDetailsComponentProps) {
   const navigate = useNavigate()
   const [nyttNotat, setNyttNotat] = useState('')
   const [lagreNotat, setLagreNotat] = useState(false)
@@ -3071,6 +3131,14 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                 </div>
               )}
             </div>
+          </div>
+
+          {/* ToDo-liste */}
+          <div className="card">
+            <AnleggTodoList 
+              anleggId={anlegg.id} 
+              onTodoChange={onTodoChange}
+            />
           </div>
 
           {/* Ordre og Oppgaver */}
