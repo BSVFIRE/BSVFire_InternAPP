@@ -1460,6 +1460,55 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                 <span className="hidden xs:inline">Ny nødlysenhet</span>
                 <span className="xs:hidden">Ny</span>
               </button>
+              {nodlysListe.length > 0 && (
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Er du sikker på at du vil markere alle ${nodlysListe.length} nødlysenheter som kontrollert?`)) {
+                      return
+                    }
+                    
+                    try {
+                      setIsSaving(true)
+                      
+                      // Oppdater alle enheter til kontrollert = true
+                      const updates = nodlysListe.map(nodlys => ({
+                        id: nodlys.id,
+                        kontrollert: true
+                      }))
+                      
+                      // Oppdater i databasen
+                      for (const update of updates) {
+                        const { error } = await supabase
+                          .from('anleggsdata_nodlys')
+                          .update({ kontrollert: true })
+                          .eq('id', update.id)
+                        
+                        if (error) throw error
+                      }
+                      
+                      // Oppdater lokal state
+                      const updatedList = nodlysListe.map(n => ({ ...n, kontrollert: true }))
+                      setNodlysListe(updatedList)
+                      setOriginalData(updatedList)
+                      setUnsavedChanges(new Map())
+                      
+                      alert(`✅ Alle ${nodlysListe.length} nødlysenheter er markert som kontrollert`)
+                    } catch (error) {
+                      console.error('Feil ved oppdatering:', error)
+                      alert('Kunne ikke oppdatere alle enheter. Prøv igjen.')
+                    } finally {
+                      setIsSaving(false)
+                    }
+                  }}
+                  className="btn bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm sm:text-base"
+                  disabled={isSaving || nodlysListe.every(n => n.kontrollert)}
+                  title={nodlysListe.every(n => n.kontrollert) ? 'Alle enheter er allerede kontrollert' : 'Marker alle som kontrollert'}
+                >
+                  <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden xs:inline">Marker alle som kontrollert</span>
+                  <span className="xs:hidden">Alle OK</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1879,6 +1928,54 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                 <Plus className="w-5 h-5" />
                 Ny nødlysenhet
               </button>
+              {nodlysListe.length > 0 && (
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Er du sikker på at du vil markere alle ${nodlysListe.length} nødlysenheter som kontrollert?`)) {
+                      return
+                    }
+                    
+                    try {
+                      setIsSaving(true)
+                      
+                      // Oppdater alle enheter til kontrollert = true
+                      const updates = nodlysListe.map(nodlys => ({
+                        id: nodlys.id,
+                        kontrollert: true
+                      }))
+                      
+                      // Oppdater i databasen
+                      for (const update of updates) {
+                        const { error } = await supabase
+                          .from('anleggsdata_nodlys')
+                          .update({ kontrollert: true })
+                          .eq('id', update.id)
+                        
+                        if (error) throw error
+                      }
+                      
+                      // Oppdater lokal state
+                      const updatedList = nodlysListe.map(n => ({ ...n, kontrollert: true }))
+                      setNodlysListe(updatedList)
+                      setOriginalData(updatedList)
+                      setUnsavedChanges(new Map())
+                      
+                      alert(`✅ Alle ${nodlysListe.length} nødlysenheter er markert som kontrollert`)
+                    } catch (error) {
+                      console.error('Feil ved oppdatering:', error)
+                      alert('Kunne ikke oppdatere alle enheter. Prøv igjen.')
+                    } finally {
+                      setIsSaving(false)
+                    }
+                  }}
+                  className="btn bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  disabled={isSaving || nodlysListe.every(n => n.kontrollert)}
+                  title={nodlysListe.every(n => n.kontrollert) ? 'Alle enheter er allerede kontrollert' : 'Marker alle som kontrollert'}
+                >
+                  <Lightbulb className="w-5 h-5" />
+                  Marker alle som kontrollert
+                </button>
+              )}
             </div>
           </div>
 

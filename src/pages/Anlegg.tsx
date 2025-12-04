@@ -2454,30 +2454,14 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose, onTodoChange
       // Kombiner dokumenter fra tabell og storage
       const combinedDocs: Dokument[] = []
 
-      // Legg til dokumenter fra tabell med signed URLs
+      // Legg til dokumenter fra tabell - ikke generer signed URLs her
+      // De genereres on-demand når brukeren klikker på dokumentet
       if (dbDocs) {
         console.log('✅ Legger til', dbDocs.length, 'dokumenter fra tabell')
         for (const doc of dbDocs) {
-          // Generer signed URL hvis url er en filePath (ikke allerede en full URL)
-          if (doc.url && !doc.url.startsWith('http')) {
-            const { data: urlData, error: urlError } = await supabase
-              .storage
-              .from('anlegg.dokumenter')
-              .createSignedUrl(doc.url, 60 * 60 * 24 * 7) // 7 dager
-
-            if (urlError) {
-              console.error('❌ Feil ved generering av URL for', doc.filnavn, ':', urlError)
-              combinedDocs.push(doc) // Legg til uten URL
-            } else if (urlData) {
-              combinedDocs.push({
-                ...doc,
-                url: urlData.signedUrl
-              })
-            }
-          } else {
-            // URL er allerede en full URL
-            combinedDocs.push(doc)
-          }
+          // Lagre dokumentet med original URL eller null
+          // handleOpenDocument vil generere ny signed URL når dokumentet åpnes
+          combinedDocs.push(doc)
         }
       }
 
@@ -2492,29 +2476,17 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose, onTodoChange
           
           if (!existsInDb) {
             console.log('➕ Legger til fil fra storage:', file.name)
-            // Generer signed URL for filen
+            // Lagre filePath - signed URL genereres når dokumentet åpnes
             const filePath = `anlegg/${anlegg.id}/dokumenter/${file.name}`
-            const { data: urlData, error: urlError } = await supabase
-              .storage
-              .from('anlegg.dokumenter')
-              .createSignedUrl(filePath, 60 * 60 * 24 * 7) // 7 dager
-
-            if (urlError) {
-              console.error('❌ Feil ved generering av URL for', file.name, ':', urlError)
-            }
-
-            if (urlData) {
-              console.log('✅ URL generert for', file.name)
-              combinedDocs.push({
-                id: file.id || file.name,
-                anlegg_id: anlegg.id,
-                filnavn: file.name,
-                url: urlData.signedUrl,
-                type: null,
-                opplastet_dato: file.created_at || new Date().toISOString(),
-                opprettet_av: null
-              })
-            }
+            combinedDocs.push({
+              id: file.id || file.name,
+              anlegg_id: anlegg.id,
+              filnavn: file.name,
+              url: filePath, // Lagre filePath, ikke signed URL
+              type: null,
+              opplastet_dato: file.created_at || new Date().toISOString(),
+              opprettet_av: null
+            })
           } else {
             console.log('⏭️  Hopper over (finnes i tabell):', file.name)
           }
@@ -2699,6 +2671,51 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
     loadTeknikere()
   }, [])
 
+  async function handleOpenDocument(dok: Dokument) {
+    try {
+      // Generer ny signert URL for å unngå utløpte tokens
+      let filePath = dok.url
+      
+      // Hvis URL er null eller undefined, konstruer filePath fra filnavn
+      if (!filePath) {
+        filePath = `anlegg/${dok.anlegg_id}/dokumenter/${dok.filnavn}`
+      } else if (!filePath.startsWith('http')) {
+        // Hvis URL ikke starter med http, er det en filePath - bruk den direkte
+      } else {
+        // Hvis det er en full URL, ekstraher filePath fra den
+        // URL format: https://[project].supabase.co/storage/v1/object/sign/anlegg.dokumenter/[path]?token=...
+        const match = filePath.match(/anlegg\.dokumenter\/(.+?)\?/)
+        if (match) {
+          filePath = match[1]
+        } else {
+          // Fallback: prøv å konstruere filePath
+          filePath = `anlegg/${dok.anlegg_id}/dokumenter/${dok.filnavn}`
+        }
+      }
+
+      console.log('🔓 Genererer ny signert URL for:', dok.filnavn, 'Path:', filePath)
+      
+      const { data, error } = await supabase
+        .storage
+        .from('anlegg.dokumenter')
+        .createSignedUrl(filePath, 60 * 60) // 1 time
+
+      if (error) {
+        console.error('❌ Feil ved generering av signert URL:', error)
+        alert('Kunne ikke åpne dokumentet. Prøv å laste siden på nytt.')
+        return
+      }
+
+      if (data?.signedUrl) {
+        console.log('✅ Åpner dokument med ny URL')
+        window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+      }
+    } catch (error) {
+      console.error('💥 Feil ved åpning av dokument:', error)
+      alert('Kunne ikke åpne dokumentet')
+    }
+  }
+
   function handleKontrolltypeClick(type: string) {
     // Mapping fra kontrolltype til rapporttype
     const rapportTypeMap: Record<string, string> = {
@@ -2719,6 +2736,18 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
         } 
       })
     }
+  }
+
+  function handleSendDocument(dok: Dokument) {
+    // Naviger til Send rapporter-siden med forhåndsvalgt dokument
+    navigate('/send-rapporter', {
+      state: {
+        anleggId: anlegg.id,
+        kundeId: anlegg.kundenr,
+        dokumentId: dok.id,
+        dokumentNavn: dok.filnavn
+      }
+    })
   }
 
   async function handleOpprettNotat(e: React.FormEvent) {
@@ -3019,15 +3048,22 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                         </p>
                       </div>
                     </div>
-                    <a
-                      href={dok.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0"
-                      title="Åpne dokument"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </a>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleSendDocument(dok)}
+                        className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0"
+                        title="Send dokument"
+                      >
+                        <Mail className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenDocument(dok)}
+                        className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0"
+                        title="Åpne dokument"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
