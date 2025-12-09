@@ -131,11 +131,6 @@ export function Anlegg() {
     const saved = localStorage.getItem('anlegg_sort')
     return (saved as SortOption) || 'navn_asc'
   })
-  const [scrollPosition, setScrollPosition] = useState(() => {
-    // Last inn lagret scroll-posisjon fra sessionStorage (ikke localStorage, da vi vil nullstille ved ny session)
-    const saved = sessionStorage.getItem('anlegg_scroll')
-    return saved ? parseInt(saved, 10) : 0
-  })
   const [visSkjulteAnlegg, setVisSkjulteAnlegg] = useState(() => {
     // Last inn lagret innstilling fra localStorage
     const saved = localStorage.getItem('anlegg_vis_skjulte')
@@ -150,7 +145,6 @@ export function Anlegg() {
   // Helper-funksjon for å lagre scroll-posisjon
   const saveScrollPosition = () => {
     const pos = window.scrollY
-    setScrollPosition(pos)
     sessionStorage.setItem('anlegg_scroll', String(pos))
   }
 
@@ -181,24 +175,30 @@ export function Anlegg() {
   // Håndter scroll-posisjon basert på viewMode
   useEffect(() => {
     if (viewMode === 'list') {
+      // Hent scroll-posisjon fra sessionStorage (mer pålitelig enn state)
+      const savedScroll = sessionStorage.getItem('anlegg_scroll')
+      const targetPosition = savedScroll ? parseInt(savedScroll, 10) : 0
+      
       // Gjenopprett scroll-posisjon når vi går tilbake til listen
-      // Bruk flere forsøk for å sikre at scroll settes riktig
+      // Bruk flere forsøk for å sikre at scroll settes riktig etter DOM er oppdatert
       const scrollToPosition = () => {
-        window.scrollTo({ top: scrollPosition, behavior: 'instant' })
+        window.scrollTo({ top: targetPosition, behavior: 'instant' })
       }
       
+      // Vent på at DOM er ferdig rendret
       requestAnimationFrame(() => {
         scrollToPosition()
         setTimeout(scrollToPosition, 50)
         setTimeout(scrollToPosition, 100)
         setTimeout(scrollToPosition, 200)
+        setTimeout(scrollToPosition, 300)
       })
     } else if (viewMode === 'create') {
       // Scroll til toppen kun når vi oppretter nytt anlegg
       window.scrollTo({ top: 0, behavior: 'instant' })
     }
     // IKKE scroll til toppen for 'view' eller 'edit' - la dem beholde sin posisjon
-  }, [viewMode, scrollPosition])
+  }, [viewMode])
 
   async function loadData() {
     try {
@@ -445,8 +445,7 @@ export function Anlegg() {
         anlegg={selectedAnlegg}
         kundeNavn={getKundeNavn(selectedAnlegg.kundenr)}
         onEdit={() => {
-          // Lagre scroll-posisjon før vi går til redigering
-          saveScrollPosition()
+          // Ikke lagre scroll-posisjon her - vi vil beholde posisjonen fra listen
           setViewMode('edit')
         }}
         onClose={() => {
@@ -697,7 +696,7 @@ export function Anlegg() {
                     )}
                     {todoCountsMap[anlegg.id] > 0 && (
                       <span className="badge bg-orange-500/10 text-orange-500 border-orange-500/30 text-xs flex items-center gap-1">
-                        <ClipboardList className="w-3 h-3" />
+                        <ClipboardList className="w-2.5 h-2.5" />
                         {todoCountsMap[anlegg.id]} åpen{todoCountsMap[anlegg.id] === 1 ? '' : 'e'}
                       </span>
                     )}
@@ -810,7 +809,7 @@ export function Anlegg() {
                         )}
                         {todoCountsMap[anlegg.id] > 0 && (
                           <span className="badge bg-orange-500/10 text-orange-500 border-orange-500/30 text-xs flex items-center gap-1 w-fit">
-                            <ClipboardList className="w-3 h-3" />
+                            <ClipboardList className="w-2.5 h-2.5" />
                             {todoCountsMap[anlegg.id]} åpen{todoCountsMap[anlegg.id] === 1 ? '' : 'e'}
                           </span>
                         )}

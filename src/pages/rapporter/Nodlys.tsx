@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Download, Upload, LayoutGrid, Table } from 'lucide-react'
+import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Download, Upload, LayoutGrid, Table, FileSpreadsheet, FileText } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { useLocation, useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -1016,6 +1017,143 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       alert('Kunne ikke generere rapport')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Eksporter nødlysliste til Excel
+  function eksporterTilExcel() {
+    try {
+      const selectedAnleggData = anlegg.find(a => a.id === selectedAnlegg)
+      const anleggsnavn = selectedAnleggData?.anleggsnavn || 'Anlegg'
+      
+      // Sorter etter armatur_id (numerisk)
+      const sortedData = [...nodlysListe].sort((a, b) => {
+        const numA = parseInt(a.amatur_id || '0') || 0
+        const numB = parseInt(b.amatur_id || '0') || 0
+        return numA - numB
+      })
+
+      // Forbered data for Excel
+      const excelData = sortedData.map(n => ({
+        'Intern nr.': n.internnummer || '',
+        'Armatur ID': n.amatur_id || '',
+        'Fordeling': n.fordeling || '',
+        'Kurs': n.kurs || '',
+        'Etasje': n.etasje || '',
+        'Plassering': n.plassering || '',
+        'Produsent': n.produsent || '',
+        'Type': n.type || '',
+        'Status': n.status || '',
+        'Kontrollert': n.kontrollert ? 'Ja' : 'Nei'
+      }))
+
+      // Opprett arbeidsbok
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(excelData)
+
+      // Sett kolonnebredder
+      ws['!cols'] = [
+        { wch: 10 }, // Intern nr.
+        { wch: 12 }, // Armatur ID
+        { wch: 12 }, // Fordeling
+        { wch: 10 }, // Kurs
+        { wch: 10 }, // Etasje
+        { wch: 20 }, // Plassering
+        { wch: 15 }, // Produsent
+        { wch: 12 }, // Type
+        { wch: 15 }, // Status
+        { wch: 12 }, // Kontrollert
+      ]
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Nødlysliste')
+
+      // Generer filnavn
+      const dato = new Date().toISOString().split('T')[0]
+      const filnavnSafe = anleggsnavn
+        .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
+        .replace(/ø/g, 'o').replace(/Ø/g, 'O')
+        .replace(/å/g, 'a').replace(/Å/g, 'A')
+        .replace(/\s+/g, '_')
+        .replace(/[^a-zA-Z0-9._-]/g, '_')
+      const fileName = `Nodlysliste_${filnavnSafe}_${dato}.xlsx`
+
+      // Last ned
+      XLSX.writeFile(wb, fileName)
+    } catch (error) {
+      console.error('Feil ved eksport til Excel:', error)
+      alert('Kunne ikke eksportere til Excel')
+    }
+  }
+
+  // Eksporter nødlysliste til PDF (enkel liste uten rapport-format)
+  function eksporterTilPDF() {
+    try {
+      const selectedAnleggData = anlegg.find(a => a.id === selectedAnlegg)
+      const anleggsnavn = selectedAnleggData?.anleggsnavn || 'Anlegg'
+      const kundenavn = kunder.find(k => k.id === selectedKunde)?.navn || ''
+
+      const doc = new jsPDF()
+      const pageWidth = doc.internal.pageSize.getWidth()
+
+      // Tittel
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('NØDLYSLISTE', pageWidth / 2, 20, { align: 'center' })
+
+      // Undertittel med kunde og anlegg
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`${kundenavn} - ${anleggsnavn}`, pageWidth / 2, 28, { align: 'center' })
+
+      // Dato
+      doc.setFontSize(9)
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Eksportert: ${new Date().toLocaleDateString('nb-NO')}`, pageWidth / 2, 34, { align: 'center' })
+      doc.setTextColor(0, 0, 0)
+
+      // Sorter etter armatur_id (numerisk)
+      const sortedData = [...nodlysListe].sort((a, b) => {
+        const numA = parseInt(a.amatur_id || '0') || 0
+        const numB = parseInt(b.amatur_id || '0') || 0
+        return numA - numB
+      })
+
+      // Tabell
+      autoTable(doc, {
+        startY: 40,
+        head: [['Intern nr.', 'Armatur ID', 'Fordeling', 'Kurs', 'Etasje', 'Plassering', 'Produsent', 'Type', 'Status', 'Kontrollert']],
+        body: sortedData.map(n => [
+          n.internnummer || '-',
+          n.amatur_id || '-',
+          n.fordeling || '-',
+          n.kurs || '-',
+          n.etasje || '-',
+          n.plassering || '-',
+          n.produsent || '-',
+          n.type || '-',
+          n.status || '-',
+          n.kontrollert ? 'Ja' : 'Nei'
+        ]),
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 8 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        margin: { left: 10, right: 10 },
+      })
+
+      // Generer filnavn
+      const dato = new Date().toISOString().split('T')[0]
+      const filnavnSafe = anleggsnavn
+        .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
+        .replace(/ø/g, 'o').replace(/Ø/g, 'O')
+        .replace(/å/g, 'a').replace(/Å/g, 'A')
+        .replace(/\s+/g, '_')
+        .replace(/[^a-zA-Z0-9._-]/g, '_')
+      const fileName = `Nodlysliste_${filnavnSafe}_${dato}.pdf`
+
+      doc.save(fileName)
+    } catch (error) {
+      console.error('Feil ved eksport til PDF:', error)
+      alert('Kunne ikke eksportere til PDF')
     }
   }
 
@@ -2472,6 +2610,30 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
               >
                 <Download className="w-5 h-5" />
                 Lagre og last ned
+              </button>
+            </div>
+          </div>
+
+          {/* Eksporter nødlysliste */}
+          <div className="card">
+            <h2 className="text-lg font-semibold text-white mb-4">Eksporter nødlysliste</h2>
+            <p className="text-sm text-gray-400 mb-4">Last ned nødlyslisten som en enkel tabell (uten rapport-format)</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={eksporterTilPDF}
+                disabled={nodlysListe.length === 0}
+                className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileText className="w-5 h-5" />
+                Eksporter til PDF
+              </button>
+              <button
+                onClick={eksporterTilExcel}
+                disabled={nodlysListe.length === 0}
+                className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileSpreadsheet className="w-5 h-5" />
+                Eksporter til Excel
               </button>
             </div>
           </div>
