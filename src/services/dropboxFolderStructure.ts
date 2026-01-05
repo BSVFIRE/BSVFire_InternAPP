@@ -40,6 +40,7 @@ export const ANLEGG_FOLDERS = [
   '07_Rapporter',
   '07_Rapporter/01_Servicerapport',
   '07_Rapporter/02_Kontrollrapport',
+  '08_Tilbud',
   '99_Foto',
 ]
 
