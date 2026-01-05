@@ -24,6 +24,7 @@ import { Nedlastinger } from './pages/Nedlastinger'
 import { AdminLogger } from './pages/AdminLogger'
 import { Priser } from './pages/Priser'
 import { TilbudServiceavtale } from './pages/TilbudServiceavtale'
+import { TilbudAlarmoverforing } from './pages/TilbudAlarmoverforing'
 import { PrisAdministrasjon } from './pages/PrisAdministrasjon'
 import { AdminAIEmbeddings } from './pages/AdminAIEmbeddings'
 import { AdminAIKnowledge } from './pages/AdminAIKnowledge'
@@ -111,6 +112,7 @@ function App() {
                     <Route path="/nedlastinger" element={<Nedlastinger />} />
                     <Route path="/priser" element={<Priser />} />
                     <Route path="/tilbud-serviceavtale" element={<TilbudServiceavtale />} />
+                    <Route path="/tilbud-alarmoverforing" element={<TilbudAlarmoverforing />} />
                     <Route path="/admin/prisadministrasjon" element={<PrisAdministrasjon />} />
                     <Route path="/admin/poweroffice" element={<PowerOfficeTest />} />
                     <Route path="/admin/logger" element={<AdminLogger />} />

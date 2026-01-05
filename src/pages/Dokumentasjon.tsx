@@ -1,4 +1,4 @@
-import { BookOpen, FileText, Download, Upload, Mail, FileCheck } from 'lucide-react'
+import { BookOpen, FileText, Download, Upload, Mail, FileCheck, Radio } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 export function Dokumentasjon() {
@@ -92,6 +92,22 @@ export function Dokumentasjon() {
             </div>
           </div>
           <p className="text-gray-400 dark:text-gray-500 text-sm">Lag tilbud på serviceavtaler med kunde og tjenester</p>
+        </button>
+
+        <button
+          onClick={() => navigate('/tilbud-alarmoverforing')}
+          className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
+        >
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 bg-red-500/10 rounded-lg flex items-center justify-center">
+              <Radio className="w-6 h-6 text-red-500" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tilbud Alarmoverføring</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Alarm 24/7 overføring</p>
+            </div>
+          </div>
+          <p className="text-gray-400 dark:text-gray-500 text-sm">Opprett tilbud på alarmoverføring med mottakere og priser</p>
         </button>
       </div>
 
