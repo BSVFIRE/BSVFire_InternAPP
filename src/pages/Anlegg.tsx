@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send } from 'lucide-react'
+import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send, Cloud } from 'lucide-react'
+import { checkDropboxStatus, createDropboxFolder, renameDropboxFolder } from '@/services/dropboxServiceV2'
+import { KUNDE_FOLDERS, ANLEGG_FOLDERS } from '@/services/dropboxFolderStructure'
 import { GoogleMapsAddressAutocomplete } from '@/components/GoogleMapsAddressAutocomplete'
 import { AnleggTodoList } from '@/components/AnleggTodoList'
 import { formatDate } from '@/lib/utils'
@@ -40,11 +42,13 @@ interface Anlegg {
   ekstern_telefon: string | null
   ekstern_epost: string | null
   ekstern_kontaktperson_id: string | null
+  dropbox_synced: boolean | null
 }
 
 interface Kunde {
   id: string
   navn: string
+  kunde_nummer: string | null
 }
 
 interface Kontaktperson {
@@ -207,7 +211,7 @@ export function Anlegg() {
       // Hent anlegg og kunder parallelt
       const [anleggResponse, kunderResponse] = await Promise.all([
         supabase.from('anlegg').select('*').order('anleggsnavn', { ascending: true }),
-        supabase.from('customer').select('id, navn')
+        supabase.from('customer').select('id, navn, kunde_nummer')
       ])
 
       if (anleggResponse.error) throw new Error(anleggResponse.error.message)
@@ -294,6 +298,11 @@ export function Anlegg() {
   function getKundeNavn(kundenr: string): string {
     const kunde = kunder.find(k => k.id === kundenr)
     return kunde?.navn || 'Ukjent kunde'
+  }
+
+  // Sjekk om anlegget har Dropbox-sync
+  function harDropboxSync(anleggItem: Anlegg): boolean {
+    return !!anleggItem.dropbox_synced
   }
 
   // Tell skjulte anlegg som matcher søket
@@ -655,8 +664,16 @@ export function Anlegg() {
                   }`}
                 >
                   <div className="flex items-start gap-3 mb-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <div className="relative w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                       <Building2 className="w-5 h-5 text-primary" />
+                      {harDropboxSync(anlegg) && (
+                        <div 
+                          className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center"
+                          title="Synkronisert med Dropbox"
+                        >
+                          <Cloud className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -746,8 +763,16 @@ export function Anlegg() {
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                        <div className="relative w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                           <Building2 className="w-5 h-5 text-primary" />
+                          {harDropboxSync(anlegg) && (
+                            <div 
+                              className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center"
+                              title="Synkronisert med Dropbox"
+                            >
+                              <Cloud className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
@@ -971,6 +996,7 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
   const [eksternKontaktSok, setEksternKontaktSok] = useState('')
   const [visEksternDropdown, setVisEksternDropdown] = useState(false)
   const eksternDropdownRef = useRef<HTMLDivElement>(null)
+  const [kundeKundenummer, setKundeKundenummer] = useState<string | null>(null)
 
   useEffect(() => {
     loadKontaktpersoner()
@@ -980,15 +1006,63 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
     }
   }, [anlegg])
 
-  // Initialiser kundesøk med valgt kunde
+  // Initialiser kundesøk med valgt kunde og hent kundenummer
   useEffect(() => {
     if (formData.kundenr && kunder.length > 0) {
       const kunde = kunder.find(k => k.id === formData.kundenr)
       if (kunde) {
         setKundeSok(kunde.navn)
       }
+      // Hent kundenummer fra kunde
+      loadKundeKundenummer(formData.kundenr)
+    } else {
+      setKundeKundenummer(null)
     }
   }, [formData.kundenr, kunder])
+
+  // Hent kundenummer fra valgt kunde
+  async function loadKundeKundenummer(kundeId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('customer')
+        .select('kunde_nummer')
+        .eq('id', kundeId)
+        .single()
+      
+      if (!error && data) {
+        setKundeKundenummer(data.kunde_nummer)
+      }
+    } catch (error) {
+      log.error('Feil ved henting av kundenummer', { error, kundeId })
+    }
+  }
+
+  // Hent kundenummer fra kunde og sett på anlegg
+  async function hentKundenummerFraKunde() {
+    if (!formData.kundenr) {
+      alert('Velg en kunde først')
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('customer')
+        .select('kunde_nummer')
+        .eq('id', formData.kundenr)
+        .single()
+
+      if (error) throw error
+
+      if (data?.kunde_nummer) {
+        setFormData({ ...formData, kunde_nummer: data.kunde_nummer })
+      } else {
+        alert('Kunden har ikke et kundenummer registrert')
+      }
+    } catch (error) {
+      log.error('Feil ved henting av kundenummer', { error, kundeId: formData.kundenr })
+      alert('Kunne ikke hente kundenummer fra kunde')
+    }
+  }
 
   // Initialiser ekstern kontaktsøk med valgt kontakt
   useEffect(() => {
@@ -1378,6 +1452,19 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
           throw error
         }
         anleggId = anlegg.id
+
+        // Sjekk om anleggsnavn er endret - oppdater Dropbox-mappe i bakgrunnen
+        if (anlegg.anleggsnavn !== formData.anleggsnavn && kundeKundenummer) {
+          const valgtKunde = kunder.find(k => k.id === formData.kundenr)
+          if (valgtKunde) {
+            renameDropboxAnleggFolder(
+              kundeKundenummer, 
+              valgtKunde.navn, 
+              anlegg.anleggsnavn, 
+              formData.anleggsnavn
+            )
+          }
+        }
       } else {
         // Create
         const { data, error } = await supabase
@@ -1392,6 +1479,21 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
         }
         anleggId = data.id
         isNewAnlegg = true
+
+        // Opprett Dropbox-mapper for nytt anlegg (i bakgrunnen)
+        // Bruk kundens kundenummer (ikke anleggets) for mappestruktur
+        if (kundeKundenummer) {
+          const valgtKunde = kunder.find(k => k.id === formData.kundenr)
+          if (valgtKunde) {
+            createDropboxFoldersForAnlegg(anleggId, kundeKundenummer, valgtKunde.navn, formData.anleggsnavn)
+          }
+        } else {
+          // Vis advarsel hvis kunden ikke har kundenummer
+          const status = await checkDropboxStatus()
+          if (status.connected) {
+            alert('⚠️ Anlegg opprettet, men kunden mangler kundenummer\n\nDropbox-mapper ble ikke opprettet. For å synkronisere til Dropbox må du:\n\n1. Legg til kundenummer på kunden\n2. Gå til Admin → Dropbox Mapper\n3. Velg kunden og anlegget, og opprett mapper manuelt')
+          }
+        }
 
         // Synkroniser til Kontrollportal (kun ved opprettelse)
         try {
@@ -1444,6 +1546,86 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
       alert('Kunne ikke lagre anlegg')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Opprett Dropbox-mapper i bakgrunnen
+  async function createDropboxFoldersForAnlegg(anleggId: string, kundeNummer: string, kundeNavn: string, anleggNavn: string) {
+    try {
+      const status = await checkDropboxStatus()
+      if (!status.connected) {
+        log.warn('Dropbox ikke tilkoblet - hopper over mappeopprettelse for anlegg')
+        return
+      }
+
+      const safeKundeNavn = kundeNavn.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim()
+      const safeAnleggNavn = anleggNavn.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim()
+      const kundeBasePath = `/NY MAPPESTRUKTUR 2026/01_KUNDER/${kundeNummer}_${safeKundeNavn}`
+      const anleggBasePath = `${kundeBasePath}/02_Bygg/${safeAnleggNavn}`
+
+      log.info('Oppretter Dropbox-mapper for nytt anlegg', { kundeNummer, anleggNavn })
+
+      // Sørg for at kunde-mapper eksisterer først
+      for (const folder of KUNDE_FOLDERS) {
+        await createDropboxFolder(`${kundeBasePath}/${folder}`)
+      }
+
+      // Opprett anlegg-mapper
+      for (const folder of ANLEGG_FOLDERS) {
+        await createDropboxFolder(`${anleggBasePath}/${folder}`)
+      }
+
+      // Marker anlegget som synkronisert med Dropbox
+      await supabase
+        .from('anlegg')
+        .update({ dropbox_synced: true })
+        .eq('id', anleggId)
+
+      log.info('Dropbox-mapper opprettet for anlegg', { anleggNavn })
+    } catch (error) {
+      log.error('Feil ved opprettelse av Dropbox-mapper for anlegg', { error, anleggNavn })
+      // Ikke vis feil til bruker - dette er en bakgrunnsjobb
+    }
+  }
+
+  // Endre navn på Dropbox-mappe for anlegg i bakgrunnen
+  async function renameDropboxAnleggFolder(
+    kundeNummer: string, 
+    kundeNavn: string, 
+    gammeltAnleggNavn: string, 
+    nyttAnleggNavn: string
+  ) {
+    try {
+      const status = await checkDropboxStatus()
+      if (!status.connected) {
+        log.warn('Dropbox ikke tilkoblet - hopper over navneendring')
+        return
+      }
+
+      const safeKundeNavn = kundeNavn.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim()
+      const safeGammeltNavn = gammeltAnleggNavn.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim()
+      const safeNyttNavn = nyttAnleggNavn.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim()
+      
+      const kundeBasePath = `/NY MAPPESTRUKTUR 2026/01_KUNDER/${kundeNummer}_${safeKundeNavn}`
+      const fromPath = `${kundeBasePath}/02_Bygg/${safeGammeltNavn}`
+      const toPath = `${kundeBasePath}/02_Bygg/${safeNyttNavn}`
+
+      log.info('Endrer navn på Dropbox-mappe for anlegg', { fromPath, toPath })
+
+      const result = await renameDropboxFolder(fromPath, toPath)
+      
+      if (result.success) {
+        if (result.skipped) {
+          log.info('Dropbox-mappe eksisterte ikke, ingen endring nødvendig', { gammeltAnleggNavn })
+        } else {
+          log.info('Dropbox-mappe omdøpt', { gammeltAnleggNavn, nyttAnleggNavn })
+        }
+      } else {
+        log.warn('Kunne ikke endre Dropbox-mappenavn', { error: result.error })
+      }
+    } catch (error) {
+      log.error('Feil ved endring av Dropbox-mappenavn', { error, gammeltAnleggNavn, nyttAnleggNavn })
+      // Ikke vis feil til bruker - dette er en bakgrunnsjobb
     }
   }
 
@@ -1684,13 +1866,29 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Kundenummer
             </label>
-            <input
-              type="text"
-              value={formData.kunde_nummer}
-              onChange={(e) => setFormData({ ...formData, kunde_nummer: e.target.value })}
-              className="input"
-              placeholder="K-12345"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={formData.kunde_nummer}
+                onChange={(e) => setFormData({ ...formData, kunde_nummer: e.target.value })}
+                className="input flex-1"
+                placeholder="K-12345"
+              />
+              {formData.kundenr && (
+                <button
+                  type="button"
+                  onClick={hentKundenummerFraKunde}
+                  className="btn-secondary flex items-center gap-1 text-sm whitespace-nowrap"
+                  title="Hent kundenummer fra valgt kunde"
+                >
+                  <Download className="w-4 h-4" />
+                  Fra kunde
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Dropbox bruker kundens kundenummer{kundeKundenummer ? ` (${kundeKundenummer})` : ' (ikke satt på kunde)'}
+            </p>
           </div>
 
           {/* Unik kode (Kontrollportal) */}

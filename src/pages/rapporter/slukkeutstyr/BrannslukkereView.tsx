@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore'
 import { KommentarViewBrannslukkere } from './KommentarViewBrannslukkere'
 import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
+import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
 
 interface Brannslukker {
   id?: string
@@ -91,9 +92,11 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [showFullfortDialog, setShowFullfortDialog] = useState(false)
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
-  const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
+  const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string; pdfBlob: Blob } | null>(null)
   const [kundeId, setKundeId] = useState<string | null>(null)
   const [evakueringsplanStatus, setEvakueringsplanStatus] = useState('')
+  const [dropboxAvailable, setDropboxAvailable] = useState(false)
+  const [saveToDropbox] = useState(true)
   const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
     // Auto-switch to cards on mobile
     return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
@@ -107,6 +110,8 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
     loadSlukkere()
     loadEvakueringsplan(anleggId)
     loadProdusentOptions()
+    // Sjekk Dropbox-status
+    checkDropboxStatus().then(status => setDropboxAvailable(status.connected))
   }, [anleggId])
 
   // Wrapper for setSlukkere som også setter hasUnsavedChanges
@@ -779,8 +784,54 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
             storage_path: storagePath
           })
 
+        // Last opp til Dropbox hvis aktivert
+        if (saveToDropbox && dropboxAvailable) {
+          try {
+            // Hent kundedata for Dropbox-sti
+            const { data: anleggData } = await supabase
+              .from('anlegg')
+              .select(`
+                anleggsnavn,
+                kundenr,
+                customer:kundenr (
+                  kunde_nummer,
+                  navn
+                )
+              `)
+              .eq('id', anleggId)
+              .single()
+
+            if (anleggData) {
+              const kundeNummer = (anleggData.customer as any)?.kunde_nummer
+              const kundeNavnDropbox = (anleggData.customer as any)?.navn
+
+              if (kundeNummer && kundeNavnDropbox) {
+                console.log('📤 Laster opp brannslukkere-rapport til Dropbox...')
+                const dropboxResult = await uploadKontrollrapportToDropbox(
+                  kundeNummer,
+                  kundeNavnDropbox,
+                  anleggNavn,
+                  fileName,
+                  pdfBlob
+                )
+
+                if (dropboxResult.success) {
+                  console.log('✅ Brannslukkere-rapport lastet opp til Dropbox:', dropboxResult.path)
+                } else {
+                  console.warn('⚠️ Dropbox-opplasting feilet:', dropboxResult.error)
+                }
+              } else {
+                console.warn('⚠️ Kundenummer mangler - kan ikke laste opp til Dropbox')
+              }
+            }
+          } catch (dropboxError) {
+            console.error('❌ Feil ved Dropbox-opplasting:', dropboxError)
+            // Ikke stopp prosessen hvis Dropbox feiler
+          }
+        }
+
         // Vis dialog for å sette tjeneste til fullført
-        setPendingPdfSave({ mode, doc, fileName })
+        setPendingPdfSave({ mode, doc, fileName, pdfBlob })
         setShowFullfortDialog(true)
       }
     } catch (error) {

@@ -260,16 +260,22 @@ function ServicerapportPDFDocument({ rapport, imageDataUrls = [] }: Servicerappo
   )
 }
 
-export async function generateServicerapportPDF(rapport: Servicerapport, saveToStorage: boolean = false) {
+export async function generateServicerapportPDF(
+  rapport: Servicerapport, 
+  saveToStorage: boolean = false,
+  saveToDropbox: boolean = false
+): Promise<{ success: boolean; filePath?: string; dropboxPath?: string; dropboxError?: string }> {
   try {
     console.log('📄 Genererer PDF for rapport:', rapport.id)
     console.log('   Anlegg:', rapport.anlegg_navn)
     console.log('   Bilder:', rapport.image_urls?.length || 0)
     
+    // Importer supabase
+    const { supabase } = await import('@/lib/supabase')
+    
     // Hent bilder fra storage hvis de finnes
     let imageDataUrls: string[] = []
     if (rapport.image_urls && rapport.image_urls.length > 0) {
-      const { supabase } = await import('@/lib/supabase')
       
       console.log('🖼️ Laster ned bilder fra storage...')
       for (const imagePath of rapport.image_urls) {
@@ -381,15 +387,14 @@ export async function generateServicerapportPDF(rapport: Servicerapport, saveToS
     const blob = await pdf(<ServicerapportPDFDocument rapport={rapport} imageDataUrls={imageDataUrls} />).toBlob()
     console.log('✅ PDF generert, størrelse:', blob.size, 'bytes')
     
+    // Lag filnavn
+    const year = new Date(rapport.rapport_dato).getFullYear()
+    const safeHeader = rapport.header.replace(/[^a-zA-Z0-9æøåÆØÅ\s]/g, '_').replace(/\s+/g, '_')
+    const fileName = `Servicerapport_${safeHeader}_${year}.pdf`
+    
+    let result: { success: boolean; filePath?: string; dropboxPath?: string; dropboxError?: string } = { success: true }
+    
     if (saveToStorage && rapport.anlegg_id) {
-      // Importer supabase dynamisk for å unngå sirkulære avhengigheter
-      const { supabase } = await import('@/lib/supabase')
-      
-      // Lag filnavn
-      const year = new Date(rapport.rapport_dato).getFullYear()
-      const safeHeader = rapport.header.replace(/[^a-zA-Z0-9]/g, '_')
-      const fileName = `Servicerapport_${safeHeader}_${year}.pdf`
-      
       // Last opp til storage: anlegg/{anlegg_id}/dokumenter/{filename}
       const filePath = `anlegg/${rapport.anlegg_id}/dokumenter/${fileName}`
       
@@ -413,17 +418,89 @@ export async function generateServicerapportPDF(rapport: Servicerapport, saveToS
       console.log('✅ PDF lagret til storage!')
       console.log('   Upload data:', uploadData)
       console.log('   Full path:', filePath)
-      return { success: true, filePath }
-    } else {
-      // Last ned lokalt
+      result.filePath = filePath
+    }
+    
+    // Last opp til Dropbox hvis aktivert
+    if (saveToDropbox && rapport.anlegg_id) {
+      try {
+        const { uploadRapportToDropbox, isDropboxConfigured } = await import('@/services/dropboxServiceV2')
+        
+        const dropboxConfigured = await isDropboxConfigured()
+        if (!dropboxConfigured) {
+          console.warn('⚠️ Dropbox er ikke konfigurert - hopper over Dropbox-opplasting')
+          result.dropboxError = 'Dropbox er ikke konfigurert'
+        } else {
+          // Hent kundenummer fra anlegg
+          const { data: anleggData, error: anleggError } = await supabase
+            .from('anlegg')
+            .select(`
+              anleggsnavn,
+              kundenr,
+              customer:kundenr (
+                kunde_nummer,
+                navn
+              )
+            `)
+            .eq('id', rapport.anlegg_id)
+            .single()
+          
+          if (anleggError || !anleggData) {
+            console.error('❌ Kunne ikke hente anleggsdata:', anleggError)
+            result.dropboxError = 'Kunne ikke hente anleggsdata'
+          } else {
+            const kundeNummer = (anleggData.customer as any)?.kunde_nummer
+            const kundeNavn = (anleggData.customer as any)?.navn
+            const anleggNavn = anleggData.anleggsnavn || rapport.anlegg_navn || 'Ukjent_anlegg'
+            
+            if (!kundeNummer) {
+              console.warn('⚠️ Kundenummer mangler - kan ikke laste opp til Dropbox')
+              result.dropboxError = 'Kundenummer mangler på kunden'
+            } else if (!kundeNavn) {
+              console.warn('⚠️ Kundenavn mangler - kan ikke laste opp til Dropbox')
+              result.dropboxError = 'Kundenavn mangler på kunden'
+            } else {
+              console.log('📤 Laster opp til Dropbox...')
+              console.log('   Kundenummer:', kundeNummer)
+              console.log('   Kundenavn:', kundeNavn)
+              console.log('   Anlegg:', anleggNavn)
+              console.log('   Filnavn:', fileName)
+              
+              const dropboxResult = await uploadRapportToDropbox(
+                kundeNummer,
+                kundeNavn,
+                anleggNavn,
+                fileName,
+                blob
+              )
+              
+              if (dropboxResult.success) {
+                console.log('✅ PDF lastet opp til Dropbox:', dropboxResult.path)
+                result.dropboxPath = dropboxResult.path
+              } else {
+                console.error('❌ Dropbox-opplasting feilet:', dropboxResult.error)
+                result.dropboxError = dropboxResult.error
+              }
+            }
+          }
+        }
+      } catch (dropboxError) {
+        console.error('❌ Feil ved Dropbox-opplasting:', dropboxError)
+        result.dropboxError = dropboxError instanceof Error ? dropboxError.message : 'Ukjent feil'
+      }
+    }
+    
+    // Hvis ingen lagring er valgt, last ned lokalt
+    if (!saveToStorage && !saveToDropbox) {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
       link.download = `Servicerapport_${rapport.header.replace(/[^a-z0-9]/gi, '_')}_${rapport.rapport_dato}.pdf`
       link.click()
       URL.revokeObjectURL(url)
-      return { success: true }
     }
+    
+    return result
   } catch (error) {
     console.error('Feil ved generering av PDF:', error)
     throw error

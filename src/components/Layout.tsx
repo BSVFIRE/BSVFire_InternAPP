@@ -22,19 +22,22 @@ import {
   Menu,
   X,
   Building,
-  Inbox
+  Inbox,
+  Cloud,
+  CalendarCheck
 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
 import { OfflineInfoDialog } from './OfflineInfoDialog'
 import { supabase } from '@/lib/supabase'
+import { checkDropboxStatus } from '@/services/dropboxServiceV2'
 
 interface LayoutProps {
   children: ReactNode
 }
 
 const navigation = [
-  { name: 'Hjem', href: '/', icon: Home },
+  { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Kunder', href: '/kunder', icon: Users },
   { name: 'Anlegg', href: '/anlegg', icon: Building2 },
   { name: 'Kontrollplan', href: '/kontrollplan', icon: Calendar },
@@ -50,8 +53,10 @@ const navigation = [
 ]
 
 const adminNavigation = [
+  { name: 'Årsavslutning', href: '/admin/aarsavslutning', icon: CalendarCheck },
   { name: 'Prisadministrasjon', href: '/admin/prisadministrasjon', icon: DollarSign },
   { name: 'PowerOffice', href: '/admin/poweroffice', icon: Building },
+  { name: 'Dropbox Mapper', href: '/admin/dropbox-folders', icon: Cloud },
   { name: 'System Logger', href: '/admin/logger', icon: Bug },
   { name: 'AI Embeddings', href: '/admin/ai-embeddings', icon: Sparkles },
   { name: 'AI Kunnskapsbase', href: '/admin/ai-knowledge', icon: BookOpen },
@@ -67,9 +72,17 @@ export function Layout({ children }: LayoutProps) {
   const [showOfflineInfo, setShowOfflineInfo] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [ulestemeldinger, setUlestemeldinger] = useState(0)
+  const [dropboxConnected, setDropboxConnected] = useState<boolean | null>(null)
   
   // Sjekk om bruker er admin
   const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email)
+
+  // Sjekk Dropbox-status
+  useEffect(() => {
+    checkDropboxStatus()
+      .then(status => setDropboxConnected(status.connected))
+      .catch(() => setDropboxConnected(false))
+  }, [])
 
   // Hent antall uleste meldinger
   useEffect(() => {
@@ -146,9 +159,29 @@ export function Layout({ children }: LayoutProps) {
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-xl">B</span>
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">BSV Fire</h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">Intern App</p>
+            </div>
+            {/* Dropbox status indicator */}
+            <div 
+              className="relative group"
+              title={dropboxConnected === null ? 'Sjekker Dropbox...' : dropboxConnected ? 'Dropbox tilkoblet' : 'Dropbox ikke tilkoblet'}
+            >
+              <Cloud className={`w-5 h-5 ${
+                dropboxConnected === null 
+                  ? 'text-gray-400 animate-pulse' 
+                  : dropboxConnected 
+                    ? 'text-green-500' 
+                    : 'text-red-500'
+              }`} />
+              <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${
+                dropboxConnected === null 
+                  ? 'bg-gray-400' 
+                  : dropboxConnected 
+                    ? 'bg-green-500' 
+                    : 'bg-red-500'
+              }`} />
             </div>
           </div>
 

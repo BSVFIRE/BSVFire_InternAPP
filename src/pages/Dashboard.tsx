@@ -10,11 +10,13 @@ import {
   CheckSquare, 
   FolderKanban, 
   Building2,
-  TrendingUp,
   AlertCircle,
   Users,
   User,
-  Calendar
+  Calendar,
+  Inbox,
+  Check,
+  Building
 } from 'lucide-react'
 import { ORDRE_STATUSER, OPPGAVE_STATUSER } from '@/lib/constants'
 
@@ -23,6 +25,19 @@ interface Stats {
   oppgaver: { total: number; aktive: number; fullfort: number }
   prosjekter: { total: number; pagaar: number; planlagt: number }
   anlegg: number
+  kunder: number
+  nyeKunderSisteManed: number
+  nyeAnleggSisteManed: number
+}
+
+interface Melding {
+  id: string
+  anlegg_id: string
+  intern_kommentar: string
+  created_at: string
+  lest: boolean
+  anleggsnavn: string | null
+  kunde_navn: string | null
 }
 
 interface Aktivitet {
@@ -64,13 +79,17 @@ export function Dashboard() {
     ordre: { total: 0, aktive: 0, fullfort: 0, fakturert: 0 },
     oppgaver: { total: 0, aktive: 0, fullfort: 0 },
     prosjekter: { total: 0, pagaar: 0, planlagt: 0 },
-    anlegg: 0
+    anlegg: 0,
+    kunder: 0,
+    nyeKunderSisteManed: 0,
+    nyeAnleggSisteManed: 0
   })
   const [loading, setLoading] = useState(true)
   const [tidsFilter, setTidsFilter] = useState<TidsFilter>('uke')
   const [aktiviteter, setAktiviteter] = useState<Aktivitet[]>([])
   const [kommendeOppgaver, setKommendeOppgaver] = useState<KommendeOppgave[]>([])
   const [kommendeOrdre, setKommendeOrdre] = useState<KommendeOrdre[]>([])
+  const [meldinger, setMeldinger] = useState<Melding[]>([])
 
   useEffect(() => {
     loadAnsattId()
@@ -147,16 +166,103 @@ export function Dashboard() {
         .from('anlegg')
         .select('*', { count: 'exact', head: true })
 
+      // Hent kunder count
+      const { count: kunderCount } = await supabase
+        .from('customer')
+        .select('*', { count: 'exact', head: true })
+        .or('skjult.is.null,skjult.eq.false')
+
+      // Hent nye kunder siste måned
+      const enMndSiden = new Date()
+      enMndSiden.setMonth(enMndSiden.getMonth() - 1)
+      const { count: nyeKunder } = await supabase
+        .from('customer')
+        .select('*', { count: 'exact', head: true })
+        .gte('opprettet', enMndSiden.toISOString())
+        .or('skjult.is.null,skjult.eq.false')
+
+      // Hent nye anlegg siste måned
+      const { count: nyeAnlegg } = await supabase
+        .from('anlegg')
+        .select('*', { count: 'exact', head: true })
+        .gte('opprettet_dato', enMndSiden.toISOString())
+
       setStats({
         ordre: ordreStats,
         oppgaver: oppgaverStats,
         prosjekter: prosjekterStats,
-        anlegg: anleggCount || 0
+        anlegg: anleggCount || 0,
+        kunder: kunderCount || 0,
+        nyeKunderSisteManed: nyeKunder || 0,
+        nyeAnleggSisteManed: nyeAnlegg || 0
       })
     } catch (error) {
       log.error('Feil ved lasting av statistikk', { error })
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadMeldinger() {
+    if (!ansattId) return
+    
+    try {
+      const { data, error } = await supabase
+        .from('intern_kommentar')
+        .select(`
+          id,
+          anlegg_id,
+          intern_kommentar,
+          created_at,
+          lest,
+          anlegg:anlegg_id (
+            anleggsnavn,
+            customer:kundenr (
+              navn
+            )
+          )
+        `)
+        .eq('mottaker_id', ansattId)
+        .eq('lest', false)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (error) {
+        if (error.code === '42703') {
+          log.info('Meldingssystem-kolonner finnes ikke ennå')
+          return
+        }
+        throw error
+      }
+
+      const transformedData: Melding[] = (data || []).map((m: any) => ({
+        id: m.id,
+        anlegg_id: m.anlegg_id,
+        intern_kommentar: m.intern_kommentar,
+        created_at: m.created_at,
+        lest: m.lest,
+        anleggsnavn: m.anlegg?.anleggsnavn || null,
+        kunde_navn: m.anlegg?.customer?.navn || null
+      }))
+
+      setMeldinger(transformedData)
+    } catch (error) {
+      log.error('Feil ved lasting av meldinger', { error })
+    }
+  }
+
+  async function markerSomLest(meldingId: string) {
+    try {
+      const { error } = await supabase
+        .from('intern_kommentar')
+        .update({ lest: true, lest_dato: new Date().toISOString() })
+        .eq('id', meldingId)
+
+      if (error) throw error
+      
+      setMeldinger(meldinger.filter(m => m.id !== meldingId))
+    } catch (error) {
+      log.error('Feil ved markering som lest', { error })
     }
   }
 
@@ -364,18 +470,36 @@ export function Dashboard() {
       loadAktiviteter()
       loadKommendeOppgaver()
       loadKommendeOrdre()
+      loadMeldinger()
     }
   }, [visAlle, ansattId, loadAktiviteter, loadKommendeOppgaver, loadKommendeOrdre])
 
   const statCards = [
     {
-      title: 'Ordre',
+      title: 'Kunder',
+      icon: Building,
+      total: stats.kunder,
+      subText: stats.nyeKunderSisteManed > 0 ? `+${stats.nyeKunderSisteManed} siste mnd` : null,
+      color: 'from-emerald-500 to-emerald-600',
+      href: '/kunder'
+    },
+    {
+      title: 'Anlegg',
+      icon: Building2,
+      total: stats.anlegg,
+      subText: stats.nyeAnleggSisteManed > 0 ? `+${stats.nyeAnleggSisteManed} siste mnd` : null,
+      color: 'from-orange-500 to-orange-600',
+      href: '/anlegg'
+    },
+    {
+      title: 'Aktive ordre',
       icon: ClipboardList,
       total: stats.ordre.aktive,
       fullfort: stats.ordre.fullfort,
       fakturert: stats.ordre.fakturert,
       color: 'from-blue-500 to-blue-600',
-      showSubStats: true
+      showSubStats: true,
+      href: '/ordre'
     },
     {
       title: 'Oppgaver',
@@ -383,7 +507,8 @@ export function Dashboard() {
       total: stats.oppgaver.total,
       active: stats.oppgaver.aktive,
       completed: stats.oppgaver.fullfort,
-      color: 'from-primary to-primary-600'
+      color: 'from-primary to-primary-600',
+      href: '/oppgaver'
     },
     {
       title: 'Prosjekter',
@@ -391,15 +516,16 @@ export function Dashboard() {
       total: stats.prosjekter.total,
       active: stats.prosjekter.pagaar,
       completed: stats.prosjekter.planlagt,
-      color: 'from-purple-500 to-purple-600'
+      color: 'from-purple-500 to-purple-600',
+      href: '/prosjekter'
     },
     {
-      title: 'Anlegg',
-      icon: Building2,
-      total: stats.anlegg,
-      active: 0,
-      completed: 0,
-      color: 'from-orange-500 to-orange-600'
+      title: 'Meldinger',
+      icon: Inbox,
+      total: meldinger.length,
+      subText: meldinger.length > 0 ? 'uleste' : 'Ingen uleste',
+      color: 'from-red-500 to-red-600',
+      href: '/meldinger'
     }
   ]
 
@@ -448,14 +574,20 @@ export function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
         {statCards.map((card) => (
-          <div key={card.title} className="card hover:shadow-xl transition-shadow">
+          <div 
+            key={card.title} 
+            onClick={() => card.href && navigate(card.href)}
+            className="card hover:shadow-xl transition-shadow cursor-pointer"
+          >
             <div className="flex items-start justify-between mb-2 sm:mb-4">
               <div className={`p-2 sm:p-3 bg-gradient-to-br ${card.color} rounded-lg flex-shrink-0`}>
-                <card.icon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-900 dark:text-white" />
+                <card.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
+              {card.subText && (
+                <span className="text-xs text-green-500 font-medium">{card.subText}</span>
+              )}
             </div>
             
             <h3 className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm font-medium mb-1 truncate">{card.title}</h3>
@@ -505,6 +637,60 @@ export function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* Meldinger */}
+      {meldinger.length > 0 && (
+        <div className="card border-l-4 border-red-500">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-500/10 rounded-lg">
+                <Inbox className="w-5 h-5 text-red-500" />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Uleste meldinger</h2>
+                <p className="text-xs text-gray-500">{meldinger.length} ulest{meldinger.length > 1 ? 'e' : ''}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/meldinger')}
+              className="text-sm text-primary hover:underline"
+            >
+              Se alle
+            </button>
+          </div>
+          <div className="space-y-2">
+            {meldinger.map((melding) => (
+              <div
+                key={melding.id}
+                className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors"
+                onClick={() => navigate('/anlegg', { state: { viewAnleggId: melding.anlegg_id } })}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {melding.anleggsnavn || 'Ukjent anlegg'}
+                  </p>
+                  {melding.kunde_navn && (
+                    <p className="text-xs text-gray-500 truncate">{melding.kunde_navn}</p>
+                  )}
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                    {melding.intern_kommentar}
+                  </p>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    markerSomLest(melding.id)
+                  }}
+                  className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0"
+                  title="Marker som lest"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Ordre og Oppgaver */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

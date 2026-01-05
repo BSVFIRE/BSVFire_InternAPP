@@ -18,6 +18,12 @@ CREATE INDEX IF NOT EXISTS idx_kontroll_notater_created_at ON kontroll_notater(c
 -- Enable Row Level Security
 ALTER TABLE kontroll_notater ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist, then recreate
+DROP POLICY IF EXISTS "Users can view their own inspection notes" ON kontroll_notater;
+DROP POLICY IF EXISTS "Users can create inspection notes" ON kontroll_notater;
+DROP POLICY IF EXISTS "Users can update inspection notes" ON kontroll_notater;
+DROP POLICY IF EXISTS "Users can delete inspection notes" ON kontroll_notater;
+
 -- Create policy for authenticated users to read their own notes
 CREATE POLICY "Users can view their own inspection notes"
   ON kontroll_notater
@@ -79,6 +85,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_kontroll_notater_updated_at ON kontroll_notater;
 CREATE TRIGGER trigger_update_kontroll_notater_updated_at
   BEFORE UPDATE ON kontroll_notater
   FOR EACH ROW

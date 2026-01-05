@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Save, Eye, Sparkles, Upload, X } from 'lucide-react'
+import { ArrowLeft, Save, Eye, Sparkles, Upload, X, Cloud } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { BSV_LOGO } from '@/assets/logoBase64'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
+import { checkDropboxStatus } from '@/services/dropboxServiceV2'
 
 interface Servicerapport {
   id: string
@@ -70,11 +71,15 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([])
   const [existingImagePaths, setExistingImagePaths] = useState<string[]>([])
   const [uploadingImages, setUploadingImages] = useState(false)
+  const [saveToDropbox, setSaveToDropbox] = useState(true) // Standard: lagre til Dropbox
+  const [dropboxAvailable, setDropboxAvailable] = useState(false)
 
   useEffect(() => {
     loadAnlegg()
     loadAnsatte()
     loadExistingImages()
+    // Sjekk Dropbox-status asynkront
+    checkDropboxStatus().then(status => setDropboxAvailable(status.connected))
   }, [])
 
   useEffect(() => {
@@ -306,11 +311,23 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
       const rapportWithImages = { ...formData, image_urls: imageUrls }
       const savedRapport = await onSave(rapportWithImages)
       
-      // Generer og lagre PDF til storage
+      // Generer og lagre PDF til storage (og Dropbox hvis aktivert)
       if (savedRapport.anlegg_id && savedRapport.id) {
         const { generateServicerapportPDF } = await import('./ServicerapportPDF')
-        const result = await generateServicerapportPDF(savedRapport, true)
+        const result = await generateServicerapportPDF(
+          savedRapport, 
+          true, // lagre til storage
+          saveToDropbox && dropboxAvailable // lagre til Dropbox hvis valgt
+        )
+        
         if (result.success) {
+          // Logg Dropbox-resultat
+          if (result.dropboxPath) {
+            console.log('✅ Rapport lagret til Dropbox:', result.dropboxPath)
+          } else if (result.dropboxError && saveToDropbox) {
+            console.warn('⚠️ Dropbox-feil:', result.dropboxError)
+          }
+          
           // Hent kunde-ID fra anlegget
           const selectedAnlegg = anlegg.find(a => a.id === savedRapport.anlegg_id)
           if (selectedAnlegg) {
@@ -794,6 +811,20 @@ Eksempel:
             Avbryt
           </button>
           <div className="flex items-center gap-3">
+            {/* Dropbox toggle eller koble til-knapp */}
+            {/* Dropbox toggle - vises kun hvis Dropbox er tilkoblet */}
+            {dropboxAvailable && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={saveToDropbox}
+                  onChange={(e) => setSaveToDropbox(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-primary focus:ring-primary"
+                />
+                <Cloud className={`w-5 h-5 ${saveToDropbox ? 'text-blue-400' : 'text-gray-500'}`} />
+                <span className="text-sm text-gray-300">Dropbox</span>
+              </label>
+            )}
             <button
               type="button"
               onClick={() => setShowPreview(true)}

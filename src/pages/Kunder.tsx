@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Plus, Search, Building, Mail, Phone, Edit, Trash2, Eye, ExternalLink, Loader2, DollarSign, Building2, MapPin, ChevronRight } from 'lucide-react'
+import { Plus, Search, Building, Mail, Phone, Edit, Trash2, Eye, ExternalLink, Loader2, DollarSign, Building2, MapPin, ChevronRight, AlertTriangle, X, Package, ClipboardList, FileText } from 'lucide-react'
+import { checkDropboxStatus, createDropboxFolder } from '@/services/dropboxServiceV2'
+import { KUNDE_FOLDERS } from '@/services/dropboxFolderStructure'
 import { formatDate } from '@/lib/utils'
 import { searchCompaniesByName, getCompanyByOrgNumber, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
 import { useNavigate } from 'react-router-dom'
@@ -18,9 +20,42 @@ interface Kunde {
   sist_oppdatert: string | null
   kunde_nummer: string | null
   anlegg_count?: number
+  skjult?: boolean
 }
 
 type SortOption = 'navn_asc' | 'navn_desc' | 'opprettet_nyeste' | 'opprettet_eldste' | 'uten_anlegg'
+
+// Interfaces for related data
+interface RelatedAnlegg {
+  id: string
+  anleggsnavn: string
+}
+
+interface RelatedOrdre {
+  id: string
+  ordre_nummer: string
+  type: string
+  status: string
+}
+
+interface RelatedOppgave {
+  id: string
+  tittel: string
+  status: string
+}
+
+interface RelatedTilbud {
+  id: string
+  tilbudsnummer: string
+  status: string
+}
+
+interface RelatedData {
+  anlegg: RelatedAnlegg[]
+  ordre: RelatedOrdre[]
+  oppgaver: RelatedOppgave[]
+  tilbud: RelatedTilbud[]
+}
 
 export function Kunder() {
   const [kunder, setKunder] = useState<Kunde[]>([])
@@ -31,10 +66,13 @@ export function Kunder() {
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'view'>('list')
   const [sortBy, setSortBy] = useState<SortOption>('navn_asc')
   const scrollPositionRef = useRef<number>(0)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [kundeToDelete, setKundeToDelete] = useState<Kunde | null>(null)
+  const [showSkjulteKunder, setShowSkjulteKunder] = useState(false)
 
   useEffect(() => {
     loadKunder()
-  }, [])
+  }, [showSkjulteKunder])
 
   // Restore scroll position when returning to list view
   useEffect(() => {
@@ -49,10 +87,16 @@ export function Kunder() {
   async function loadKunder() {
     try {
       setError(null)
-      const { data, error } = await supabase
+      let query = supabase
         .from('customer')
         .select('*')
-        .order('navn', { ascending: true })
+      
+      // Filtrer ut skjulte kunder hvis ikke showSkjulteKunder er aktivert
+      if (!showSkjulteKunder) {
+        query = query.or('skjult.is.null,skjult.eq.false')
+      }
+      
+      const { data, error } = await query.order('navn', { ascending: true })
 
       if (error) {
         log.error('Supabase error ved lasting av kunder', { error })
@@ -83,21 +127,15 @@ export function Kunder() {
     }
   }
 
-  async function deleteKunde(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne kunden?')) return
+  function openDeleteModal(kunde: Kunde) {
+    setKundeToDelete(kunde)
+    setShowDeleteModal(true)
+  }
 
-    try {
-      const { error } = await supabase
-        .from('customer')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-      await loadKunder()
-    } catch (error) {
-      log.error('Feil ved sletting av kunde', { error, kundeId: id })
-      alert('Kunne ikke slette kunde')
-    }
+  async function handleDeleteComplete() {
+    setShowDeleteModal(false)
+    setKundeToDelete(null)
+    await loadKunder()
   }
 
   const filteredKunder = kunder.filter(kunde =>
@@ -260,6 +298,20 @@ export function Kunder() {
         </div>
       </div>
 
+      {/* Vis skjulte kunder checkbox */}
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="showSkjulteKunder"
+          checked={showSkjulteKunder}
+          onChange={(e) => setShowSkjulteKunder(e.target.checked)}
+          className="w-4 h-4 text-primary rounded border-gray-300 dark:border-gray-600 focus:ring-primary"
+        />
+        <label htmlFor="showSkjulteKunder" className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+          Vis skjulte kunder
+        </label>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <div className="card">
@@ -336,6 +388,11 @@ export function Kunder() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <p className="text-gray-900 dark:text-white font-medium">{kunde.navn}</p>
+                        {kunde.skjult && (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-gray-500/10 text-gray-600 dark:text-gray-400 rounded-full flex-shrink-0">
+                            Skjult
+                          </span>
+                        )}
                         {kunde.anlegg_count === 0 && (
                           <span className="px-2 py-0.5 text-xs font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 rounded-full flex-shrink-0">
                             Ingen anlegg
@@ -393,6 +450,11 @@ export function Kunder() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <p className="text-gray-900 dark:text-white font-medium">{kunde.navn}</p>
+                            {kunde.skjult && (
+                              <span className="px-2 py-0.5 text-xs font-medium bg-gray-500/10 text-gray-600 dark:text-gray-400 rounded-full">
+                                Skjult
+                              </span>
+                            )}
                             {kunde.anlegg_count === 0 && (
                               <span className="px-2 py-0.5 text-xs font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 rounded-full">
                                 Ingen anlegg
@@ -434,7 +496,7 @@ export function Kunder() {
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => deleteKunde(kunde.id)}
+                          onClick={() => openDeleteModal(kunde)}
                           className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Slett"
                         >
@@ -449,6 +511,395 @@ export function Kunder() {
           </div>
           </>
         )}
+      </div>
+
+      {/* Delete Modal */}
+      {showDeleteModal && kundeToDelete && (
+        <DeleteKundeModal
+          kunde={kundeToDelete}
+          onClose={() => {
+            setShowDeleteModal(false)
+            setKundeToDelete(null)
+          }}
+          onDeleted={handleDeleteComplete}
+        />
+      )}
+    </div>
+  )
+}
+
+// Delete Kunde Modal Component
+interface DeleteKundeModalProps {
+  kunde: Kunde
+  onClose: () => void
+  onDeleted: () => void
+}
+
+function DeleteKundeModal({ kunde, onClose, onDeleted }: DeleteKundeModalProps) {
+  const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
+  const [relatedData, setRelatedData] = useState<RelatedData>({
+    anlegg: [],
+    ordre: [],
+    oppgaver: [],
+    tilbud: []
+  })
+  const [alleKunder, setAlleKunder] = useState<{ id: string; navn: string }[]>([])
+  
+  // Valg for hva som skal gjøres med tilknyttede data
+  const [anleggAction, setAnleggAction] = useState<'keep' | 'unlink' | 'move'>('keep')
+  const [moveToKundeId, setMoveToKundeId] = useState<string>('')
+  const [ordreAction, setOrdreAction] = useState<'keep' | 'complete'>('keep')
+  const [oppgaverAction, setOppgaverAction] = useState<'keep' | 'complete'>('keep')
+
+  useEffect(() => {
+    loadRelatedData()
+    loadAlleKunder()
+  }, [kunde.id])
+
+  async function loadAlleKunder() {
+    const { data } = await supabase
+      .from('customer')
+      .select('id, navn')
+      .or('skjult.is.null,skjult.eq.false')
+      .neq('id', kunde.id)
+      .order('navn')
+    setAlleKunder(data || [])
+  }
+
+  async function loadRelatedData() {
+    setLoading(true)
+    try {
+      // Hent anlegg
+      const { data: anlegg } = await supabase
+        .from('anlegg')
+        .select('id, anleggsnavn')
+        .eq('kundenr', kunde.id)
+
+      // Hent ordre (via kundenr)
+      const { data: ordreData } = await supabase
+        .from('ordre')
+        .select('id, ordre_nummer, type, status')
+        .eq('kundenr', kunde.id)
+        .neq('status', 'Fullført')
+        .neq('status', 'Fakturert')
+
+      // Hent oppgaver knyttet til kunde (ikke fullførte)
+      const { data: oppgaver } = await supabase
+        .from('oppgaver')
+        .select('id, tittel, status')
+        .eq('kunde_id', kunde.id)
+        .neq('status', 'fullfort')
+
+      // Hent tilbud knyttet til kunde
+      const { data: tilbud } = await supabase
+        .from('serviceavtale_tilbud')
+        .select('id, tilbudsnummer, status')
+        .eq('kunde_id', kunde.id)
+
+      setRelatedData({
+        anlegg: anlegg || [],
+        ordre: ordreData || [],
+        oppgaver: oppgaver || [],
+        tilbud: tilbud || []
+      })
+    } catch (error) {
+      log.error('Feil ved lasting av relaterte data', { error, kundeId: kunde.id })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleHideKunde() {
+    if (!confirm('Er du sikker på at du vil skjule denne kunden med de valgte handlingene?')) return
+
+    setDeleting(true)
+    try {
+      // 1. Håndter anlegg
+      if (relatedData.anlegg.length > 0) {
+        if (anleggAction === 'unlink') {
+          // Fjern kundekobling fra anlegg
+          await supabase
+            .from('anlegg')
+            .update({ kundenr: null })
+            .eq('kundenr', kunde.id)
+        } else if (anleggAction === 'move' && moveToKundeId) {
+          // Flytt anlegg til annen kunde
+          await supabase
+            .from('anlegg')
+            .update({ kundenr: moveToKundeId })
+            .eq('kundenr', kunde.id)
+        }
+      }
+
+      // 2. Håndter ordre
+      if (relatedData.ordre.length > 0 && ordreAction === 'complete') {
+        await supabase
+          .from('ordre')
+          .update({ status: 'Fullført' })
+          .eq('kundenr', kunde.id)
+          .neq('status', 'Fullført')
+          .neq('status', 'Fakturert')
+      }
+
+      // 3. Håndter oppgaver
+      if (relatedData.oppgaver.length > 0 && oppgaverAction === 'complete') {
+        await supabase
+          .from('oppgaver')
+          .update({ status: 'fullfort' })
+          .eq('kunde_id', kunde.id)
+          .neq('status', 'fullfort')
+      }
+
+      // 4. Soft delete - sett skjult til true
+      const { error } = await supabase
+        .from('customer')
+        .update({ skjult: true })
+        .eq('id', kunde.id)
+
+      if (error) {
+        log.error('Feil ved skjuling av kunde', { error })
+        throw error
+      }
+
+      log.info('Kunde skjult', { 
+        kundeId: kunde.id, 
+        kundeNavn: kunde.navn,
+        anleggAction,
+        ordreAction,
+        oppgaverAction
+      })
+      onDeleted()
+    } catch (error: any) {
+      log.error('Feil ved skjuling av kunde', { error, kundeId: kunde.id })
+      alert('Kunne ikke skjule kunde. Prøv igjen.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const hasRelatedData = relatedData.anlegg.length > 0 || 
+                         relatedData.ordre.length > 0 || 
+                         relatedData.oppgaver.length > 0 || 
+                         relatedData.tilbud.length > 0
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-dark-200 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-500/10 rounded-lg">
+              <Eye className="w-5 h-5 text-orange-500" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Skjul kunde</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{kunde.navn}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-100"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            </div>
+          ) : (
+            <>
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                <p className="text-sm text-blue-700 dark:text-blue-400">
+                  Kunden vil bli skjult fra kundelisten. Velg hva som skal skje med tilknyttede data.
+                </p>
+              </div>
+
+              {/* Anlegg */}
+              {relatedData.anlegg.length > 0 && (
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-5 h-5 text-primary" />
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {relatedData.anlegg.length} anlegg
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 ml-7">
+                    {relatedData.anlegg.map(a => a.anleggsnavn).join(', ')}
+                  </div>
+                  <div className="space-y-2 ml-7">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="anleggAction"
+                        checked={anleggAction === 'keep'}
+                        onChange={() => setAnleggAction('keep')}
+                        className="text-primary"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Behold tilknytning (anlegg blir skjult med kunden)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="anleggAction"
+                        checked={anleggAction === 'unlink'}
+                        onChange={() => setAnleggAction('unlink')}
+                        className="text-primary"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Fjern kundekobling (anlegg blir uten kunde)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="anleggAction"
+                        checked={anleggAction === 'move'}
+                        onChange={() => setAnleggAction('move')}
+                        className="text-primary"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Flytt til annen kunde</span>
+                    </label>
+                    {anleggAction === 'move' && (
+                      <select
+                        value={moveToKundeId}
+                        onChange={(e) => setMoveToKundeId(e.target.value)}
+                        className="input ml-6 mt-2"
+                      >
+                        <option value="">Velg kunde...</option>
+                        {alleKunder.map(k => (
+                          <option key={k.id} value={k.id}>{k.navn}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Ordre */}
+              {relatedData.ordre.length > 0 && (
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 text-blue-500" />
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {relatedData.ordre.length} aktive ordre
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 ml-7">
+                    {relatedData.ordre.map(o => o.ordre_nummer).join(', ')}
+                  </div>
+                  <div className="space-y-2 ml-7">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="ordreAction"
+                        checked={ordreAction === 'keep'}
+                        onChange={() => setOrdreAction('keep')}
+                        className="text-primary"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Behold status</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="ordreAction"
+                        checked={ordreAction === 'complete'}
+                        onChange={() => setOrdreAction('complete')}
+                        className="text-primary"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Sett alle til Fullført</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Oppgaver */}
+              {relatedData.oppgaver.length > 0 && (
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-orange-500" />
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {relatedData.oppgaver.length} aktive oppgaver
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 ml-7">
+                    {relatedData.oppgaver.map(o => o.tittel).join(', ')}
+                  </div>
+                  <div className="space-y-2 ml-7">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="oppgaverAction"
+                        checked={oppgaverAction === 'keep'}
+                        onChange={() => setOppgaverAction('keep')}
+                        className="text-primary"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Behold status</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="oppgaverAction"
+                        checked={oppgaverAction === 'complete'}
+                        onChange={() => setOppgaverAction('complete')}
+                        className="text-primary"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Sett alle til Fullført</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Tilbud */}
+              {relatedData.tilbud.length > 0 && (
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-green-500" />
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {relatedData.tilbud.length} tilbud
+                    </span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">(bevares)</span>
+                  </div>
+                </div>
+              )}
+
+              {!hasRelatedData && (
+                <div className="text-center py-4">
+                  <p className="text-gray-600 dark:text-gray-300">Ingen tilknyttede data funnet.</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-dark-100">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-200 rounded-lg transition-colors"
+          >
+            Avbryt
+          </button>
+          <button
+            onClick={handleHideKunde}
+            disabled={deleting || loading || (anleggAction === 'move' && !moveToKundeId)}
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+          >
+            {deleting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Skjuler...
+              </>
+            ) : (
+              <>
+                <Eye className="w-4 h-4" />
+                Skjul kunde
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -652,6 +1103,19 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
         isNewKunde = true
       }
 
+      // Opprett Dropbox-mapper for ny kunde (i bakgrunnen)
+      if (isNewKunde && formData.kunde_nummer) {
+        createDropboxFoldersForKunde(formData.kunde_nummer, formData.navn)
+      }
+
+      // Vis advarsel hvis ny kunde uten kundenummer
+      if (isNewKunde && !formData.kunde_nummer) {
+        const status = await checkDropboxStatus()
+        if (status.connected) {
+          alert('⚠️ Kunde opprettet uten kundenummer\n\nDropbox-mapper ble ikke opprettet. For å synkronisere til Dropbox må du:\n\n1. Legg til kundenummer på kunden\n2. Gå til Admin → Dropbox Mapper\n3. Velg kunden og opprett mapper manuelt')
+        }
+      }
+
       // Send kundenavnet til onSave hvis det er en ny kunde
       onSave(isNewKunde ? formData.navn : undefined)
     } catch (error) {
@@ -659,6 +1123,31 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
       alert('Kunne ikke lagre kunde')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Opprett Dropbox-mapper i bakgrunnen
+  async function createDropboxFoldersForKunde(kundeNummer: string, kundeNavn: string) {
+    try {
+      const status = await checkDropboxStatus()
+      if (!status.connected) {
+        log.warn('Dropbox ikke tilkoblet - hopper over mappeopprettelse')
+        return
+      }
+
+      const safeKundeNavn = kundeNavn.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim()
+      const basePath = `/NY MAPPESTRUKTUR 2026/01_KUNDER/${kundeNummer}_${safeKundeNavn}`
+
+      log.info('Oppretter Dropbox-mapper for ny kunde', { kundeNummer, kundeNavn })
+
+      for (const folder of KUNDE_FOLDERS) {
+        await createDropboxFolder(`${basePath}/${folder}`)
+      }
+
+      log.info('Dropbox-mapper opprettet for kunde', { kundeNummer })
+    } catch (error) {
+      log.error('Feil ved opprettelse av Dropbox-mapper', { error, kundeNummer })
+      // Ikke vis feil til bruker - dette er en bakgrunnsjobb
     }
   }
 
@@ -822,6 +1311,23 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
               className="input"
               placeholder="10549"
             />
+            {/* Advarsel ved endring av kundenummer på eksisterende kunde */}
+            {kunde && kunde.kunde_nummer && formData.kunde_nummer !== kunde.kunde_nummer && (
+              <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-yellow-500">OBS! Kundenummer endres</p>
+                    <p className="text-yellow-400/80 mt-1">
+                      Hvis denne kunden har mapper i Dropbox, må du også endre mappenavnet manuelt fra 
+                      <span className="font-mono mx-1">{kunde.kunde_nummer}_{kunde.navn}</span>
+                      til
+                      <span className="font-mono mx-1">{formData.kunde_nummer}_{formData.navn || kunde.navn}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="md:col-span-2">

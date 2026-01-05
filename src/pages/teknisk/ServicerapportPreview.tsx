@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { ArrowLeft, Download } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ArrowLeft, Download, Cloud } from 'lucide-react'
 import { generateServicerapportPDF } from './ServicerapportPDF'
 import { BSV_LOGO } from '@/assets/logoBase64'
+import { isDropboxConfigured } from '@/services/dropboxService'
 
 interface Servicerapport {
   id: string
@@ -23,13 +24,32 @@ interface ServicerapportPreviewProps {
 
 export function ServicerapportPreview({ rapport, onBack }: ServicerapportPreviewProps) {
   const [generating, setGenerating] = useState(false)
+  const [saveToDropbox, setSaveToDropbox] = useState(true) // Standard: lagre til Dropbox
+  const [dropboxAvailable, setDropboxAvailable] = useState(false)
+
+  useEffect(() => {
+    setDropboxAvailable(isDropboxConfigured())
+  }, [])
 
   async function handleGeneratePDF() {
     setGenerating(true)
     try {
-      const result = await generateServicerapportPDF(rapport, true) // true = lagre til storage
+      const result = await generateServicerapportPDF(
+        rapport, 
+        true, // lagre til storage
+        saveToDropbox && dropboxAvailable // lagre til Dropbox hvis valgt og konfigurert
+      )
+      
       if (result.success) {
-        alert('✅ Servicerapport generert og lagret til anleggsdokumenter!')
+        let message = '✅ Servicerapport generert og lagret til anleggsdokumenter!'
+        
+        if (result.dropboxPath) {
+          message += `\n\n📁 Også lagret til Dropbox:\n${result.dropboxPath}`
+        } else if (result.dropboxError && saveToDropbox) {
+          message += `\n\n⚠️ Dropbox-feil: ${result.dropboxError}`
+        }
+        
+        alert(message)
       }
     } catch (error) {
       console.error('Feil ved generering av PDF:', error)
@@ -55,14 +75,30 @@ export function ServicerapportPreview({ rapport, onBack }: ServicerapportPreview
             <p className="text-gray-400">Servicerapport</p>
           </div>
         </div>
-        <button
-          onClick={handleGeneratePDF}
-          disabled={generating}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Download className="w-5 h-5" />
-          {generating ? 'Genererer...' : 'Generer PDF'}
-        </button>
+        <div className="flex items-center gap-4">
+          {/* Dropbox toggle */}
+          {dropboxAvailable && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={saveToDropbox}
+                onChange={(e) => setSaveToDropbox(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-primary focus:ring-primary"
+              />
+              <Cloud className={`w-5 h-5 ${saveToDropbox ? 'text-blue-400' : 'text-gray-500'}`} />
+              <span className="text-sm text-gray-300">Lagre til Dropbox</span>
+            </label>
+          )}
+          
+          <button
+            onClick={handleGeneratePDF}
+            disabled={generating}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Download className="w-5 h-5" />
+            {generating ? 'Genererer...' : 'Generer PDF'}
+          </button>
+        </div>
       </div>
 
       {/* Preview Content */}

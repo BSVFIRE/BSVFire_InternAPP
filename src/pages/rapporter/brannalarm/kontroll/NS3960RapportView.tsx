@@ -7,6 +7,7 @@ import autoTable from 'jspdf-autotable'
 import { BrannalarmPreview } from './BrannalarmPreview'
 import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
+import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
 
 interface NS3960RapportViewProps {
   kontrollId: string
@@ -133,9 +134,12 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [showFullfortDialog, setShowFullfortDialog] = useState(false)
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
+  const [dropboxAvailable, setDropboxAvailable] = useState(false)
 
   useEffect(() => {
     loadData()
+    // Sjekk Dropbox-status
+    checkDropboxStatus().then(status => setDropboxAvailable(status.connected))
   }, [kontrollId, anleggId])
 
   async function loadData() {
@@ -1081,6 +1085,40 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
         if (statusError) {
           console.error('Feil ved oppdatering av status:', statusError)
           // Fortsett likevel - rapporten er lagret
+        }
+
+        // Last opp til Dropbox hvis aktivert
+        if (dropboxAvailable) {
+          try {
+            // Hent kundedata for Dropbox-sti
+            const { data: kundeInfo } = await supabase
+              .from('customer')
+              .select('kunde_nummer, navn')
+              .eq('id', anleggData.kundenr)
+              .single()
+
+            if (kundeInfo?.kunde_nummer && kundeInfo?.navn) {
+              console.log('📤 Laster opp NS3960-rapport til Dropbox...')
+              const dropboxResult = await uploadKontrollrapportToDropbox(
+                kundeInfo.kunde_nummer,
+                kundeInfo.navn,
+                anleggData.anleggsnavn,
+                fileName,
+                pdfBlob
+              )
+
+              if (dropboxResult.success) {
+                console.log('✅ NS3960-rapport lastet opp til Dropbox:', dropboxResult.path)
+              } else {
+                console.warn('⚠️ Dropbox-opplasting feilet:', dropboxResult.error)
+              }
+            } else {
+              console.warn('⚠️ Kundenummer mangler - kan ikke laste opp til Dropbox')
+            }
+          } catch (dropboxError) {
+            console.error('❌ Feil ved Dropbox-opplasting:', dropboxError)
+            // Ikke stopp prosessen hvis Dropbox feiler
+          }
         }
 
         // Vis dialog for å sette tjeneste til fullført

@@ -31,6 +31,9 @@ import { Moter } from './pages/Moter'
 import { Kontrollplan } from './pages/Kontrollplan'
 import { Meldinger } from './pages/Meldinger'
 import PowerOfficeTest from './pages/PowerOfficeTest'
+import { DropboxCallback } from './pages/DropboxCallback'
+import { AdminDropboxFolders } from './pages/AdminDropboxFolders'
+import { AdminAarsavslutning } from './pages/AdminAarsavslutning'
 import { OfflineIndicator } from './components/OfflineIndicator'
 import { AIAssistant } from './components/AIAssistant'
 
@@ -80,6 +83,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/dropbox-callback" element={<DropboxCallback />} />
           <Route
             path="/*"
             element={
@@ -87,6 +91,7 @@ function App() {
                 <Layout>
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/kunder" element={<Kunder />} />
                     <Route path="/anlegg" element={<Anlegg />} />
                     <Route path="/kontrollplan" element={<Kontrollplan />} />
@@ -111,6 +116,8 @@ function App() {
                     <Route path="/admin/logger" element={<AdminLogger />} />
                     <Route path="/admin/ai-embeddings" element={<AdminAIEmbeddings />} />
                     <Route path="/admin/ai-knowledge" element={<AdminAIKnowledge />} />
+                    <Route path="/admin/dropbox-folders" element={<AdminDropboxFolders />} />
+                    <Route path="/admin/aarsavslutning" element={<AdminAarsavslutning />} />
                     <Route path="/poweroffice-test" element={<PowerOfficeTest />} />
                   </Routes>
                 </Layout>

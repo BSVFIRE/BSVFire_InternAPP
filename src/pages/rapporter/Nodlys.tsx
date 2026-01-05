@@ -12,6 +12,7 @@ import { KommentarViewNodlys } from './KommentarViewNodlys'
 import { NodlysImport } from './NodlysImport'
 import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
+import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
 
 interface Kunde {
   id: string
@@ -95,6 +96,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const [showFullfortDialog, setShowFullfortDialog] = useState(false)
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
   const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
+  const [dropboxAvailable, setDropboxAvailable] = useState(false)
   const [unsavedChanges, setUnsavedChanges] = useState<Map<string, Partial<NodlysEnhet>>>(new Map())
   const [originalData, setOriginalData] = useState<NodlysEnhet[]>([])
   const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
@@ -131,6 +133,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
   useEffect(() => {
     loadKunder()
+    // Sjekk Dropbox-status
+    checkDropboxStatus().then(status => setDropboxAvailable(status.connected))
   }, [])
 
   useEffect(() => {
@@ -1488,6 +1492,52 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
               opplastet_dato: new Date().toISOString(),
               storage_path: storagePath
             })
+
+          // Last opp til Dropbox hvis aktivert
+          if (dropboxAvailable) {
+            try {
+              // Hent kundedata for Dropbox-sti
+              const { data: anleggData } = await supabase
+                .from('anlegg')
+                .select(`
+                  anleggsnavn,
+                  kundenr,
+                  customer:kundenr (
+                    kunde_nummer,
+                    navn
+                  )
+                `)
+                .eq('id', selectedAnlegg)
+                .single()
+
+              if (anleggData) {
+                const kundeNummer = (anleggData.customer as any)?.kunde_nummer
+                const kundeNavnDropbox = (anleggData.customer as any)?.navn
+
+                if (kundeNummer && kundeNavnDropbox) {
+                  console.log('📤 Laster opp nødlys-rapport til Dropbox...')
+                  const dropboxResult = await uploadKontrollrapportToDropbox(
+                    kundeNummer,
+                    kundeNavnDropbox,
+                    selectedAnleggNavn,
+                    previewPdf.fileName,
+                    previewPdf.blob
+                  )
+
+                  if (dropboxResult.success) {
+                    console.log('✅ Nødlys-rapport lastet opp til Dropbox:', dropboxResult.path)
+                  } else {
+                    console.warn('⚠️ Dropbox-opplasting feilet:', dropboxResult.error)
+                  }
+                } else {
+                  console.warn('⚠️ Kundenummer mangler - kan ikke laste opp til Dropbox')
+                }
+              }
+            } catch (dropboxError) {
+              console.error('❌ Feil ved Dropbox-opplasting:', dropboxError)
+              // Ikke stopp prosessen hvis Dropbox feiler
+            }
+          }
         }}
       />
     )
