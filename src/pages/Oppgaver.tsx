@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/store/authStore'
 import { Plus, Search, CheckSquare, Building2, User, Eye, Trash2, Calendar, Edit, LayoutGrid, Table } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { OPPGAVE_STATUSER, OPPGAVE_STATUS_COLORS, PRIORITETER, PRIORITET_COLORS } from '@/lib/constants'
@@ -61,6 +62,7 @@ function getInitials(navn: string): string {
 
 export function Oppgaver() {
   const location = useLocation()
+  const { user } = useAuthStore()
   const [oppgaver, setOppgaver] = useState<OppgaveMedDetaljer[]>([])
   const [teknikere, setTeknikere] = useState<Tekniker[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,7 +73,7 @@ export function Oppgaver() {
   const [sortBy, setSortBy] = useState<SortOption>('dato_nyeste')
   const [filterStatus, setFilterStatus] = useState<string>('alle')
   const [filterPrioritet, setFilterPrioritet] = useState<string>('alle')
-  const [filterTekniker, setFilterTekniker] = useState<string>('alle')
+  const [filterTekniker, setFilterTekniker] = useState<string>('')
   const [inkluderFullforte, setInkluderFullforte] = useState(false)
   const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
     return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
@@ -80,6 +82,30 @@ export function Oppgaver() {
   useEffect(() => {
     loadOppgaver()
   }, [])
+
+  // Sett tekniker-filter til innlogget bruker som default
+  useEffect(() => {
+    async function setDefaultTekniker() {
+      if (!user?.email) return
+      
+      try {
+        const { data: ansatt } = await supabase
+          .from('ansatte')
+          .select('id')
+          .eq('epost', user.email)
+          .single()
+        
+        if (ansatt) {
+          setFilterTekniker(ansatt.id)
+        }
+      } catch (error) {
+        console.log('Kunne ikke finne ansatt for bruker:', error)
+        setFilterTekniker('alle')
+      }
+    }
+    
+    setDefaultTekniker()
+  }, [user])
 
   // Håndter navigasjon fra Dashboard
   useEffect(() => {
@@ -142,6 +168,29 @@ export function Oppgaver() {
       console.error('Feil ved sletting:', error)
       alert('Kunne ikke slette oppgave')
     }
+  }
+
+  // Marker oppgave som sett av tekniker
+  async function markerOppgaveSomSett(oppgaveId: string) {
+    try {
+      await supabase
+        .from('oppgaver')
+        .update({ 
+          sett_av_tekniker: true, 
+          sett_dato: new Date().toISOString() 
+        })
+        .eq('id', oppgaveId)
+    } catch (error) {
+      // Ignorer feil hvis kolonnen ikke finnes ennå
+      console.log('Kunne ikke markere oppgave som sett:', error)
+    }
+  }
+
+  // Åpne oppgave og marker som sett
+  function openOppgave(oppgaveItem: OppgaveMedDetaljer) {
+    setSelectedOppgave(oppgaveItem)
+    setViewMode('view')
+    markerOppgaveSomSett(oppgaveItem.id)
   }
 
   const filteredOppgaver = oppgaver.filter(o => {
@@ -506,8 +555,7 @@ export function Oppgaver() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          setSelectedOppgave(oppgave)
-                          setViewMode('view')
+                          openOppgave(oppgave)
                         }}
                         className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-colors touch-target"
                         title="Vis detaljer"
@@ -632,10 +680,7 @@ export function Oppgaver() {
                     <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => {
-                            setSelectedOppgave(oppgave)
-                            setViewMode('view')
-                          }}
+                          onClick={() => openOppgave(oppgave)}
                           className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                           title="Vis detaljer"
                         >

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
+import { useAuthStore } from '@/store/authStore'
 import { Plus, Search, ClipboardList, Building2, User, Eye, Trash2, Calendar, Edit, CheckCircle, FileText, LayoutGrid, Table } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -57,6 +58,7 @@ function getInitials(navn: string): string {
 export function Ordre() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user } = useAuthStore()
   const state = location.state as { kundeId?: string; anleggId?: string; selectedOrdreId?: string } | null
   
   const [ordre, setOrdre] = useState<OrdreMedAnleggKunde[]>([])
@@ -68,7 +70,7 @@ export function Ordre() {
   const [viewMode, setViewMode] = useState<'list' | 'view' | 'create' | 'edit'>('list')
   const [sortBy, setSortBy] = useState<SortOption>('dato_nyeste')
   const [filterStatus, setFilterStatus] = useState<string>('alle')
-  const [filterTekniker, setFilterTekniker] = useState<string>('alle')
+  const [filterTekniker, setFilterTekniker] = useState<string>('')
   const [prefilledData, setPrefilledData] = useState<{ kundeId?: string; anleggId?: string } | null>(null)
   const [inkluderFullforte, setInkluderFullforte] = useState(false)
   const [inkluderFakturerte, setInkluderFakturerte] = useState(false)
@@ -79,6 +81,30 @@ export function Ordre() {
   useEffect(() => {
     loadOrdre()
   }, [])
+
+  // Sett tekniker-filter til innlogget bruker som default
+  useEffect(() => {
+    async function setDefaultTekniker() {
+      if (!user?.email) return
+      
+      try {
+        const { data: ansatt } = await supabase
+          .from('ansatte')
+          .select('id')
+          .eq('epost', user.email)
+          .single()
+        
+        if (ansatt) {
+          setFilterTekniker(ansatt.id)
+        }
+      } catch (error) {
+        console.log('Kunne ikke finne ansatt for bruker:', error)
+        setFilterTekniker('alle')
+      }
+    }
+    
+    setDefaultTekniker()
+  }, [user])
 
   // Håndter forhåndsutfylt data fra navigasjon
   useEffect(() => {
@@ -95,8 +121,7 @@ export function Ordre() {
     if (state?.selectedOrdreId && ordre.length > 0) {
       const selectedOrder = ordre.find(o => o.id === state.selectedOrdreId)
       if (selectedOrder) {
-        setSelectedOrdre(selectedOrder)
-        setViewMode('view')
+        openOrdre(selectedOrder)
       }
     }
   }, [state?.selectedOrdreId, ordre])
@@ -164,6 +189,29 @@ export function Ordre() {
       log.error('Feil ved sletting av ordre', { error, ordreId: id })
       alert('Kunne ikke slette ordre')
     }
+  }
+
+  // Marker ordre som sett av tekniker
+  async function markerOrdreSomSett(ordreId: string) {
+    try {
+      await supabase
+        .from('ordre')
+        .update({ 
+          sett_av_tekniker: true, 
+          sett_dato: new Date().toISOString() 
+        })
+        .eq('id', ordreId)
+    } catch (error) {
+      // Ignorer feil hvis kolonnen ikke finnes ennå
+      console.log('Kunne ikke markere ordre som sett:', error)
+    }
+  }
+
+  // Åpne ordre og marker som sett
+  function openOrdre(ordreItem: OrdreMedAnleggKunde) {
+    setSelectedOrdre(ordreItem)
+    setViewMode('view')
+    markerOrdreSomSett(ordreItem.id)
   }
 
   const [avsluttDialog, setAvsluttDialog] = useState<{ open: boolean; ordreId: string | null }>({ open: false, ordreId: null })
@@ -693,8 +741,7 @@ export function Ordre() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          setSelectedOrdre(ordre)
-                          setViewMode('view')
+                          openOrdre(ordre)
                         }}
                         className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-colors touch-target"
                         title="Vis detaljer"
@@ -822,10 +869,7 @@ export function Ordre() {
                           </button>
                         )}
                         <button
-                          onClick={() => {
-                            setSelectedOrdre(ordre)
-                            setViewMode('view')
-                          }}
+                          onClick={() => openOrdre(ordre)}
                           className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                           title="Vis detaljer"
                         >

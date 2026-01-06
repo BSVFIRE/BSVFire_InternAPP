@@ -72,6 +72,8 @@ export function Layout({ children }: LayoutProps) {
   const [showOfflineInfo, setShowOfflineInfo] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [ulestemeldinger, setUlestemeldinger] = useState(0)
+  const [aktiveOrdre, setAktiveOrdre] = useState(0)
+  const [aktiveOppgaver, setAktiveOppgaver] = useState(0)
   const [dropboxConnected, setDropboxConnected] = useState<boolean | null>(null)
   
   // Sjekk om bruker er admin
@@ -125,6 +127,72 @@ export function Layout({ children }: LayoutProps) {
     
     // Oppdater hver 30. sekund
     const interval = setInterval(loadUlestemeldinger, 30000)
+    return () => clearInterval(interval)
+  }, [user])
+
+  // Hent antall usette ordre og oppgaver for brukeren
+  useEffect(() => {
+    async function loadUsetteElementer() {
+      if (!user?.email) return
+      
+      try {
+        // Finn ansatt basert på email
+        const { data: ansatt } = await supabase
+          .from('ansatte')
+          .select('id')
+          .eq('epost', user.email)
+          .single()
+        
+        if (ansatt) {
+          // Hent antall usette ordre (ikke sett av tekniker, og ikke fullført/fakturert)
+          const { count: ordreCount, error: ordreError } = await supabase
+            .from('ordre')
+            .select('*', { count: 'exact', head: true })
+            .eq('tekniker_id', ansatt.id)
+            .eq('sett_av_tekniker', false)
+            .not('status', 'in', '("Fullført","Fakturert")')
+          
+          // Hvis kolonnen ikke finnes ennå, fall tilbake til status-basert telling
+          if (ordreError?.code === '42703') {
+            const { count } = await supabase
+              .from('ordre')
+              .select('*', { count: 'exact', head: true })
+              .eq('tekniker_id', ansatt.id)
+              .in('status', ['Ventende', 'Pågående'])
+            setAktiveOrdre(count || 0)
+          } else {
+            setAktiveOrdre(ordreCount || 0)
+          }
+
+          // Hent antall usette oppgaver (ikke sett av tekniker, og ikke fullført)
+          const { count: oppgaveCount, error: oppgaveError } = await supabase
+            .from('oppgaver')
+            .select('*', { count: 'exact', head: true })
+            .eq('tekniker_id', ansatt.id)
+            .eq('sett_av_tekniker', false)
+            .neq('status', 'Fullført')
+          
+          // Hvis kolonnen ikke finnes ennå, fall tilbake til status-basert telling
+          if (oppgaveError?.code === '42703') {
+            const { count } = await supabase
+              .from('oppgaver')
+              .select('*', { count: 'exact', head: true })
+              .eq('tekniker_id', ansatt.id)
+              .in('status', ['Ikke påbegynt', 'Pågående'])
+            setAktiveOppgaver(count || 0)
+          } else {
+            setAktiveOppgaver(oppgaveCount || 0)
+          }
+        }
+      } catch (error) {
+        console.error('Feil ved henting av usette elementer:', error)
+      }
+    }
+
+    loadUsetteElementer()
+    
+    // Oppdater hver 30. sekund
+    const interval = setInterval(loadUsetteElementer, 30000)
     return () => clearInterval(interval)
   }, [user])
 
@@ -189,7 +257,13 @@ export function Layout({ children }: LayoutProps) {
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href
-              const showBadge = item.href === '/meldinger' && ulestemeldinger > 0
+              const showMeldingBadge = item.href === '/meldinger' && ulestemeldinger > 0
+              const showOrdreBadge = item.href === '/ordre' && aktiveOrdre > 0
+              const showOppgaveBadge = item.href === '/oppgaver' && aktiveOppgaver > 0
+              const badgeCount = item.href === '/meldinger' ? ulestemeldinger 
+                : item.href === '/ordre' ? aktiveOrdre 
+                : item.href === '/oppgaver' ? aktiveOppgaver : 0
+              const showBadge = showMeldingBadge || showOrdreBadge || showOppgaveBadge
               
               return (
                 <Link
@@ -207,8 +281,10 @@ export function Layout({ children }: LayoutProps) {
                   <item.icon className="w-5 h-5" />
                   {item.name}
                   {showBadge && (
-                    <span className="ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full">
-                      {ulestemeldinger > 99 ? '99+' : ulestemeldinger}
+                    <span className={`ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 text-white text-xs font-bold rounded-full ${
+                      showMeldingBadge ? 'bg-red-500' : 'bg-primary'
+                    }`}>
+                      {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
                   )}
                 </Link>
