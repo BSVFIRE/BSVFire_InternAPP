@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore'
 import { Plus, Search, CheckSquare, Building2, User, Eye, Trash2, Calendar, Edit, LayoutGrid, Table } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { OPPGAVE_STATUSER, OPPGAVE_STATUS_COLORS, PRIORITETER, PRIORITET_COLORS } from '@/lib/constants'
+import { notifyNewOppgave } from '@/lib/telegramService'
 
 interface Oppgave {
   id: string
@@ -954,6 +955,9 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
       else dataToSave.forfallsdato = null
 
       if (oppgave) {
+        // Sjekk om tekniker endres
+        const teknikerEndret = formData.tekniker_id && formData.tekniker_id !== oppgave.tekniker_id
+        
         const { error } = await supabase
           .from('oppgaver')
           .update({
@@ -963,6 +967,18 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
           .eq('id', oppgave.id)
 
         if (error) throw error
+        
+        // Send Telegram-varsel hvis tekniker er tildelt/endret
+        if (teknikerEndret && formData.tekniker_id) {
+          notifyNewOppgave(
+            formData.tekniker_id,
+            formData.tittel || formData.type,
+            formData.beskrivelse || '',
+            formData.forfallsdato,
+            kundeNavn,
+            anleggNavn
+          ).catch(err => console.log('Telegram-varsel feilet:', err))
+        }
 
         // Hvis fakturaoppgave settes til Fullført, oppdater tilhørende ordre til Fakturert
         if (
@@ -990,6 +1006,18 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
           .insert([{ ...dataToSave, opprettet_dato: new Date().toISOString() }])
 
         if (error) throw error
+        
+        // Send Telegram-varsel til tildelt tekniker ved ny oppgave
+        if (formData.tekniker_id) {
+          notifyNewOppgave(
+            formData.tekniker_id,
+            formData.tittel || formData.type,
+            formData.beskrivelse || '',
+            formData.forfallsdato,
+            kundeNavn,
+            anleggNavn
+          ).catch(err => console.log('Telegram-varsel feilet:', err))
+        }
       }
 
       onSave()
@@ -1120,14 +1148,15 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
           {/* Tekniker */}
           <div>
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-              Tekniker
+              Tekniker <span className="text-red-500">*</span>
             </label>
             <select
               value={formData.tekniker_id}
               onChange={(e) => setFormData({ ...formData, tekniker_id: e.target.value })}
               className="input"
+              required
             >
-              <option value="">Ikke tildelt</option>
+              <option value="">Velg tekniker</option>
               {teknikere.map((t) => (
                 <option key={t.id} value={t.id}>{t.navn}</option>
               ))}

@@ -6,6 +6,7 @@ import { Plus, Search, ClipboardList, Building2, User, Eye, Trash2, Calendar, Ed
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ORDRE_STATUSER, ORDRE_STATUS_COLORS } from '@/lib/constants'
+import { notifyNewOrdre } from '@/lib/telegramService'
 
 const log = createLogger('Ordre')
 
@@ -1062,6 +1063,9 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
       }
 
       if (ordre) {
+        // Sjekk om tekniker endres
+        const teknikerEndret = formData.tekniker_id && formData.tekniker_id !== ordre.tekniker_id
+        
         const { error } = await supabase
           .from('ordre')
           .update({
@@ -1071,12 +1075,34 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
           .eq('id', ordre.id)
 
         if (error) throw error
+        
+        // Send Telegram-varsel hvis tekniker er tildelt/endret
+        if (teknikerEndret && formData.tekniker_id) {
+          notifyNewOrdre(
+            formData.tekniker_id,
+            ordre.ordre_nummer,
+            kundeNavn,
+            anleggNavn
+          ).catch(err => console.log('Telegram-varsel feilet:', err))
+        }
       } else {
-        const { error } = await supabase
+        const { data: insertedOrdre, error } = await supabase
           .from('ordre')
           .insert([{ ...dataToSave, opprettet_dato: new Date().toISOString() }])
+          .select('ordre_nummer')
+          .single()
 
         if (error) throw error
+        
+        // Send Telegram-varsel til tildelt tekniker ved ny ordre
+        if (formData.tekniker_id && insertedOrdre) {
+          notifyNewOrdre(
+            formData.tekniker_id,
+            insertedOrdre.ordre_nummer,
+            kundeNavn,
+            anleggNavn
+          ).catch(err => console.log('Telegram-varsel feilet:', err))
+        }
       }
 
       // Hvis ikke fakturert, opprett fakturaoppgave
@@ -1368,14 +1394,15 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
           {/* Tekniker */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-              Tekniker
+              Tekniker <span className="text-red-500">*</span>
             </label>
             <select
               value={formData.tekniker_id}
               onChange={(e) => setFormData({ ...formData, tekniker_id: e.target.value })}
               className="input"
+              required
             >
-              <option value="">Ikke tildelt</option>
+              <option value="">Velg tekniker</option>
               {teknikere.map((t) => (
                 <option key={t.id} value={t.id}>{t.navn}</option>
               ))}

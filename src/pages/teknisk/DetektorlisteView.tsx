@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Search, Plus, Edit, FileText } from 'lucide-react'
+import { ArrowLeft, Search, Plus, Edit, FileText, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { DetektorlisteEditor } from './DetektorlisteEditor'
 
@@ -47,6 +47,7 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
   const [loading, setLoading] = useState(false)
   const [editingListeId, setEditingListeId] = useState<string | null>(null)
   const [isCreatingNew, setIsCreatingNew] = useState(false)
+  const [deletingListeId, setDeletingListeId] = useState<string | null>(null)
 
   useEffect(() => {
     loadKunder()
@@ -139,6 +140,40 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
     setIsCreatingNew(false)
     if (selectedAnlegg) {
       loadDetektorlister(selectedAnlegg)
+    }
+  }
+
+  async function handleDeleteListe(listeId: string) {
+    if (!confirm('Er du sikker på at du vil slette denne detektorlisten? Dette kan ikke angres.')) {
+      return
+    }
+
+    try {
+      setDeletingListeId(listeId)
+
+      // Slett detektor_items først (foreign key constraint)
+      const { error: itemsError } = await supabase
+        .from('detektor_items')
+        .delete()
+        .eq('detektorliste_id', listeId)
+
+      if (itemsError) throw itemsError
+
+      // Slett selve detektorlisten
+      const { error: listeError } = await supabase
+        .from('detektorlister')
+        .delete()
+        .eq('id', listeId)
+
+      if (listeError) throw listeError
+
+      // Oppdater listen
+      setDetektorlister(prev => prev.filter(l => l.id !== listeId))
+    } catch (error: any) {
+      console.error('Feil ved sletting:', error)
+      alert('Kunne ikke slette detektorliste: ' + (error?.message || 'Ukjent feil'))
+    } finally {
+      setDeletingListeId(null)
     }
   }
 
@@ -344,13 +379,27 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setEditingListeId(liste.id)}
-                    className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors ml-4"
-                    title="Rediger"
-                  >
-                    <Edit className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-2 ml-4">
+                    <button
+                      onClick={() => setEditingListeId(liste.id)}
+                      className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                      title="Rediger"
+                    >
+                      <Edit className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteListe(liste.id)}
+                      disabled={deletingListeId === liste.id}
+                      className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                      title="Slett"
+                    >
+                      {deletingListeId === liste.id ? (
+                        <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Trash2 className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

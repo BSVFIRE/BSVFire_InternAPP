@@ -15,6 +15,8 @@ interface DropboxConfig {
   refresh_token: string
   token_expiry: string | null
   root_namespace_id: string | null
+  connected_by?: string
+  connected_at?: string
 }
 
 interface TokenResponse {
@@ -368,6 +370,86 @@ serve(async (req) => {
           `token_access_type=offline`
 
         return new Response(JSON.stringify({ auth_url: authUrl }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      case 'list_folder': {
+        // List filer i mappe
+        const config = await getDropboxConfig(supabase)
+        if (!config) {
+          throw new Error('Dropbox ikke konfigurert')
+        }
+
+        const accessToken = await refreshAccessToken(supabase, config)
+        
+        const response = await callDropboxAPI(
+          '/files/list_folder',
+          accessToken,
+          config.root_namespace_id,
+          { 
+            path: params.path,
+            recursive: params.recursive || false,
+            include_deleted: false,
+            include_has_explicit_shared_members: false,
+            include_mounted_folders: true,
+            include_non_downloadable_files: true
+          }
+        )
+
+        const data = await response.json()
+        
+        if (!response.ok) {
+          // Hvis mappen ikke finnes, returner tom liste
+          if (data.error_summary?.includes('path/not_found')) {
+            return new Response(JSON.stringify({ 
+              success: true, 
+              entries: [],
+              has_more: false
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+          throw new Error(data.error_summary || 'Kunne ikke liste mappe')
+        }
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          entries: data.entries || [],
+          cursor: data.cursor,
+          has_more: data.has_more
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      case 'get_temporary_link': {
+        // Hent midlertidig nedlastingslenke for fil
+        const config = await getDropboxConfig(supabase)
+        if (!config) {
+          throw new Error('Dropbox ikke konfigurert')
+        }
+
+        const accessToken = await refreshAccessToken(supabase, config)
+        
+        const response = await callDropboxAPI(
+          '/files/get_temporary_link',
+          accessToken,
+          config.root_namespace_id,
+          { path: params.path }
+        )
+
+        const data = await response.json()
+        
+        if (!response.ok) {
+          throw new Error(data.error_summary || 'Kunne ikke hente nedlastingslenke')
+        }
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          link: data.link,
+          metadata: data.metadata
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }

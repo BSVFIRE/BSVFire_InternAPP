@@ -316,5 +316,158 @@ export async function uploadKontrollrapportToDropbox(
   return uploadToDropbox(filePath, pdfBlob)
 }
 
+/**
+ * Bygger Dropbox-mappesti for detektorlister
+ * Format: /NY MAPPESTRUKTUR 2026/01_KUNDER/{kundenummer}_{kundenavn}/02_Bygg/{anleggsnavn}/02_Brannalarm/02_Detektorliste/{filnavn}
+ */
+export function buildDetektorlisteDropboxPath(
+  kundeNummer: string,
+  kundeNavn: string,
+  anleggNavn: string,
+  fileName: string
+): string {
+  const safeKundeNavn = kundeNavn
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const safeAnleggNavn = anleggNavn
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const basePath = '/NY MAPPESTRUKTUR 2026/01_KUNDER'
+  const kundePath = `${kundeNummer}_${safeKundeNavn}`
+  const fullPath = `${basePath}/${kundePath}/02_Bygg/${safeAnleggNavn}/02_Brannalarm/02_Detektorliste/${fileName}`
+
+  return fullPath
+}
+
+/**
+ * Laster opp detektorliste-PDF til riktig kundemappe (02_Brannalarm/02_Detektorliste)
+ */
+export async function uploadDetektorlisteToDropbox(
+  kundeNummer: string,
+  kundeNavn: string,
+  anleggNavn: string,
+  fileName: string,
+  pdfBlob: Blob
+): Promise<DropboxResponse> {
+  if (!kundeNummer) {
+    return { success: false, error: 'Kundenummer mangler' }
+  }
+  if (!kundeNavn) {
+    return { success: false, error: 'Kundenavn mangler' }
+  }
+  if (!anleggNavn) {
+    return { success: false, error: 'Anleggsnavn mangler' }
+  }
+
+  const filePath = buildDetektorlisteDropboxPath(kundeNummer, kundeNavn, anleggNavn, fileName)
+  
+  log.info('Laster opp detektorliste til Dropbox', { filePath, kundeNummer, kundeNavn, anleggNavn })
+  
+  // Sørg for at mappen eksisterer
+  const folderPath = filePath.substring(0, filePath.lastIndexOf('/'))
+  await ensureDropboxFolderExists(folderPath)
+
+  return uploadToDropbox(filePath, pdfBlob)
+}
+
+/**
+ * Interface for Dropbox fil/mappe entry
+ */
+export interface DropboxEntry {
+  '.tag': 'file' | 'folder'
+  name: string
+  path_lower: string
+  path_display: string
+  id: string
+  client_modified?: string
+  server_modified?: string
+  size?: number
+}
+
+/**
+ * Bygger Dropbox-mappesti for et anlegg (hele 02_Bygg-mappen)
+ */
+export function buildAnleggDropboxPath(
+  kundeNummer: string,
+  kundeNavn: string,
+  anleggNavn: string
+): string {
+  const safeKundeNavn = kundeNavn
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const safeAnleggNavn = anleggNavn
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const basePath = '/NY MAPPESTRUKTUR 2026/01_KUNDER'
+  const kundePath = `${kundeNummer}_${safeKundeNavn}`
+  const fullPath = `${basePath}/${kundePath}/02_Bygg/${safeAnleggNavn}`
+
+  return fullPath
+}
+
+/**
+ * Lister filer og mapper i en Dropbox-mappe
+ */
+export async function listDropboxFolder(
+  path: string,
+  recursive: boolean = false
+): Promise<{ success: boolean; entries?: DropboxEntry[]; error?: string }> {
+  try {
+    const data = await callDropboxFunction('list_folder', { path, recursive })
+    return {
+      success: true,
+      entries: data.entries || []
+    }
+  } catch (error: any) {
+    log.error('Feil ved listing av Dropbox-mappe', { error, path })
+    return {
+      success: false,
+      error: error.message || 'Ukjent feil'
+    }
+  }
+}
+
+/**
+ * Henter midlertidig nedlastingslenke for en fil
+ */
+export async function getDropboxDownloadLink(
+  path: string
+): Promise<{ success: boolean; link?: string; error?: string }> {
+  try {
+    const data = await callDropboxFunction('get_temporary_link', { path })
+    return {
+      success: true,
+      link: data.link
+    }
+  } catch (error: any) {
+    log.error('Feil ved henting av nedlastingslenke', { error, path })
+    return {
+      success: false,
+      error: error.message || 'Ukjent feil'
+    }
+  }
+}
+
+/**
+ * Lister alle filer for et anlegg fra Dropbox (rekursivt)
+ */
+export async function listAnleggDropboxFiles(
+  kundeNummer: string,
+  kundeNavn: string,
+  anleggNavn: string
+): Promise<{ success: boolean; entries?: DropboxEntry[]; error?: string }> {
+  const anleggPath = buildAnleggDropboxPath(kundeNummer, kundeNavn, anleggNavn)
+  log.info('Lister Dropbox-filer for anlegg', { anleggPath })
+  return listDropboxFolder(anleggPath, true)
+}
+
 // Re-export for bakoverkompatibilitet
 export { checkDropboxStatus as getDropboxStatus }

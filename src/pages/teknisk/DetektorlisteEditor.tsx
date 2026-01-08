@@ -49,6 +49,7 @@ export function DetektorlisteEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [currentListeId, setCurrentListeId] = useState<string | undefined>(detektorlisteId)
   
   // Header fields
   const [revisjon, setRevisjon] = useState('1.0')
@@ -178,14 +179,14 @@ export function DetektorlisteEditor({
         status: 'Utkast'
       }
 
-      let listeId = detektorlisteId
+      let listeId = currentListeId
 
-      if (detektorlisteId) {
+      if (currentListeId) {
         // Oppdater eksisterende
         const { error } = await supabase
           .from('detektorlister')
           .update(detektorlisteData)
-          .eq('id', detektorlisteId)
+          .eq('id', currentListeId)
         
         if (error) throw error
       } else {
@@ -201,8 +202,8 @@ export function DetektorlisteEditor({
 
         if (error) throw error
         listeId = data.id
-        // Oppdater detektorlisteId for fremtidige autolagringer
-        window.history.replaceState({}, '', `?id=${listeId}`)
+        // Oppdater currentListeId for fremtidige autolagringer
+        setCurrentListeId(listeId)
       }
 
       // Slett og re-insert detektorer
@@ -272,14 +273,14 @@ export function DetektorlisteEditor({
         status: 'Utkast'
       }
 
-      let listeId = detektorlisteId
+      let listeId = currentListeId
 
-      if (detektorlisteId) {
+      if (currentListeId) {
         // Oppdater eksisterende
         const { error } = await supabase
           .from('detektorlister')
           .update(detektorlisteData)
-          .eq('id', detektorlisteId)
+          .eq('id', currentListeId)
         
         if (error) throw error
       } else {
@@ -295,14 +296,15 @@ export function DetektorlisteEditor({
 
         if (error) throw error
         listeId = data.id
+        setCurrentListeId(listeId)
       }
 
       // Slett eksisterende detektorer hvis vi oppdaterer
-      if (detektorlisteId) {
+      if (currentListeId) {
         const { error: deleteError } = await supabase
           .from('detektor_items')
           .delete()
-          .eq('detektorliste_id', detektorlisteId)
+          .eq('detektorliste_id', currentListeId)
         
         if (deleteError) throw deleteError
       }
@@ -378,6 +380,8 @@ export function DetektorlisteEditor({
     
     return (
       <DetektorlistePreview
+        kundeId={kundeId}
+        anleggId={anleggId}
         kundeNavn={kundeNavn}
         anleggNavn={anleggNavn}
         anleggAdresse={kundeadresse}

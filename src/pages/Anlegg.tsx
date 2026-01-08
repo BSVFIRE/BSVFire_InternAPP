@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
 import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send, Cloud } from 'lucide-react'
 import { checkDropboxStatus, createDropboxFolder, renameDropboxFolder } from '@/services/dropboxServiceV2'
+import { DropboxFileBrowser } from '@/components/DropboxFileBrowser'
 import { KUNDE_FOLDERS, ANLEGG_FOLDERS } from '@/services/dropboxFolderStructure'
 import { GoogleMapsAddressAutocomplete } from '@/components/GoogleMapsAddressAutocomplete'
 import { AnleggTodoList } from '@/components/AnleggTodoList'
@@ -11,6 +12,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { ANLEGG_STATUSER, ANLEGG_STATUS_COLORS, KONTROLLTYPER, MAANEDER } from '@/lib/constants'
 import { syncAnleggToKontrollportal } from '@/lib/kontrollportal-sync'
 import { searchCompaniesByName, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
+import { notifyNewMelding } from '@/lib/telegramService'
 
 const log = createLogger('Anlegg')
 
@@ -2607,6 +2609,26 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose, onTodoChange
       
       // Legg til det nye notatet i listen
       setInterneNotater([data, ...interneNotater])
+      
+      // Send Telegram-varsel til mottaker hvis angitt
+      if (mottakerId) {
+        // Hent avsenders navn
+        const { data: { user } } = await supabase.auth.getUser()
+        const { data: avsender } = await supabase
+          .from('ansatte')
+          .select('navn')
+          .eq('epost', user?.email)
+          .single()
+        
+        notifyNewMelding(
+          mottakerId,
+          avsender?.navn || 'Ukjent',
+          notat,
+          kundeNavn,
+          anlegg.anleggsnavn
+        ).catch(err => console.log('Telegram-varsel feilet:', err))
+      }
+      
       return true
     } catch (error) {
       console.error('Feil ved opprettelse av internt notat:', error)
@@ -2855,6 +2877,12 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
   const [teknikere, setTeknikere] = useState<{id: string, navn: string}[]>([])
   const [visAlleOrdre, setVisAlleOrdre] = useState(false)
   const [visAlleOppgaver, setVisAlleOppgaver] = useState(false)
+  const [showDropboxBrowser, setShowDropboxBrowser] = useState(false)
+  const [dokumentFane, setDokumentFane] = useState<'storage' | 'dropbox'>('storage')
+  const [dropboxFiles, setDropboxFiles] = useState<any[]>([])
+  const [loadingDropboxFiles, setLoadingDropboxFiles] = useState(false)
+  const [selectedDropboxFiles, setSelectedDropboxFiles] = useState<Set<string>>(new Set())
+  const [downloadingDropbox, setDownloadingDropbox] = useState(false)
 
   // Last inn teknikere for dropdown
   useEffect(() => {
@@ -2867,6 +2895,67 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
     }
     loadTeknikere()
   }, [])
+
+  // Last Dropbox-filer når fanen byttes til Dropbox
+  async function loadDropboxFiles() {
+    if (!anlegg.dropbox_synced || !anlegg.kunde_nummer) return
+    
+    setLoadingDropboxFiles(true)
+    try {
+      const { listAnleggDropboxFiles } = await import('@/services/dropboxServiceV2')
+      const result = await listAnleggDropboxFiles(anlegg.kunde_nummer, kundeNavn, anlegg.anleggsnavn)
+      
+      if (result.success && result.entries) {
+        // Filtrer kun filer (ikke mapper)
+        const files = result.entries.filter((e: any) => e['.tag'] === 'file')
+        setDropboxFiles(files)
+      }
+    } catch (error) {
+      console.error('Feil ved lasting av Dropbox-filer:', error)
+    } finally {
+      setLoadingDropboxFiles(false)
+    }
+  }
+
+  useEffect(() => {
+    if (dokumentFane === 'dropbox' && anlegg.dropbox_synced && anlegg.kunde_nummer) {
+      loadDropboxFiles()
+    }
+  }, [dokumentFane])
+
+  function toggleDropboxFile(path: string) {
+    setSelectedDropboxFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+      return next
+    })
+  }
+
+  async function downloadSelectedDropboxFiles() {
+    if (selectedDropboxFiles.size === 0) return
+    
+    setDownloadingDropbox(true)
+    const { getDropboxDownloadLink } = await import('@/services/dropboxServiceV2')
+    
+    for (const path of selectedDropboxFiles) {
+      try {
+        const result = await getDropboxDownloadLink(path)
+        if (result.success && result.link) {
+          window.open(result.link, '_blank')
+          await new Promise(resolve => setTimeout(resolve, 300))
+        }
+      } catch (error) {
+        console.error('Feil ved nedlasting:', error)
+      }
+    }
+    
+    setDownloadingDropbox(false)
+    setSelectedDropboxFiles(new Set())
+  }
 
   async function handleOpenDocument(dok: Dokument) {
     try {
@@ -2977,6 +3066,16 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
             <DollarSign className="w-4 h-4" />
             <span className="hidden xs:inline">Priser</span>
           </button>
+          {anlegg.dropbox_synced && anlegg.kunde_nummer && (
+            <button 
+              onClick={() => setShowDropboxBrowser(true)}
+              className="btn-secondary flex items-center gap-2 text-sm sm:text-base"
+              title="Se Dropbox-filer"
+            >
+              <Cloud className="w-4 h-4" />
+              <span className="hidden xs:inline">Dropbox</span>
+            </button>
+          )}
           <button 
             onClick={() => navigate('/ordre', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id } })}
             className="btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700 text-sm sm:text-base"
@@ -3217,55 +3316,215 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
             )}
           </div>
 
-          {/* Dokumenter */}
+          {/* Dokumenter med faner */}
           <div className="card">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
-              Dokumenter ({dokumenter.length})
-            </h2>
-            {loadingDokumenter ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              </div>
-            ) : dokumenter.length > 0 ? (
-              <div className="space-y-2">
-                {dokumenter.map((dok) => (
-                  <div
-                    key={dok.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors"
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                Dokumenter
+              </h2>
+              {/* Faner */}
+              {anlegg.dropbox_synced && anlegg.kunde_nummer && (
+                <div className="flex bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setDokumentFane('storage')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                      dokumentFane === 'storage'
+                        ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
                   >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <FileText className="w-5 h-5 text-primary flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-gray-900 dark:text-white font-medium truncate">{dok.filnavn}</p>
-                        {dok.type && (
-                          <span className="badge badge-info text-xs">{dok.type}</span>
-                        )}
-                        <p className="text-xs text-gray-400 dark:text-gray-400 mt-1">
-                          {formatDate(dok.opplastet_dato)}
-                        </p>
+                    Storage ({dokumenter.length})
+                  </button>
+                  <button
+                    onClick={() => setDokumentFane('dropbox')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                      dokumentFane === 'dropbox'
+                        ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    <Cloud className="w-4 h-4" />
+                    Dropbox ({dropboxFiles.length})
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Storage-fane */}
+            {dokumentFane === 'storage' && (
+              <>
+                {loadingDokumenter ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                  </div>
+                ) : dokumenter.length > 0 ? (
+                  <div className="space-y-2">
+                    {dokumenter.map((dok) => (
+                      <div
+                        key={dok.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <FileText className="w-5 h-5 text-primary flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-gray-900 dark:text-white font-medium truncate">{dok.filnavn}</p>
+                            {dok.type && (
+                              <span className="badge badge-info text-xs">{dok.type}</span>
+                            )}
+                            <p className="text-xs text-gray-400 dark:text-gray-400 mt-1">
+                              {formatDate(dok.opplastet_dato)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleSendDocument(dok)}
+                            className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0"
+                            title="Send dokument"
+                          >
+                            <Mail className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenDocument(dok)}
+                            className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0"
+                            title="Åpne dokument"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleSendDocument(dok)}
-                        className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0"
-                        title="Send dokument"
-                      >
-                        <Mail className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleOpenDocument(dok)}
-                        className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0"
-                        title="Åpne dokument"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 dark:text-gray-400 text-center py-8">Ingen dokumenter lastet opp</p>
+                )}
+              </>
+            )}
+
+            {/* Dropbox-fane */}
+            {dokumentFane === 'dropbox' && (
+              <>
+                {loadingDropboxFiles ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">Laster fra Dropbox...</p>
+                  </div>
+                ) : dropboxFiles.length > 0 ? (
+                  <div>
+                    {/* Valgt-info og nedlastingsknapp */}
+                    {selectedDropboxFiles.size > 0 && (
+                      <div className="flex items-center justify-between mb-3 p-2 bg-primary/10 rounded-lg">
+                        <span className="text-sm text-primary font-medium">
+                          {selectedDropboxFiles.size} fil{selectedDropboxFiles.size !== 1 ? 'er' : ''} valgt
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedDropboxFiles(new Set())}
+                            className="text-xs text-gray-500 hover:text-gray-700"
+                          >
+                            Fjern valg
+                          </button>
+                          <button
+                            onClick={downloadSelectedDropboxFiles}
+                            disabled={downloadingDropbox}
+                            className="btn-primary text-sm py-1 px-3 flex items-center gap-1"
+                          >
+                            {downloadingDropbox ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Download className="w-4 h-4" />
+                            )}
+                            Last ned
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {dropboxFiles.map((file: any) => {
+                        const isSelected = selectedDropboxFiles.has(file.path_display)
+                        const fileName = file.name
+                        const ext = fileName.split('.').pop()?.toLowerCase()
+                        const isPdf = ext === 'pdf'
+                        return (
+                          <div
+                            key={file.id}
+                            className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                              isSelected
+                                ? 'bg-primary/10 hover:bg-primary/20'
+                                : 'bg-gray-50 dark:bg-dark-100 hover:bg-gray-100 dark:hover:bg-dark-200'
+                            }`}
+                          >
+                            <div 
+                              className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                              onClick={() => toggleDropboxFile(file.path_display)}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleDropboxFile(file.path_display)}
+                                className="w-4 h-4 text-primary rounded border-gray-300"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <FileText className={`w-5 h-5 flex-shrink-0 ${
+                                ext === 'pdf' ? 'text-red-500' :
+                                ext === 'dwg' || ext === 'dxf' ? 'text-blue-500' :
+                                ext === 'rvt' || ext === 'rfa' ? 'text-purple-500' :
+                                ext === 'doc' || ext === 'docx' ? 'text-blue-600' :
+                                ext === 'xls' || ext === 'xlsx' ? 'text-green-600' :
+                                'text-gray-400'
+                              }`} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-gray-900 dark:text-white font-medium truncate">{fileName}</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-400 mt-1">
+                                  {file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''} 
+                                  {file.server_modified && ` • ${formatDate(file.server_modified)}`}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  const { getDropboxDownloadLink } = await import('@/services/dropboxServiceV2')
+                                  const result = await getDropboxDownloadLink(file.path_display)
+                                  if (result.success && result.link) {
+                                    // Åpne epost med lenke
+                                    const subject = encodeURIComponent(`Dokument: ${fileName}`)
+                                    const body = encodeURIComponent(`Hei,\n\nHer er dokumentet "${fileName}":\n${result.link}\n\nMvh`)
+                                    window.open(`mailto:?subject=${subject}&body=${body}`)
+                                  }
+                                }}
+                                className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0"
+                                title="Send på epost"
+                              >
+                                <Mail className="w-4 h-4" />
+                              </button>
+                              {isPdf && (
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation()
+                                    const { getDropboxDownloadLink } = await import('@/services/dropboxServiceV2')
+                                    const result = await getDropboxDownloadLink(file.path_display)
+                                    if (result.success && result.link) {
+                                      window.open(result.link, '_blank')
+                                    }
+                                  }}
+                                  className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0"
+                                  title="Åpne dokument"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-400 dark:text-gray-400 text-center py-8">Ingen dokumenter lastet opp</p>
+                ) : (
+                  <p className="text-gray-400 dark:text-gray-400 text-center py-8">Ingen filer i Dropbox</p>
+                )}
+              </>
             )}
           </div>
 
@@ -3500,6 +3759,17 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
           </div>
         </div>
       </div>
+
+      {/* Dropbox File Browser Modal */}
+      {anlegg.kunde_nummer && (
+        <DropboxFileBrowser
+          isOpen={showDropboxBrowser}
+          onClose={() => setShowDropboxBrowser(false)}
+          kundeNummer={anlegg.kunde_nummer}
+          kundeNavn={kundeNavn}
+          anleggNavn={anlegg.anleggsnavn}
+        />
+      )}
     </div>
   )
 }

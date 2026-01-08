@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { Upload, Building2, FileText, ArrowLeft, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { Upload, Building2, FileText, ArrowLeft, Loader2, CheckCircle, XCircle, AlertCircle, Cloud, Folder } from 'lucide-react'
+import { listAnleggDropboxFiles } from '@/services/dropboxServiceV2'
 
 interface Kunde {
   id: string
@@ -15,6 +16,13 @@ interface Anlegg {
   adresse?: string | null
   postnummer?: string | null
   poststed?: string | null
+  dropbox_synced?: boolean | null
+  kunde_nummer?: string | null
+}
+
+interface DropboxFolder {
+  name: string
+  path: string
 }
 
 interface UploadResult {
@@ -50,6 +58,12 @@ export function LastOpp() {
   const [loadingData, setLoadingData] = useState(false)
   const [uploadResults, setUploadResults] = useState<UploadResult[]>([])
   const [showResults, setShowResults] = useState(false)
+  
+  // Dropbox state
+  const [saveToDropbox, setSaveToDropbox] = useState(false)
+  const [dropboxFolders, setDropboxFolders] = useState<DropboxFolder[]>([])
+  const [selectedDropboxFolder, setSelectedDropboxFolder] = useState('')
+  const [loadingDropboxFolders, setLoadingDropboxFolders] = useState(false)
 
   useEffect(() => {
     loadKunder()
@@ -95,6 +109,56 @@ export function LastOpp() {
       setLoadingData(false)
     }
   }
+
+  // Last Dropbox-mapper når anlegg velges
+  async function loadDropboxFolders(anleggObj: Anlegg) {
+    if (!anleggObj.dropbox_synced || !anleggObj.kunde_nummer) {
+      setDropboxFolders([])
+      return
+    }
+
+    setLoadingDropboxFolders(true)
+    try {
+      const result = await listAnleggDropboxFiles(
+        anleggObj.kunde_nummer,
+        selectedKundeObj?.navn || '',
+        anleggObj.anleggsnavn
+      )
+
+      if (result.success && result.entries) {
+        // Filtrer kun mapper
+        const folders = result.entries
+          .filter((e: any) => e['.tag'] === 'folder')
+          .map((f: any) => ({
+            name: f.name,
+            path: f.path_display
+          }))
+        setDropboxFolders(folders)
+        
+        // Sett default til første mappe hvis finnes
+        if (folders.length > 0) {
+          setSelectedDropboxFolder(folders[0].path)
+        }
+      }
+    } catch (error) {
+      console.error('Feil ved lasting av Dropbox-mapper:', error)
+    } finally {
+      setLoadingDropboxFolders(false)
+    }
+  }
+
+  // Last Dropbox-mapper når anlegg endres
+  useEffect(() => {
+    if (selectedAnlegg) {
+      const anleggObj = anlegg.find(a => a.id === selectedAnlegg)
+      if (anleggObj) {
+        loadDropboxFolders(anleggObj)
+      }
+    } else {
+      setDropboxFolders([])
+      setSaveToDropbox(false)
+    }
+  }, [selectedAnlegg])
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || [])
@@ -174,6 +238,21 @@ export function LastOpp() {
             if (dbError) {
               console.error('⚠️ Feil ved lagring til database:', dbError)
               // Still mark as success since file was uploaded to storage
+            }
+
+            // Last opp til Dropbox hvis valgt
+            if (saveToDropbox && selectedDropboxFolder) {
+              try {
+                const { uploadToDropbox } = await import('@/services/dropboxServiceV2')
+                const dropboxPath = `${selectedDropboxFolder}/${filename}`
+                
+                // uploadToDropbox tar Blob direkte
+                await uploadToDropbox(dropboxPath, file)
+                console.log('☁️ Fil lastet opp til Dropbox:', dropboxPath)
+              } catch (dropboxError) {
+                console.error('⚠️ Feil ved Dropbox-opplasting:', dropboxError)
+                // Ikke marker som feil - Storage-opplasting var vellykket
+              }
             }
 
             results.push({
@@ -395,6 +474,58 @@ export function LastOpp() {
                       placeholder="Skriv inn filnavn..."
                       className="input"
                     />
+                  </div>
+                )}
+
+                {/* Dropbox-valg */}
+                {selectedAnleggObj?.dropbox_synced && selectedAnleggObj?.kunde_nummer && (
+                  <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={saveToDropbox}
+                          onChange={(e) => setSaveToDropbox(e.target.checked)}
+                          className="w-4 h-4 text-primary rounded border-gray-600"
+                        />
+                        <Cloud className="w-5 h-5 text-blue-500" />
+                        <span className="text-white font-medium">Lagre også til Dropbox</span>
+                      </label>
+                    </div>
+                    
+                    {saveToDropbox && (
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Velg mappe i Dropbox
+                        </label>
+                        {loadingDropboxFolders ? (
+                          <div className="flex items-center gap-2 text-gray-400 text-sm">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Laster mapper...
+                          </div>
+                        ) : dropboxFolders.length > 0 ? (
+                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                            {dropboxFolders.map((folder) => (
+                              <button
+                                key={folder.path}
+                                type="button"
+                                onClick={() => setSelectedDropboxFolder(folder.path)}
+                                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${
+                                  selectedDropboxFolder === folder.path
+                                    ? 'bg-primary/20 border border-primary text-white'
+                                    : 'bg-gray-800/50 border border-transparent text-gray-300 hover:border-gray-600'
+                                }`}
+                              >
+                                <Folder className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                                <span className="text-sm truncate">{folder.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400">Ingen mapper funnet i Dropbox</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
