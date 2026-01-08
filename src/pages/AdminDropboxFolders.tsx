@@ -197,21 +197,21 @@ export function AdminDropboxFolders() {
         (message, current, total) => setProgress({ message, current, total })
       )
 
-      if (errors.length === 0) {
-        // Marker anlegget som synkronisert
-        await supabase
-          .from('anlegg')
-          .update({ dropbox_synced: true })
-          .eq('id', anleggId)
-        
-        // Oppdater lokal state
-        setAnlegg(prev => prev.map(a => 
-          a.id === anleggId ? { ...a, dropbox_synced: true } : a
-        ))
+      // Marker anlegget som synkronisert (uavhengig av om noen mapper allerede eksisterte)
+      await supabase
+        .from('anlegg')
+        .update({ dropbox_synced: true })
+        .eq('id', anleggId)
+      
+      // Oppdater lokal state
+      setAnlegg(prev => prev.map(a => 
+        a.id === anleggId ? { ...a, dropbox_synced: true } : a
+      ))
 
+      if (errors.length === 0) {
         setResult({ success: true, message: `✅ Opprettet ${created} mapper for ${anleggItem.anleggsnavn}` })
       } else {
-        setResult({ success: false, message: `⚠️ Opprettet ${created} mapper, ${errors.length} feil` })
+        setResult({ success: true, message: `✅ Opprettet ${created} mapper (${errors.length} eksisterte allerede)` })
       }
     } catch (error) {
       setResult({ success: false, message: `❌ Feil: ${error}` })
@@ -270,26 +270,26 @@ export function AdminDropboxFolders() {
         totalErrors += anleggResult.errors.length
       }
 
-      if (totalErrors === 0) {
-        // Marker alle anlegg som synkronisert
-        await supabase
-          .from('anlegg')
-          .update({ dropbox_synced: true })
-          .in('id', selectedAnlegg)
-        
-        // Oppdater lokal state
-        setAnlegg(prev => prev.map(a => 
-          selectedAnlegg.includes(a.id) ? { ...a, dropbox_synced: true } : a
-        ))
+      // Marker alle anlegg som synkronisert (uavhengig av om noen mapper allerede eksisterte)
+      await supabase
+        .from('anlegg')
+        .update({ dropbox_synced: true })
+        .in('id', selectedAnlegg)
+      
+      // Oppdater lokal state
+      setAnlegg(prev => prev.map(a => 
+        selectedAnlegg.includes(a.id) ? { ...a, dropbox_synced: true } : a
+      ))
 
+      if (totalErrors === 0) {
         setResult({ 
           success: true, 
           message: `✅ Opprettet ${totalCreated} mapper for ${kunde.navn} med ${selectedAnleggItems.length} anlegg` 
         })
       } else {
         setResult({ 
-          success: false, 
-          message: `⚠️ Opprettet ${totalCreated} mapper, ${totalErrors} feil` 
+          success: true, 
+          message: `✅ Opprettet ${totalCreated} mapper (${totalErrors} eksisterte allerede)` 
         })
       }
     } catch (error) {

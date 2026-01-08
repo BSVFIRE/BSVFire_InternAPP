@@ -3066,7 +3066,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
             <DollarSign className="w-4 h-4" />
             <span className="hidden xs:inline">Priser</span>
           </button>
-          {anlegg.dropbox_synced && anlegg.kunde_nummer && (
+          {anlegg.kunde_nummer && (
             <button 
               onClick={() => setShowDropboxBrowser(true)}
               className="btn-secondary flex items-center gap-2 text-sm sm:text-base"
@@ -3323,7 +3323,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                 Dokumenter
               </h2>
               {/* Faner */}
-              {anlegg.dropbox_synced && anlegg.kunde_nummer && (
+              {anlegg.kunde_nummer && (
                 <div className="flex bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
                   <button
                     onClick={() => setDokumentFane('storage')}
