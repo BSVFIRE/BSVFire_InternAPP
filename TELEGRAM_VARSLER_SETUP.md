@@ -26,10 +26,10 @@ WHERE telegram_chat_id IS NOT NULL;
 
 ```bash
 # I terminalen, kjør:
-supabase secrets set TELEGRAM_BOT_TOKEN=8452593483:AAFp6BQXBL7q1BIfFAmoTrqF7XTZ08CfkW4
+supabase secrets set TELEGRAM_BOT_TOKEN=<DITT_BOT_TOKEN>
 ```
 
-**VIKTIG:** Regenerer dette tokenet via @BotFather (`/revoke`) siden det ble delt i chat.
+Hent bot token fra @BotFather i Telegram.
 
 ## Steg 3: Deploy edge function
 
