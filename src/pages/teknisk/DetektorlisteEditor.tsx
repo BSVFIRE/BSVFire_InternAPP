@@ -24,6 +24,7 @@ interface DetektorItem {
 }
 
 const detektorTyper = [
+  'Base',
   'Røykdetektor',
   'Varmedetektor',
   'Multidetektor',
@@ -119,11 +120,15 @@ export function DetektorlisteEditor({
       setAnnet(liste.annet || '')
 
       // Hent detektorer
+      console.log('Henter detektorer for detektorlisteId:', detektorlisteId)
       const { data: items, error: itemsError } = await supabase
         .from('detektor_items')
         .select('*')
         .eq('detektorliste_id', detektorlisteId)
         .order('id')
+
+      console.log('Lastet detektorer:', items)
+      console.log('Detektor error:', itemsError)
 
       if (itemsError) throw itemsError
 

@@ -13,6 +13,29 @@ import { supabase } from './supabase'
 const isDev = import.meta.env.DEV
 const isTest = import.meta.env.MODE === 'test'
 
+/**
+ * Serialize a value for logging, handling Error objects specially
+ */
+function serializeForLog(value: any): any {
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message,
+      stack: value.stack
+    }
+  }
+  if (typeof value === 'object' && value !== null) {
+    const result: any = Array.isArray(value) ? [] : {}
+    for (const key in value) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        result[key] = serializeForLog(value[key])
+      }
+    }
+    return result
+  }
+  return value
+}
+
 // Store original console methods before they might be overridden
 const originalConsole = {
   log: console.log,
@@ -132,9 +155,9 @@ export const logger = {
     
     // Save to database for admin review
     const message = args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      typeof arg === 'object' ? JSON.stringify(serializeForLog(arg)) : String(arg)
     ).join(' ')
-    saveLogToDatabase('warn', undefined, message, args.length > 1 ? args.slice(1) : undefined)
+    saveLogToDatabase('warn', undefined, message, args.length > 1 ? serializeForLog(args.slice(1)) : undefined)
   },
 
   /**
@@ -147,9 +170,9 @@ export const logger = {
     
     // Save to database for admin review
     const message = args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      typeof arg === 'object' ? JSON.stringify(serializeForLog(arg)) : String(arg)
     ).join(' ')
-    saveLogToDatabase('error', undefined, message, args.length > 1 ? args.slice(1) : undefined)
+    saveLogToDatabase('error', undefined, message, args.length > 1 ? serializeForLog(args.slice(1)) : undefined)
   },
 
   /**
@@ -218,16 +241,16 @@ export function createLogger(namespace: string) {
         originalConsole.warn(`[${namespace}]`, ...args)
       }
       const message = args.map(arg => 
-        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+        typeof arg === 'object' ? JSON.stringify(serializeForLog(arg)) : String(arg)
       ).join(' ')
-      saveLogToDatabase('warn', namespace, message, args.length > 1 ? args.slice(1) : undefined)
+      saveLogToDatabase('warn', namespace, message, args.length > 1 ? serializeForLog(args.slice(1)) : undefined)
     },
     error: (...args: any[]) => {
       originalConsole.error(`[${namespace}]`, ...args)
       const message = args.map(arg => 
-        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+        typeof arg === 'object' ? JSON.stringify(serializeForLog(arg)) : String(arg)
       ).join(' ')
-      saveLogToDatabase('error', namespace, message, args.length > 1 ? args.slice(1) : undefined)
+      saveLogToDatabase('error', namespace, message, args.length > 1 ? serializeForLog(args.slice(1)) : undefined)
     },
     group: (label: string, fn: () => void) => logger.group(`[${namespace}] ${label}`, fn),
     groupCollapsed: (label: string, fn: () => void) => logger.groupCollapsed(`[${namespace}] ${label}`, fn),

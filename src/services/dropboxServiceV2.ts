@@ -189,10 +189,15 @@ export async function uploadToDropbox(
       size: data.size,
     }
   } catch (error: any) {
-    log.error('Feil ved opplasting til Dropbox', { error, path: filePath })
+    const errorMessage = error?.message || String(error) || 'Ukjent feil ved opplasting'
+    log.error('Feil ved opplasting til Dropbox', { 
+      errorMessage, 
+      errorName: error?.name,
+      path: filePath 
+    })
     return {
       success: false,
-      error: error.message || 'Ukjent feil ved opplasting',
+      error: errorMessage,
     }
   }
 }

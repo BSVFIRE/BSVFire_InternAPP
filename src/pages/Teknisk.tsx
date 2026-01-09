@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Settings, Radio, Bell, FileText, ClipboardList } from 'lucide-react'
+import { Settings, Radio, Bell, FileText, ClipboardList, Cpu } from 'lucide-react'
 import { DetektorlisteView } from './teknisk/DetektorlisteView'
 import { ServicerapportView } from './teknisk/ServicerapportView'
 import { AlarmorganiseringView } from './teknisk/AlarmorganiseringView'
+import { AddresseringView } from './teknisk/AddresseringView'
 import { useLocation } from 'react-router-dom'
 
-type TekniskView = 'oversikt' | 'detektorliste' | 'alarm' | 'prosjektering' | 'servicerapport'
+type TekniskView = 'oversikt' | 'detektorliste' | 'alarm' | 'prosjektering' | 'servicerapport' | 'addressering'
 
 export function Teknisk() {
   const location = useLocation()
@@ -41,6 +42,10 @@ export function Teknisk() {
       initialAnleggId={serviceRapportState?.anleggId}
       initialOrdreId={serviceRapportState?.ordreId}
     />
+  }
+
+  if (activeView === 'addressering') {
+    return <AddresseringView onBack={() => setActiveView('oversikt')} />
   }
 
   return (
@@ -96,6 +101,22 @@ export function Teknisk() {
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Servicerapport</h3>
               <p className="text-sm text-gray-400 dark:text-gray-400">Tekstbaserte rapporter</p>
+            </div>
+          </div>
+          <p className="text-primary text-sm font-medium">Klikk for å åpne →</p>
+        </button>
+
+        <button
+          onClick={() => setActiveView('addressering')}
+          className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
+        >
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center">
+              <Cpu className="w-6 h-6 text-purple-500" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Addressering</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">DIP-switch konfigurasjon</p>
             </div>
           </div>
           <p className="text-primary text-sm font-medium">Klikk for å åpne →</p>

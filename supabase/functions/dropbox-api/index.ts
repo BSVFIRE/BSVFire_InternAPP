@@ -180,11 +180,17 @@ async function callDropboxAPI(
     fetchBody = body ? JSON.stringify(body) : JSON.stringify(null)
   }
 
+  console.log(`Calling Dropbox API: ${endpoint}`)
+  
   const response = await fetch(url, {
     method: 'POST',
     headers,
     body: fetchBody,
   })
+
+  if (!response.ok) {
+    console.error(`Dropbox API error: ${response.status} ${response.statusText} for ${endpoint}`)
+  }
 
   return response
 }
@@ -286,7 +292,7 @@ serve(async (req) => {
       }
 
       case 'create_folder': {
-        // Opprett mappe
+        // Opprett mappe (rekursivt - oppretter alle parent-mapper)
         const config = await getDropboxConfig(supabase)
         if (!config) {
           throw new Error('Dropbox ikke konfigurert')
@@ -294,18 +300,27 @@ serve(async (req) => {
 
         const accessToken = await refreshAccessToken(supabase, config)
         
-        const response = await callDropboxAPI(
-          '/files/create_folder_v2',
-          accessToken,
-          config.root_namespace_id,
-          { path: params.path, autorename: false }
-        )
-
-        const data = await response.json()
+        // Splitt stien og opprett hver mappe i hierarkiet
+        const pathParts = params.path.split('/').filter((p: string) => p)
+        let currentPath = ''
         
-        // Ignorer feil hvis mappen allerede eksisterer
-        if (!response.ok && !data.error_summary?.includes('path/conflict/folder')) {
-          throw new Error(data.error_summary || 'Kunne ikke opprette mappe')
+        for (const part of pathParts) {
+          currentPath += '/' + part
+          
+          const response = await callDropboxAPI(
+            '/files/create_folder_v2',
+            accessToken,
+            config.root_namespace_id,
+            { path: currentPath, autorename: false }
+          )
+
+          const data = await response.json()
+          
+          // Ignorer feil hvis mappen allerede eksisterer
+          if (!response.ok && !data.error_summary?.includes('path/conflict/folder')) {
+            console.error(`Feil ved opprettelse av mappe ${currentPath}:`, data.error_summary)
+            throw new Error(data.error_summary || `Kunne ikke opprette mappe: ${currentPath}`)
+          }
         }
 
         return new Response(JSON.stringify({ success: true, path: params.path }), {
@@ -341,12 +356,23 @@ serve(async (req) => {
           true // isContentUpload
         )
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error_summary || 'Kunne ikke laste opp fil')
+        const responseText = await response.text()
+        let data: any
+        try {
+          data = JSON.parse(responseText)
+        } catch {
+          console.error('Dropbox upload - kunne ikke parse respons:', responseText)
+          throw new Error(`Dropbox API feil (${response.status}): ${responseText.substring(0, 200)}`)
         }
-
-        const data = await response.json()
+        
+        if (!response.ok) {
+          console.error('Dropbox upload error:', response.status, responseText)
+          const errorMsg = data.error_summary || 
+                          data.error?.reason?.['.tag'] || 
+                          (typeof data.error === 'object' ? JSON.stringify(data.error) : data.error) ||
+                          `HTTP ${response.status}`
+          throw new Error(`Dropbox feil: ${errorMsg}`)
+        }
         return new Response(JSON.stringify({ 
           success: true, 
           path: data.path_display,

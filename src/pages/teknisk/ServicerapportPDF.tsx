@@ -387,9 +387,14 @@ export async function generateServicerapportPDF(
     const blob = await pdf(<ServicerapportPDFDocument rapport={rapport} imageDataUrls={imageDataUrls} />).toBlob()
     console.log('✅ PDF generert, størrelse:', blob.size, 'bytes')
     
-    // Lag filnavn
+    // Lag filnavn - konverter norske bokstaver for Supabase Storage kompatibilitet
     const year = new Date(rapport.rapport_dato).getFullYear()
-    const safeHeader = rapport.header.replace(/[^a-zA-Z0-9æøåÆØÅ\s]/g, '_').replace(/\s+/g, '_')
+    const safeHeader = rapport.header
+      .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
+      .replace(/ø/g, 'o').replace(/Ø/g, 'O')
+      .replace(/å/g, 'a').replace(/Å/g, 'A')
+      .replace(/[^a-zA-Z0-9\s]/g, '_')
+      .replace(/\s+/g, '_')
     const fileName = `Servicerapport_${safeHeader}_${year}.pdf`
     
     let result: { success: boolean; filePath?: string; dropboxPath?: string; dropboxError?: string } = { success: true }
