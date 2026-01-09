@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Download, Wifi, WifiOff, Check, LayoutGrid, Table } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Wifi, WifiOff, Check, LayoutGrid, Table, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -1626,16 +1626,8 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
             disabled={loading || slanger.length === 0}
             className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Save className="w-5 h-5" />
-            Lagre rapport
-          </button>
-          <button
-            onClick={() => genererRapport('download')}
-            disabled={loading || slanger.length === 0}
-            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="w-5 h-5" />
-            Lagre og last ned
+            <FileText className="w-5 h-5" />
+            Generer rapport
           </button>
           <button
             onClick={lagreAlle}

@@ -1,4 +1,4 @@
-import { ArrowLeft, Download } from 'lucide-react'
+import { ArrowLeft, FileText } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 interface BrannslukkerPreviewProps {
@@ -62,21 +62,13 @@ export function BrannslukkerPreview({ pdfBlob, fileName, onBack, onSave }: Brann
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <a
-              href={pdfUrl}
-              download={fileName}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <Download className="w-5 h-5" />
-              Last ned
-            </a>
             <button
               onClick={handleSave}
               disabled={saving}
               className="btn-primary flex items-center gap-2"
             >
-              <Download className="w-5 h-5" />
-              {saving ? 'Lagrer...' : 'Lagre og last ned'}
+              <FileText className="w-5 h-5" />
+              {saving ? 'Genererer...' : 'Generer rapport'}
             </button>
           </div>
         </div>

@@ -311,9 +311,15 @@ export async function generateServicerapportPDF(
             }
             
             const arrayBuffer = await response.arrayBuffer()
-            const base64 = btoa(
-              new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-            )
+            // Chunk-basert base64 for å unngå stack overflow på store filer
+            const bytes = new Uint8Array(arrayBuffer)
+            const chunkSize = 8192
+            let binary = ''
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+              const chunk = bytes.subarray(i, i + chunkSize)
+              binary += String.fromCharCode.apply(null, chunk as any)
+            }
+            const base64 = btoa(binary)
             const mimeType = response.headers.get('content-type') || 'image/jpeg'
             const dataUrl = `data:${mimeType};base64,${base64}`
             

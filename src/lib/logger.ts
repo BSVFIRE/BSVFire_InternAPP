@@ -16,22 +16,38 @@ const isTest = import.meta.env.MODE === 'test'
 /**
  * Serialize a value for logging, handling Error objects specially
  */
-function serializeForLog(value: any): any {
+function serializeForLog(value: any, depth = 0): any {
+  // Prevent infinite recursion
+  if (depth > 5) return '[Max depth]'
+  
   if (value instanceof Error) {
     return {
       name: value.name,
-      message: value.message,
-      stack: value.stack
+      message: value.message
     }
   }
+  
+  // Skip Blob, File, ArrayBuffer etc
+  if (value instanceof Blob || value instanceof ArrayBuffer || value instanceof Uint8Array) {
+    return `[${value.constructor.name}]`
+  }
+  
   if (typeof value === 'object' && value !== null) {
-    const result: any = Array.isArray(value) ? [] : {}
-    for (const key in value) {
-      if (Object.prototype.hasOwnProperty.call(value, key)) {
-        result[key] = serializeForLog(value[key])
-      }
+    // Skip DOM nodes and other complex objects
+    if (value.nodeType || value.constructor?.name === 'Window') {
+      return `[${value.constructor?.name || 'Object'}]`
     }
-    return result
+    
+    try {
+      const result: any = Array.isArray(value) ? [] : {}
+      const keys = Object.keys(value).slice(0, 20) // Limit keys
+      for (const key of keys) {
+        result[key] = serializeForLog(value[key], depth + 1)
+      }
+      return result
+    } catch {
+      return '[Object]'
+    }
   }
   return value
 }
