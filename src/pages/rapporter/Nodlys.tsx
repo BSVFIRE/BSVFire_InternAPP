@@ -12,6 +12,7 @@ import { KommentarViewNodlys } from './KommentarViewNodlys'
 import { NodlysImport } from './NodlysImport'
 import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
+import { KontrolldatoVelger } from '@/components/KontrolldatoVelger'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
 
 interface Kunde {
@@ -97,6 +98,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
   const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
   const [dropboxAvailable, setDropboxAvailable] = useState(false)
+  const [kontrolldato, setKontrolldato] = useState<Date>(new Date())
   const [unsavedChanges, setUnsavedChanges] = useState<Map<string, Partial<NodlysEnhet>>>(new Map())
   const [originalData, setOriginalData] = useState<NodlysEnhet[]>([])
   const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
@@ -618,7 +620,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       doc.setTextColor(0, 0, 0)
       doc.text(anleggData?.anleggsnavn || '-', 20, yPos + 21)
       
-      const idag = new Date()
+      const idag = kontrolldato
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(100, 100, 100)
@@ -2636,6 +2638,16 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           {/* Rapportknapper */}
           <div className="card">
             <h2 className="text-lg font-semibold text-white mb-4">Generer rapport</h2>
+            <div className="mb-4">
+              <KontrolldatoVelger
+                kontrolldato={kontrolldato}
+                onDatoChange={setKontrolldato}
+                label="Kontrolldato for rapport"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                Standard er dagens dato. Velg en annen dato hvis du trenger å tilbakedatere rapporten.
+              </p>
+            </div>
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => genererPDF('preview')}

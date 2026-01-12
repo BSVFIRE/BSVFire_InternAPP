@@ -428,13 +428,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
         // Ikke kast feil her, fortsett med lagring av kontrollpunkter
       }
       
-      // Slett eksisterende kontrollpunkter for denne kontrollen
-      await supabase
-        .from('ns3960_kontrollpunkter')
-        .delete()
-        .eq('kontroll_id', currentKontrollId)
-
-      // Lagre alle punkter
+      // Lagre alle punkter med upsert (oppdater hvis eksisterer, ellers insert)
       const punkterToSave = Object.values(data).map(punkt => ({
         kontroll_id: currentKontrollId,
         anlegg_id: anleggId,
@@ -446,7 +440,10 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
 
       const { error } = await supabase
         .from('ns3960_kontrollpunkter')
-        .insert(punkterToSave)
+        .upsert(punkterToSave, { 
+          onConflict: 'kontroll_id,kontrollpunkt_navn',
+          ignoreDuplicates: false 
+        })
 
       if (error) {
         console.error('Supabase error:', error)
@@ -552,12 +549,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           onConflict: 'anlegg_id'
         })
       
-      // Oppdater kontrollpunkter
-      await supabase
-        .from('ns3960_kontrollpunkter')
-        .delete()
-        .eq('kontroll_id', currentKontrollId)
-
+      // Oppdater kontrollpunkter med upsert
       const punkterToSave = Object.values(data).map(punkt => ({
         kontroll_id: currentKontrollId,
         anlegg_id: anleggId,
@@ -569,7 +561,10 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
 
       await supabase
         .from('ns3960_kontrollpunkter')
-        .insert(punkterToSave)
+        .upsert(punkterToSave, { 
+          onConflict: 'kontroll_id,kontrollpunkt_navn',
+          ignoreDuplicates: false 
+        })
 
       setLastSaved(new Date())
       setHasUnsavedChanges(false)

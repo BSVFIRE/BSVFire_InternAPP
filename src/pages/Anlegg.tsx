@@ -213,7 +213,7 @@ export function Anlegg() {
       // Hent anlegg og kunder parallelt
       const [anleggResponse, kunderResponse] = await Promise.all([
         supabase.from('anlegg').select('*').order('anleggsnavn', { ascending: true }),
-        supabase.from('customer').select('id, navn, kunde_nummer')
+        supabase.from('customer').select('id, navn, kunde_nummer').or('skjult.is.null,skjult.eq.false')
       ])
 
       if (anleggResponse.error) throw new Error(anleggResponse.error.message)

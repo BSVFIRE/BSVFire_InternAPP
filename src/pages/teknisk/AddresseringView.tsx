@@ -472,50 +472,191 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
       return
     }
 
-    if (!confirm(`Vil du opprette en ny detektorliste med ${enheterMedData.length} enheter?`)) {
-      return
-    }
-
     try {
       setSaving(true)
 
-      // Hent brukerens navn fra email
+      // Sjekk om det finnes eksisterende detektorlister for dette anlegget
+      const { data: eksisterendeLister, error: listeQueryError } = await supabase
+        .from('detektorlister')
+        .select('*')
+        .eq('anlegg_id', selectedAnlegg)
+        .order('opprettet_dato', { ascending: false }) as { data: Array<{ id: string; revisjon: string; dato: string; service_ingeniør: string }> | null; error: any }
+
+      if (listeQueryError) throw listeQueryError
+
       const servicetekniker = user?.email?.split('@')[0] || 'Ukjent'
+      let targetListeId: string
 
-      // Opprett items-array for RPC
-      const items = enheterMedData.map(enhet => ({
-        adresse: enhet.enhetMerket,
-        type: enhet.type || '',
-        plassering: enhet.plassering || '',
-        kart: enhet.kart || '',
-        akse: '',
-        etasje: enhet.etasje || '',
-        kommentar: ''
-      }))
+      if (eksisterendeLister && eksisterendeLister.length > 0) {
+        // Det finnes eksisterende lister - spør brukeren
+        const nyesteListe = eksisterendeLister[0]
+        const valg = prompt(
+          `Det finnes ${eksisterendeLister.length} eksisterende detektorliste(r) for dette anlegget.\n\n` +
+          `Nyeste: Revisjon ${nyesteListe.revisjon} (${new Date(nyesteListe.dato).toLocaleDateString('nb-NO')})\n\n` +
+          `Hva vil du gjøre?\n\n` +
+          `1 = Oppdater nyeste liste (beholder eksisterende data)\n` +
+          `2 = Oppdater nyeste liste + lag backup først\n` +
+          `3 = Opprett helt ny liste\n` +
+          `0 = Avbryt\n\n` +
+          `Skriv 1, 2, 3 eller 0:`
+        )
 
-      console.log('Oppretter detektorliste med items via RPC:', items)
+        if (!valg || valg === '0') {
+          setSaving(false)
+          return
+        }
 
-      // Bruk database-funksjon som oppretter både liste og items i én transaksjon
-      const { data: nyListeId, error: rpcError } = await supabase.rpc('create_detektorliste_with_items', {
-        p_kunde_id: selectedKunde,
-        p_anlegg_id: selectedAnlegg,
-        p_service_ingenior: servicetekniker,
-        p_opprettet_av: user?.id,
-        p_items: items
-      })
+        if (valg === '2') {
+          // Lag backup av eksisterende liste
+          const backupRevisjon = `${nyesteListe.revisjon}-backup-${new Date().toISOString().split('T')[0]}`
+          
+          // Kopier listen
+          const { data: backupListe, error: backupError } = await supabase
+            .from('detektorlister')
+            .insert({
+              kunde_id: selectedKunde,
+              anlegg_id: selectedAnlegg,
+              revisjon: backupRevisjon,
+              dato: nyesteListe.dato,
+              service_ingeniør: nyesteListe.service_ingeniør,
+              status: 'Backup',
+              opprettet_av: user?.id,
+              opprettet_dato: new Date().toISOString()
+            })
+            .select()
+            .single()
 
-      console.log('RPC respons - nyListeId:', nyListeId)
-      console.log('RPC respons - error:', rpcError)
+          if (backupError) throw backupError
 
-      if (rpcError) {
-        console.error('Feil ved opprettelse av detektorliste:', rpcError)
-        throw rpcError
+          // Kopier alle items til backup
+          const { data: eksisterendeItems } = await supabase
+            .from('detektor_items')
+            .select('*')
+            .eq('detektorliste_id', nyesteListe.id)
+
+          if (eksisterendeItems && eksisterendeItems.length > 0) {
+            const backupItems = eksisterendeItems.map(item => ({
+              detektorliste_id: backupListe.id,
+              adresse: item.adresse,
+              type: item.type,
+              plassering: item.plassering,
+              kart: item.kart,
+              akse: item.akse,
+              etasje: item.etasje,
+              kommentar: item.kommentar
+            }))
+            await supabase.from('detektor_items').insert(backupItems)
+          }
+
+          console.log('Backup opprettet:', backupListe.id)
+          targetListeId = nyesteListe.id
+        } else if (valg === '1') {
+          targetListeId = nyesteListe.id
+        } else if (valg === '3') {
+          // Opprett ny liste
+          const { data: nyListe, error: nyListeError } = await supabase
+            .from('detektorlister')
+            .insert({
+              kunde_id: selectedKunde,
+              anlegg_id: selectedAnlegg,
+              revisjon: '1.0',
+              dato: new Date().toISOString().split('T')[0],
+              service_ingeniør: servicetekniker,
+              status: 'Utkast',
+              opprettet_av: user?.id,
+              opprettet_dato: new Date().toISOString()
+            })
+            .select()
+            .single()
+
+          if (nyListeError) throw nyListeError
+          targetListeId = nyListe.id
+        } else {
+          setSaving(false)
+          return
+        }
+      } else {
+        // Ingen eksisterende lister - opprett ny
+        const { data: nyListe, error: listeError } = await supabase
+          .from('detektorlister')
+          .insert({
+            kunde_id: selectedKunde,
+            anlegg_id: selectedAnlegg,
+            revisjon: '1.0',
+            dato: new Date().toISOString().split('T')[0],
+            service_ingeniør: servicetekniker,
+            status: 'Utkast',
+            opprettet_av: user?.id,
+            opprettet_dato: new Date().toISOString()
+          })
+          .select()
+          .single()
+
+        if (listeError) throw listeError
+        targetListeId = nyListe.id
       }
 
-      alert(`Ny detektorliste opprettet med ${enheterMedData.length} enheter!\n\nGå til Teknisk → Detektorliste for å redigere.`)
+      // Hent eksisterende items for å kunne oppdatere/merge
+      const { data: eksisterendeItems } = await supabase
+        .from('detektor_items')
+        .select('*')
+        .eq('detektorliste_id', targetListeId)
+
+      const eksisterendeMap = new Map(
+        (eksisterendeItems || []).map(item => [item.adresse, item])
+      )
+
+      // Oppdater eller legg til items
+      let oppdatert = 0
+      let lagtTil = 0
+
+      for (const enhet of enheterMedData) {
+        const eksisterende = eksisterendeMap.get(enhet.enhetMerket)
+        
+        if (eksisterende) {
+          // Oppdater kun feltene fra addressering, behold andre felter
+          const { error } = await supabase
+            .from('detektor_items')
+            .update({
+              type: enhet.type || eksisterende.type,
+              plassering: enhet.plassering || eksisterende.plassering,
+              kart: enhet.kart || eksisterende.kart,
+              etasje: enhet.etasje || eksisterende.etasje
+              // Beholder: akse, kommentar, rekkefølge osv.
+            })
+            .eq('id', eksisterende.id)
+          
+          if (!error) oppdatert++
+        } else {
+          // Legg til ny item
+          const { error } = await supabase
+            .from('detektor_items')
+            .insert({
+              detektorliste_id: targetListeId,
+              adresse: enhet.enhetMerket,
+              type: enhet.type || '',
+              plassering: enhet.plassering || '',
+              kart: enhet.kart || '',
+              akse: '',
+              etasje: enhet.etasje || '',
+              kommentar: ''
+            })
+          
+          if (!error) lagtTil++
+        }
+      }
+
+      console.log(`Oppdatert: ${oppdatert}, Lagt til: ${lagtTil}`)
+
+      alert(
+        `Detektorliste oppdatert!\n\n` +
+        `• ${oppdatert} enheter oppdatert\n` +
+        `• ${lagtTil} nye enheter lagt til\n\n` +
+        `Gå til Teknisk → Detektorliste for å redigere.`
+      )
     } catch (error: any) {
       console.error('Feil ved overføring:', error)
-      alert('Kunne ikke opprette detektorliste: ' + (error?.message || 'Ukjent feil'))
+      alert('Kunne ikke opprette/oppdatere detektorliste: ' + (error?.message || 'Ukjent feil'))
     } finally {
       setSaving(false)
     }

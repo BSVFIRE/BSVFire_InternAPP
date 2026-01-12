@@ -83,6 +83,7 @@ export function AdminDropboxFolders() {
       .from('customer')
       .select('id, navn, kunde_nummer')
       .not('kunde_nummer', 'is', null)
+      .or('skjult.is.null,skjult.eq.false')
       .order('kunde_nummer')
 
     if (!error && data) {

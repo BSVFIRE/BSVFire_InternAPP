@@ -132,12 +132,21 @@ export function DetektorlisteEditor({
 
       if (itemsError) throw itemsError
 
-      setDetektorer(items || [])
+      // Legg til tomme rader hvis det er få detektorer
+      const loadedItems = items || []
+      const tommeRader = (loadedItems.length < 3) 
+        ? Array.from({ length: 3 - loadedItems.length }, () => ({
+            adresse: '',
+            type: '',
+            plassering: '',
+            kart: '',
+            akse: '',
+            etasje: '',
+            kommentar: ''
+          }))
+        : []
       
-      // Legg til noen tomme rader hvis det er få detektorer
-      if ((items?.length || 0) < 3) {
-        addDetektorRader(3 - (items?.length || 0))
-      }
+      setDetektorer([...loadedItems, ...tommeRader])
     } catch (error) {
       console.error('Feil ved lasting av detektorliste:', error)
       alert('Kunne ikke laste detektorliste')

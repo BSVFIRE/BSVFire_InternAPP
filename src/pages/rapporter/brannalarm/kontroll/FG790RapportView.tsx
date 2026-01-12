@@ -7,6 +7,7 @@ import autoTable from 'jspdf-autotable'
 import { BrannalarmPreview } from './BrannalarmPreview'
 import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
+import { KontrolldatoVelger } from '@/components/KontrolldatoVelger'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
 
 interface FG790RapportViewProps {
@@ -147,6 +148,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
   const [showFullfortDialog, setShowFullfortDialog] = useState(false)
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
   const [dropboxAvailable, setDropboxAvailable] = useState(false)
+  const [kontrolldato, setKontrolldato] = useState<Date>(new Date())
 
   useEffect(() => {
     loadData()
@@ -457,7 +459,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       doc.setTextColor(0, 0, 0)
       doc.text(anleggData.anleggsnavn, 20, yPos + 21)
       
-      const kontrollDato = new Date()
+      const kontrollDato = kontrolldato
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(100, 100, 100)
@@ -1487,6 +1489,18 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
             </div>
           )}
         </div>
+      </div>
+
+      {/* Kontrolldato velger */}
+      <div className="card">
+        <KontrolldatoVelger
+          kontrolldato={kontrolldato}
+          onDatoChange={setKontrolldato}
+          label="Kontrolldato for rapport"
+        />
+        <p className="text-xs text-gray-500 mt-2">
+          Standard er dagens dato. Velg en annen dato hvis du trenger å tilbakedatere rapporten.
+        </p>
       </div>
 
       {/* Action buttons */}
