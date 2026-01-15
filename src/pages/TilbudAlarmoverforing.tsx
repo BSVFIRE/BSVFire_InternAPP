@@ -17,7 +17,7 @@ const BSV_KOSTNAD_PER_MAANED = 79 // kr per måned
 // Simkort priser
 const SIMKORT_PRIS_PER_MAANED = 100 // kr eks mva
 const SIMKORT_BSV_KOSTNAD_PER_MAANED = 49 // kr per måned
-const VEKTER_UTRYKNING_PRIS = 1950 // kr eks mva
+const VEKTER_UTRYKNING_PRIS = 2400 // kr eks mva
 
 interface AlarmoverforingTilbud {
   id: string

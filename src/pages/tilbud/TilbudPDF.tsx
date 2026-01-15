@@ -180,9 +180,12 @@ export async function generateTilbudPDF(tilbudData: TilbudData) {
   const tableData: any[] = []
   let subtotal = 0
 
-  selectedServices.forEach(tjeneste => {
-    const detaljer = tilbudData.pris_detaljer?.[tjeneste]
-    if (detaljer && detaljer.pris > 0) {
+  // Sjekk om forenklet modus er aktivert
+  const forenkletModus = tilbudData.pris_detaljer?.forenklet_modus
+  
+  if (forenkletModus?.aktivert) {
+    // Forenklet modus: Vis alle valgte tjenester, deretter totalpris som egen linje
+    selectedServices.forEach(tjeneste => {
       let beskrivelse = tjenesteLabels[tjeneste]
       
       // Add ekstern type to description if it's an external service
@@ -195,12 +198,41 @@ export async function generateTilbudPDF(tilbudData: TilbudData) {
 
       tableData.push([
         beskrivelse,
-        `${detaljer.pris.toLocaleString('nb-NO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`
+        '' // Ingen individuell pris i forenklet modus
       ])
-      
-      subtotal += detaljer.pris
-    }
-  })
+    })
+    
+    // Legg til totalpris som egen linje
+    tableData.push([
+      'Samlet pris for alle tjenester',
+      `${forenkletModus.totalpris.toLocaleString('nb-NO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`
+    ])
+    
+    subtotal = forenkletModus.totalpris
+  } else {
+    // Detaljert modus: Vis pris per tjeneste
+    selectedServices.forEach(tjeneste => {
+      const detaljer = tilbudData.pris_detaljer?.[tjeneste]
+      if (detaljer && detaljer.pris > 0) {
+        let beskrivelse = tjenesteLabels[tjeneste]
+        
+        // Add ekstern type to description if it's an external service
+        if (tjeneste === 'eksternt' && tilbudData.ekstern_type) {
+          const typeText = tilbudData.ekstern_type === 'Annet' && tilbudData.ekstern_type_annet
+            ? tilbudData.ekstern_type_annet
+            : tilbudData.ekstern_type
+          beskrivelse = `Eksternt - ${typeText}`
+        }
+
+        tableData.push([
+          beskrivelse,
+          `${detaljer.pris.toLocaleString('nb-NO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`
+        ])
+        
+        subtotal += detaljer.pris
+      }
+    })
+  }
 
   autoTable(doc, {
     startY: yPos,
@@ -298,7 +330,7 @@ export async function generateTilbudPDF(tilbudData: TilbudData) {
     'Avtalen forutsetter tilgang til hele anlegget.',
     'Kunden stiller ved behov med representant som har kjennskap til anlegget.',
     'Ved førstegangskontroll tilstrebes kontroll av hele anlegget.',
-    'Dokumentasjon bør være tilgjengelig ved kontroll (brannkonsept, prosjekteringsunderlag,\nanleggsbeskrivelse) for optimal gjennomføring og FG-790 sertifisering.',
+    'Dokumentasjon bør være tilgjengelig ved kontroll (brannkonsept, prosjekteringsunderlag,\nanleggsbeskrivelse) for optimal gjennomføring etter gjeldene standard NS3960.',
     'Avtalen fornyes automatisk årlig, med 3 måneders oppsigelsestid.',
     'Avtalen indeksreguleres årlig.',
     `Timessats i ordinær arbeidstid 08.00 - 16.00: kr ${tilbudData.timespris || 925},-.`,

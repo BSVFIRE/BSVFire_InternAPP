@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { generateTilbudPDF } from '@/pages/tilbud/TilbudPDF'
 import type { ServiceavtaleTilbud } from '@/pages/TilbudServiceavtale'
+import { createKundeFolderStructure, createAnleggFolderStructure } from '@/services/dropboxFolderStructure'
 
 interface GodkjenningResult {
   success: boolean
@@ -8,7 +9,14 @@ interface GodkjenningResult {
   anlegg_id?: string
   kontaktperson_id?: string
   pdf_url?: string
+  dropbox_synced?: boolean
   error?: string
+}
+
+interface GodkjenningOptions {
+  kundenummer: string
+  eksisterendeKundeId: string | null
+  opprettKunde: boolean
 }
 
 /**
@@ -65,25 +73,68 @@ async function opprettPriserForAnlegg(anlegg_id: string, kunde_id: string, tilbu
 
 /**
  * Håndterer godkjenning av tilbud:
- * 1. Oppretter kunde hvis den ikke eksisterer
+ * 1. Oppretter kunde hvis den ikke eksisterer, eller bruker eksisterende
  * 2. Oppretter anlegg hvis det ikke eksisterer
  * 3. Oppretter kontaktperson hvis den ikke eksisterer
  * 4. Genererer og lagrer PDF på anlegget
+ * 5. Synkroniserer til Dropbox med riktig kundenummer
  */
-export async function handleTilbudGodkjenning(tilbud: ServiceavtaleTilbud): Promise<GodkjenningResult> {
+export async function handleTilbudGodkjenning(
+  tilbud: ServiceavtaleTilbud,
+  options: GodkjenningOptions
+): Promise<GodkjenningResult> {
   try {
     let kunde_id = tilbud.kunde_id
     let anlegg_id = tilbud.anlegg_id
     let kontaktperson_id = tilbud.kontaktperson_id
+    let kundeNavn = tilbud.kunde_navn
+    let dropbox_synced = false
 
     // 1. Håndter kunde
-    if (!kunde_id) {
-      // Opprett ny kunde
+    if (options.eksisterendeKundeId) {
+      // Bruk eksisterende kunde
+      kunde_id = options.eksisterendeKundeId
+      
+      // Hent kundenavn fra eksisterende kunde
+      const { data: eksisterendeKunde } = await supabase
+        .from('customer')
+        .select('navn, kunde_nummer')
+        .eq('id', options.eksisterendeKundeId)
+        .single()
+      
+      if (eksisterendeKunde) {
+        kundeNavn = eksisterendeKunde.navn
+        // Oppdater kundenummer hvis det ikke er satt
+        if (!eksisterendeKunde.kunde_nummer && options.kundenummer) {
+          await supabase
+            .from('customer')
+            .update({ kunde_nummer: options.kundenummer })
+            .eq('id', options.eksisterendeKundeId)
+        }
+        
+        // Opprett Dropbox kunde-mapper hvis de ikke finnes (for eksisterende kunder uten mapper)
+        try {
+          const kundeDropboxResult = await createKundeFolderStructure(
+            options.kundenummer,
+            kundeNavn
+          )
+          if (kundeDropboxResult.success) {
+            console.log('✅ Dropbox kunde-mapper opprettet/verifisert for eksisterende kunde')
+          }
+        } catch (dropboxError) {
+          console.warn('⚠️ Kunne ikke opprette Dropbox kunde-mapper:', dropboxError)
+        }
+      }
+      
+      console.log('✅ Bruker eksisterende kunde:', kundeNavn)
+    } else if (!kunde_id) {
+      // Opprett ny kunde med kundenummer
       const { data: nyKunde, error: kundeError } = await supabase
         .from('customer')
         .insert({
           navn: tilbud.kunde_navn,
           organisasjonsnummer: tilbud.kunde_organisasjonsnummer,
+          kunde_nummer: options.kundenummer,
           type: 'Bedrift'
         })
         .select()
@@ -91,6 +142,20 @@ export async function handleTilbudGodkjenning(tilbud: ServiceavtaleTilbud): Prom
 
       if (kundeError) throw new Error(`Kunne ikke opprette kunde: ${kundeError.message}`)
       kunde_id = nyKunde.id
+      console.log('✅ Ny kunde opprettet:', tilbud.kunde_navn)
+      
+      // Opprett kunde-mapper i Dropbox
+      try {
+        const kundeDropboxResult = await createKundeFolderStructure(
+          options.kundenummer,
+          tilbud.kunde_navn
+        )
+        if (kundeDropboxResult.success) {
+          console.log('✅ Dropbox kunde-mapper opprettet')
+        }
+      } catch (dropboxError) {
+        console.warn('⚠️ Kunne ikke opprette Dropbox kunde-mapper:', dropboxError)
+      }
     }
 
     // 2. Håndter anlegg
@@ -111,11 +176,33 @@ export async function handleTilbudGodkjenning(tilbud: ServiceavtaleTilbud): Prom
 
       if (anleggError) throw new Error(`Kunne ikke opprette anlegg: ${anleggError.message}`)
       anlegg_id = nyttAnlegg.id
+      console.log('✅ Nytt anlegg opprettet:', tilbud.anlegg_navn)
 
       // Opprett priser for anlegget basert på tilbudet
       // kunde_id er garantert satt her (enten fra tilbud eller opprettet i steg 1)
       // @ts-expect-error - kunde_id er garantert string her (enten fra tilbud eller opprettet i steg 1)
       await opprettPriserForAnlegg(anlegg_id, kunde_id || '', tilbud)
+      
+      // Opprett anlegg-mapper i Dropbox
+      try {
+        const anleggDropboxResult = await createAnleggFolderStructure(
+          options.kundenummer,
+          kundeNavn,
+          tilbud.anlegg_navn
+        )
+        if (anleggDropboxResult.success) {
+          console.log('✅ Dropbox anlegg-mapper opprettet')
+          dropbox_synced = true
+          
+          // Marker anlegget som synkronisert til Dropbox
+          await supabase
+            .from('anlegg')
+            .update({ dropbox_synced: true })
+            .eq('id', anlegg_id)
+        }
+      } catch (dropboxError) {
+        console.warn('⚠️ Kunne ikke opprette Dropbox anlegg-mapper:', dropboxError)
+      }
     }
 
     // 3. Håndter kontaktperson
@@ -179,7 +266,8 @@ export async function handleTilbudGodkjenning(tilbud: ServiceavtaleTilbud): Prom
       kunde_id: kunde_id ?? undefined,
       anlegg_id: anlegg_id ?? undefined,
       kontaktperson_id: kontaktperson_id ?? undefined,
-      pdf_url: pdfUrl
+      pdf_url: pdfUrl,
+      dropbox_synced
     }
   } catch (error) {
     console.error('Feil ved godkjenning av tilbud:', error)

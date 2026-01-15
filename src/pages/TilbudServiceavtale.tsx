@@ -9,6 +9,7 @@ import { TilbudForm } from './tilbud/TilbudForm'
 import { TilbudDetails } from './tilbud/TilbudDetails'
 import { StatusDropdown } from './tilbud/StatusDropdown'
 import { handleTilbudGodkjenning } from '@/lib/tilbudGodkjenning'
+import { KundenummerDialog } from '@/components/KundenummerDialog'
 
 export interface ServiceavtaleTilbud {
   id: string
@@ -53,6 +54,8 @@ export function TilbudServiceavtale() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedTilbud, setSelectedTilbud] = useState<ServiceavtaleTilbud | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [showKundenummerDialog, setShowKundenummerDialog] = useState(false)
+  const [pendingGodkjenning, setPendingGodkjenning] = useState<{ id: string; tilbud: ServiceavtaleTilbud } | null>(null)
 
   useEffect(() => {
     loadTilbud()
@@ -102,7 +105,7 @@ export function TilbudServiceavtale() {
         updateData.sendt_dato = new Date().toISOString()
       }
 
-      // Hvis status endres til 'godkjent', håndter opprettelse av kunde/anlegg/kontaktperson og PDF
+      // Hvis status endres til 'godkjent', vis kundenummer-dialog
       if (newStatus === 'godkjent') {
         const tilbudData = tilbud.find(t => t.id === id)
         if (!tilbudData) {
@@ -115,43 +118,10 @@ export function TilbudServiceavtale() {
           throw new Error('Anleggsnavn mangler')
         }
 
-        // Bekreft godkjenning
-        const bekreftelse = confirm(
-          `Godkjenne tilbud for ${tilbudData.kunde_navn}?\n\n` +
-          `Dette vil:\n` +
-          `• Opprette kunde, anlegg og kontaktperson hvis de ikke eksisterer\n` +
-          `• Generere og lagre PDF på anlegget\n` +
-          `• Endre status til "Godkjent"\n\n` +
-          `Vil du fortsette?`
-        )
-
-        if (!bekreftelse) {
-          throw new Error('Godkjenning avbrutt av bruker')
-        }
-
-        // Håndter godkjenning (opprett kunde/anlegg/kontaktperson og lagre PDF)
-        const result = await handleTilbudGodkjenning(tilbudData)
-        
-        if (!result.success) {
-          alert(`Feil ved godkjenning: ${result.error}`)
-          throw new Error(result.error)
-        }
-
-        // Vis suksessmelding med detaljer
-        let melding = `✓ Tilbudet er godkjent!\n\n`
-        
-        if (!tilbudData.kunde_id) {
-          melding += `✓ Kunde opprettet: ${tilbudData.kunde_navn}\n`
-        }
-        if (!tilbudData.anlegg_id) {
-          melding += `✓ Anlegg opprettet: ${tilbudData.anlegg_navn}\n`
-        }
-        if (!tilbudData.kontaktperson_id && tilbudData.kontaktperson_navn) {
-          melding += `✓ Kontaktperson opprettet: ${tilbudData.kontaktperson_navn}\n`
-        }
-        melding += `✓ PDF lagret på anlegget`
-        
-        alert(melding)
+        // Vis kundenummer-dialog i stedet for confirm
+        setPendingGodkjenning({ id, tilbud: tilbudData })
+        setShowKundenummerDialog(true)
+        return // Ikke oppdater status ennå - venter på dialog
       }
 
       // Oppdater status i databasen
@@ -165,6 +135,65 @@ export function TilbudServiceavtale() {
     } catch (error) {
       console.error('Feil ved oppdatering av status:', error)
       throw error
+    }
+  }
+
+  // Håndter godkjenning fra kundenummer-dialogen
+  async function handleGodkjenningConfirm(data: {
+    kundenummer: string
+    eksisterendeKundeId: string | null
+    opprettKunde: boolean
+  }) {
+    if (!pendingGodkjenning) return
+    
+    try {
+      // Håndter godkjenning (opprett kunde/anlegg/kontaktperson og lagre PDF)
+      const result = await handleTilbudGodkjenning(pendingGodkjenning.tilbud, {
+        kundenummer: data.kundenummer,
+        eksisterendeKundeId: data.eksisterendeKundeId,
+        opprettKunde: data.opprettKunde
+      })
+      
+      if (!result.success) {
+        alert(`Feil ved godkjenning: ${result.error}`)
+        return
+      }
+
+      // Oppdater status til godkjent
+      const { error } = await supabase
+        .from('serviceavtale_tilbud')
+        .update({ status: 'godkjent' })
+        .eq('id', pendingGodkjenning.id)
+
+      if (error) throw error
+
+      // Vis suksessmelding med detaljer
+      let melding = `✓ Tilbudet er godkjent!\n\n`
+      
+      if (data.opprettKunde) {
+        melding += `✓ Kunde opprettet: ${pendingGodkjenning.tilbud.kunde_navn}\n`
+      } else if (data.eksisterendeKundeId) {
+        melding += `✓ Brukte eksisterende kunde\n`
+      }
+      if (!pendingGodkjenning.tilbud.anlegg_id) {
+        melding += `✓ Anlegg opprettet: ${pendingGodkjenning.tilbud.anlegg_navn}\n`
+      }
+      if (!pendingGodkjenning.tilbud.kontaktperson_id && pendingGodkjenning.tilbud.kontaktperson_navn) {
+        melding += `✓ Kontaktperson opprettet: ${pendingGodkjenning.tilbud.kontaktperson_navn}\n`
+      }
+      melding += `✓ PDF lagret på anlegget\n`
+      if (result.dropbox_synced) {
+        melding += `✓ Dropbox-mapper opprettet`
+      }
+      
+      alert(melding)
+      await loadTilbud()
+    } catch (error) {
+      console.error('Feil ved godkjenning:', error)
+      alert('Kunne ikke godkjenne tilbudet. Se konsoll for detaljer.')
+    } finally {
+      setShowKundenummerDialog(false)
+      setPendingGodkjenning(null)
     }
   }
 
@@ -239,7 +268,22 @@ export function TilbudServiceavtale() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Kundenummer Dialog */}
+      {showKundenummerDialog && pendingGodkjenning && (
+        <KundenummerDialog
+          kundeNavn={pendingGodkjenning.tilbud.kunde_navn}
+          organisasjonsnummer={pendingGodkjenning.tilbud.kunde_organisasjonsnummer}
+          anleggNavn={pendingGodkjenning.tilbud.anlegg_navn || ''}
+          onConfirm={handleGodkjenningConfirm}
+          onCancel={() => {
+            setShowKundenummerDialog(false)
+            setPendingGodkjenning(null)
+          }}
+        />
+      )}
+      
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -469,5 +513,6 @@ export function TilbudServiceavtale() {
         )}
       </div>
     </div>
+    </>
   )
 }

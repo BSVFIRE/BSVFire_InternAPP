@@ -40,6 +40,12 @@ interface ServicePricing {
   manuelt_belop?: number
 }
 
+// Forenklet modus - kun fag og totalpris
+interface ForenkletPrising {
+  aktivert: boolean
+  totalpris: number
+}
+
 interface PricingSectionProps {
   formData: any
   setFormData: (data: any) => void
@@ -56,6 +62,14 @@ export function PricingSection({ formData, setFormData }: PricingSectionProps) {
   })
   const [loading, setLoading] = useState(true)
   const hasLoadedPricing = useRef(false)
+  
+  // Forenklet modus state - hent fra pris_detaljer hvis det finnes
+  const [forenkletModus, setForenkletModus] = useState<ForenkletPrising>(() => {
+    if (formData.pris_detaljer?.forenklet_modus) {
+      return formData.pris_detaljer.forenklet_modus
+    }
+    return { aktivert: false, totalpris: 0 }
+  })
 
   const tjenesteLabels: Record<string, string> = {
     brannalarm: 'Brannalarm',
@@ -118,10 +132,21 @@ export function PricingSection({ formData, setFormData }: PricingSectionProps) {
   }, [formData.pris_detaljer])
 
   useEffect(() => {
-    if (Object.keys(pricingConfigs).length > 0) {
+    if (Object.keys(pricingConfigs).length > 0 && !forenkletModus.aktivert) {
       calculateTotalPrice()
     }
   }, [servicePricing, pricingConfigs])
+
+  // Oppdater formData når forenklet modus endres
+  useEffect(() => {
+    if (forenkletModus.aktivert) {
+      setFormData({
+        ...formData,
+        pris_detaljer: { forenklet_modus: forenkletModus },
+        total_pris: forenkletModus.totalpris
+      })
+    }
+  }, [forenkletModus])
 
   async function loadPricingConfigs() {
     try {
@@ -309,14 +334,39 @@ export function PricingSection({ formData, setFormData }: PricingSectionProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Calculator className="w-5 h-5 text-primary" />
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Prisberegning
-        </h3>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Calculator className="w-5 h-5 text-primary" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Prisberegning
+          </h3>
+        </div>
+        
+        {/* Toggle for forenklet modus */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={forenkletModus.aktivert}
+            onChange={(e) => {
+              const nyAktivert = e.target.checked
+              setForenkletModus({ 
+                aktivert: nyAktivert, 
+                totalpris: nyAktivert ? formData.total_pris || 0 : 0 
+              })
+              // Hvis vi deaktiverer forenklet modus, beregn priser på nytt
+              if (!nyAktivert && Object.keys(pricingConfigs).length > 0) {
+                calculateTotalPrice()
+              }
+            }}
+            className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary"
+          />
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Forenklet (kun totalpris)
+          </span>
+        </label>
       </div>
 
-      {/* Timespris input */}
+      {/* Timespris input - vises alltid */}
       <div className="card bg-gray-500/5">
         <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
           Timessats (ordinær arbeidstid 08.00 - 16.00)
@@ -336,6 +386,52 @@ export function PricingSection({ formData, setFormData }: PricingSectionProps) {
         </p>
       </div>
 
+      {/* Forenklet modus - kun totalpris */}
+      {forenkletModus.aktivert ? (
+        <div className="space-y-4">
+          {/* Vis valgte tjenester */}
+          <div className="card bg-gray-500/5">
+            <h4 className="font-medium text-gray-900 dark:text-white mb-3">Valgte tjenester</h4>
+            <div className="flex flex-wrap gap-2">
+              {selectedServices.map(tjeneste => (
+                <span 
+                  key={tjeneste}
+                  className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium"
+                >
+                  {tjenesteLabels[tjeneste]}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Totalpris input */}
+          <div className="card bg-primary/10 border-primary/20">
+            <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
+              Total pris (eks. mva)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={forenkletModus.totalpris || ''}
+                onChange={(e) => setForenkletModus({ 
+                  ...forenkletModus, 
+                  totalpris: parseFloat(e.target.value) || 0 
+                })}
+                className="input text-2xl font-bold"
+                min="0"
+                step="100"
+                placeholder="Skriv inn totalpris..."
+              />
+              <span className="text-xl text-gray-500 dark:text-gray-400">kr</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-2">
+              I forenklet modus spesifiserer du kun totalpris uten å angi antall enheter per tjeneste.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Detaljert prisberegning per tjeneste */}
       {selectedServices.map(tjeneste => {
         const config = pricingConfigs[tjeneste]
         const pricing = servicePricing[tjeneste]
@@ -783,6 +879,8 @@ export function PricingSection({ formData, setFormData }: PricingSectionProps) {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   )
 }

@@ -40,7 +40,7 @@ interface AlarmoverforingPDFData {
   opprettet_av_navn?: string
 }
 
-const VEKTER_UTRYKNING_PRIS = 1950
+const VEKTER_UTRYKNING_PRIS = 2400
 
 export async function generateAlarmoverforingPDF(data: AlarmoverforingPDFData) {
   const doc = new jsPDF()
