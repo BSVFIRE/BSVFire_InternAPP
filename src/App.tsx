@@ -35,6 +35,13 @@ import PowerOfficeTest from './pages/PowerOfficeTest'
 import { DropboxCallback } from './pages/DropboxCallback'
 import { AdminDropboxFolders } from './pages/AdminDropboxFolders'
 import { AdminAarsavslutning } from './pages/AdminAarsavslutning'
+import { AdminModulOversikt } from './pages/AdminModulOversikt'
+import { KsHmsDashboard } from './pages/KsHmsDashboard'
+import { KsHmsRisikovurderinger } from './pages/KsHmsRisikovurderinger'
+import { KsHmsHendelser } from './pages/KsHmsHendelser'
+import { KsHmsAvvik } from './pages/KsHmsAvvik'
+import { KsHmsOpplaering } from './pages/KsHmsOpplaering'
+import { KsHmsTiltak } from './pages/KsHmsTiltak'
 import { OfflineIndicator } from './components/OfflineIndicator'
 import { AIAssistant } from './components/AIAssistant'
 
@@ -120,7 +127,14 @@ function App() {
                     <Route path="/admin/ai-knowledge" element={<AdminAIKnowledge />} />
                     <Route path="/admin/dropbox-folders" element={<AdminDropboxFolders />} />
                     <Route path="/admin/aarsavslutning" element={<AdminAarsavslutning />} />
+                    <Route path="/admin/modul-oversikt" element={<AdminModulOversikt />} />
                     <Route path="/poweroffice-test" element={<PowerOfficeTest />} />
+                    <Route path="/ks-hms" element={<KsHmsDashboard />} />
+                    <Route path="/ks-hms/risikovurderinger" element={<KsHmsRisikovurderinger />} />
+                    <Route path="/ks-hms/hendelser" element={<KsHmsHendelser />} />
+                    <Route path="/ks-hms/avvik" element={<KsHmsAvvik />} />
+                    <Route path="/ks-hms/opplaering" element={<KsHmsOpplaering />} />
+                    <Route path="/ks-hms/tiltak" element={<KsHmsTiltak />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>

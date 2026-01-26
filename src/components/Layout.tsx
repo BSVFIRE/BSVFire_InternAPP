@@ -15,6 +15,7 @@ import {
   BookOpen,
   Settings,
   Shield,
+  ShieldCheck,
   Bug,
   Info,
   DollarSign,
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
+import { useModulTilgang } from '@/hooks/useModulTilgang'
 import { OfflineInfoDialog } from './OfflineInfoDialog'
 import { supabase } from '@/lib/supabase'
 import { checkDropboxStatus } from '@/services/dropboxServiceV2'
@@ -47,23 +49,25 @@ const navigation = [
   { name: 'Meldinger', href: '/meldinger', icon: Inbox },
   { name: 'Prosjekter', href: '/prosjekter', icon: FolderKanban },
   { name: 'Møter', href: '/moter', icon: Calendar },
+  { name: 'KS/HMS', href: '/ks-hms', icon: ShieldCheck },
   { name: 'Rapporter', href: '/rapporter', icon: FileText },
   { name: 'Teknisk', href: '/teknisk', icon: Settings },
   { name: 'Dokumentasjon', href: '/dokumentasjon', icon: BookOpen },
 ]
 
 const adminNavigation = [
-  { name: 'Årsavslutning', href: '/admin/aarsavslutning', icon: CalendarCheck },
-  { name: 'Prisadministrasjon', href: '/admin/prisadministrasjon', icon: DollarSign },
-  { name: 'PowerOffice', href: '/admin/poweroffice', icon: Building },
-  { name: 'Dropbox Mapper', href: '/admin/dropbox-folders', icon: Cloud },
-  { name: 'System Logger', href: '/admin/logger', icon: Bug },
-  { name: 'AI Embeddings', href: '/admin/ai-embeddings', icon: Sparkles },
-  { name: 'AI Kunnskapsbase', href: '/admin/ai-knowledge', icon: BookOpen },
+  { name: 'Modul Oversikt', href: '/admin/modul-oversikt', icon: Shield, modulKey: 'admin_modul_tilgang' },
+  { name: 'Årsavslutning', href: '/admin/aarsavslutning', icon: CalendarCheck, modulKey: 'admin_aarsavslutning' },
+  { name: 'Prisadministrasjon', href: '/admin/prisadministrasjon', icon: DollarSign, modulKey: 'admin_prisadministrasjon' },
+  { name: 'PowerOffice', href: '/admin/poweroffice', icon: Building, modulKey: 'admin_poweroffice' },
+  { name: 'Dropbox Mapper', href: '/admin/dropbox-folders', icon: Cloud, modulKey: 'admin_dropbox' },
+  { name: 'System Logger', href: '/admin/logger', icon: Bug, modulKey: 'admin_logger' },
+  { name: 'AI Embeddings', href: '/admin/ai-embeddings', icon: Sparkles, modulKey: 'admin_ai_embeddings' },
+  { name: 'AI Kunnskapsbase', href: '/admin/ai-knowledge', icon: BookOpen, modulKey: 'admin_ai_knowledge' },
 ]
 
-// Admin users (kun disse ser admin-menyen)
-const ADMIN_EMAILS = ['erik.skille@bsvfire.no']
+// Super admin users (har alltid full tilgang)
+const SUPER_ADMIN_EMAILS = ['erik.skille@bsvfire.no']
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation()
@@ -76,8 +80,12 @@ export function Layout({ children }: LayoutProps) {
   const [aktiveOppgaver, setAktiveOppgaver] = useState(0)
   const [dropboxConnected, setDropboxConnected] = useState<boolean | null>(null)
   
-  // Sjekk om bruker er admin
-  const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email)
+  // Bruk modul-tilgang hook
+  const { harTilgang, harAdminTilgang } = useModulTilgang()
+  
+  // Sjekk om bruker har tilgang til admin-seksjonen
+  const isSuperAdminUser = user?.email && SUPER_ADMIN_EMAILS.includes(user.email)
+  const showAdminSection = isSuperAdminUser || harAdminTilgang()
 
   // Sjekk Dropbox-status
   useEffect(() => {
@@ -291,8 +299,8 @@ export function Layout({ children }: LayoutProps) {
               )
             })}
 
-            {/* Admin Section - Kun synlig for administratorer */}
-            {isAdmin && (
+            {/* Admin Section - Kun synlig for brukere med admin-tilgang */}
+            {showAdminSection && (
               <>
                 <div className="pt-4 pb-2 px-3">
                   <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
@@ -300,26 +308,28 @@ export function Layout({ children }: LayoutProps) {
                     Administrator
                   </div>
                 </div>
-                {adminNavigation.map((item) => {
-                  const isActive = location.pathname === item.href
-                  return (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      onClick={() => setIsSidebarOpen(false)}
-                      className={`
-                        flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all min-h-[44px]
-                        ${isActive 
-                          ? 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30' 
-                          : 'text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10'
-                        }
-                      `}
-                    >
-                      <item.icon className="w-5 h-5" />
-                      {item.name}
-                    </Link>
-                  )
-                })}
+                {adminNavigation
+                  .filter(item => isSuperAdminUser || harTilgang(item.modulKey, 'se'))
+                  .map((item) => {
+                    const isActive = location.pathname === item.href
+                    return (
+                      <Link
+                        key={item.name}
+                        to={item.href}
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={`
+                          flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all min-h-[44px]
+                          ${isActive 
+                            ? 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30' 
+                            : 'text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10'
+                          }
+                        `}
+                      >
+                        <item.icon className="w-5 h-5" />
+                        {item.name}
+                      </Link>
+                    )
+                  })}
               </>
             )}
           </nav>
