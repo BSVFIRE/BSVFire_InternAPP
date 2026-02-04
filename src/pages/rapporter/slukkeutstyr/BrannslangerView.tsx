@@ -263,10 +263,9 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
           .from('evakueringsplan_status')
           .insert({ anlegg_id: anleggId, status: evakueringsplanStatus })
       }
-      alert('Evakueringsplan-status lagret!')
     } catch (error) {
-      console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre evakueringsplan-status')
+      console.error('Feil ved lagring av evakueringsplan:', error)
+      throw error
     }
   }
 
@@ -394,7 +393,10 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         }
       }
 
-      alert('Alle brannslanger lagret!')
+      // Lagre tilleggsinformasjon (evakueringsplan) sammen med brannslangene
+      await saveEvakueringsplan()
+      
+      alert('Alle endringer lagret!')
       // Last inn på nytt fra databasen for å få riktig state
       await loadSlanger()
       setHasUnsavedChanges(false)
@@ -1510,6 +1512,37 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingStatusIndex(null)}>
               <div className="bg-dark-100 rounded-lg p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
                 <h3 className="text-xl font-bold text-white mb-4">Velg status</h3>
+                
+                {/* Vis valgte statuser med mulighet til å fjerne */}
+                {sortedSlanger[editingStatusIndex]?.type_avvik && sortedSlanger[editingStatusIndex].type_avvik.length > 0 && (
+                  <div className="mb-4 p-4 bg-dark-200 rounded-lg">
+                    <p className="text-sm text-gray-400 mb-2">Valgte statuser:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {sortedSlanger[editingStatusIndex].type_avvik.map((avvik: string, idx: number) => (
+                        <div
+                          key={idx}
+                          className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 ${
+                            avvik === 'OK'
+                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          }`}
+                        >
+                          <span>{avvik || '(tom)'}</span>
+                          <button
+                            onClick={() => handleStatusChange(editingStatusIndex, avvik)}
+                            className="hover:bg-black/20 rounded p-0.5 transition-colors"
+                            title="Fjern denne statusen"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-2 gap-2 mb-6">
                   {statusAlternativer.map((avvik) => {
                     const isSelected = sortedSlanger[editingStatusIndex]?.type_avvik?.includes(avvik)
@@ -1617,16 +1650,18 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
           )}
           <button
             onClick={() => genererRapport('preview')}
-            disabled={loading || slanger.length === 0}
+            disabled={loading || slanger.length === 0 || hasUnsavedChanges}
             className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={hasUnsavedChanges ? 'Lagre endringer før du kan forhåndsvise rapport' : ''}
           >
             <Eye className="w-5 h-5" />
             Forhåndsvisning
           </button>
           <button
             onClick={() => genererRapport('save')}
-            disabled={loading || slanger.length === 0}
+            disabled={loading || slanger.length === 0 || hasUnsavedChanges}
             className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={hasUnsavedChanges ? 'Lagre endringer før du kan generere rapport' : ''}
           >
             <FileText className="w-5 h-5" />
             Generer rapport
@@ -1935,7 +1970,10 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
             </label>
             <select
               value={evakueringsplanStatus}
-              onChange={(e) => setEvakueringsplanStatus(e.target.value)}
+              onChange={(e) => {
+                setEvakueringsplanStatus(e.target.value)
+                setHasUnsavedChanges(true)
+              }}
               className="input"
             >
               <option value="">Velg status</option>
@@ -1947,20 +1985,19 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
           <div>
             <KontrolldatoVelger
               kontrolldato={kontrolldato}
-              onDatoChange={setKontrolldato}
+              onDatoChange={(dato) => {
+                setKontrolldato(dato)
+                setHasUnsavedChanges(true)
+              }}
               label="Kontrolldato for rapport"
             />
             <p className="text-xs text-gray-500 mt-2">
               Standard er dagens dato. Velg en annen dato hvis du trenger å tilbakedatere rapporten.
             </p>
           </div>
-          <button
-            onClick={saveEvakueringsplan}
-            className="btn-primary"
-          >
-            <Save className="w-4 h-4" />
-            Lagre tilleggsinformasjon
-          </button>
+          <p className="text-xs text-gray-400">
+            Tilleggsinformasjon lagres automatisk når du trykker "Lagre endringer".
+          </p>
         </div>
       </div>
 

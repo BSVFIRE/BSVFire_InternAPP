@@ -31,6 +31,8 @@ import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
 import { useModulTilgang } from '@/hooks/useModulTilgang'
 import { OfflineInfoDialog } from './OfflineInfoDialog'
+import { WhatsNewDialog } from './WhatsNewDialog'
+import { UpdateChecker } from './UpdateChecker'
 import { supabase } from '@/lib/supabase'
 import { checkDropboxStatus } from '@/services/dropboxServiceV2'
 
@@ -399,6 +401,12 @@ export function Layout({ children }: LayoutProps) {
         isOpen={showOfflineInfo} 
         onClose={() => setShowOfflineInfo(false)} 
       />
+
+      {/* What's New Dialog - vises automatisk ved ny versjon */}
+      <WhatsNewDialog />
+
+      {/* Update Checker - viser melding når ny versjon er tilgjengelig */}
+      <UpdateChecker />
     </div>
   )
 }

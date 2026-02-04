@@ -6,7 +6,7 @@ import { checkDropboxStatus, createDropboxFolder } from '@/services/dropboxServi
 import { KUNDE_FOLDERS } from '@/services/dropboxFolderStructure'
 import { formatDate } from '@/lib/utils'
 import { searchCompaniesByName, getCompanyByOrgNumber, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 const log = createLogger('Kunder')
 
@@ -58,6 +58,9 @@ interface RelatedData {
 }
 
 export function Kunder() {
+  const location = useLocation()
+  const state = location.state as { viewKundeId?: string } | null
+  
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -73,6 +76,19 @@ export function Kunder() {
   useEffect(() => {
     loadKunder()
   }, [showSkjulteKunder])
+
+  // Åpne kunde i visningsmodus hvis sendt via state (fra anlegg)
+  useEffect(() => {
+    if (state?.viewKundeId && kunder.length > 0) {
+      const kundeToView = kunder.find(k => k.id === state.viewKundeId)
+      if (kundeToView) {
+        setSelectedKunde(kundeToView)
+        setViewMode('view')
+        // Nullstill state for å unngå at det trigges på nytt
+        window.history.replaceState({}, document.title)
+      }
+    }
+  }, [state?.viewKundeId, kunder])
 
   // Restore scroll position when returning to list view
   useEffect(() => {
@@ -1579,9 +1595,18 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
 
           {/* Anlegg */}
           <div className="card">
-            <div className="flex items-center gap-2 mb-4">
-              <Building2 className="w-5 h-5 text-primary" />
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Anlegg</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary" />
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Anlegg</h2>
+              </div>
+              <button
+                onClick={() => navigate('/anlegg', { state: { createForKundeId: kunde.id, createForKundeNavn: kunde.navn } })}
+                className="btn-primary flex items-center gap-2 text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Nytt anlegg</span>
+              </button>
             </div>
             {loadingPriser ? (
               <div className="text-center py-4">
@@ -1594,7 +1619,7 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
                 {anlegg.map((a) => (
                   <button
                     key={a.id}
-                    onClick={() => navigate('/anlegg', { state: { viewAnleggId: a.id } })}
+                    onClick={() => navigate('/anlegg', { state: { viewAnleggId: a.id, returnTo: 'kunde', returnKundeId: kunde.id } })}
                     className="w-full text-left p-4 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors cursor-pointer"
                   >
                     <div className="flex items-start justify-between gap-3">

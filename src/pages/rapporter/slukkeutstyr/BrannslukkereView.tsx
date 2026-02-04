@@ -248,10 +248,9 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
           .from('evakueringsplan_status')
           .insert({ anlegg_id: anleggId, status: evakueringsplanStatus })
       }
-      alert('Evakueringsplan-status lagret!')
     } catch (error) {
-      console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre evakueringsplan-status')
+      console.error('Feil ved lagring av evakueringsplan:', error)
+      throw error
     }
   }
 
@@ -958,7 +957,10 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
         }
       }
 
-      alert('Alle brannslukkere lagret!')
+      // Lagre tilleggsinformasjon (evakueringsplan) sammen med brannslukkerne
+      await saveEvakueringsplan()
+      
+      alert('Alle endringer lagret!')
       await loadSlukkere()
       setHasUnsavedChanges(false)
     } catch (error) {
@@ -1631,16 +1633,18 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
           
           <button
             onClick={() => genererRapport('preview')}
-            disabled={loading || slukkere.length === 0}
+            disabled={loading || slukkere.length === 0 || hasUnsavedChanges}
             className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={hasUnsavedChanges ? 'Lagre endringer før du kan forhåndsvise rapport' : ''}
           >
             <Eye className="w-5 h-5" />
             Forhåndsvisning
           </button>
           <button
             onClick={() => genererRapport('save')}
-            disabled={loading || slukkere.length === 0}
+            disabled={loading || slukkere.length === 0 || hasUnsavedChanges}
             className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={hasUnsavedChanges ? 'Lagre endringer før du kan generere rapport' : ''}
           >
             <FileText className="w-5 h-5" />
             Generer rapport
@@ -1954,7 +1958,10 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
             </label>
             <select
               value={evakueringsplanStatus}
-              onChange={(e) => setEvakueringsplanStatus(e.target.value)}
+              onChange={(e) => {
+                setEvakueringsplanStatus(e.target.value)
+                setHasUnsavedChanges(true)
+              }}
               className="input"
             >
               <option value="">Velg status</option>
@@ -1966,20 +1973,19 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
           <div>
             <KontrolldatoVelger
               kontrolldato={kontrolldato}
-              onDatoChange={setKontrolldato}
+              onDatoChange={(dato) => {
+                setKontrolldato(dato)
+                setHasUnsavedChanges(true)
+              }}
               label="Kontrolldato for rapport"
             />
             <p className="text-xs text-gray-500 mt-2">
               Standard er dagens dato. Velg en annen dato hvis du trenger å tilbakedatere rapporten.
             </p>
           </div>
-          <button
-            onClick={saveEvakueringsplan}
-            className="btn-primary"
-          >
-            <Save className="w-4 h-4" />
-            Lagre tilleggsinformasjon
-          </button>
+          <p className="text-xs text-gray-400">
+            Tilleggsinformasjon lagres automatisk når du trykker "Lagre endringer".
+          </p>
         </div>
       </div>
 

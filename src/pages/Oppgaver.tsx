@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { Plus, Search, CheckSquare, Building2, User, Eye, Trash2, Calendar, Edit, LayoutGrid, Table } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import { formatDate, getDaysAgo } from '@/lib/utils'
 import { OPPGAVE_STATUSER, OPPGAVE_STATUS_COLORS, PRIORITETER, PRIORITET_COLORS } from '@/lib/constants'
 import { notifyNewOppgave } from '@/lib/telegramService'
 
@@ -24,6 +24,7 @@ interface Oppgave {
   forfallsdato: string | null
   opprettet_dato: string
   sist_oppdatert: string | null
+  sett_av_tekniker?: boolean
 }
 
 interface OppgaveMedDetaljer extends Oppgave {
@@ -551,7 +552,20 @@ export function Oppgaver() {
                     </div>
                   )}
                   <div className="pt-2 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
-                    <span className="text-xs text-gray-400">{formatDate(oppgave.opprettet_dato)}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">{formatDate(oppgave.opprettet_dato)}</span>
+                      {getDaysAgo(oppgave.opprettet_dato) > 0 && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                          getDaysAgo(oppgave.opprettet_dato) > 30 
+                            ? 'bg-red-500/20 text-red-400' 
+                            : getDaysAgo(oppgave.opprettet_dato) > 14 
+                              ? 'bg-yellow-500/20 text-yellow-400' 
+                              : 'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {getDaysAgo(oppgave.opprettet_dato)}d
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={(e) => {
@@ -606,19 +620,31 @@ export function Oppgaver() {
                 </tr>
               </thead>
               <tbody>
-                {sortedOppgaver.map((oppgave) => (
+                {sortedOppgaver.map((oppgave) => {
+                  const erNy = oppgave.sett_av_tekniker === false
+                  return (
                   <tr
                     key={oppgave.id}
                     onClick={() => {
                       setSelectedOppgave(oppgave)
                       setViewMode('edit')
                     }}
-                    className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer"
+                    className={`border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer ${
+                      erNy ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''
+                    }`}
                   >
                     <td className="py-3 px-4">
-                      <span className="text-primary font-mono font-medium text-sm">
-                        {oppgave.oppgave_nummer}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {erNy && (
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                          </span>
+                        )}
+                        <span className="text-primary font-mono font-medium text-sm">
+                          {oppgave.oppgave_nummer}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -675,8 +701,21 @@ export function Oppgaver() {
                         {oppgave.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-gray-500 dark:text-gray-300 text-sm">
-                      {formatDate(oppgave.opprettet_dato)}
+                    <td className="py-3 px-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500 dark:text-gray-300">{formatDate(oppgave.opprettet_dato)}</span>
+                        {getDaysAgo(oppgave.opprettet_dato) > 0 && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            getDaysAgo(oppgave.opprettet_dato) > 30 
+                              ? 'bg-red-500/20 text-red-400' 
+                              : getDaysAgo(oppgave.opprettet_dato) > 14 
+                                ? 'bg-yellow-500/20 text-yellow-400' 
+                                : 'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {getDaysAgo(oppgave.opprettet_dato)}d
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
@@ -707,7 +746,8 @@ export function Oppgaver() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

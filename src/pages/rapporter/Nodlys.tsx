@@ -1186,8 +1186,16 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     const isEditing = editingCell?.id === nodlysId && editingCell?.field === field
     const [showSuggestions, setShowSuggestions] = useState(false)
     const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
+    const [localValue, setLocalValue] = useState(value || '')
     const inputRef = useRef<HTMLInputElement>(null)
     const selectRef = useRef<HTMLSelectElement>(null)
+
+    // Synkroniser localValue når editing starter
+    useEffect(() => {
+      if (isEditing) {
+        setLocalValue(value || '')
+      }
+    }, [isEditing, value])
 
     // Håndter autocomplete for fordeling, kurs, produsent
     const isAutocompleteField = field === 'fordeling' || field === 'kurs' || field === 'produsent'
@@ -1198,12 +1206,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       if (isEditing && isAutocompleteField) {
         const uniqueValues = getUniqueValues(field as 'fordeling' | 'kurs' | 'produsent')
         const filtered = uniqueValues.filter(v => 
-          v.toLowerCase().startsWith(editValue.toLowerCase())
+          v.toLowerCase().startsWith(localValue.toLowerCase())
         )
         setFilteredSuggestions(filtered)
-        setShowSuggestions(filtered.length > 0 && editValue.length > 0)
+        setShowSuggestions(filtered.length > 0 && localValue.length > 0)
       }
-    }, [editValue, isEditing, isAutocompleteField, field])
+    }, [localValue, isEditing, isAutocompleteField, field])
 
     // Focus input/select without scrolling
     useEffect(() => {
@@ -1238,10 +1246,10 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         return (
           <select
             ref={selectRef}
-            value={editValue}
+            value={localValue}
             onChange={(e) => {
               const newValue = e.target.value
-              setEditValue(newValue)
+              setLocalValue(newValue)
               // Lagre umiddelbart når bruker velger fra dropdown
               setTimeout(() => {
                 const updatedList = nodlysListe.map(n => 
@@ -1250,7 +1258,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                 setNodlysListe(updatedList)
                 trackChange(nodlysId, field, newValue || null)
                 setEditingCell(null)
-                setEditValue('')
               }, 0)
             }}
             onBlur={() => {
@@ -1280,10 +1287,10 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         return (
           <select
             ref={selectRef}
-            value={editValue}
+            value={localValue}
             onChange={(e) => {
               const newValue = e.target.value
-              setEditValue(newValue)
+              setLocalValue(newValue)
               // Lagre umiddelbart når bruker velger fra dropdown
               setTimeout(() => {
                 const updatedList = nodlysListe.map(n => 
@@ -1292,7 +1299,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                 setNodlysListe(updatedList)
                 trackChange(nodlysId, field, newValue || null)
                 setEditingCell(null)
-                setEditValue('')
               }, 0)
             }}
             onBlur={() => {
@@ -1324,8 +1330,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
             <input
               ref={inputRef}
               type="text"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
+              value={localValue}
+              onChange={(e) => setLocalValue(e.target.value)}
               onBlur={(e) => {
                 // Sjekk om klikket var på en suggestion
                 const relatedTarget = e.relatedTarget as HTMLElement
@@ -1334,13 +1340,24 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                 }
                 // Delay to allow click events to register first
                 setTimeout(() => {
-                  saveInlineEdit(nodlysId, field)
+                  // Lagre med localValue
+                  const updatedList = nodlysListe.map(n => 
+                    n.id === nodlysId ? { ...n, [field]: localValue || null } : n
+                  )
+                  setNodlysListe(updatedList)
+                  trackChange(nodlysId, field, localValue || null)
+                  setEditingCell(null)
                   setShowSuggestions(false)
                 }, 150)
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  saveInlineEdit(nodlysId, field)
+                  const updatedList = nodlysListe.map(n => 
+                    n.id === nodlysId ? { ...n, [field]: localValue || null } : n
+                  )
+                  setNodlysListe(updatedList)
+                  trackChange(nodlysId, field, localValue || null)
+                  setEditingCell(null)
                   setShowSuggestions(false)
                 }
                 if (e.key === 'Escape') {
@@ -1372,7 +1389,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                       trackChange(nodlysId, field, suggestion)
                       
                       setEditingCell(null)
-                      setEditValue('')
                     }}
                   >
                     {suggestion}
@@ -1384,21 +1400,34 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         )
       }
 
-      // Standard text input for other fields
+      // Standard text input for other fields (inkludert plassering)
       return (
         <input
           ref={inputRef}
           type="text"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
+          value={localValue}
+          onChange={(e) => setLocalValue(e.target.value)}
           onBlur={() => {
             // Delay to allow click events to register first
             setTimeout(() => {
-              saveInlineEdit(nodlysId, field)
+              // Lagre med localValue
+              const updatedList = nodlysListe.map(n => 
+                n.id === nodlysId ? { ...n, [field]: localValue || null } : n
+              )
+              setNodlysListe(updatedList)
+              trackChange(nodlysId, field, localValue || null)
+              setEditingCell(null)
             }, 150)
           }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') saveInlineEdit(nodlysId, field)
+            if (e.key === 'Enter') {
+              const updatedList = nodlysListe.map(n => 
+                n.id === nodlysId ? { ...n, [field]: localValue || null } : n
+              )
+              setNodlysListe(updatedList)
+              trackChange(nodlysId, field, localValue || null)
+              setEditingCell(null)
+            }
             if (e.key === 'Escape') cancelEditing()
           }}
           className="input py-1 px-2 text-sm w-full"

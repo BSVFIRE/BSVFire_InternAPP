@@ -118,7 +118,10 @@ export function Anlegg() {
   const state = location.state as { 
     editAnleggId?: string; 
     viewAnleggId?: string;
+    createForKundeId?: string;
+    createForKundeNavn?: string;
     returnTo?: string;
+    returnKundeId?: string;
     kontrollplanState?: any;
   } | null
   
@@ -143,10 +146,21 @@ export function Anlegg() {
     return saved === 'true'
   })
   const [todoCountsMap, setTodoCountsMap] = useState<Record<string, number>>({})
+  const [preselectedKundeId, setPreselectedKundeId] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
   }, [])
+
+  // Åpne opprettelsesmodus med forhåndsvalgt kunde hvis sendt via state
+  useEffect(() => {
+    if (state?.createForKundeId && kunder.length > 0) {
+      setPreselectedKundeId(state.createForKundeId)
+      setViewMode('create')
+      // Nullstill state for å unngå at det trigges på nytt
+      window.history.replaceState({}, document.title)
+    }
+  }, [state?.createForKundeId, kunder])
 
   // Helper-funksjon for å lagre scroll-posisjon
   const saveScrollPosition = () => {
@@ -401,7 +415,9 @@ export function Anlegg() {
       <AnleggForm
         anlegg={selectedAnlegg}
         kunder={kunder}
+        preselectedKundeId={preselectedKundeId}
         onSave={async (createdAnleggNavn) => {
+          setPreselectedKundeId(null) // Nullstill forhåndsvalgt kunde etter lagring
           // Hvis vi redigerer et eksisterende anlegg, gå tilbake til visning
           if (selectedAnlegg) {
             // Oppdater selectedAnlegg med fersk data fra databasen
@@ -437,6 +453,7 @@ export function Anlegg() {
           }
         }}
         onCancel={() => {
+          setPreselectedKundeId(null) // Nullstill forhåndsvalgt kunde ved avbryt
           // Hvis vi redigerer et eksisterende anlegg, gå tilbake til visning
           if (selectedAnlegg) {
             setViewMode('view')
@@ -468,6 +485,9 @@ export function Anlegg() {
                 kontrollplanState: state.kontrollplanState
               }
             })
+          } else if (state?.returnTo === 'kunde' && state?.returnKundeId) {
+            // Hvis vi kom fra kundedetaljer, naviger tilbake dit
+            navigate('/kunder', { state: { viewKundeId: state.returnKundeId } })
           } else {
             setViewMode('list')
             setSelectedAnlegg(null)
@@ -938,11 +958,12 @@ export function Anlegg() {
 interface AnleggFormProps {
   anlegg: Anlegg | null
   kunder: Kunde[]
+  preselectedKundeId?: string | null
   onSave: (createdAnleggNavn?: string) => void
   onCancel: () => void
 }
 
-function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
+function AnleggForm({ anlegg, kunder, preselectedKundeId, onSave, onCancel }: AnleggFormProps) {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
     kundenr: anlegg?.kundenr || '',
@@ -1007,6 +1028,17 @@ function AnleggForm({ anlegg, kunder, onSave, onCancel }: AnleggFormProps) {
       loadAnleggsKontakter()
     }
   }, [anlegg])
+
+  // Sett forhåndsvalgt kunde hvis sendt fra kundedetaljer
+  useEffect(() => {
+    if (preselectedKundeId && !anlegg && kunder.length > 0) {
+      const kunde = kunder.find(k => k.id === preselectedKundeId)
+      if (kunde) {
+        setFormData(prev => ({ ...prev, kundenr: preselectedKundeId }))
+        setKundeSok(kunde.navn)
+      }
+    }
+  }, [preselectedKundeId, anlegg, kunder])
 
   // Initialiser kundesøk med valgt kunde og hent kundenummer
   useEffect(() => {
