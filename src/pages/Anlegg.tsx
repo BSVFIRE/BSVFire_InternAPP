@@ -45,6 +45,8 @@ interface Anlegg {
   ekstern_epost: string | null
   ekstern_kontaktperson_id: string | null
   dropbox_synced: boolean | null
+  status_oppdatert_av: string | null
+  status_oppdatert_av_navn: string | null
 }
 
 interface Kunde {
@@ -494,6 +496,67 @@ export function Anlegg() {
           }
         }}
         onTodoChange={() => loadTodoCounts()}
+        onStatusChange={async (newStatus: string) => {
+          // Lagre anlegg-ID før async operasjoner for å unngå closure-problemer
+          const anleggId = selectedAnlegg.id
+          
+          try {
+            // Hent innlogget brukers info
+            const { data: { user } } = await supabase.auth.getUser()
+            let teknikerNavn: string | null = null
+            let teknikerId: string | null = null
+            
+            if (user?.email) {
+              const { data: ansatt } = await supabase
+                .from('ansatte')
+                .select('id, navn')
+                .eq('epost', user.email)
+                .single()
+              
+              if (ansatt) {
+                teknikerId = ansatt.id
+                teknikerNavn = ansatt.navn
+              }
+            }
+            
+            const { error } = await supabase
+              .from('anlegg')
+              .update({ 
+                kontroll_status: newStatus, 
+                sist_oppdatert: new Date().toISOString(),
+                status_oppdatert_av: teknikerId,
+                status_oppdatert_av_navn: teknikerNavn
+              })
+              .eq('id', anleggId)
+            
+            if (error) throw error
+            
+            // Oppdater selectedAnlegg med ny status og tekniker-info
+            // Bruk funksjonell oppdatering for å unngå stale closure
+            setSelectedAnlegg(prev => prev ? { 
+              ...prev, 
+              kontroll_status: newStatus,
+              status_oppdatert_av: teknikerId,
+              status_oppdatert_av_navn: teknikerNavn
+            } : prev)
+            
+            // Oppdater også anlegget i listen
+            setAnlegg(prev => prev.map(a => 
+              a.id === anleggId 
+                ? { 
+                    ...a, 
+                    kontroll_status: newStatus, 
+                    sist_oppdatert: new Date().toISOString(),
+                    status_oppdatert_av: teknikerId,
+                    status_oppdatert_av_navn: teknikerNavn
+                  }
+                : a
+            ))
+          } catch (error) {
+            console.error('Feil ved oppdatering av status:', error)
+            alert('Kunne ikke oppdatere status')
+          }
+        }}
       />
     )
   }
@@ -2522,9 +2585,10 @@ interface AnleggDetailsProps {
   onEdit: () => void
   onClose: () => void
   onTodoChange?: () => void
+  onStatusChange?: (newStatus: string) => Promise<void>
 }
 
-function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose, onTodoChange }: AnleggDetailsProps) {
+function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose, onTodoChange, onStatusChange }: AnleggDetailsProps) {
   const [kontaktpersoner, setKontaktpersoner] = useState<Kontaktperson[]>([])
   const [dokumenter, setDokumenter] = useState<Dokument[]>([])
   const [interneNotater, setInterneNotater] = useState<InternKommentar[]>([])
@@ -2876,6 +2940,7 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose, onTodoChange
       onSettPrimaer={settPrimaerKontakt}
       onOpprettNotat={opprettInterntNotat}
       onTodoChange={onTodoChange}
+      onStatusChange={onStatusChange}
     />
   )
 }
@@ -2899,9 +2964,10 @@ interface AnleggDetailsComponentProps {
   onSettPrimaer: (kontaktpersonId: string) => Promise<void>
   onOpprettNotat: (notat: string, mottakerId?: string) => Promise<boolean>
   onTodoChange?: () => void
+  onStatusChange?: (newStatus: string) => Promise<void>
 }
 
-function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interneNotater, ordre, oppgaver, loadingKontakter, loadingDokumenter, loadingNotater, loadingOrdre, loadingOppgaver, onEdit, onClose, onSettPrimaer, onOpprettNotat, onTodoChange }: AnleggDetailsComponentProps) {
+function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interneNotater, ordre, oppgaver, loadingKontakter, loadingDokumenter, loadingNotater, loadingOrdre, loadingOppgaver, onEdit, onClose, onSettPrimaer, onOpprettNotat, onTodoChange, onStatusChange }: AnleggDetailsComponentProps) {
   const navigate = useNavigate()
   const [nyttNotat, setNyttNotat] = useState('')
   const [lagreNotat, setLagreNotat] = useState(false)
@@ -2915,6 +2981,20 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
   const [loadingDropboxFiles, setLoadingDropboxFiles] = useState(false)
   const [selectedDropboxFiles, setSelectedDropboxFiles] = useState<Set<string>>(new Set())
   const [downloadingDropbox, setDownloadingDropbox] = useState(false)
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
+  const statusDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Lukk status-dropdown når man klikker utenfor
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setShowStatusDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Last inn teknikere for dropdown
   useEffect(() => {
@@ -3186,12 +3266,58 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
               </div>
               <div>
                 <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Status</p>
-                {anlegg.kontroll_status ? (
-                  <span className={`badge ${ANLEGG_STATUS_COLORS[anlegg.kontroll_status] || 'badge-info'}`}>
-                    {anlegg.kontroll_status}
-                  </span>
-                ) : (
-                  <span className="text-gray-400 dark:text-gray-500">-</span>
+                <div className="relative" ref={statusDropdownRef}>
+                  <button
+                    onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                    disabled={updatingStatus}
+                    className={`badge ${ANLEGG_STATUS_COLORS[anlegg.kontroll_status || ''] || 'badge-info'} cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1`}
+                    title="Klikk for å endre status"
+                  >
+                    {updatingStatus ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : null}
+                    {anlegg.kontroll_status || 'Velg status'}
+                    <Edit className="w-3 h-3 ml-1" />
+                  </button>
+                  
+                  {showStatusDropdown && (
+                    <div className="absolute z-50 mt-1 w-48 bg-white dark:bg-dark-200 rounded-lg shadow-lg border border-gray-200 dark:border-dark-100 py-1">
+                      {Object.values(ANLEGG_STATUSER).map((status) => (
+                        <button
+                          key={status}
+                          onClick={async () => {
+                            if (onStatusChange && status !== anlegg.kontroll_status) {
+                              setUpdatingStatus(true)
+                              await onStatusChange(status)
+                              setUpdatingStatus(false)
+                            }
+                            setShowStatusDropdown(false)
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors flex items-center gap-2 ${
+                            status === anlegg.kontroll_status ? 'bg-gray-50 dark:bg-dark-100 font-medium' : ''
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${
+                            status === 'Ikke utført' ? 'bg-red-500' :
+                            status === 'Utført' ? 'bg-green-500' :
+                            status === 'Planlagt' ? 'bg-blue-500' :
+                            status === 'Utsatt' ? 'bg-yellow-500' :
+                            status === 'Oppsagt' ? 'bg-red-500' : 'bg-gray-500'
+                          }`}></span>
+                          {status}
+                          {status === anlegg.kontroll_status && (
+                            <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {anlegg.status_oppdatert_av_navn && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+                    <User className="w-3 h-3" />
+                    Siste status oppdatering utført av: <span className="font-medium">{anlegg.status_oppdatert_av_navn}</span>
+                  </p>
                 )}
               </div>
               <div>

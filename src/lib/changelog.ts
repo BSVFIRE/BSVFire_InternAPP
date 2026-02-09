@@ -10,6 +10,25 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '2.5.0',
+    date: '2026-02-09',
+    title: 'Rask statusendring på anlegg',
+    changes: [
+      {
+        type: 'feature',
+        description: 'Endre status direkte fra anleggsvisningen uten å gå inn i redigeringsmodus - klikk på status-badgen'
+      },
+      {
+        type: 'feature',
+        description: 'Viser nå hvem som sist endret status på anlegget under Kontrollinfo'
+      },
+      {
+        type: 'improvement',
+        description: 'Status-dropdown med fargeindikator for hver status'
+      }
+    ]
+  },
+  {
     version: '2.4.0',
     date: '2026-02-04',
     title: 'Forbedret brukeropplevelse',
