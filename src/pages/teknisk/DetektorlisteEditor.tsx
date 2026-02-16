@@ -48,6 +48,7 @@ export function DetektorlisteEditor({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [currentListeId, setCurrentListeId] = useState<string | undefined>(detektorlisteId)
@@ -87,6 +88,9 @@ export function DetektorlisteEditor({
 
     // Ikke autolagre hvis vi nettopp lastet data
     if (loading) return
+
+    // Marker at det er ulagrede endringer
+    setHasUnsavedChanges(true)
 
     saveTimeoutRef.current = setTimeout(() => {
       if (servicetekniker) {
@@ -261,6 +265,7 @@ export function DetektorlisteEditor({
       }
 
       setLastSaved(new Date())
+      setHasUnsavedChanges(false)
     } catch (error: any) {
       console.error('Feil ved autolagring:', error)
       
@@ -447,11 +452,17 @@ export function DetektorlisteEditor({
               <span className="text-sm text-blue-500">Lagrer...</span>
             </div>
           )}
-          {lastSaved && !saving && (
+          {lastSaved && !saving && !hasUnsavedChanges && (
             <div className="flex items-center gap-2 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-lg">
               <span className="text-sm text-green-500">
                 Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
               </span>
+            </div>
+          )}
+          {hasUnsavedChanges && !saving && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+              <span className="text-sm text-yellow-500">Ulagrede endringer</span>
             </div>
           )}
           <button
@@ -463,11 +474,11 @@ export function DetektorlisteEditor({
           </button>
           <button
             onClick={lagreDetektorliste}
-            disabled={saving}
-            className="btn-primary flex items-center gap-2"
+            disabled={saving || !hasUnsavedChanges}
+            className={`flex items-center gap-2 ${hasUnsavedChanges ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'}`}
           >
             <Save className="w-5 h-5" />
-            {saving ? 'Lagrer...' : 'Lagre'}
+            {saving ? 'Lagrer...' : hasUnsavedChanges ? 'Lagre' : 'Lagret'}
           </button>
         </div>
       </div>
@@ -757,6 +768,49 @@ export function DetektorlisteEditor({
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Legg til rader knapp nederst */}
+        <div className="flex justify-center items-center gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
+          <button
+            onClick={() => addDetektorRader(5)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Legg til 5 rader
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500 dark:text-gray-400">eller</span>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              placeholder="Antall"
+              className="input w-20 py-2 text-center"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const value = parseInt((e.target as HTMLInputElement).value)
+                  if (value > 0 && value <= 100) {
+                    addDetektorRader(value);
+                    (e.target as HTMLInputElement).value = ''
+                  }
+                }
+              }}
+            />
+            <button
+              onClick={(e) => {
+                const input = (e.currentTarget.previousElementSibling as HTMLInputElement)
+                const value = parseInt(input.value)
+                if (value > 0 && value <= 100) {
+                  addDetektorRader(value)
+                  input.value = ''
+                }
+              }}
+              className="btn-secondary py-2 px-3"
+            >
+              Legg til
+            </button>
+          </div>
         </div>
       </div>
     </div>
