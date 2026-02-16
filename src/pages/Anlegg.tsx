@@ -36,6 +36,7 @@ interface Anlegg {
   nodlys_fullfort: boolean | null
   roykluker_fullfort: boolean | null
   slukkeutstyr_fullfort: boolean | null
+  forstehjelp_fullfort: boolean | null
   ekstern_fullfort: boolean | null
   skjult: boolean | null
   ekstern_type: string | null
@@ -1045,6 +1046,7 @@ function AnleggForm({ anlegg, kunder, preselectedKundeId, onSave, onCancel }: An
     nodlys_fullfort: anlegg?.nodlys_fullfort || false,
     roykluker_fullfort: anlegg?.roykluker_fullfort || false,
     slukkeutstyr_fullfort: anlegg?.slukkeutstyr_fullfort || false,
+    forstehjelp_fullfort: anlegg?.forstehjelp_fullfort || false,
     ekstern_fullfort: anlegg?.ekstern_fullfort || false,
     ekstern_type: anlegg?.ekstern_type || '',
     ekstern_firma: anlegg?.ekstern_firma || '',
@@ -2264,6 +2266,7 @@ function AnleggForm({ anlegg, kunder, preselectedKundeId, onSave, onCancel }: An
                     if (t === 'Nødlys') return formData.nodlys_fullfort
                     if (t === 'Røykluker') return formData.roykluker_fullfort
                     if (t === 'Slukkeutstyr') return formData.slukkeutstyr_fullfort
+                    if (t === 'Førstehjelp') return formData.forstehjelp_fullfort
                     if (t === 'Ekstern') return formData.ekstern_fullfort
                     return false
                   }).length} av {formData.kontroll_type.length} fullført)
@@ -2275,6 +2278,7 @@ function AnleggForm({ anlegg, kunder, preselectedKundeId, onSave, onCancel }: An
                                    type === 'Nødlys' ? 'nodlys_fullfort' :
                                    type === 'Røykluker' ? 'roykluker_fullfort' :
                                    type === 'Slukkeutstyr' ? 'slukkeutstyr_fullfort' :
+                                   type === 'Førstehjelp' ? 'forstehjelp_fullfort' :
                                    type === 'Ekstern' ? 'ekstern_fullfort' : null
                   
                   if (!statusKey) return null
@@ -3120,7 +3124,8 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
       'Nødlys': 'nodlys',
       'Brannalarm': 'brannalarm',
       'Slukkeutstyr': 'slukkeutstyr',
-      'Røykluker': 'roykluker'
+      'Røykluker': 'roykluker',
+      'Førstehjelp': 'forstehjelp'
     }
     
     const rapportType = rapportTypeMap[type]
@@ -3326,7 +3331,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                   <div className="flex flex-wrap gap-2">
                     {anlegg.kontroll_type.map((type, idx) => {
                       // Alle hovedkontrolltyper er nå klikkbare
-                      const isClickable = ['Nødlys', 'Brannalarm', 'Slukkeutstyr', 'Røykluker'].includes(type)
+                      const isClickable = ['Nødlys', 'Brannalarm', 'Slukkeutstyr', 'Røykluker', 'Førstehjelp'].includes(type)
                       return (
                         <button
                           key={idx}

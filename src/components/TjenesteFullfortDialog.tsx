@@ -1,7 +1,7 @@
 import { CheckCircle } from 'lucide-react'
 
 interface TjenesteFullfortDialogProps {
-  tjeneste: 'Brannalarm' | 'Nødlys' | 'Røykluker' | 'Slukkeutstyr'
+  tjeneste: 'Brannalarm' | 'Nødlys' | 'Røykluker' | 'Slukkeutstyr' | 'Førstehjelp'
   onConfirm: () => void
   onCancel: () => void
   isOpen: boolean

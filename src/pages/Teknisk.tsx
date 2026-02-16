@@ -4,6 +4,7 @@ import { DetektorlisteView } from './teknisk/DetektorlisteView'
 import { ServicerapportView } from './teknisk/ServicerapportView'
 import { AlarmorganiseringView } from './teknisk/AlarmorganiseringView'
 import { AddresseringView } from './teknisk/AddresseringView'
+import { ProsjekteringView } from './teknisk/ProsjekteringView'
 import { useLocation } from 'react-router-dom'
 
 type TekniskView = 'oversikt' | 'detektorliste' | 'alarm' | 'prosjektering' | 'servicerapport' | 'addressering'
@@ -46,6 +47,10 @@ export function Teknisk() {
 
   if (activeView === 'addressering') {
     return <AddresseringView onBack={() => setActiveView('oversikt')} />
+  }
+
+  if (activeView === 'prosjektering') {
+    return <ProsjekteringView onBack={() => setActiveView('oversikt')} />
   }
 
   return (
@@ -122,7 +127,10 @@ export function Teknisk() {
           <p className="text-primary text-sm font-medium">Klikk for å åpne →</p>
         </button>
 
-        <div className="card hover:border-primary/50 transition-colors cursor-pointer">
+        <button
+          onClick={() => setActiveView('prosjektering')}
+          className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
+        >
           <div className="flex items-center gap-4 mb-4">
             <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
               <FileText className="w-6 h-6 text-blue-500" />
@@ -132,8 +140,8 @@ export function Teknisk() {
               <p className="text-sm text-gray-400 dark:text-gray-400">Prosjekteringsverktøy</p>
             </div>
           </div>
-          <p className="text-gray-400 dark:text-gray-500 text-sm">Kommer snart...</p>
-        </div>
+          <p className="text-primary text-sm font-medium">Klikk for å åpne →</p>
+        </button>
       </div>
 
       {/* Info box */}

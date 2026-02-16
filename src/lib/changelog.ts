@@ -10,6 +10,33 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '2.6.0',
+    date: '2026-02-16',
+    title: 'Førstehjelp-modul',
+    changes: [
+      {
+        type: 'feature',
+        description: 'Ny Førstehjelp-modul for registrering og kontroll av førstehjelpsutstyr'
+      },
+      {
+        type: 'feature',
+        description: 'Førstehjelp lagt til i Tjenestestatus på anleggsvisningen'
+      },
+      {
+        type: 'feature',
+        description: 'Generer rapport-funksjon med lagring til Storage og Dropbox'
+      },
+      {
+        type: 'feature',
+        description: 'Dialog for å sette Førstehjelp-kontroll til utført ved rapportgenerering'
+      },
+      {
+        type: 'improvement',
+        description: 'Profesjonell PDF-rapport med korrekt footer og sidetall'
+      }
+    ]
+  },
+  {
     version: '2.5.0',
     date: '2026-02-09',
     title: 'Rask statusendring på anlegg',

@@ -8,6 +8,7 @@ export const KONTROLLTYPER = [
   'Nødlys',
   'Slukkeutstyr',
   'Røykluker',
+  'Førstehjelp',
   'Ekstern'
 ] as const
 

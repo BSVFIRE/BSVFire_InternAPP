@@ -20,6 +20,7 @@ interface Anlegg {
   nodlys_fullfort: boolean | null
   roykluker_fullfort: boolean | null
   slukkeutstyr_fullfort: boolean | null
+  forstehjelp_fullfort: boolean | null
   ekstern_fullfort: boolean | null
 }
 
