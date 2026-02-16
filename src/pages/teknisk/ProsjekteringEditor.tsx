@@ -1045,7 +1045,7 @@ function SystemplanSection({ data, setData }: { data: SystemplanData, setData: R
 }
 
 // Integrasjon Section (placeholder)
-function IntegrasjonSection({ prosjekteringId }: { prosjekteringId?: string }) {
+function IntegrasjonSection({ prosjekteringId: _prosjekteringId }: { prosjekteringId?: string }) {
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Integrasjoner med andre systemer</h2>
@@ -1061,7 +1061,7 @@ function IntegrasjonSection({ prosjekteringId }: { prosjekteringId?: string }) {
 }
 
 // Sjekkliste Section (placeholder)
-function SjekklisteSection({ prosjekteringId }: { prosjekteringId?: string }) {
+function SjekklisteSection({ prosjekteringId: _prosjekteringId }: { prosjekteringId?: string }) {
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Prosjekteringssjekkliste</h2>
