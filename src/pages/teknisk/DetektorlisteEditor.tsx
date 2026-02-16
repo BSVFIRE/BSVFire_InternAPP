@@ -51,6 +51,11 @@ export function DetektorlisteEditor({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [currentListeId, setCurrentListeId] = useState<string | undefined>(detektorlisteId)
+
+  // Synkroniser currentListeId med detektorlisteId prop
+  useEffect(() => {
+    setCurrentListeId(detektorlisteId)
+  }, [detektorlisteId])
   
   // Header fields
   const [revisjon, setRevisjon] = useState('1.0')
@@ -132,8 +137,12 @@ export function DetektorlisteEditor({
 
       if (itemsError) throw itemsError
 
+      // Sorter etter adresse som standard
+      const loadedItems = (items || []).sort((a, b) => 
+        (a.adresse || '').localeCompare(b.adresse || '', 'nb-NO', { numeric: true })
+      )
+      
       // Legg til tomme rader hvis det er få detektorer
-      const loadedItems = items || []
       const tommeRader = (loadedItems.length < 3) 
         ? Array.from({ length: 3 - loadedItems.length }, () => ({
             adresse: '',
