@@ -101,6 +101,12 @@ export function AdminSalg() {
   const [editForm, setEditForm] = useState<Partial<SalgsLead>>({})
   const [showFilters, setShowFilters] = useState(true)
   
+  // E-post generator state
+  const [emailModalLead, setEmailModalLead] = useState<SalgsLead | null>(null)
+  const [referanseKunder, setReferanseKunder] = useState<{navn: string, poststed: string}[]>([])
+  const [generertEpost, setGenerertEpost] = useState<{emne: string, innhold: string} | null>(null)
+  const [kopiert, setKopiert] = useState(false)
+  
   // Last lagrede leads ved oppstart
   useEffect(() => {
     loadLeads()
@@ -291,6 +297,94 @@ export function AdminSalg() {
 
   function erAlleredeLead(orgnr: string): boolean {
     return leads.some(l => l.organisasjonsnummer === orgnr)
+  }
+
+  // E-post generator funksjon
+  async function genererSalgsEpost(lead: SalgsLead) {
+    setEmailModalLead(lead)
+    setKopiert(false)
+    
+    // Hent eksisterende kunder i samme område (postnummer eller kommune)
+    try {
+      const { data: kunder } = await supabase
+        .from('customer')
+        .select('name, city')
+        .or(`postal_code.eq.${lead.forretningsadresse_postnummer},city.ilike.%${lead.forretningsadresse_poststed}%`)
+        .limit(5)
+      
+      setReferanseKunder(kunder?.map(k => ({ navn: k.name, poststed: k.city })) || [])
+    } catch (err) {
+      console.error('Kunne ikke hente referansekunder:', err)
+      setReferanseKunder([])
+    }
+    
+    // Generer e-post
+    const kontaktNavn = lead.kontaktperson_navn || lead.styreleder || 'Styret'
+    const orgType = lead.organisasjonsform_beskrivelse?.toLowerCase() || 'boligselskap'
+    const kundeReferanser = referanseKunder.length > 0 
+      ? `\n\nVi har allerede gleden av å betjene flere ${orgType}er i deres område, blant annet ${referanseKunder.slice(0, 3).map(k => k.navn).join(', ')}.`
+      : ''
+    
+    const emne = `Har dere full kontroll på lovpålagt brannvern?`
+    
+    const innhold = `Hei ${kontaktNavn},
+
+Jeg tar kontakt på vegne av Brannteknisk Service og Vedlikehold AS (BSV Fire) – en lokal totalleverandør innen brannvern og sikkerhet i Bergen.
+
+Som styre i et ${orgType} har dere et betydelig ansvar for at lovpålagte kontroller gjennomføres og dokumenteres korrekt. Vi hjelper boligselskaper med å samle alt brannvern hos én leverandør – enkelt, oversiktlig og trygt.
+
+Hva må ${orgType}et følge opp årlig?
+
+• Brannslukkeapparater
+• Brannslanger
+• Nødlysanlegg
+• Brannalarmanlegg
+
+Mulige ekstra tjenester:
+• Førstehjelpsutstyr
+• Alarmoverføring via Alarm 24/7 – en av markedets beste priser, og en trygghet for styret
+
+Vi har også samarbeidspartnere innen sprinkler og elektro, slik at vi kan koordinere flere fag ved behov.
+
+Fordelen med å samle alt hos BSV Fire:
+
+✓ Én fast kontaktperson
+✓ Koordinerte kontroller – mindre belastning for beboere
+✓ Samlet dokumentasjon (klar ved tilsyn)
+✓ Varsling før frister utløper
+✓ Mulighet for bedre pris ved samlet avtale
+
+Alle våre serviceingeniører er FG-godkjente og leverandørsertifiserte. Vi har stort fokus på å holde oss oppdatert på nye produkter og forskrifter, og på hvordan vi kan ta i bruk ny teknologi som bidrar til enklere, sikrere og mer fremtidsrettede løsninger innen brannsikkerhet.
+
+Vi opplever at mange styrer ønsker færre leverandører og bedre oversikt – særlig med tanke på dokumentasjonskrav ved tilsyn.${kundeReferanser}
+
+Jeg tar gjerne en kort og uforpliktende prat for å se om dette kan være aktuelt for ${lead.navn}.
+
+Passer det med en 10 minutters samtale denne uken?
+
+Med vennlig hilsen,
+
+[Ditt navn]
+Brannteknisk Service og Vedlikehold AS (BSV Fire)
+Telefon: [nummer]
+www.bsvfire.no`
+
+    setGenerertEpost({ emne, innhold })
+  }
+
+  async function kopierEpost() {
+    if (!generertEpost) return
+    
+    const fullTekst = `Emne: ${generertEpost.emne}\n\n${generertEpost.innhold}`
+    await navigator.clipboard.writeText(fullTekst)
+    setKopiert(true)
+    setTimeout(() => setKopiert(false), 2000)
+  }
+
+  function lukkEmailModal() {
+    setEmailModalLead(null)
+    setGenerertEpost(null)
+    setReferanseKunder([])
   }
 
   return (
@@ -780,6 +874,14 @@ export function AdminSalg() {
                         </div>
                         
                         <div className="flex items-center gap-1">
+                          {/* Generer e-post knapp */}
+                          <button
+                            onClick={() => genererSalgsEpost(lead)}
+                            className="p-2 text-primary hover:bg-primary/10 rounded-lg"
+                            title="Generer salgs-epost"
+                          >
+                            <Mail className="w-4 h-4" />
+                          </button>
                           {!lead.epost_sendt && (
                             <button
                               onClick={() => markerEpostSendt(lead.id)}
@@ -928,6 +1030,104 @@ export function AdminSalg() {
             )}
           </div>
         </>
+      )}
+
+      {/* E-post Generator Modal */}
+      {emailModalLead && generertEpost && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-200 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-primary to-primary/80 p-4 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Mail className="w-6 h-6" />
+                <div>
+                  <h2 className="font-semibold">Generer salgs-epost</h2>
+                  <p className="text-sm text-white/80">{emailModalLead.navn}</p>
+                </div>
+              </div>
+              <button
+                onClick={lukkEmailModal}
+                className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Referansekunder */}
+            {referanseKunder.length > 0 && (
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800">
+                <p className="text-sm font-medium text-green-800 dark:text-green-300 flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Eksisterende kunder i området:
+                </p>
+                <p className="text-sm text-green-700 dark:text-green-400 mt-1">
+                  {referanseKunder.map(k => k.navn).join(', ')}
+                </p>
+              </div>
+            )}
+
+            {/* E-post innhold */}
+            <div className="p-4 space-y-4 overflow-y-auto max-h-[50vh]">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Emne
+                </label>
+                <input
+                  type="text"
+                  value={generertEpost.emne}
+                  onChange={(e) => setGenerertEpost({ ...generertEpost, emne: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-100 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Innhold
+                </label>
+                <textarea
+                  value={generertEpost.innhold}
+                  onChange={(e) => setGenerertEpost({ ...generertEpost, innhold: e.target.value })}
+                  rows={15}
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-100 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white font-mono text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Kopier og lim inn i Outlook eller annen e-postklient
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={lukkEmailModal}
+                  className="px-4 py-2 bg-gray-100 dark:bg-dark-100 hover:bg-gray-200 dark:hover:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+                >
+                  Lukk
+                </button>
+                <button
+                  onClick={kopierEpost}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                    kopiert 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-primary hover:bg-primary-600 text-white'
+                  }`}
+                >
+                  {kopiert ? (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Kopiert!
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4" />
+                      Kopier e-post
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
