@@ -131,3 +131,8 @@ CREATE POLICY "Autentiserte brukere kan opprette epost_logg"
   ON salgs_leads_epost_logg FOR INSERT
   TO authenticated
   WITH CHECK (true);
+
+-- Legg til Salg-modul i modul-oversikten
+INSERT INTO moduler (modul_key, navn, beskrivelse, kategori, ikon, sortering) VALUES
+  ('admin_salg', 'Salg', 'Prospektering og lead-håndtering med BRREG-integrasjon', 'admin', 'TrendingUp', 5)
+ON CONFLICT (modul_key) DO NOTHING;
