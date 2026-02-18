@@ -10,6 +10,33 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '2.7.0',
+    date: '2026-02-18',
+    title: 'Salg - Prospektering',
+    changes: [
+      {
+        type: 'feature',
+        description: 'Ny Salg-modul under Administrator for å finne potensielle kunder'
+      },
+      {
+        type: 'feature',
+        description: 'Integrasjon med Brønnøysundregistrene (BRREG) for søk etter sameier, borettslag og eierseksjonssameier'
+      },
+      {
+        type: 'feature',
+        description: 'Filtrering på kommune og organisasjonsform'
+      },
+      {
+        type: 'feature',
+        description: 'Lagre leads med status, notater og oppfølgingsdato'
+      },
+      {
+        type: 'feature',
+        description: 'Lenker til Proff.no, Vibbo, 1881 og Google for å finne kontaktinfo'
+      }
+    ]
+  },
+  {
     version: '2.6.0',
     date: '2026-02-16',
     title: 'Førstehjelp-modul',

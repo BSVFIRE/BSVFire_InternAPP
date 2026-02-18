@@ -25,7 +25,8 @@ import {
   Building,
   Inbox,
   Cloud,
-  CalendarCheck
+  CalendarCheck,
+  TrendingUp
 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
@@ -59,6 +60,7 @@ const navigation = [
 
 const adminNavigation = [
   { name: 'Modul Oversikt', href: '/admin/modul-oversikt', icon: Shield, modulKey: 'admin_modul_tilgang' },
+  { name: 'Salg', href: '/admin/salg', icon: TrendingUp, modulKey: 'admin_salg' },
   { name: 'Årsavslutning', href: '/admin/aarsavslutning', icon: CalendarCheck, modulKey: 'admin_aarsavslutning' },
   { name: 'Prisadministrasjon', href: '/admin/prisadministrasjon', icon: DollarSign, modulKey: 'admin_prisadministrasjon' },
   { name: 'PowerOffice', href: '/admin/poweroffice', icon: Building, modulKey: 'admin_poweroffice' },
