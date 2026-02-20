@@ -100,6 +100,7 @@ export function AdminSalg() {
   const [editingLead, setEditingLead] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<SalgsLead>>({})
   const [showFilters, setShowFilters] = useState(true)
+  const [expandedLead, setExpandedLead] = useState<string | null>(null)
   
   // E-post generator state
   const [emailModalLead, setEmailModalLead] = useState<SalgsLead | null>(null)
@@ -800,13 +801,19 @@ www.bsvfire.no`
               <div className="divide-y divide-gray-200 dark:divide-gray-800">
                 {leads.map((lead) => {
                   const isEditing = editingLead === lead.id
+                  const isExpanded = expandedLead === lead.id
                   const statusOption = STATUS_OPTIONS.find(s => s.value === lead.status)
                   
                   return (
                     <div key={lead.id} className="p-4">
-                      <div className="flex items-start justify-between gap-4">
+                      {/* Klikkbar hovedrad */}
+                      <div 
+                        className="flex items-start justify-between gap-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-100 -mx-4 px-4 py-2 rounded-lg transition-colors"
+                        onClick={() => setExpandedLead(isExpanded ? null : lead.id)}
+                      >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
+                            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                             <h3 className="font-medium text-gray-900 dark:text-white">
                               {lead.navn}
                             </h3>
@@ -824,7 +831,7 @@ www.bsvfire.no`
                             )}
                           </div>
                           
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-500 dark:text-gray-400 ml-6">
                             <span className="flex items-center gap-1">
                               <Building2 className="w-3.5 h-3.5" />
                               {lead.organisasjonsnummer}
@@ -841,39 +848,42 @@ www.bsvfire.no`
                             )}
                           </div>
                           
-                          {/* Kontaktinfo */}
+                          {/* Kontaktinfo - alltid synlig */}
                           {(lead.epost || lead.telefon || lead.kontaktperson_epost) && (
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm ml-6">
                               {(lead.kontaktperson_epost || lead.epost) && (
-                                <a
-                                  href={`mailto:${lead.kontaktperson_epost || lead.epost}`}
-                                  className="flex items-center gap-1 text-primary hover:underline"
+                                <span
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex items-center gap-1"
                                 >
-                                  <Mail className="w-3.5 h-3.5" />
-                                  {lead.kontaktperson_epost || lead.epost}
-                                </a>
+                                  <a
+                                    href={`mailto:${lead.kontaktperson_epost || lead.epost}`}
+                                    className="flex items-center gap-1 text-primary hover:underline"
+                                  >
+                                    <Mail className="w-3.5 h-3.5" />
+                                    {lead.kontaktperson_epost || lead.epost}
+                                  </a>
+                                </span>
                               )}
                               {(lead.kontaktperson_telefon || lead.telefon) && (
-                                <a
-                                  href={`tel:${lead.kontaktperson_telefon || lead.telefon}`}
-                                  className="flex items-center gap-1 text-primary hover:underline"
+                                <span
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex items-center gap-1"
                                 >
-                                  <Phone className="w-3.5 h-3.5" />
-                                  {lead.kontaktperson_telefon || lead.telefon}
-                                </a>
+                                  <a
+                                    href={`tel:${lead.kontaktperson_telefon || lead.telefon}`}
+                                    className="flex items-center gap-1 text-primary hover:underline"
+                                  >
+                                    <Phone className="w-3.5 h-3.5" />
+                                    {lead.kontaktperson_telefon || lead.telefon}
+                                  </a>
+                                </span>
                               )}
                             </div>
                           )}
-                          
-                          {/* Notater */}
-                          {lead.notater && (
-                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-dark-100 rounded p-2">
-                              {lead.notater}
-                            </p>
-                          )}
                         </div>
                         
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                           {/* Generer e-post knapp */}
                           <button
                             onClick={() => genererSalgsEpost(lead)}
@@ -910,6 +920,152 @@ www.bsvfire.no`
                           </button>
                         </div>
                       </div>
+                      
+                      {/* Utvidet informasjon */}
+                      {isExpanded && !isEditing && (
+                        <div className="mt-4 ml-6 p-4 bg-gray-50 dark:bg-dark-100 rounded-lg space-y-4 animate-in slide-in-from-top-2 duration-200">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {/* Organisasjonsinfo */}
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                                Organisasjon
+                              </h4>
+                              <div className="space-y-1 text-sm">
+                                <p className="text-gray-900 dark:text-white font-medium">{lead.navn}</p>
+                                <p className="text-gray-600 dark:text-gray-400">Org.nr: {lead.organisasjonsnummer}</p>
+                                {lead.organisasjonsform_beskrivelse && (
+                                  <p className="text-gray-600 dark:text-gray-400">{lead.organisasjonsform_beskrivelse}</p>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Adresse */}
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                                Adresse
+                              </h4>
+                              <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                {lead.forretningsadresse_gate && <p>{lead.forretningsadresse_gate}</p>}
+                                <p>{lead.forretningsadresse_postnummer} {lead.forretningsadresse_poststed}</p>
+                                {lead.forretningsadresse_kommune && <p>{lead.forretningsadresse_kommune}</p>}
+                              </div>
+                            </div>
+                            
+                            {/* Kontaktpersoner */}
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                                Kontaktpersoner
+                              </h4>
+                              <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                {lead.styreleder && <p><span className="text-gray-500">Styreleder:</span> {lead.styreleder}</p>}
+                                {lead.daglig_leder && <p><span className="text-gray-500">Daglig leder:</span> {lead.daglig_leder}</p>}
+                                {lead.kontaktperson_navn && <p><span className="text-gray-500">Kontakt:</span> {lead.kontaktperson_navn}</p>}
+                              </div>
+                            </div>
+                            
+                            {/* Status og oppfølging */}
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                                Status
+                              </h4>
+                              <div className="space-y-1 text-sm">
+                                <p className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full ${statusOption?.color}`}></span>
+                                  <span className="text-gray-900 dark:text-white">{statusOption?.label}</span>
+                                </p>
+                                {lead.neste_oppfolging && (
+                                  <p className="text-gray-600 dark:text-gray-400">
+                                    Neste oppfølging: {new Date(lead.neste_oppfolging).toLocaleDateString('nb-NO')}
+                                  </p>
+                                )}
+                                {lead.epost_sendt_dato && (
+                                  <p className="text-gray-600 dark:text-gray-400">
+                                    E-post sendt: {new Date(lead.epost_sendt_dato).toLocaleDateString('nb-NO')}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Datoer */}
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                                Historikk
+                              </h4>
+                              <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                <p>Opprettet: {new Date(lead.opprettet_dato).toLocaleDateString('nb-NO')}</p>
+                                <p>Oppdatert: {new Date(lead.oppdatert_dato).toLocaleDateString('nb-NO')}</p>
+                              </div>
+                            </div>
+                            
+                            {/* Lenker */}
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                                Eksterne lenker
+                              </h4>
+                              <div className="flex flex-wrap gap-2">
+                                <a
+                                  href={`https://www.proff.no/bransjes%C3%B8k?q=${lead.organisasjonsnummer}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs px-2 py-1 bg-white dark:bg-dark-200 border border-gray-200 dark:border-gray-700 rounded hover:border-primary text-primary"
+                                >
+                                  Proff.no
+                                </a>
+                                <a
+                                  href={`https://www.1881.no/?query=${encodeURIComponent(lead.navn)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs px-2 py-1 bg-white dark:bg-dark-200 border border-gray-200 dark:border-gray-700 rounded hover:border-primary text-primary"
+                                >
+                                  1881.no
+                                </a>
+                                <a
+                                  href={`https://www.google.com/search?q=${encodeURIComponent(lead.navn + ' styret epost')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs px-2 py-1 bg-white dark:bg-dark-200 border border-gray-200 dark:border-gray-700 rounded hover:border-primary text-primary"
+                                >
+                                  Google
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Notater */}
+                          {lead.notater && (
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                                Notater
+                              </h4>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 bg-white dark:bg-dark-200 rounded p-3">
+                                {lead.notater}
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Handlingsknapper */}
+                          <div className="flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                            <button
+                              onClick={() => genererSalgsEpost(lead)}
+                              className="px-3 py-1.5 bg-primary hover:bg-primary-600 text-white text-sm rounded-lg flex items-center gap-2"
+                            >
+                              <Mail className="w-4 h-4" />
+                              Generer e-post
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingLead(lead.id)
+                                setEditForm(lead)
+                                setExpandedLead(null)
+                              }}
+                              className="px-3 py-1.5 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-700 dark:text-gray-300 text-sm rounded-lg flex items-center gap-2"
+                            >
+                              <Edit className="w-4 h-4" />
+                              Rediger
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Redigeringsform */}
                       {isEditing && (
