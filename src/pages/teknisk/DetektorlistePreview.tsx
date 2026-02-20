@@ -56,7 +56,17 @@ export function DetektorlistePreview({
     storageError?: string
   }>({ dropbox: 'idle', storage: 'idle' })
 
-  const fileName = `Detektorliste_${kundeNavn.replace(/\s+/g, '_')}_${anleggNavn.replace(/\s+/g, '_')}_Rev${revisjon}.pdf`
+  // Sanitize filnavn - fjern/erstatt spesialtegn som Supabase Storage ikke aksepterer
+  const sanitizeFileName = (name: string) => {
+    return name
+      .replace(/\s+/g, '_')
+      .replace(/æ/gi, 'ae')
+      .replace(/ø/gi, 'o')
+      .replace(/å/gi, 'a')
+      .replace(/[^a-zA-Z0-9_\-\.]/g, '')
+  }
+  
+  const fileName = `Detektorliste_${sanitizeFileName(kundeNavn)}_${sanitizeFileName(anleggNavn)}_Rev${revisjon.replace(/\./g, '_')}.pdf`
 
   async function handleGeneratePDF() {
     setGenerating(true)

@@ -48,6 +48,7 @@ interface Anlegg {
   dropbox_synced: boolean | null
   status_oppdatert_av: string | null
   status_oppdatert_av_navn: string | null
+  fg_database_registrert: boolean | null
 }
 
 interface Kunde {
@@ -2987,6 +2988,8 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
   const [downloadingDropbox, setDownloadingDropbox] = useState(false)
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [fgDatabaseRegistrert, setFgDatabaseRegistrert] = useState(anlegg.fg_database_registrert || false)
+  const [updatingFgDatabase, setUpdatingFgDatabase] = useState(false)
   const statusDropdownRef = useRef<HTMLDivElement>(null)
 
   // Lukk status-dropdown når man klikker utenfor
@@ -3038,6 +3041,25 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
       loadDropboxFiles()
     }
   }, [dokumentFane])
+
+  async function toggleFgDatabase() {
+    setUpdatingFgDatabase(true)
+    try {
+      const newValue = !fgDatabaseRegistrert
+      const { error } = await supabase
+        .from('anlegg')
+        .update({ fg_database_registrert: newValue })
+        .eq('id', anlegg.id)
+      
+      if (error) throw error
+      setFgDatabaseRegistrert(newValue)
+    } catch (error) {
+      console.error('Feil ved oppdatering av FG Database status:', error)
+      alert('Kunne ikke oppdatere FG Database status')
+    } finally {
+      setUpdatingFgDatabase(false)
+    }
+  }
 
   function toggleDropboxFile(path: string) {
     setSelectedDropboxFiles(prev => {
@@ -3253,6 +3275,29 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                     Åpne loggbok i Kontrollportal
                     <ExternalLink className="w-3 h-3" />
                   </a>
+                </div>
+              )}
+              {anlegg.kontroll_type?.includes('Brannalarm') && (
+                <div>
+                  <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">FG Database</p>
+                  <button
+                    onClick={toggleFgDatabase}
+                    disabled={updatingFgDatabase}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                      fgDatabaseRegistrert
+                        ? 'bg-green-500/10 border-green-500/30 text-green-500'
+                        : 'bg-gray-100 dark:bg-dark-100 border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                    } ${updatingFgDatabase ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80 cursor-pointer'}`}
+                  >
+                    {updatingFgDatabase ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : fgDatabaseRegistrert ? (
+                      <CheckCircle className="w-4 h-4" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4" />
+                    )}
+                    {fgDatabaseRegistrert ? 'Registrert i FG Database' : 'Ikke registrert i FG Database'}
+                  </button>
                 </div>
               )}
             </div>

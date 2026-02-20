@@ -88,7 +88,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [kundeSok, setKundeSok] = useState('')
   const [anleggSok, setAnleggSok] = useState('')
-  const [sortBy, setSortBy] = useState<'internnummer' | 'amatur_id' | 'fordeling' | 'kurs' | 'plassering' | 'etasje' | 'type' | 'status' | 'kontrollert'>('internnummer')
+  const [sortBy, setSortBy] = useState<'internnummer' | 'amatur_id' | 'fordeling' | 'kurs' | 'plassering' | 'etasje' | 'type' | 'status' | 'kontrollert'>('amatur_id')
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null)
   const [editValue, setEditValue] = useState('')
   const [isSaving, setIsSaving] = useState(false)

@@ -57,8 +57,41 @@ interface SalgsLead {
   notater: string | null
   neste_oppfolging: string | null
   prioritet: 'lav' | 'normal' | 'høy'
+  interesse_rating: number | null
+  tjeneste_brannalarm: boolean
+  tjeneste_nodlys: boolean
+  tjeneste_slukkeutstyr: boolean
+  tjeneste_roykluker: boolean
+  tjeneste_forstehjelp: boolean
+  tjeneste_sprinkler: boolean
+  tjeneste_elektro: boolean
+  tjeneste_annet: boolean
+  tjeneste_annet_beskrivelse: string | null
   opprettet_dato: string
   oppdatert_dato: string
+}
+
+const TJENESTER = [
+  { key: 'tjeneste_brannalarm', label: 'Brannalarm', gruppe: 'intern' },
+  { key: 'tjeneste_nodlys', label: 'Nødlys', gruppe: 'intern' },
+  { key: 'tjeneste_slukkeutstyr', label: 'Slukkeutstyr', gruppe: 'intern' },
+  { key: 'tjeneste_roykluker', label: 'Røykluker', gruppe: 'intern' },
+  { key: 'tjeneste_forstehjelp', label: 'Førstehjelp', gruppe: 'intern' },
+] as const
+
+const EKSTERNE_TJENESTER = [
+  { key: 'tjeneste_sprinkler', label: 'Sprinkler' },
+  { key: 'tjeneste_elektro', label: 'Elektro' },
+  { key: 'tjeneste_annet', label: 'Annet' },
+] as const
+
+interface LeadKommentar {
+  id: string
+  lead_id: string
+  kommentar: string
+  opprettet_av: string | null
+  opprettet_av_navn: string | null
+  opprettet_dato: string
 }
 
 const STATUS_OPTIONS = [
@@ -107,6 +140,11 @@ export function AdminSalg() {
   const [referanseKunder, setReferanseKunder] = useState<{navn: string, poststed: string}[]>([])
   const [generertEpost, setGenerertEpost] = useState<{emne: string, innhold: string} | null>(null)
   const [kopiert, setKopiert] = useState(false)
+  
+  // Kommentar state
+  const [leadKommentarer, setLeadKommentarer] = useState<Record<string, LeadKommentar[]>>({})
+  const [nyKommentar, setNyKommentar] = useState('')
+  const [lagreKommentarLoading, setLagreKommentarLoading] = useState(false)
   
   // Last lagrede leads ved oppstart
   useEffect(() => {
@@ -298,6 +336,106 @@ export function AdminSalg() {
 
   function erAlleredeLead(orgnr: string): boolean {
     return leads.some(l => l.organisasjonsnummer === orgnr)
+  }
+
+  // Hent kommentarer for en lead
+  async function hentKommentarer(leadId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('salgs_leads_kommentarer')
+        .select('*')
+        .eq('lead_id', leadId)
+        .order('opprettet_dato', { ascending: false })
+      
+      if (error) throw error
+      setLeadKommentarer(prev => ({ ...prev, [leadId]: data || [] }))
+    } catch (err) {
+      console.error('Feil ved henting av kommentarer:', err)
+    }
+  }
+
+  // Lagre ny kommentar
+  async function lagreKommentar(leadId: string) {
+    if (!nyKommentar.trim()) return
+    
+    setLagreKommentarLoading(true)
+    try {
+      const { error } = await supabase
+        .from('salgs_leads_kommentarer')
+        .insert({
+          lead_id: leadId,
+          kommentar: nyKommentar.trim(),
+          opprettet_av: user?.id,
+          opprettet_av_navn: user?.user_metadata?.full_name || user?.email || 'Ukjent'
+        })
+      
+      if (error) throw error
+      
+      setNyKommentar('')
+      await hentKommentarer(leadId)
+    } catch (err: any) {
+      setError(err.message || 'Feil ved lagring av kommentar')
+    } finally {
+      setLagreKommentarLoading(false)
+    }
+  }
+
+  // Oppdater interesse-rating
+  async function oppdaterRating(leadId: string, rating: number | null) {
+    try {
+      const { error } = await supabase
+        .from('salgs_leads')
+        .update({ interesse_rating: rating })
+        .eq('id', leadId)
+      
+      if (error) throw error
+      
+      // Oppdater lokal state
+      setLeads(prev => prev.map(l => 
+        l.id === leadId ? { ...l, interesse_rating: rating } : l
+      ))
+    } catch (err: any) {
+      setError(err.message || 'Feil ved oppdatering av rating')
+    }
+  }
+
+  // Slett kommentar
+  async function slettKommentar(kommentarId: string, leadId: string) {
+    try {
+      const { error } = await supabase
+        .from('salgs_leads_kommentarer')
+        .delete()
+        .eq('id', kommentarId)
+      
+      if (error) throw error
+      
+      // Oppdater lokal state
+      setLeadKommentarer(prev => ({
+        ...prev,
+        [leadId]: prev[leadId]?.filter(k => k.id !== kommentarId) || []
+      }))
+    } catch (err: any) {
+      setError(err.message || 'Feil ved sletting av kommentar')
+    }
+  }
+
+  // Oppdater tjeneste-avkrysning
+  async function oppdaterTjeneste(leadId: string, tjeneste: string, verdi: boolean) {
+    try {
+      const { error } = await supabase
+        .from('salgs_leads')
+        .update({ [tjeneste]: verdi })
+        .eq('id', leadId)
+      
+      if (error) throw error
+      
+      // Oppdater lokal state
+      setLeads(prev => prev.map(l => 
+        l.id === leadId ? { ...l, [tjeneste]: verdi } : l
+      ))
+    } catch (err: any) {
+      setError(err.message || 'Feil ved oppdatering av tjeneste')
+    }
   }
 
   // E-post generator funksjon
@@ -809,7 +947,13 @@ www.bsvfire.no`
                       {/* Klikkbar hovedrad */}
                       <div 
                         className="flex items-start justify-between gap-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-100 -mx-4 px-4 py-2 rounded-lg transition-colors"
-                        onClick={() => setExpandedLead(isExpanded ? null : lead.id)}
+                        onClick={() => {
+                          const newExpandedId = isExpanded ? null : lead.id
+                          setExpandedLead(newExpandedId)
+                          if (newExpandedId && !leadKommentarer[lead.id]) {
+                            hentKommentarer(lead.id)
+                          }
+                        }}
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1031,6 +1175,109 @@ www.bsvfire.no`
                             </div>
                           </div>
                           
+                          {/* Aktuelle tjenester */}
+                          <div className="md:col-span-2 lg:col-span-3">
+                            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                              Aktuelle tjenester
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                              {TJENESTER.map((tjeneste) => {
+                                const isChecked = lead[tjeneste.key as keyof SalgsLead] as boolean
+                                return (
+                                  <label
+                                    key={tjeneste.key}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                                      isChecked
+                                        ? 'bg-primary/20 text-primary border border-primary/30'
+                                        : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 border border-transparent hover:bg-gray-200 dark:hover:bg-dark-300'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked || false}
+                                      onChange={(e) => oppdaterTjeneste(lead.id, tjeneste.key, e.target.checked)}
+                                      className="sr-only"
+                                    />
+                                    <span className={`w-4 h-4 rounded border flex items-center justify-center ${
+                                      isChecked 
+                                        ? 'bg-primary border-primary text-white' 
+                                        : 'border-gray-300 dark:border-gray-600'
+                                    }`}>
+                                      {isChecked && <span className="text-xs">✓</span>}
+                                    </span>
+                                    <span className="text-sm">{tjeneste.label}</span>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                            
+                            {/* Eksterne tjenester (samarbeidspartnere) */}
+                            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 mt-4">
+                              Ekstern (Samarbeidspartnere)
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                              {EKSTERNE_TJENESTER.map((tjeneste) => {
+                                const isChecked = lead[tjeneste.key as keyof SalgsLead] as boolean
+                                return (
+                                  <label
+                                    key={tjeneste.key}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                                      isChecked
+                                        ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700'
+                                        : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 border border-transparent hover:bg-gray-200 dark:hover:bg-dark-300'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked || false}
+                                      onChange={(e) => oppdaterTjeneste(lead.id, tjeneste.key, e.target.checked)}
+                                      className="sr-only"
+                                    />
+                                    <span className={`w-4 h-4 rounded border flex items-center justify-center ${
+                                      isChecked 
+                                        ? 'bg-orange-500 border-orange-500 text-white' 
+                                        : 'border-gray-300 dark:border-gray-600'
+                                    }`}>
+                                      {isChecked && <span className="text-xs">✓</span>}
+                                    </span>
+                                    <span className="text-sm">{tjeneste.label}</span>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          </div>
+                          
+                          {/* Interesse-rating */}
+                          <div>
+                            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                              Interesse-rating
+                            </h4>
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5, 6].map((rating) => (
+                                <button
+                                  key={rating}
+                                  onClick={() => oppdaterRating(lead.id, rating)}
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                                    lead.interesse_rating && lead.interesse_rating >= rating
+                                      ? 'bg-yellow-400 text-yellow-900'
+                                      : 'bg-gray-200 dark:bg-dark-200 text-gray-500 dark:text-gray-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/30'
+                                  }`}
+                                  title={`Rating ${rating}`}
+                                >
+                                  {rating}
+                                </button>
+                              ))}
+                              {lead.interesse_rating && (
+                                <button
+                                  onClick={() => oppdaterRating(lead.id, null)}
+                                  className="ml-2 text-xs text-gray-400 hover:text-gray-600"
+                                >
+                                  Nullstill
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          
                           {/* Notater */}
                           {lead.notater && (
                             <div>
@@ -1042,6 +1289,64 @@ www.bsvfire.no`
                               </p>
                             </div>
                           )}
+                          
+                          {/* Kommentarer */}
+                          <div>
+                            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                              Kommentarer
+                            </h4>
+                            
+                            {/* Ny kommentar */}
+                            <div className="flex gap-2 mb-3">
+                              <input
+                                type="text"
+                                value={nyKommentar}
+                                onChange={(e) => setNyKommentar(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault()
+                                    lagreKommentar(lead.id)
+                                  }
+                                }}
+                                placeholder="Skriv en kommentar..."
+                                className="flex-1 px-3 py-2 text-sm bg-white dark:bg-dark-200 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white"
+                              />
+                              <button
+                                onClick={() => lagreKommentar(lead.id)}
+                                disabled={lagreKommentarLoading || !nyKommentar.trim()}
+                                className="px-3 py-2 bg-primary hover:bg-primary-600 disabled:opacity-50 text-white text-sm rounded-lg"
+                              >
+                                {lagreKommentarLoading ? '...' : 'Legg til'}
+                              </button>
+                            </div>
+                            
+                            {/* Liste over kommentarer */}
+                            {leadKommentarer[lead.id]?.length > 0 ? (
+                              <div className="space-y-2 max-h-48 overflow-y-auto">
+                                {leadKommentarer[lead.id].map((kommentar) => (
+                                  <div key={kommentar.id} className="bg-white dark:bg-dark-200 rounded p-3 text-sm group">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <p className="text-gray-900 dark:text-white flex-1">{kommentar.kommentar}</p>
+                                      <button
+                                        onClick={() => slettKommentar(kommentar.id, lead.id)}
+                                        className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-opacity"
+                                        title="Slett kommentar"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                      {kommentar.opprettet_av_navn} • {new Date(kommentar.opprettet_dato).toLocaleString('nb-NO')}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                                Ingen kommentarer ennå
+                              </p>
+                            )}
+                          </div>
                           
                           {/* Handlingsknapper */}
                           <div className="flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
