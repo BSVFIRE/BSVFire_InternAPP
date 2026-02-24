@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react'
-import { Settings, Radio, Bell, FileText, ClipboardList, Cpu } from 'lucide-react'
+import { Settings, Radio, Bell, FileText, ClipboardList, Cpu, FolderOpen } from 'lucide-react'
 import { DetektorlisteView } from './teknisk/DetektorlisteView'
 import { ServicerapportView } from './teknisk/ServicerapportView'
 import { AlarmorganiseringView } from './teknisk/AlarmorganiseringView'
 import { AddresseringView } from './teknisk/AddresseringView'
 import { ProsjekteringView } from './teknisk/ProsjekteringView'
-import { useLocation } from 'react-router-dom'
+import { FDVView } from './teknisk/FDVView'
+import { useLocation, useNavigate } from 'react-router-dom'
 
-type TekniskView = 'oversikt' | 'detektorliste' | 'alarm' | 'prosjektering' | 'servicerapport' | 'addressering'
+type TekniskView = 'oversikt' | 'detektorliste' | 'alarm' | 'prosjektering' | 'servicerapport' | 'addressering' | 'fdv'
 
 export function Teknisk() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [activeView, setActiveView] = useState<TekniskView>('oversikt')
   const [serviceRapportState, setServiceRapportState] = useState<any>(null)
+  const [returnToAnlegg, setReturnToAnlegg] = useState<string | null>(null)
 
   useEffect(() => {
     // Sjekk om vi kommer fra ordre med state for servicerapport
@@ -24,20 +27,66 @@ export function Teknisk() {
         ordreId: location.state.ordreId
       })
     }
+    // Sjekk om vi kommer fra anlegg med tab-parameter
+    else if (location.state?.tab) {
+      const tabMap: Record<string, TekniskView> = {
+        'detektorliste': 'detektorliste',
+        'alarmorganisering': 'alarm',
+        'prosjektering': 'prosjektering',
+        'servicerapport': 'servicerapport',
+        'addressering': 'addressering',
+        'fdv': 'fdv'
+      }
+      const view = tabMap[location.state.tab]
+      if (view) {
+        setActiveView(view)
+        // Lagre anlegg-info for bruk i undervisningene
+        if (location.state.anleggId) {
+          setServiceRapportState({
+            anleggId: location.state.anleggId,
+            kundeId: location.state.kundeId
+          })
+          // Lagre anlegg-ID for tilbake-navigasjon
+          setReturnToAnlegg(location.state.anleggId)
+        }
+      }
+    }
   }, [location])
 
+  // Funksjon for å håndtere tilbake-navigasjon
+  const handleBack = () => {
+    if (returnToAnlegg) {
+      // Naviger tilbake til anlegget
+      navigate('/anlegg', { state: { viewAnleggId: returnToAnlegg } })
+    } else {
+      setActiveView('oversikt')
+    }
+  }
+
   if (activeView === 'detektorliste') {
-    return <DetektorlisteView onBack={() => setActiveView('oversikt')} />
+    return <DetektorlisteView 
+      onBack={handleBack} 
+      initialAnleggId={serviceRapportState?.anleggId}
+      initialKundeId={serviceRapportState?.kundeId}
+    />
   }
 
   if (activeView === 'alarm') {
-    return <AlarmorganiseringView onBack={() => setActiveView('oversikt')} />
+    return <AlarmorganiseringView 
+      onBack={handleBack} 
+      initialAnleggId={serviceRapportState?.anleggId}
+      initialKundeId={serviceRapportState?.kundeId}
+    />
   }
 
   if (activeView === 'servicerapport') {
     return <ServicerapportView 
       onBack={() => {
-        setActiveView('oversikt')
+        if (returnToAnlegg) {
+          navigate('/anlegg', { state: { viewAnleggId: returnToAnlegg } })
+        } else {
+          setActiveView('oversikt')
+        }
         setServiceRapportState(null)
       }} 
       initialAnleggId={serviceRapportState?.anleggId}
@@ -46,11 +95,23 @@ export function Teknisk() {
   }
 
   if (activeView === 'addressering') {
-    return <AddresseringView onBack={() => setActiveView('oversikt')} />
+    return <AddresseringView onBack={handleBack} />
   }
 
   if (activeView === 'prosjektering') {
-    return <ProsjekteringView onBack={() => setActiveView('oversikt')} />
+    return <ProsjekteringView 
+      onBack={handleBack} 
+      initialAnleggId={serviceRapportState?.anleggId}
+      initialKundeId={serviceRapportState?.kundeId}
+    />
+  }
+
+  if (activeView === 'fdv') {
+    return <FDVView 
+      onBack={handleBack} 
+      initialAnleggId={serviceRapportState?.anleggId}
+      initialKundeId={serviceRapportState?.kundeId}
+    />
   }
 
   return (
@@ -138,6 +199,22 @@ export function Teknisk() {
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Prosjektering</h3>
               <p className="text-sm text-gray-400 dark:text-gray-400">Prosjekteringsverktøy</p>
+            </div>
+          </div>
+          <p className="text-primary text-sm font-medium">Klikk for å åpne →</p>
+        </button>
+
+        <button
+          onClick={() => setActiveView('fdv')}
+          className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
+        >
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center">
+              <FolderOpen className="w-6 h-6 text-orange-500" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">FDV / Datablader</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Datablader og FDV-dokumentasjon</p>
             </div>
           </div>
           <p className="text-primary text-sm font-medium">Klikk for å åpne →</p>
