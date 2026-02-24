@@ -5,6 +5,8 @@ import { ProsjekteringEditor } from './ProsjekteringEditor'
 
 interface ProsjekteringViewProps {
   onBack: () => void
+  initialAnleggId?: string
+  initialKundeId?: string
 }
 
 interface Kunde {
@@ -41,7 +43,7 @@ interface Prosjektering {
 
 type ViewMode = 'liste' | 'opprett' | 'rediger'
 
-export function ProsjekteringView({ onBack }: ProsjekteringViewProps) {
+export function ProsjekteringView({ onBack, initialAnleggId, initialKundeId }: ProsjekteringViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('liste')
   const [prosjekteringer, setProsjekteringer] = useState<Prosjektering[]>([])
   const [kunder, setKunder] = useState<Kunde[]>([])
@@ -55,8 +57,8 @@ export function ProsjekteringView({ onBack }: ProsjekteringViewProps) {
   // For ny prosjektering
   const [showNyDialog, setShowNyDialog] = useState(false)
   const [nyProsjektType, setNyProsjektType] = useState<'eksisterende' | 'ny' | null>(null)
-  const [selectedKundeId, setSelectedKundeId] = useState<string>('')
-  const [selectedAnleggId, setSelectedAnleggId] = useState<string>('')
+  const [selectedKundeId, setSelectedKundeId] = useState<string>(initialKundeId || '')
+  const [selectedAnleggId, setSelectedAnleggId] = useState<string>(initialAnleggId || '')
   const [anleggForKunde, setAnleggForKunde] = useState<Anlegg[]>([])
   const [searchKunde, setSearchKunde] = useState('')
 
@@ -64,6 +66,19 @@ export function ProsjekteringView({ onBack }: ProsjekteringViewProps) {
     loadProsjekteringer()
     loadKunder()
   }, [])
+
+  // Sett initial kunde og anlegg hvis vi kommer fra anlegg-snarveier
+  useEffect(() => {
+    if (initialKundeId && kunder.length > 0) {
+      setSelectedKundeId(initialKundeId)
+    }
+  }, [initialKundeId, kunder])
+
+  useEffect(() => {
+    if (initialAnleggId && anleggForKunde.length > 0) {
+      setSelectedAnleggId(initialAnleggId)
+    }
+  }, [initialAnleggId, anleggForKunde])
 
   useEffect(() => {
     if (selectedKundeId) {

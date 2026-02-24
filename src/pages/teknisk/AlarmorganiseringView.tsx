@@ -5,6 +5,8 @@ import { AlarmorganiseringEditor } from './AlarmorganiseringEditor'
 
 interface AlarmorganiseringViewProps {
   onBack: () => void
+  initialAnleggId?: string
+  initialKundeId?: string
 }
 
 interface Alarmorganisering {
@@ -20,7 +22,7 @@ interface Alarmorganisering {
   anlegg?: { anleggsnavn: string; adresse: string }
 }
 
-export function AlarmorganiseringView({ onBack }: AlarmorganiseringViewProps) {
+export function AlarmorganiseringView({ onBack, initialAnleggId, initialKundeId }: AlarmorganiseringViewProps) {
   const [alarmorganiseringer, setAlarmorganiseringer] = useState<Alarmorganisering[]>([])
   const [filteredData, setFilteredData] = useState<Alarmorganisering[]>([])
   const [loading, setLoading] = useState(true)

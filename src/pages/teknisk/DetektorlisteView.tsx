@@ -5,6 +5,8 @@ import { DetektorlisteEditor } from './DetektorlisteEditor'
 
 interface DetektorlisteViewProps {
   onBack: () => void
+  initialAnleggId?: string
+  initialKundeId?: string
 }
 
 interface Kunde {
@@ -36,12 +38,12 @@ interface Detektorliste {
   opprettet_dato: string
 }
 
-export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
+export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId }: DetektorlisteViewProps) {
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
   const [detektorlister, setDetektorlister] = useState<Detektorliste[]>([])
-  const [selectedKunde, setSelectedKunde] = useState<string>('')
-  const [selectedAnlegg, setSelectedAnlegg] = useState<string>('')
+  const [selectedKunde, setSelectedKunde] = useState<string>(initialKundeId || '')
+  const [selectedAnlegg, setSelectedAnlegg] = useState<string>(initialAnleggId || '')
   const [searchKunde, setSearchKunde] = useState('')
   const [searchAnlegg, setSearchAnlegg] = useState('')
   const [loading, setLoading] = useState(false)
@@ -52,6 +54,19 @@ export function DetektorlisteView({ onBack }: DetektorlisteViewProps) {
   useEffect(() => {
     loadKunder()
   }, [])
+
+  // Sett initial kunde og anlegg hvis vi kommer fra anlegg-snarveier
+  useEffect(() => {
+    if (initialKundeId && kunder.length > 0) {
+      setSelectedKunde(initialKundeId)
+    }
+  }, [initialKundeId, kunder])
+
+  useEffect(() => {
+    if (initialAnleggId && anlegg.length > 0) {
+      setSelectedAnlegg(initialAnleggId)
+    }
+  }, [initialAnleggId, anlegg])
 
   useEffect(() => {
     if (selectedKunde) {
