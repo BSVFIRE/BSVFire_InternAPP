@@ -93,6 +93,19 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
   const [editingLeverandor, setEditingLeverandor] = useState<Leverandor | null>(null)
   const [editingProdukttype, setEditingProdukttype] = useState<Produkttype | null>(null)
   const [expandedLeverandorer, setExpandedLeverandorer] = useState<Set<string>>(new Set())
+  const [expandedDatabladId, setExpandedDatabladId] = useState<string | null>(null)
+  const [editingDatablad, setEditingDatablad] = useState<{
+    id: string
+    tittel: string
+    produktnavn: string
+    artikkelnummer: string
+    leverandor_id: string
+    produkttype_id: string
+    revisjon: string
+    beskrivelse: string
+    newFile: File | null
+  } | null>(null)
+  const [savingDatablad, setSavingDatablad] = useState(false)
 
   useEffect(() => { loadData() }, [])
   useEffect(() => { if (selectedAnlegg) loadAnleggDatablader(selectedAnlegg) }, [selectedAnlegg])
@@ -208,6 +221,110 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
       loadAnleggDatablader(selectedAnlegg)
     } catch (error: any) {
       console.error('Feil ved fjerning:', error)
+    }
+  }
+
+  function startEditingDatablad(d: Datablad) {
+    setEditingDatablad({
+      id: d.id,
+      tittel: d.tittel,
+      produktnavn: d.produktnavn || '',
+      artikkelnummer: d.artikkelnummer || '',
+      leverandor_id: d.leverandor_id || '',
+      produkttype_id: d.produkttype_id || '',
+      revisjon: d.revisjon || '',
+      beskrivelse: d.beskrivelse || '',
+      newFile: null
+    })
+    setExpandedDatabladId(d.id)
+  }
+
+  async function handleSaveDatablad() {
+    if (!editingDatablad) return
+    try {
+      setSavingDatablad(true)
+      const original = datablader.find(d => d.id === editingDatablad.id)
+      if (!original) return
+
+      // Calculate new filename based on current metadata
+      const leverandorNavn = leverandorer.find(l => l.id === editingDatablad.leverandor_id)?.navn || 'Ukjent'
+      const produkttypeNavn = produkttyper.find(p => p.id === editingDatablad.produkttype_id)?.navn || 'Ukjent'
+      const baseFileName = sanitizeFileName(`${leverandorNavn}_${produkttypeNavn}_${editingDatablad.tittel}`)
+      const newFilnavn = `${baseFileName}.pdf`
+      const newFilePath = `datablader/${newFilnavn}`
+
+      let newFilUrl = original.fil_url
+
+      // Check if filename needs to change (metadata changed or new file uploaded)
+      const filenameChanged = newFilnavn !== original.filnavn
+
+      if (editingDatablad.newFile) {
+        // New file uploaded - delete old and upload new
+        if (original.fil_url) {
+          const oldPath = original.fil_url.split('/fdv-datablader/')[1]
+          if (oldPath) {
+            await supabase.storage.from('fdv-datablader').remove([decodeURIComponent(oldPath)])
+          }
+        }
+        const { error: uploadError } = await supabase.storage.from('fdv-datablader').upload(newFilePath, editingDatablad.newFile, { upsert: true })
+        if (uploadError) throw uploadError
+        const { data: urlData } = supabase.storage.from('fdv-datablader').getPublicUrl(newFilePath)
+        newFilUrl = urlData.publicUrl
+      } else if (filenameChanged && original.fil_url) {
+        // No new file, but filename changed - rename existing file by copy+delete
+        const oldPath = original.fil_url.split('/fdv-datablader/')[1]
+        if (oldPath) {
+          // Download existing file
+          const { data: fileData, error: downloadError } = await supabase.storage
+            .from('fdv-datablader')
+            .download(decodeURIComponent(oldPath))
+          
+          if (downloadError) {
+            console.warn('Kunne ikke laste ned eksisterende fil for omdøping:', downloadError)
+          } else if (fileData) {
+            // Upload with new name
+            const { error: uploadError } = await supabase.storage
+              .from('fdv-datablader')
+              .upload(newFilePath, fileData, { upsert: true })
+            
+            if (uploadError) {
+              console.warn('Kunne ikke laste opp fil med nytt navn:', uploadError)
+            } else {
+              // Delete old file
+              await supabase.storage.from('fdv-datablader').remove([decodeURIComponent(oldPath)])
+              // Update URL
+              const { data: urlData } = supabase.storage.from('fdv-datablader').getPublicUrl(newFilePath)
+              newFilUrl = urlData.publicUrl
+            }
+          }
+        }
+      }
+
+      // Update database record
+      const { error: updateError } = await supabase.from('fdv_datablader').update({
+        tittel: editingDatablad.tittel,
+        produktnavn: editingDatablad.produktnavn || null,
+        artikkelnummer: editingDatablad.artikkelnummer || null,
+        leverandor_id: editingDatablad.leverandor_id || null,
+        produkttype_id: editingDatablad.produkttype_id || null,
+        revisjon: editingDatablad.revisjon || null,
+        beskrivelse: editingDatablad.beskrivelse || null,
+        fil_url: newFilUrl,
+        filnavn: newFilnavn
+      }).eq('id', editingDatablad.id)
+
+      if (updateError) throw updateError
+
+      // Reload data and close editor
+      await loadData()
+      setEditingDatablad(null)
+      setExpandedDatabladId(null)
+      alert('Datablad oppdatert!')
+    } catch (error: any) {
+      console.error('Feil ved lagring:', error)
+      alert('Kunne ikke lagre: ' + (error?.message || 'Ukjent feil'))
+    } finally {
+      setSavingDatablad(false)
     }
   }
 
@@ -530,12 +647,19 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
     }
   }
 
-  const filteredDatablader = datablader.filter(d => {
-    const matchesSearch = !searchQuery || d.tittel.toLowerCase().includes(searchQuery.toLowerCase()) || d.produktnavn?.toLowerCase().includes(searchQuery.toLowerCase()) || d.artikkelnummer?.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesLeverandor = !filterLeverandor || d.leverandor_id === filterLeverandor
-    const matchesProdukttype = !filterProdukttype || d.produkttype_id === filterProdukttype
-    return matchesSearch && matchesLeverandor && matchesProdukttype
-  })
+  const filteredDatablader = datablader
+    .filter(d => {
+      const matchesSearch = !searchQuery || d.tittel.toLowerCase().includes(searchQuery.toLowerCase()) || d.produktnavn?.toLowerCase().includes(searchQuery.toLowerCase()) || d.artikkelnummer?.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesLeverandor = !filterLeverandor || d.leverandor_id === filterLeverandor
+      const matchesProdukttype = !filterProdukttype || d.produkttype_id === filterProdukttype
+      return matchesSearch && matchesLeverandor && matchesProdukttype
+    })
+    .sort((a, b) => {
+      const leverandorA = a.leverandor?.navn || ''
+      const leverandorB = b.leverandor?.navn || ''
+      if (leverandorA !== leverandorB) return leverandorA.localeCompare(leverandorB)
+      return a.tittel.localeCompare(b.tittel)
+    })
 
   if (loading) {
     return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>
@@ -613,25 +737,111 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
                     <tr><td colSpan={5} className="py-8 text-center text-gray-500">Ingen datablader funnet</td></tr>
                   ) : (
                     filteredDatablader.map(d => (
-                      <tr key={d.id} className="border-b border-gray-100 dark:border-dark-100 hover:bg-gray-50 dark:hover:bg-dark-100">
-                        <td className="py-3 px-4">
-                          <div className="font-medium text-gray-900 dark:text-white">{d.tittel}</div>
-                          {d.produktnavn && <div className="text-sm text-gray-500">{d.produktnavn}</div>}
-                        </td>
-                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{d.leverandor?.navn || '-'}</td>
-                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{d.produkttype?.navn || '-'}</td>
-                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{d.revisjon || '-'}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <a href={d.fil_url} target="_blank" rel="noopener noreferrer" className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg" title="Åpne PDF">
-                              <Download className="w-4 h-4" />
-                            </a>
-                            <button onClick={() => handleDeleteDatablad(d.id, d.fil_url)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg" title="Slett">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                      <>
+                        <tr 
+                          key={d.id} 
+                          className={`border-b border-gray-100 dark:border-dark-100 hover:bg-gray-50 dark:hover:bg-dark-100 cursor-pointer ${expandedDatabladId === d.id ? 'bg-gray-50 dark:bg-dark-100' : ''}`}
+                          onClick={() => {
+                            if (expandedDatabladId === d.id) {
+                              setExpandedDatabladId(null)
+                              setEditingDatablad(null)
+                            } else {
+                              startEditingDatablad(d)
+                            }
+                          }}
+                        >
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              {expandedDatabladId === d.id ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                              <div>
+                                <div className="font-medium text-gray-900 dark:text-white">{d.tittel}</div>
+                                {d.produktnavn && <div className="text-sm text-gray-500">{d.produktnavn}</div>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{d.leverandor?.navn || '-'}</td>
+                          <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{d.produkttype?.navn || '-'}</td>
+                          <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{d.revisjon || '-'}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                              <a href={d.fil_url} target="_blank" rel="noopener noreferrer" className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg" title="Åpne PDF">
+                                <Download className="w-4 h-4" />
+                              </a>
+                              <button onClick={() => handleDeleteDatablad(d.id, d.fil_url)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg" title="Slett">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {expandedDatabladId === d.id && editingDatablad && (
+                          <tr key={`${d.id}-edit`}>
+                            <td colSpan={5} className="p-4 bg-gray-50 dark:bg-dark-100 border-b border-gray-200 dark:border-dark-200">
+                              <div className="space-y-4">
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tittel *</label>
+                                    <input type="text" value={editingDatablad.tittel} onChange={e => setEditingDatablad({ ...editingDatablad, tittel: e.target.value })} className="input w-full" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Produktnavn</label>
+                                    <input type="text" value={editingDatablad.produktnavn} onChange={e => setEditingDatablad({ ...editingDatablad, produktnavn: e.target.value })} className="input w-full" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Artikkelnummer</label>
+                                    <input type="text" value={editingDatablad.artikkelnummer} onChange={e => setEditingDatablad({ ...editingDatablad, artikkelnummer: e.target.value })} className="input w-full" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Leverandør</label>
+                                    <select value={editingDatablad.leverandor_id} onChange={e => setEditingDatablad({ ...editingDatablad, leverandor_id: e.target.value })} className="input w-full">
+                                      <option value="">Velg leverandør...</option>
+                                      {leverandorer.map(l => <option key={l.id} value={l.id}>{l.navn}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Produkttype</label>
+                                    <select value={editingDatablad.produkttype_id} onChange={e => setEditingDatablad({ ...editingDatablad, produkttype_id: e.target.value })} className="input w-full">
+                                      <option value="">Velg produkttype...</option>
+                                      {produkttyper.map(p => <option key={p.id} value={p.id}>{p.navn}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Revisjon</label>
+                                    <input type="text" value={editingDatablad.revisjon} onChange={e => setEditingDatablad({ ...editingDatablad, revisjon: e.target.value })} className="input w-full" placeholder="F.eks. 1.0" />
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Beskrivelse</label>
+                                  <textarea value={editingDatablad.beskrivelse} onChange={e => setEditingDatablad({ ...editingDatablad, beskrivelse: e.target.value })} className="input w-full" rows={2} />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Erstatt PDF-fil (valgfritt)</label>
+                                  <input type="file" accept=".pdf" onChange={e => setEditingDatablad({ ...editingDatablad, newFile: e.target.files?.[0] || null })} className="input w-full" />
+                                  {editingDatablad.newFile && (
+                                    <p className="text-sm text-green-600 mt-1">Ny fil valgt: {editingDatablad.newFile.name}</p>
+                                  )}
+                                  <p className="text-xs text-gray-500 mt-1">Nåværende fil: {d.filnavn}</p>
+                                </div>
+                                {(editingDatablad.leverandor_id || editingDatablad.produkttype_id || editingDatablad.tittel) && (
+                                  <div className="p-3 bg-white dark:bg-dark-200 rounded-lg border border-gray-200 dark:border-dark-100">
+                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Filnavn som genereres ved ny PDF:</label>
+                                    <p className="text-sm font-mono text-primary break-all">
+                                      {sanitizeFileName(`${leverandorer.find(l => l.id === editingDatablad.leverandor_id)?.navn || 'Leverandør'}_${produkttyper.find(p => p.id === editingDatablad.produkttype_id)?.navn || 'Produkttype'}_${editingDatablad.tittel || 'Tittel'}`)}.pdf
+                                    </p>
+                                  </div>
+                                )}
+                                <div className="flex justify-end gap-2">
+                                  <button onClick={(e) => { e.stopPropagation(); setExpandedDatabladId(null); setEditingDatablad(null) }} className="btn-secondary">
+                                    Avbryt
+                                  </button>
+                                  <button onClick={(e) => { e.stopPropagation(); handleSaveDatablad() }} disabled={savingDatablad || !editingDatablad.tittel} className="btn-primary disabled:opacity-50">
+                                    {savingDatablad ? 'Lagrer...' : 'Lagre endringer'}
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     ))
                   )}
                 </tbody>

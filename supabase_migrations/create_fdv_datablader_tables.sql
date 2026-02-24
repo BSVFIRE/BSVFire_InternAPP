@@ -208,9 +208,9 @@ INSERT INTO fdv_produkttyper (navn) VALUES
     ('Annet')
 ON CONFLICT (navn) DO NOTHING;
 
--- Storage bucket for FDV datablader
+-- Storage bucket for FDV datablader (public for direct PDF access)
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('fdv-datablader', 'fdv-datablader', false)
+VALUES ('fdv-datablader', 'fdv-datablader', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies for FDV datablader bucket
