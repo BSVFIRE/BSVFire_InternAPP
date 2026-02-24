@@ -23,6 +23,8 @@ interface Alarmorganisering {
 }
 
 export function AlarmorganiseringView({ onBack, initialAnleggId, initialKundeId }: AlarmorganiseringViewProps) {
+  void initialAnleggId
+  void initialKundeId
   const [alarmorganiseringer, setAlarmorganiseringer] = useState<Alarmorganisering[]>([])
   const [filteredData, setFilteredData] = useState<Alarmorganisering[]>([])
   const [loading, setLoading] = useState(true)
