@@ -37,7 +37,7 @@ interface Avvik {
   lukket_dato: string | null
   created_at: string
   kunde?: { navn: string } | null
-  anlegg?: { navn: string } | null
+  anlegg?: { anleggsnavn: string } | null
   ansatt?: { navn: string } | null
   ansvarlig?: { navn: string } | null
 }
@@ -54,8 +54,8 @@ interface Kunde {
 
 interface Anlegg {
   id: string
-  navn: string
-  kunde_id: string
+  anleggsnavn: string
+  kundenr: string
 }
 
 const KATEGORIER = ['Sikkerhet', 'Kvalitet', 'Miljø', 'Prosedyre']
@@ -131,7 +131,7 @@ export function KsHmsAvvik() {
       .select(`
         *,
         kunde:customer(navn),
-        anlegg:anlegg(navn),
+        anlegg:anlegg(anleggsnavn),
         ansatt:ansatte!avvik_registrert_av_fkey(navn),
         ansvarlig:ansatte!avvik_ansvarlig_for_lukking_fkey(navn)
       `)
@@ -160,8 +160,8 @@ export function KsHmsAvvik() {
   async function loadAnlegg() {
     const { data } = await supabase
       .from('anlegg')
-      .select('id, navn, kunde_id')
-      .order('navn')
+      .select('id, anleggsnavn, kundenr')
+      .order('anleggsnavn')
     setAnlegg(data || [])
   }
 
@@ -207,7 +207,7 @@ export function KsHmsAvvik() {
       anlegg_id: item.anlegg_id || ''
     })
     setKundeSearch(item.kunde?.navn || '')
-    setAnleggSearch(item.anlegg?.navn || '')
+    setAnleggSearch(item.anlegg?.anleggsnavn || '')
     setShowKundeDropdown(false)
     setShowAnleggDropdown(false)
     setShowModal(true)
@@ -318,7 +318,7 @@ export function KsHmsAvvik() {
   })
 
   const filteredAnlegg = formData.kunde_id 
-    ? anlegg.filter(a => a.kunde_id === formData.kunde_id)
+    ? anlegg.filter(a => a.kundenr === formData.kunde_id)
     : anlegg
 
   if (loading) {
@@ -634,7 +634,7 @@ export function KsHmsAvvik() {
                         setShowAnleggDropdown(true)
                       }}
                       onFocus={() => setShowAnleggDropdown(true)}
-                      placeholder={formData.anlegg_id ? filteredAnlegg.find(a => a.id === formData.anlegg_id)?.navn : 'Søk etter anlegg...'}
+                      placeholder={formData.anlegg_id ? filteredAnlegg.find(a => a.id === formData.anlegg_id)?.anleggsnavn : 'Søk etter anlegg...'}
                       className="w-full px-4 py-2 bg-[#0d0d1a] border border-dark-border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-primary"
                     />
                     {formData.anlegg_id && (
@@ -652,7 +652,7 @@ export function KsHmsAvvik() {
                     {showAnleggDropdown && (
                       <div className="absolute z-10 w-full mt-1 bg-[#1a1a2e] border border-dark-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                         {filteredAnlegg
-                          .filter(a => a.navn.toLowerCase().includes(anleggSearch.toLowerCase()))
+                          .filter(a => a.anleggsnavn.toLowerCase().includes(anleggSearch.toLowerCase()))
                           .slice(0, 20)
                           .map((a) => (
                             <button
@@ -660,15 +660,15 @@ export function KsHmsAvvik() {
                               type="button"
                               onClick={() => {
                                 setFormData({ ...formData, anlegg_id: a.id })
-                                setAnleggSearch(a.navn)
+                                setAnleggSearch(a.anleggsnavn)
                                 setShowAnleggDropdown(false)
                               }}
                               className="w-full px-4 py-2 text-left text-white hover:bg-primary/20 transition-colors bg-transparent"
                             >
-                              {a.navn}
+                              {a.anleggsnavn}
                             </button>
                           ))}
-                        {filteredAnlegg.filter(a => a.navn.toLowerCase().includes(anleggSearch.toLowerCase())).length === 0 && (
+                        {filteredAnlegg.filter(a => a.anleggsnavn.toLowerCase().includes(anleggSearch.toLowerCase())).length === 0 && (
                           <div className="px-4 py-2 text-gray-400">Ingen anlegg funnet</div>
                         )}
                       </div>

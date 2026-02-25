@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send, Cloud } from 'lucide-react'
+import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send, Cloud, Zap, List, Layout, FileCheck, Shield } from 'lucide-react'
 import { checkDropboxStatus, createDropboxFolder, renameDropboxFolder } from '@/services/dropboxServiceV2'
 import { DropboxFileBrowser } from '@/components/DropboxFileBrowser'
 import { KUNDE_FOLDERS, ANLEGG_FOLDERS } from '@/services/dropboxFolderStructure'
@@ -3830,6 +3830,82 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                   <p className="text-gray-900 dark:text-white text-sm">{formatDate(anlegg.sist_oppdatert)}</p>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Snarveier */}
+          <div className="card">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Snarveier</h2>
+            <div className="space-y-2">
+              <button
+                onClick={() => navigate('/teknisk', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr, tab: 'detektorliste' } })}
+                className="w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors text-left"
+              >
+                <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <List className="w-4 h-4 text-blue-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Detektorlister</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Administrer detektorer</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-400" />
+              </button>
+
+              <button
+                onClick={() => navigate('/teknisk', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr, tab: 'alarmorganisering' } })}
+                className="w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors text-left"
+              >
+                <div className="w-8 h-8 bg-orange-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Layout className="w-4 h-4 text-orange-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Alarmorganisering</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Soner og sløyfer</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-400" />
+              </button>
+
+              <button
+                onClick={() => navigate('/teknisk', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr, tab: 'prosjektering' } })}
+                className="w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors text-left"
+              >
+                <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <FileCheck className="w-4 h-4 text-purple-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Prosjektering</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Prosjekteringsdokumenter</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-400" />
+              </button>
+
+              <button
+                onClick={() => navigate('/tilbud-alarmoverforing', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}
+                className="w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors text-left"
+              >
+                <div className="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-4 h-4 text-green-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Tilbud Alarmoverføring</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Opprett tilbud</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-400" />
+              </button>
+
+              <button
+                onClick={() => navigate('/ks-hms', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}
+                className="w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors text-left"
+              >
+                <div className="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Shield className="w-4 h-4 text-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">KS/HMS</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Kvalitet og sikkerhet</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-400" />
+              </button>
             </div>
           </div>
 

@@ -38,7 +38,7 @@ interface Hendelse {
   forebyggende_tiltak: string | null
   created_at: string
   kunde?: { navn: string } | null
-  anlegg?: { navn: string } | null
+  anlegg?: { anleggsnavn: string } | null
   ansatt?: { navn: string } | null
 }
 
@@ -54,8 +54,8 @@ interface Kunde {
 
 interface Anlegg {
   id: string
-  navn: string
-  kunde_id: string
+  anleggsnavn: string
+  kundenr: string
 }
 
 const TYPER = ['Ulykke', 'Nestenulykke', 'Miljøhendelse', 'Annet']
@@ -127,17 +127,17 @@ export function KsHmsHendelser() {
   }
 
   async function loadHendelser() {
+    // Forenklet query for debugging
     const { data, error } = await supabase
       .from('hendelser')
-      .select(`
-        *,
-        kunde:customer(navn),
-        anlegg:anlegg(navn),
-        ansatt:ansatte!hendelser_registrert_av_fkey(navn)
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
     
-    if (error) throw error
+    if (error) {
+      console.error('loadHendelser FULL ERROR:', JSON.stringify(error, null, 2))
+      log.error('loadHendelser feilet', { error, code: error.code, message: error.message, details: error.details })
+      throw error
+    }
     setHendelser(data || [])
   }
 
@@ -160,8 +160,8 @@ export function KsHmsHendelser() {
   async function loadAnlegg() {
     const { data } = await supabase
       .from('anlegg')
-      .select('id, navn, kunde_id')
-      .order('navn')
+      .select('id, anleggsnavn, kundenr')
+      .order('anleggsnavn')
     setAnlegg(data || [])
   }
 
@@ -209,7 +209,7 @@ export function KsHmsHendelser() {
       anlegg_id: item.anlegg_id || ''
     })
     setKundeSearch(item.kunde?.navn || '')
-    setAnleggSearch(item.anlegg?.navn || '')
+    setAnleggSearch(item.anlegg?.anleggsnavn || '')
     setShowKundeDropdown(false)
     setShowAnleggDropdown(false)
     setShowModal(true)
@@ -241,23 +241,36 @@ export function KsHmsHendelser() {
       }
 
       if (editingItem) {
+        console.log('Updating hendelse...')
         const { error } = await supabase
           .from('hendelser')
           .update(payload)
           .eq('id', editingItem.id)
         
-        if (error) throw error
+        if (error) {
+          console.error('UPDATE feilet:', error)
+          throw error
+        }
+        console.log('UPDATE OK')
       } else {
+        console.log('Inserting hendelse...', payload)
         const { error } = await supabase
           .from('hendelser')
           .insert(payload)
         
-        if (error) throw error
+        if (error) {
+          console.error('INSERT feilet:', error)
+          throw error
+        }
+        console.log('INSERT OK')
       }
 
       setShowModal(false)
+      console.log('Laster hendelser på nytt...')
       await loadHendelser()
+      console.log('Lasting ferdig')
     } catch (error) {
+      console.error('CATCH block error:', error)
       log.error('Feil ved lagring', { error })
       alert('Kunne ikke lagre hendelse')
     } finally {
@@ -320,7 +333,7 @@ export function KsHmsHendelser() {
   })
 
   const filteredAnlegg = formData.kunde_id 
-    ? anlegg.filter(a => a.kunde_id === formData.kunde_id)
+    ? anlegg.filter(a => a.kundenr === formData.kunde_id)
     : anlegg
 
   if (loading) {
@@ -680,7 +693,7 @@ export function KsHmsHendelser() {
                         setShowAnleggDropdown(true)
                       }}
                       onFocus={() => setShowAnleggDropdown(true)}
-                      placeholder={formData.anlegg_id ? filteredAnlegg.find(a => a.id === formData.anlegg_id)?.navn : 'Søk etter anlegg...'}
+                      placeholder={formData.anlegg_id ? filteredAnlegg.find(a => a.id === formData.anlegg_id)?.anleggsnavn : 'Søk etter anlegg...'}
                       className="w-full px-4 py-2 bg-[#0d0d1a] border border-dark-border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-primary"
                     />
                     {formData.anlegg_id && (
@@ -698,7 +711,7 @@ export function KsHmsHendelser() {
                     {showAnleggDropdown && (
                       <div className="absolute z-10 w-full mt-1 bg-[#1a1a2e] border border-dark-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                         {filteredAnlegg
-                          .filter(a => a.navn.toLowerCase().includes(anleggSearch.toLowerCase()))
+                          .filter(a => a.anleggsnavn.toLowerCase().includes(anleggSearch.toLowerCase()))
                           .slice(0, 20)
                           .map((a) => (
                             <button
@@ -706,15 +719,15 @@ export function KsHmsHendelser() {
                               type="button"
                               onClick={() => {
                                 setFormData({ ...formData, anlegg_id: a.id })
-                                setAnleggSearch(a.navn)
+                                setAnleggSearch(a.anleggsnavn)
                                 setShowAnleggDropdown(false)
                               }}
                               className="w-full px-4 py-2 text-left text-white hover:bg-primary/20 transition-colors bg-transparent"
                             >
-                              {a.navn}
+                              {a.anleggsnavn}
                             </button>
                           ))}
-                        {filteredAnlegg.filter(a => a.navn.toLowerCase().includes(anleggSearch.toLowerCase())).length === 0 && (
+                        {filteredAnlegg.filter(a => a.anleggsnavn.toLowerCase().includes(anleggSearch.toLowerCase())).length === 0 && (
                           <div className="px-4 py-2 text-gray-400">Ingen anlegg funnet</div>
                         )}
                       </div>
