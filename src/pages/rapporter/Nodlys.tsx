@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Download, Upload, LayoutGrid, Table, FileSpreadsheet, ClipboardCheck } from 'lucide-react'
+import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Upload, LayoutGrid, Table, FileSpreadsheet, ClipboardCheck } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useLocation, useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
@@ -1087,78 +1087,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     } catch (error) {
       console.error('Feil ved eksport til Excel:', error)
       alert('Kunne ikke eksportere til Excel')
-    }
-  }
-
-  // Eksporter nødlysliste til PDF (enkel liste uten rapport-format)
-  function eksporterTilPDF() {
-    try {
-      const selectedAnleggData = anlegg.find(a => a.id === selectedAnlegg)
-      const anleggsnavn = selectedAnleggData?.anleggsnavn || 'Anlegg'
-      const kundenavn = kunder.find(k => k.id === selectedKunde)?.navn || ''
-
-      const doc = new jsPDF()
-      const pageWidth = doc.internal.pageSize.getWidth()
-
-      // Tittel
-      doc.setFontSize(16)
-      doc.setFont('helvetica', 'bold')
-      doc.text('NØDLYSLISTE', pageWidth / 2, 20, { align: 'center' })
-
-      // Undertittel med kunde og anlegg
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'normal')
-      doc.text(`${kundenavn} - ${anleggsnavn}`, pageWidth / 2, 28, { align: 'center' })
-
-      // Dato
-      doc.setFontSize(9)
-      doc.setTextColor(100, 100, 100)
-      doc.text(`Eksportert: ${new Date().toLocaleDateString('nb-NO')}`, pageWidth / 2, 34, { align: 'center' })
-      doc.setTextColor(0, 0, 0)
-
-      // Sorter etter armatur_id (numerisk)
-      const sortedData = [...nodlysListe].sort((a, b) => {
-        const numA = parseInt(a.amatur_id || '0') || 0
-        const numB = parseInt(b.amatur_id || '0') || 0
-        return numA - numB
-      })
-
-      // Tabell
-      autoTable(doc, {
-        startY: 40,
-        head: [['Intern nr.', 'Armatur ID', 'Fordeling', 'Kurs', 'Etasje', 'Plassering', 'Produsent', 'Type', 'Status', 'Kontrollert']],
-        body: sortedData.map(n => [
-          n.internnummer || '-',
-          n.amatur_id || '-',
-          n.fordeling || '-',
-          n.kurs || '-',
-          n.etasje || '-',
-          n.plassering || '-',
-          n.produsent || '-',
-          n.type || '-',
-          n.status || '-',
-          n.kontrollert ? 'Ja' : 'Nei'
-        ]),
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 8 },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { left: 10, right: 10 },
-      })
-
-      // Generer filnavn
-      const dato = new Date().toISOString().split('T')[0]
-      const filnavnSafe = anleggsnavn
-        .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
-        .replace(/ø/g, 'o').replace(/Ø/g, 'O')
-        .replace(/å/g, 'a').replace(/Å/g, 'A')
-        .replace(/\s+/g, '_')
-        .replace(/[^a-zA-Z0-9._-]/g, '_')
-      const fileName = `Nodlysliste_${filnavnSafe}_${dato}.pdf`
-
-      doc.save(fileName)
-    } catch (error) {
-      console.error('Feil ved eksport til PDF:', error)
-      alert('Kunne ikke eksportere til PDF')
     }
   }
 
