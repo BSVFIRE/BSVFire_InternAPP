@@ -265,27 +265,27 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-white mb-2">Sentraler og Luker</h2>
-        <p className="text-gray-400">{kundeNavn} - {anleggNavn}</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Sentraler og Luker</h2>
+        <p className="text-gray-600 dark:text-gray-400">{kundeNavn} - {anleggNavn}</p>
       </div>
 
       {/* Statistikk */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card bg-blue-500/10 border-blue-500/20">
-          <div className="text-sm text-gray-400">Sentraler</div>
-          <div className="text-2xl font-bold text-blue-400">{stats.totaltSentraler}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Sentraler</div>
+          <div className="text-2xl font-bold text-blue-500 dark:text-blue-400">{stats.totaltSentraler}</div>
         </div>
         <div className="card bg-purple-500/10 border-purple-500/20">
-          <div className="text-sm text-gray-400">Luker totalt</div>
-          <div className="text-2xl font-bold text-purple-400">{stats.totaltLuker}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Luker totalt</div>
+          <div className="text-2xl font-bold text-purple-500 dark:text-purple-400">{stats.totaltLuker}</div>
         </div>
         <div className="card bg-green-500/10 border-green-500/20">
-          <div className="text-sm text-gray-400">Luker OK</div>
-          <div className="text-2xl font-bold text-green-400">{stats.lukerOk}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Luker OK</div>
+          <div className="text-2xl font-bold text-green-500 dark:text-green-400">{stats.lukerOk}</div>
         </div>
         <div className="card bg-yellow-500/10 border-yellow-500/20">
-          <div className="text-sm text-gray-400">Luker Avvik</div>
-          <div className="text-2xl font-bold text-yellow-400">{stats.lukerAvvik}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Luker Avvik</div>
+          <div className="text-2xl font-bold text-yellow-500 dark:text-yellow-400">{stats.lukerAvvik}</div>
         </div>
       </div>
 
@@ -356,7 +356,7 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
                 <div className="flex items-center gap-3 flex-1">
                   <button
                     onClick={() => setExpandedSentral(isExpanded ? null : sentral.id!)}
-                    className="p-1 hover:bg-dark-100 rounded transition-colors"
+                    className="p-1 hover:bg-gray-100 dark:hover:bg-dark-100 rounded transition-colors"
                   >
                     {isExpanded ? (
                       <ChevronDown className="w-5 h-5 text-gray-400" />
@@ -366,10 +366,10 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
                   </button>
                   <Wind className="w-5 h-5 text-primary" />
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-white">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       Sentral {sentral.sentral_nr || 'Uten nr'}
                     </h3>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
                       {sentral.plassering || 'Ingen plassering'} • {sentralLuker.length} luker
                     </p>
                   </div>
@@ -402,9 +402,9 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
 
               {/* Sentral detaljer */}
               {isEditing && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-dark-100 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-gray-50 dark:bg-dark-100 rounded-lg">
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Sentral nr</label>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Sentral nr</label>
                     <input
                       type="number"
                       value={sentral.sentral_nr || ''}
@@ -414,7 +414,7 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Status</label>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Status</label>
                     <select
                       value={sentral.status || ''}
                       onChange={(e) => updateSentral(sentral.id!, 'status', e.target.value)}
@@ -426,7 +426,7 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Batteri alder (år)</label>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Batteri alder (år)</label>
                     <input
                       type="number"
                       value={sentral.batteri_alder || ''}
@@ -436,7 +436,7 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Batteri V</label>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Batteri V</label>
                     <input
                       type="text"
                       value={sentral.batteri_v || ''}
@@ -446,7 +446,7 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Batteri Ah</label>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Batteri Ah</label>
                     <input
                       type="text"
                       value={sentral.batteri_ah || ''}
@@ -463,11 +463,11 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
                         onChange={(e) => updateSentral(sentral.id!, 'manuell_utlos', e.target.checked)}
                         className="w-4 h-4"
                       />
-                      <span className="text-sm text-gray-300">Manuell utløs</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Manuell utløs</span>
                     </label>
                   </div>
                   <div className="md:col-span-3">
-                    <label className="block text-sm text-gray-400 mb-1">Plassering</label>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Plassering</label>
                     <input
                       type="text"
                       value={sentral.plassering || ''}
@@ -481,9 +481,9 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
 
               {/* Luker */}
               {isExpanded && (
-                <div className="border-t border-dark-100 pt-4 mt-4">
+                <div className="border-t border-gray-200 dark:border-dark-100 pt-4 mt-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-medium text-gray-300">Luker</h4>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Luker</h4>
                     <button
                       onClick={() => leggTilLuke(sentral.id!)}
                       className="btn-secondary btn-sm"
@@ -502,7 +502,7 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
                       {sentralLuker.map((luke) => (
                         <div
                           key={luke.id}
-                          className="p-3 bg-dark-100 rounded-lg flex items-center gap-3"
+                          className="p-3 bg-gray-50 dark:bg-dark-100 rounded-lg flex items-center gap-3"
                         >
                           <div className="grid grid-cols-1 md:grid-cols-5 gap-2 flex-1">
                             <input
@@ -547,7 +547,7 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
                                 }}
                                 className="w-4 h-4"
                               />
-                              <span className="text-sm text-gray-300">Funksjonstest</span>
+                              <span className="text-sm text-gray-700 dark:text-gray-300">Funksjonstest</span>
                             </label>
                           </div>
                           <div className="flex items-center gap-2">

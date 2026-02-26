@@ -8,6 +8,7 @@ import { ForstehjelpPreview } from './ForstehjelpPreview'
 import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
+import { Combobox } from '@/components/ui/Combobox'
 
 interface Kunde {
   id: string
@@ -72,8 +73,6 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
   const [forstehjelpListe, setForstehjelpListe] = useState<ForstehjelpEnhet[]>([])
   const [selectedKunde, setSelectedKunde] = useState(state?.kundeId || '')
   const [selectedAnlegg, setSelectedAnlegg] = useState(state?.anleggId || '')
-  const [kundeSok, setKundeSok] = useState('')
-  const [anleggSok, setAnleggSok] = useState('')
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'preview'>('list')
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
@@ -633,25 +632,19 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
     doc.text('FØRSTEHJELPSLISTE', 20, yPos)
     yPos += 5
 
+    // Hovedtabell uten sjekkpunkter
     autoTable(doc, {
       startY: yPos,
-      head: [['Nr', 'Type', 'Plassering', 'Etasje', 'Utløpsdato', 'Status', 'Tillegg', 'Sjekkpunkter']],
-      body: forstehjelpListe.map(f => {
-        const typeSjekkpunkter = sjekkpunkterPerType[f.type || 'Annet'] || sjekkpunkterPerType['Annet']
-        const fullforte = typeSjekkpunkter.filter(p => f.sjekkpunkter?.[p]).length
-        const sjekkStatus = `${fullforte}/${typeSjekkpunkter.length}`
-        
-        return [
-          f.internnummer || '-',
-          f.type || '-',
-          f.plassering || '-',
-          f.etasje || '-',
-          f.utlopsdato ? new Date(f.utlopsdato).toLocaleDateString('nb-NO') : '-',
-          f.status || '-',
-          f.tillegg?.join(', ') || '-',
-          sjekkStatus
-        ]
-      }),
+      head: [['Nr', 'Type', 'Plassering', 'Etasje', 'Utløpsdato', 'Status', 'Tillegg']],
+      body: forstehjelpListe.map(f => [
+        f.internnummer || '-',
+        f.type || '-',
+        f.plassering || '-',
+        f.etasje || '-',
+        f.utlopsdato ? new Date(f.utlopsdato).toLocaleDateString('nb-NO') : '-',
+        f.status || '-',
+        f.tillegg?.join(', ') || '-'
+      ]),
       styles: { fontSize: 8 },
       headStyles: { fillColor: [34, 197, 94], textColor: 255, fontSize: 8 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
@@ -659,6 +652,50 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       didDrawPage: () => {
         // Footer legges til på slutten
       }
+    })
+
+    // Sjekkpunkter seksjon - egen tabell
+    yPos = (doc as any).lastAutoTable.finalY + 15
+    
+    // Sjekk om vi trenger ny side
+    if (yPos > 240) {
+      doc.addPage()
+      yPos = 20
+    }
+
+    doc.setFillColor(34, 197, 94)
+    doc.rect(10, yPos, 190, 8, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('SJEKKPUNKTER OVERSIKT', 15, yPos + 5.5)
+    doc.setTextColor(0, 0, 0)
+    yPos += 12
+
+    // Sjekkpunkter-tabell med kolonner for hver sjekk
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Nr', 'Type', 'Innhold', 'Utlop OK', 'Synlig', 'Skilt']],
+      body: forstehjelpListe.map(f => [
+        f.internnummer || '-',
+        f.type || '-',
+        { content: f.sjekkpunkter?.['Innhold komplett'] ? 'OK' : 'X', styles: { textColor: f.sjekkpunkter?.['Innhold komplett'] ? [34, 197, 94] : [220, 38, 38], fontStyle: 'bold' } },
+        { content: (f.sjekkpunkter?.['Utløpsdato OK'] || f.sjekkpunkter?.['Væske ikke utgått'] || f.sjekkpunkter?.['Batteri OK']) ? 'OK' : 'X', styles: { textColor: (f.sjekkpunkter?.['Utløpsdato OK'] || f.sjekkpunkter?.['Væske ikke utgått'] || f.sjekkpunkter?.['Batteri OK']) ? [34, 197, 94] : [220, 38, 38], fontStyle: 'bold' } },
+        { content: (f.sjekkpunkter?.['Plassering synlig'] || f.sjekkpunkter?.['Tilgjengelig'] || f.sjekkpunkter?.['Tilstand OK']) ? 'OK' : 'X', styles: { textColor: (f.sjekkpunkter?.['Plassering synlig'] || f.sjekkpunkter?.['Tilgjengelig'] || f.sjekkpunkter?.['Tilstand OK']) ? [34, 197, 94] : [220, 38, 38], fontStyle: 'bold' } },
+        { content: f.sjekkpunkter?.['Skilt på plass'] ? 'OK' : 'X', styles: { textColor: f.sjekkpunkter?.['Skilt på plass'] ? [34, 197, 94] : [220, 38, 38], fontStyle: 'bold' } }
+      ]),
+      styles: { fontSize: 10, halign: 'center' },
+      headStyles: { fillColor: [100, 100, 100], textColor: 255, fontSize: 8 },
+      columnStyles: {
+        0: { halign: 'left', cellWidth: 22 },
+        1: { halign: 'left', cellWidth: 45 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 25 },
+        5: { cellWidth: 25 }
+      },
+      alternateRowStyles: { fillColor: [250, 250, 250] },
+      margin: { left: 10, right: 10, bottom: 25 }
     })
 
     // Kommentarer seksjon - på ny side hvis det finnes kommentarer
@@ -1045,13 +1082,13 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
                 onBack()
               }
             }}
-            className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Førstehjelp</h1>
-            <p className="text-gray-400">Kontroll av førstehjelpstasjoner</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Førstehjelp</h1>
+            <p className="text-gray-500 dark:text-gray-400">Kontroll av førstehjelpstasjoner</p>
           </div>
         </div>
       </div>
@@ -1061,77 +1098,36 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Kunde */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Velg kunde <span className="text-red-500">*</span>
             </label>
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="Søk etter kunde..."
-                value={kundeSok}
-                onChange={(e) => setKundeSok(e.target.value)}
-                className="input"
-              />
-              <select
-                value={selectedKunde}
-                onChange={(e) => {
-                  setSelectedKunde(e.target.value)
-                  setSelectedAnlegg('')
-                }}
-                className="input"
-                size={Math.min(kunder.filter(k => 
-                  k.navn.toLowerCase().includes(kundeSok.toLowerCase())
-                ).length + 1, 8)}
-              >
-                <option value="">Velg kunde</option>
-                {kunder
-                  .filter(k => k.navn.toLowerCase().includes(kundeSok.toLowerCase()))
-                  .map((kunde) => (
-                    <option key={kunde.id} value={kunde.id}>{kunde.navn}</option>
-                  ))}
-              </select>
-            </div>
+            <Combobox
+              options={kunder.map(k => ({ id: k.id, value: k.id, label: k.navn }))}
+              value={selectedKunde}
+              onChange={(val) => {
+                setSelectedKunde(val)
+                setSelectedAnlegg('')
+              }}
+              placeholder="Søk og velg kunde..."
+              searchPlaceholder="Skriv for å søke..."
+              emptyMessage="Ingen kunder funnet"
+            />
           </div>
 
           {/* Anlegg */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Velg anlegg <span className="text-red-500">*</span>
             </label>
-            {!selectedKunde ? (
-              <div className="input bg-dark-100 text-gray-500 cursor-not-allowed">
-                Velg kunde først
-              </div>
-            ) : anlegg.length === 0 ? (
-              <div className="input bg-dark-100 text-gray-500">
-                Ingen anlegg funnet for denne kunden
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="Søk etter anlegg..."
-                  value={anleggSok}
-                  onChange={(e) => setAnleggSok(e.target.value)}
-                  className="input"
-                />
-                <select
-                  value={selectedAnlegg}
-                  onChange={(e) => setSelectedAnlegg(e.target.value)}
-                  className="input"
-                  size={Math.min(anlegg.filter(a => 
-                    a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase())
-                  ).length + 1, 8)}
-                >
-                  <option value="">Velg anlegg</option>
-                  {anlegg
-                    .filter(a => a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase()))
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>{a.anleggsnavn}</option>
-                    ))}
-                </select>
-              </div>
-            )}
+            <Combobox
+              options={anlegg.map(a => ({ id: a.id, value: a.id, label: a.anleggsnavn }))}
+              value={selectedAnlegg}
+              onChange={(val) => setSelectedAnlegg(val)}
+              placeholder="Søk og velg anlegg..."
+              searchPlaceholder="Skriv for å søke..."
+              emptyMessage="Ingen anlegg funnet"
+              disabled={!selectedKunde}
+            />
           </div>
         </div>
       </div>
@@ -1145,8 +1141,8 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
               <div className="flex items-center gap-3">
                 <Building2 className="w-5 h-5 text-green-500" />
                 <div>
-                  <p className="text-sm text-gray-400">Valgt anlegg</p>
-                  <p className="text-white font-medium">{selectedKundeNavn} - {selectedAnleggNavn}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Valgt anlegg</p>
+                  <p className="text-gray-900 dark:text-white font-medium">{selectedKundeNavn} - {selectedAnleggNavn}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1185,26 +1181,26 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
           {/* Statistikk */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="card bg-gray-500/10">
-              <p className="text-sm text-gray-400">Totalt</p>
-              <p className="text-2xl font-bold text-white">{forstehjelpListe.length}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Totalt</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{forstehjelpListe.length}</p>
             </div>
             <div className="card bg-green-500/10">
-              <p className="text-sm text-gray-400">OK</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">OK</p>
               <p className="text-2xl font-bold text-green-500">{forstehjelpListe.filter(f => f.status === 'OK').length}</p>
             </div>
             <div className="card bg-red-500/10">
-              <p className="text-sm text-gray-400">Defekt/Utgått</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Defekt/Utgått</p>
               <p className="text-2xl font-bold text-red-500">{forstehjelpListe.filter(f => f.status === 'Defekt' || f.status === 'Utgått').length}</p>
             </div>
             <div className="card bg-blue-500/10">
-              <p className="text-sm text-gray-400">Kontrollert</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Kontrollert</p>
               <p className="text-2xl font-bold text-blue-500">{forstehjelpListe.filter(f => f.kontrollert).length}</p>
             </div>
           </div>
 
           {/* Liste */}
           <div className="card">
-            <h3 className="text-lg font-semibold text-white mb-4">Førstehjelpenheter ({forstehjelpListe.length})</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Førstehjelpenheter ({forstehjelpListe.length})</h3>
             
             {loading ? (
               <div className="text-center py-8">
@@ -1225,22 +1221,22 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-gray-700">
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-400">Nr</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-400">Type</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-400">Plassering</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-400">Etasje</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-400">Utløpsdato</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-400">Status</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-400">Tillegg</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-400">Sjekkpunkter</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-400">Kommentar</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-400">Handlinger</th>
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Nr</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Type</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Plassering</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Etasje</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Utløpsdato</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Status</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Tillegg</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Sjekkpunkter</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Kommentar</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Handlinger</th>
                     </tr>
                   </thead>
                   <tbody>
                     {forstehjelpListe.map((enhet) => (
-                      <tr key={enhet.id} className="border-b border-gray-800 hover:bg-dark-100">
+                      <tr key={enhet.id} className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-100">
                         {/* Internnummer */}
                         <td className="py-3 px-2">
                           {editingCell?.id === enhet.id && editingCell?.field === 'internnummer' ? (
@@ -1262,7 +1258,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
                           ) : (
                             <span
                               onClick={() => startEditing(enhet.id, 'internnummer', enhet.internnummer)}
-                              className="cursor-pointer hover:text-primary text-white"
+                              className="cursor-pointer hover:text-primary text-gray-900 dark:text-white"
                             >
                               {enhet.internnummer || '-'}
                             </span>
@@ -1294,7 +1290,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
                           ) : (
                             <span
                               onClick={() => startEditing(enhet.id, 'type', enhet.type)}
-                              className="cursor-pointer hover:text-primary text-white"
+                              className="cursor-pointer hover:text-primary text-gray-900 dark:text-white"
                             >
                               {enhet.type || '-'}
                             </span>
@@ -1322,7 +1318,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
                           ) : (
                             <span
                               onClick={() => startEditing(enhet.id, 'plassering', enhet.plassering)}
-                              className="cursor-pointer hover:text-primary text-white"
+                              className="cursor-pointer hover:text-primary text-gray-900 dark:text-white"
                             >
                               {enhet.plassering || '-'}
                             </span>
@@ -1354,7 +1350,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
                           ) : (
                             <span
                               onClick={() => startEditing(enhet.id, 'etasje', enhet.etasje)}
-                              className="cursor-pointer hover:text-primary text-white"
+                              className="cursor-pointer hover:text-primary text-gray-900 dark:text-white"
                             >
                               {enhet.etasje || '-'}
                             </span>
@@ -1382,7 +1378,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
                           ) : (
                             <span
                               onClick={() => startEditing(enhet.id, 'utlopsdato', enhet.utlopsdato)}
-                              className={`cursor-pointer hover:text-primary ${enhet.utlopsdato && new Date(enhet.utlopsdato) < new Date() ? 'text-red-500' : 'text-white'}`}
+                              className={`cursor-pointer hover:text-primary ${enhet.utlopsdato && new Date(enhet.utlopsdato) < new Date() ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}
                             >
                               {enhet.utlopsdato ? new Date(enhet.utlopsdato).toLocaleDateString('nb-NO') : '-'}
                             </span>
@@ -1420,8 +1416,8 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
                                     onClick={() => toggleTillegg(enhet.id, tillegg, enhet.tillegg)}
                                     className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 whitespace-nowrap ${
                                       isSelected 
-                                        ? 'bg-blue-500/20 text-blue-500 border border-blue-500/30' 
-                                        : 'bg-gray-700/50 text-gray-400 border border-gray-600'
+                                        ? 'bg-blue-500/20 text-blue-600 dark:text-blue-500 border border-blue-500/30' 
+                                        : 'bg-gray-200 dark:bg-gray-700/50 text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-600'
                                     }`}
                                     title={tillegg}
                                   >
@@ -1445,8 +1441,8 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
                                   onClick={() => toggleSjekkpunkt(enhet.id, punkt, enhet.sjekkpunkter)}
                                   className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 whitespace-nowrap ${
                                     isChecked 
-                                      ? 'bg-green-500/20 text-green-500 border border-green-500/30' 
-                                      : 'bg-gray-700/50 text-gray-400 border border-gray-600'
+                                      ? 'bg-green-500/20 text-green-600 dark:text-green-500 border border-green-500/30' 
+                                      : 'bg-gray-200 dark:bg-gray-700/50 text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-600'
                                   }`}
                                   title={punkt}
                                 >
@@ -1564,11 +1560,11 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
         <div className="flex items-start gap-3">
           <HeartPulse className="w-6 h-6 text-green-500 flex-shrink-0 mt-1" />
           <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Om førstehjelp</h3>
-            <p className="text-gray-400 text-sm mb-3">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Om førstehjelp</h3>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-3">
               Førstehjelp-modulen lar deg registrere og administrere kontroller for førstehjelpstasjoner.
             </p>
-            <ul className="space-y-2 text-sm text-gray-400">
+            <ul className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
               <li className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
                 Velg kunde og anlegg for å starte

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Save, Battery, Info, Server, CheckCircle, HelpCircle, Wifi, WifiOff, Clock, Eye, Download, X } from 'lucide-react'
+import { Save, Battery, Info, Server, CheckCircle, HelpCircle, Wifi, WifiOff, Clock, Eye, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -693,53 +693,60 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
         doc.setTextColor(0, 0, 0)
         yPos += 6
 
-        // Grunnleggende data seksjon med alignment
-        yPos += 2
-        const labelWidth = 40  // Fast bredde for labels
+        // Grunnleggende data seksjon - ryddig tabell-layout
+        yPos += 4
+        doc.setFontSize(8)
+        const infoCol1 = 20
+        const infoCol2 = 55
+        const infoCol3 = 110
+        const infoCol4 = 145
+        const infoRowHeight = 4.5
         
-        // Anleggsinfo
+        // Rad 1: Info (hvis finnes, ta hele bredden)
         if (sentral.anleggsinfo) {
-          doc.setFontSize(8)
           doc.setFont('helvetica', 'bold')
-          doc.text('Info:', 20, yPos)
+          doc.text('Info:', infoCol1, yPos)
           doc.setFont('helvetica', 'normal')
-          const anleggsLines = doc.splitTextToSize(sentral.anleggsinfo, 155)
-          doc.text(anleggsLines, 20 + labelWidth, yPos)
-          yPos += (anleggsLines.length * 3.5) + 1
+          const anleggsLines = doc.splitTextToSize(sentral.anleggsinfo, 140)
+          doc.text(anleggsLines, infoCol2, yPos)
+          yPos += (anleggsLines.length * 3.5) + 2
         }
 
-        // Sentral med alignment
-        doc.setFontSize(8)
-        if (sentral.sentral_produsent) {
+        // Rad 2: Sentral og Signal
+        if (sentral.sentral_produsent || sentral.signaltype) {
           doc.setFont('helvetica', 'bold')
-          doc.text('Sentral:', 20, yPos)
+          doc.text('Sentral:', infoCol1, yPos)
           doc.setFont('helvetica', 'normal')
-          doc.text(sentral.sentral_produsent, 20 + labelWidth, yPos)
-          yPos += 4
+          doc.text(sentral.sentral_produsent || '-', infoCol2, yPos)
+          doc.setFont('helvetica', 'bold')
+          doc.text('Signal:', infoCol3, yPos)
+          doc.setFont('helvetica', 'normal')
+          doc.text(sentral.signaltype || '-', infoCol4, yPos)
+          yPos += infoRowHeight
         }
         
-        // Signal med alignment
-        if (sentral.signaltype) {
-          doc.setFont('helvetica', 'bold')
-          doc.text('Signal:', 20, yPos)
-          doc.setFont('helvetica', 'normal')
-          doc.text(sentral.signaltype, 20 + labelWidth, yPos)
-          yPos += 4
-        }
-        
-        // Batteri med alignment
+        // Rad 3: Batteri info
         if (sentral.batteri_v || sentral.batteri_alder || sentral.ladespenning) {
           doc.setFont('helvetica', 'bold')
-          doc.text('Batteri:', 20, yPos)
+          doc.text('Batteri:', infoCol1, yPos)
           doc.setFont('helvetica', 'normal')
-          let battText = ''
-          if (sentral.batteri_v) battText += `${sentral.batteri_v}`
-          if (sentral.batteri_alder) battText += ` (${sentral.batteri_alder})`
-          if (sentral.ladespenning) battText += ` Lade: ${sentral.ladespenning}`
-          doc.text(battText, 20 + labelWidth, yPos)
-          yPos += 4
+          doc.text(sentral.batteri_v || '-', infoCol2, yPos)
+          doc.setFont('helvetica', 'bold')
+          doc.text('År:', infoCol3, yPos)
+          doc.setFont('helvetica', 'normal')
+          doc.text(sentral.batteri_alder ? `${sentral.batteri_alder}` : '-', infoCol4, yPos)
+          yPos += infoRowHeight
+          
+          // Rad 4: Ladespenning
+          if (sentral.ladespenning) {
+            doc.setFont('helvetica', 'bold')
+            doc.text('Ladespenning:', infoCol1, yPos)
+            doc.setFont('helvetica', 'normal')
+            doc.text(sentral.ladespenning, infoCol2, yPos)
+            yPos += infoRowHeight
+          }
         }
-        yPos += 1
+        yPos += 2
 
         // Kolonner for kompakt layout
         const leftCol = 20
@@ -747,44 +754,58 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
 
         // Branngardin eller Røykluker basert på type - med seksjonsboks
         if (sentral.anlegg_type === 'Branngardin') {
-          // Branngardin
+          // Branngardin - ryddig tabell-layout
           if (sentral.branngardin_type || sentral.branngardin_produsent) {
+            // Seksjonstittel med bakgrunn
+            doc.setFillColor(240, 240, 240)
+            doc.rect(15, yPos - 2, 180, 7, 'F')
             doc.setFontSize(9)
             doc.setFont('helvetica', 'bold')
-            doc.text('BRANNGARDIN', 20, yPos)
-            yPos += 4
+            doc.setTextColor(50, 50, 50)
+            doc.text('BRANNGARDIN', 20, yPos + 2)
+            doc.setTextColor(0, 0, 0)
+            yPos += 8
             
+            // Tabell med fast kolonnebredde
             doc.setFontSize(8)
+            const col1 = 20
+            const col2 = 55
+            const col3 = 110
+            const col4 = 145
+            const rowHeight = 4.5
+            
+            // Rad 1: Type og Antall
+            doc.setFont('helvetica', 'bold')
+            doc.text('Type:', col1, yPos)
             doc.setFont('helvetica', 'normal')
-            let leftY = yPos
-            let rightY = yPos
+            doc.text(sentral.branngardin_type || '-', col2, yPos)
+            doc.setFont('helvetica', 'bold')
+            doc.text('Antall:', col3, yPos)
+            doc.setFont('helvetica', 'normal')
+            doc.text(sentral.branngardin_antall ? `${sentral.branngardin_antall}` : '-', col4, yPos)
+            yPos += rowHeight
             
-            if (sentral.branngardin_type) {
-              doc.text(`Type: ${sentral.branngardin_type}`, leftCol, leftY)
-              leftY += 3.5
-            }
-            if (sentral.branngardin_antall) {
-              doc.text(`Antall: ${sentral.branngardin_antall}`, rightCol, rightY)
-              rightY += 3.5
-            }
-            if (sentral.branngardin_produsent) {
-              doc.text(`Produsent: ${sentral.branngardin_produsent}`, leftCol, leftY)
-              leftY += 3.5
-            }
-            if (sentral.branngardin_klassifisering) {
-              doc.text(`Klassifisering: ${sentral.branngardin_klassifisering}`, rightCol, rightY)
-              rightY += 3.5
-            }
-            if (sentral.aktiveringspenning) {
-              doc.text(`Aktivering: ${sentral.aktiveringspenning}`, leftCol, leftY)
-              leftY += 3.5
-            }
-            if (sentral.hvilespenning) {
-              doc.text(`Hvile: ${sentral.hvilespenning}`, rightCol, rightY)
-              rightY += 3.5
-            }
+            // Rad 2: Produsent og Klassifisering
+            doc.setFont('helvetica', 'bold')
+            doc.text('Produsent:', col1, yPos)
+            doc.setFont('helvetica', 'normal')
+            doc.text(sentral.branngardin_produsent || '-', col2, yPos)
+            doc.setFont('helvetica', 'bold')
+            doc.text('Klassifisering:', col3, yPos)
+            doc.setFont('helvetica', 'normal')
+            doc.text(sentral.branngardin_klassifisering || '-', col4, yPos)
+            yPos += rowHeight
             
-            yPos = Math.max(leftY, rightY) + 2
+            // Rad 3: Aktivering og Hvile
+            doc.setFont('helvetica', 'bold')
+            doc.text('Aktivering:', col1, yPos)
+            doc.setFont('helvetica', 'normal')
+            doc.text(sentral.aktiveringspenning || '-', col2, yPos)
+            doc.setFont('helvetica', 'bold')
+            doc.text('Hvile:', col3, yPos)
+            doc.setFont('helvetica', 'normal')
+            doc.text(sentral.hvilespenning || '-', col4, yPos)
+            yPos += rowHeight + 3
           }
         } else if (sentral.anlegg_type === 'Røykluker') {
           // Overskrift
@@ -935,11 +956,16 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
         const merknadText = sentral.anlegg_type === 'Røykluker' ? sentral.roykluke_merknad : sentral.branngardin_merknad
         
         if (hasByttetUtstyr || hasKontroll || merknadText) {
-          yPos += 3
+          yPos += 6
+          // Seksjonstittel med bakgrunn - tydelig separasjon
+          doc.setFillColor(41, 128, 185)
+          doc.rect(15, yPos - 3, 180, 8, 'F')
           doc.setFontSize(9)
           doc.setFont('helvetica', 'bold')
-          doc.text('KONTROLL & MERKNADER', 20, yPos)
-          yPos += 4
+          doc.setTextColor(255, 255, 255)
+          doc.text('KONTROLL & MERKNADER', 20, yPos + 2)
+          doc.setTextColor(0, 0, 0)
+          yPos += 10
           doc.setFontSize(8)
           
           // Byttet utstyr (inline)
@@ -950,7 +976,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             let byttetText = ''
             if (sentral.byttet_utstyr) byttetText += sentral.byttet_utstyr
             if (sentral.byttet_utstyr_antall) byttetText += ` (${sentral.byttet_utstyr_antall} stk)`
-            doc.text(byttetText, 20 + labelWidth + 15, yPos)
+            doc.text(byttetText, 55, yPos)
             yPos += 3.5
           }
           
@@ -960,7 +986,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
               doc.setFont('helvetica', 'bold')
               doc.text('Funksjonstest:', 20, yPos)
               doc.setFont('helvetica', 'normal')
-              doc.text(sentral.kontroll_funksjonstest, 20 + labelWidth + 15, yPos)
+              doc.text(sentral.kontroll_funksjonstest, 55, yPos)
             }
             if (sentral.kontroll_forskriftsmessig) {
               doc.setFont('helvetica', 'bold')
@@ -977,7 +1003,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             doc.text('Utbedringer:', 20, yPos)
             doc.setFont('helvetica', 'normal')
             const utbedringerLines = doc.splitTextToSize(sentral.kontroll_anbefalte_utbedringer, 130)
-            doc.text(utbedringerLines, 20 + labelWidth + 15, yPos)
+            doc.text(utbedringerLines, 55, yPos)
             yPos += (utbedringerLines.length * 3.5) + 1
           }
           
@@ -987,7 +1013,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             doc.text('Merknad:', 20, yPos)
             doc.setFont('helvetica', 'normal')
             const merknadLines = doc.splitTextToSize(merknadText, 130)
-            doc.text(merknadLines, 20 + labelWidth + 15, yPos)
+            doc.text(merknadLines, 55, yPos)
             yPos += (merknadLines.length * 3.5) + 2
           }
         }
@@ -995,11 +1021,16 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
         // Luker for denne sentralen - ultra kompakt
         const sentralLuker = alleLuker.filter(l => l.sentral_id === sentral.id)
         if (sentralLuker.length > 0) {
-          yPos += 3
+          yPos += 6
+          // Seksjonstittel med bakgrunn
+          doc.setFillColor(41, 128, 185)
+          doc.rect(15, yPos - 3, 180, 8, 'F')
           doc.setFont('helvetica', 'bold')
           doc.setFontSize(9)
-          doc.text(`LUKER (${sentralLuker.length})`, 20, yPos)
-          yPos += 3
+          doc.setTextColor(255, 255, 255)
+          doc.text(`TILKOBLET LUKER SENTRAL ${sentral.sentral_nr || index + 1} (${sentralLuker.length})`, 20, yPos + 2)
+          doc.setTextColor(0, 0, 0)
+          yPos += 8
 
           autoTable(doc, {
             startY: yPos,
@@ -1320,8 +1351,8 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white mb-2">Sentraldata</h2>
-          <p className="text-gray-400">{kundeNavn} - {anleggNavn}</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Sentraldata</h2>
+          <p className="text-gray-600 dark:text-gray-400">{kundeNavn} - {anleggNavn}</p>
           
           {/* Status indikatorer */}
           <div className="flex items-center gap-4 mt-2">
@@ -1356,44 +1387,6 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => genererRapport('preview')}
-            disabled={generatingPdf}
-            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Eye className="w-5 h-5" />
-            Forhåndsvisning
-          </button>
-          <button
-            onClick={() => genererRapport('save')}
-            disabled={generatingPdf}
-            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Save className="w-5 h-5" />
-            Lagre rapport
-          </button>
-          <button
-            onClick={() => genererRapport('download')}
-            disabled={generatingPdf}
-            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="w-5 h-5" />
-            Lagre og last ned
-          </button>
-        </div>
-      </div>
-
-      {/* Kontrolldato velger */}
-      <div className="card">
-        <KontrolldatoVelger
-          kontrolldato={kontrolldato}
-          onDatoChange={setKontrolldato}
-          label="Kontrolldato for rapport"
-        />
-        <p className="text-xs text-gray-500 mt-2">
-          Standard er dagens dato. Velg en annen dato hvis du trenger å tilbakedatere rapporten.
-        </p>
       </div>
 
       {/* Sentral-velger */}
@@ -1401,7 +1394,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
         <div className="card bg-primary/5 border-primary/20">
           <div className="flex items-center gap-3 mb-3">
             <Server className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-semibold text-white">Velg sentral</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Velg sentral</h3>
           </div>
           <select
             value={selectedSentral}
@@ -1423,7 +1416,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
         </div>
       ) : (
         <div className="card bg-yellow-500/10 border-yellow-500/20">
-          <p className="text-yellow-400">
+          <p className="text-yellow-600 dark:text-yellow-400">
             Ingen sentraler funnet for dette anlegget. Opprett sentraler i "Sentraler og Luker" først.
           </p>
         </div>
@@ -1433,22 +1426,60 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       <div className="card">
         <div className="flex items-center gap-3 mb-4">
           <Info className="w-5 h-5 text-primary" />
-          <h3 className="text-lg font-semibold text-white">Type og Anleggsinfo</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Type og Anleggsinfo</h3>
         </div>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Type anlegg</label>
-            <select
-              value={data.anlegg_type || 'Branngardin'}
-              onChange={(e) => updateData('anlegg_type', e.target.value)}
-              className="input"
-            >
-              <option value="Branngardin">Branngardin</option>
-              <option value="Røykluker">Røykluker</option>
-            </select>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type anlegg</label>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => updateData('anlegg_type', 'Branngardin')}
+                className={`flex-1 py-3 px-4 rounded-lg border-2 transition-all ${
+                  data.anlegg_type === 'Branngardin' || !data.anlegg_type
+                    ? 'border-primary bg-primary/10 text-primary font-semibold'
+                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-primary/50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    data.anlegg_type === 'Branngardin' || !data.anlegg_type
+                      ? 'border-primary bg-primary'
+                      : 'border-gray-400'
+                  }`}>
+                    {(data.anlegg_type === 'Branngardin' || !data.anlegg_type) && (
+                      <div className="w-2 h-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                  Branngardin
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => updateData('anlegg_type', 'Røykluker')}
+                className={`flex-1 py-3 px-4 rounded-lg border-2 transition-all ${
+                  data.anlegg_type === 'Røykluker'
+                    ? 'border-primary bg-primary/10 text-primary font-semibold'
+                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-primary/50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    data.anlegg_type === 'Røykluker'
+                      ? 'border-primary bg-primary'
+                      : 'border-gray-400'
+                  }`}>
+                    {data.anlegg_type === 'Røykluker' && (
+                      <div className="w-2 h-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                  Røykluker
+                </div>
+              </button>
+            </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Anleggsinfo</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Anleggsinfo</label>
             <textarea
               value={data.anleggsinfo || ''}
               onChange={(e) => updateData('anleggsinfo', e.target.value)}
@@ -1463,11 +1494,11 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       <div className="card">
         <div className="flex items-center gap-3 mb-4">
           <Server className="w-5 h-5 text-primary" />
-          <h3 className="text-lg font-semibold text-white">Sentral</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sentral</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Produsent</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Produsent</label>
             <input
               type="text"
               value={data.sentral_produsent || ''}
@@ -1483,11 +1514,11 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       <div className="card">
         <div className="flex items-center gap-3 mb-4">
           <Battery className="w-5 h-5 text-primary" />
-          <h3 className="text-lg font-semibold text-white">Batteri</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Batteri</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Batteri spenning</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Batteri spenning</label>
             <input
               type="text"
               value={data.batteri_v || ''}
@@ -1497,7 +1528,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Batteri årstal</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Batteri årstal</label>
             <input
               type="number"
               value={data.batteri_alder || ''}
@@ -1507,7 +1538,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Ladespenning</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Ladespenning</label>
             <input
               type="text"
               value={data.ladespenning || ''}
@@ -1522,10 +1553,10 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       {/* Branngardin - kun hvis type er Branngardin */}
       {data.anlegg_type === 'Branngardin' && (
         <div className="card">
-          <h3 className="text-lg font-semibold text-white mb-4">Branngardin</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Branngardin</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
             <input
               type="text"
               value={data.branngardin_type || ''}
@@ -1535,7 +1566,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Antall</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Antall</label>
             <input
               type="number"
               value={data.branngardin_antall || ''}
@@ -1545,7 +1576,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Produsent</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Produsent</label>
             <input
               type="text"
               value={data.branngardin_produsent || ''}
@@ -1577,7 +1608,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Aktiveringspenning</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Aktiveringspenning</label>
             <input
               type="text"
               value={data.aktiveringspenning || ''}
@@ -1587,7 +1618,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Hvilespenning</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hvilespenning</label>
             <input
               type="text"
               value={data.hvilespenning || ''}
@@ -1597,7 +1628,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-2">Merknad</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Merknad</label>
             <textarea
               value={data.branngardin_merknad || ''}
               onChange={(e) => updateData('branngardin_merknad', e.target.value)}
@@ -1612,10 +1643,10 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       {/* Motor - kun hvis type er Røykluker */}
       {data.anlegg_type === 'Røykluker' && (
         <div className="card">
-          <h3 className="text-lg font-semibold text-white mb-4">Motor</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Motor</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Motortype</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Motortype</label>
               <input
                 type="text"
                 value={data.motor_type || ''}
@@ -1625,7 +1656,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Antall</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Antall</label>
               <input
                 type="number"
                 value={data.motor_antall || ''}
@@ -1641,30 +1672,36 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       {/* Røykluker - kun hvis type er Røykluker */}
       {data.anlegg_type === 'Røykluker' && (
         <div className="card">
-          <h3 className="text-lg font-semibold text-white mb-4">Røykluker</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Røykluker</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
+              <select
                 value={data.roykluke_type || ''}
                 onChange={(e) => updateData('roykluke_type', e.target.value)}
                 className="input"
-                placeholder="f.eks. Karm/Kuppel"
-              />
+              >
+                <option value="">Velg type...</option>
+                <option value="Pneumatisk">Pneumatisk</option>
+                <option value="Elektrisk">Elektrisk</option>
+                <option value="CO2">CO2</option>
+                <option value="Mekanisk">Mekanisk</option>
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Luketype</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Luketype</label>
+              <select
                 value={data.roykluke_luketype || ''}
                 onChange={(e) => updateData('roykluke_luketype', e.target.value)}
                 className="input"
-                placeholder="f.eks. Pc-lys"
-              />
+              >
+                <option value="">Velg luketype...</option>
+                <option value="Vindu">Vindu</option>
+                <option value="Kuppel">Kuppel</option>
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Størrelse</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Størrelse</label>
               <input
                 type="text"
                 value={data.roykluke_storrelse || ''}
@@ -1672,9 +1709,33 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
                 className="input"
                 placeholder="f.eks. 120x150cm"
               />
+              <div className="flex gap-3 mt-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Hurtigvalg:</span>
+                <button
+                  type="button"
+                  onClick={() => updateData('roykluke_storrelse', 'Ikke tilkomst')}
+                  className="text-sm text-blue-600 hover:text-blue-800 underline"
+                >
+                  Ikke tilkomst
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateData('roykluke_storrelse', 'Ikke Datablad')}
+                  className="text-sm text-blue-600 hover:text-blue-800 underline"
+                >
+                  Ikke Datablad
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateData('roykluke_storrelse', 'Ikke tilkomst, Ikke Datablad')}
+                  className="text-sm text-blue-600 hover:text-blue-800 underline"
+                >
+                  Begge
+                </button>
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Antall</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Antall</label>
               <input
                 type="number"
                 value={data.roykluke_antall || ''}
@@ -1684,7 +1745,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-300 mb-2">Merknad</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Merknad</label>
               <textarea
                 value={data.roykluke_merknad || ''}
                 onChange={(e) => updateData('roykluke_merknad', e.target.value)}
@@ -1699,10 +1760,10 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       {/* Krets - kun hvis type er Røykluker */}
       {data.anlegg_type === 'Røykluker' && (
         <div className="card">
-          <h3 className="text-lg font-semibold text-white mb-4">Krets</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Krets</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Nr</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nr</label>
               <input
                 type="text"
                 value={data.krets_nr || ''}
@@ -1712,7 +1773,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Aktiveringspenning</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Aktiveringspenning</label>
               <input
                 type="text"
                 value={data.krets_aktiveringspenning || ''}
@@ -1722,7 +1783,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Hvilespenning</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hvilespenning</label>
               <input
                 type="text"
                 value={data.krets_hvilespenning || ''}
@@ -1732,7 +1793,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Motstand</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Motstand</label>
               <input
                 type="text"
                 value={data.krets_motstand || ''}
@@ -1749,11 +1810,11 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       <div className="card">
         <div className="flex items-center gap-3 mb-4">
           <CheckCircle className="w-5 h-5 text-primary" />
-          <h3 className="text-lg font-semibold text-white">Sjekkpunkter</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sjekkpunkter</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Ledeskinner</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Ledeskinner</label>
             <select
               value={data.sjekk_ledeskinner || 'Ok'}
               onChange={(e) => updateData('sjekk_ledeskinner', e.target.value)}
@@ -1765,19 +1826,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Beslag</label>
-            <select
-              value={data.sjekk_beslag || 'Ok'}
-              onChange={(e) => updateData('sjekk_beslag', e.target.value)}
-              className="input"
-            >
-              {statusOptions.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Motor</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Motor</label>
             <select
               value={data.sjekk_motor || 'Ok'}
               onChange={(e) => updateData('sjekk_motor', e.target.value)}
@@ -1789,7 +1838,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Gardin status</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Gardin status</label>
             <select
               value={data.sjekk_gardin_status || 'Ok'}
               onChange={(e) => updateData('sjekk_gardin_status', e.target.value)}
@@ -1805,7 +1854,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
           {data.anlegg_type === 'Røykluker' && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Manuell utløser</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Manuell utløser</label>
                 <select
                   value={data.sjekk_manuell_utloser || 'Ok'}
                   onChange={(e) => updateData('sjekk_manuell_utloser', e.target.value)}
@@ -1817,7 +1866,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Karm</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Karm</label>
                 <select
                   value={data.sjekk_karm || 'Ok'}
                   onChange={(e) => updateData('sjekk_karm', e.target.value)}
@@ -1829,7 +1878,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Overlys</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Overlys</label>
                 <select
                   value={data.sjekk_overlys || 'Ok'}
                   onChange={(e) => updateData('sjekk_overlys', e.target.value)}
@@ -1841,7 +1890,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Beslag (Røykluker)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Beslag (Røykluker)</label>
                 <select
                   value={data.sjekk_beslag_roykluke || 'Ok'}
                   onChange={(e) => updateData('sjekk_beslag_roykluke', e.target.value)}
@@ -1853,7 +1902,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Krets</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Krets</label>
                 <select
                   value={data.sjekk_krets || 'Ok'}
                   onChange={(e) => updateData('sjekk_krets', e.target.value)}
@@ -1872,10 +1921,10 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       {/* Byttet utstyr - kun for Røykluker */}
       {data.anlegg_type === 'Røykluker' && (
         <div className="card">
-          <h3 className="text-lg font-semibold text-white mb-4">Byttet utstyr</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Byttet utstyr ved kontroll</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Utstyr</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Utstyr</label>
               <input
                 type="text"
                 value={data.byttet_utstyr || ''}
@@ -1885,7 +1934,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Antall</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Antall</label>
               <input
                 type="number"
                 value={data.byttet_utstyr_antall || ''}
@@ -1900,9 +1949,9 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
 
       {/* Signal */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-white mb-4">Signal</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Signal</h3>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Signaltype</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Signaltype</label>
           <input
             type="text"
             value={data.signaltype || ''}
@@ -1915,10 +1964,10 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
 
       {/* Sjekkpunkter Tilstand */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-white mb-4">Sjekkpunkter - Tilstand</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sjekkpunkter - Tilstand</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Sentral</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sentral</label>
             <select
               value={data.tilstand_sentral || 'Ok'}
               onChange={(e) => updateData('tilstand_sentral', e.target.value)}
@@ -1930,7 +1979,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Ladespenning</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Ladespenning</label>
             <select
               value={data.tilstand_ladespenning || 'Ok'}
               onChange={(e) => updateData('tilstand_ladespenning', e.target.value)}
@@ -1942,7 +1991,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Nettspenning</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nettspenning</label>
             <select
               value={data.tilstand_nettspenning || 'Ok'}
               onChange={(e) => updateData('tilstand_nettspenning', e.target.value)}
@@ -1954,7 +2003,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Nettlampe</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nettlampe</label>
             <select
               value={data.tilstand_nettlampe || 'Ok'}
               onChange={(e) => updateData('tilstand_nettlampe', e.target.value)}
@@ -1966,7 +2015,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Feillampe</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Feillampe</label>
             <select
               value={data.tilstand_feillampe || 'Ok'}
               onChange={(e) => updateData('tilstand_feillampe', e.target.value)}
@@ -1978,7 +2027,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Aktiveringslampe</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Aktiveringslampe</label>
             <select
               value={data.tilstand_aktiveringslampe || 'Ok'}
               onChange={(e) => updateData('tilstand_aktiveringslampe', e.target.value)}
@@ -1990,7 +2039,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Bryter</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bryter</label>
             <select
               value={data.tilstand_bryter || 'Ok'}
               onChange={(e) => updateData('tilstand_bryter', e.target.value)}
@@ -2002,7 +2051,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Signal</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Signal</label>
             <select
               value={data.tilstand_signal || 'Ok'}
               onChange={(e) => updateData('tilstand_signal', e.target.value)}
@@ -2018,11 +2067,27 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
 
       {/* Kontroll */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-white mb-4">Kontroll</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Kontroll</h3>
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Funksjonstestet anlegg</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                Funksjonstestet anlegg
+                <div className="relative group">
+                  <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50">
+                    <div className="bg-gray-900 text-white text-xs rounded-lg p-3 w-48 shadow-lg">
+                      <p className="font-semibold mb-2">Funksjonstest</p>
+                      <ul className="space-y-1">
+                        <li>□ Åpner ved test</li>
+                        <li>□ Lukker korrekt</li>
+                        <li>□ Tidsforsinkelse OK</li>
+                        <li>□ Tilbakemelding til sentral OK</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </label>
               <select
                 value={data.kontroll_funksjonstest || 'Ja'}
                 onChange={(e) => updateData('kontroll_funksjonstest', e.target.value)}
@@ -2034,7 +2099,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Er anlegget i forskriftsmessig tilstand</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Er anlegget i forskriftsmessig tilstand</label>
               <select
                 value={data.kontroll_forskriftsmessig || 'Ja'}
                 onChange={(e) => updateData('kontroll_forskriftsmessig', e.target.value)}
@@ -2047,7 +2112,7 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Anbefalte utbedringer</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Anbefalte utbedringer</label>
             <textarea
               value={data.kontroll_anbefalte_utbedringer || ''}
               onChange={(e) => updateData('kontroll_anbefalte_utbedringer', e.target.value)}
@@ -2055,6 +2120,127 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
               placeholder="Anbefalte utbedringer..."
             />
           </div>
+        </div>
+      </div>
+
+      {/* Fullfør kontroll - Samlet seksjon */}
+      <div className="card bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
+            <CheckCircle className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Fullfør kontroll</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Sjekkliste før du genererer rapport</p>
+          </div>
+        </div>
+
+        {/* Sjekkliste */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Status 1: Sentraler */}
+          <div className={`p-4 rounded-xl border-2 transition-all ${
+            sentraler.length > 0
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
+              : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                sentraler.length > 0
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400'
+              }`}>
+                {sentraler.length > 0 ? '✓' : '1'}
+              </div>
+              <div>
+                <p className={`font-medium ${sentraler.length > 0 ? 'text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                  Sentraler registrert
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {sentraler.length} sentral{sentraler.length !== 1 ? 'er' : ''}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Status 2: Funksjonstest */}
+          <div className={`p-4 rounded-xl border-2 transition-all ${
+            data.kontroll_funksjonstest === 'Ja'
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
+              : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                data.kontroll_funksjonstest === 'Ja'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400'
+              }`}>
+                {data.kontroll_funksjonstest === 'Ja' ? '✓' : '2'}
+              </div>
+              <div>
+                <p className={`font-medium ${data.kontroll_funksjonstest === 'Ja' ? 'text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                  Funksjonstest
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {data.kontroll_funksjonstest || 'Ikke satt'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Status 3: Dato valgt */}
+          <div className="p-4 rounded-xl border-2 bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-500 text-white">
+                ✓
+              </div>
+              <div>
+                <p className="font-medium text-green-700 dark:text-green-400">Kontrolldato</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {kontrolldato.toLocaleDateString('nb-NO')}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Kontrolldato velger */}
+        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+          <KontrolldatoVelger
+            kontrolldato={kontrolldato}
+            onDatoChange={setKontrolldato}
+            label="Kontrolldato"
+          />
+        </div>
+
+        {/* Hovedhandling - Stor knapp */}
+        <button
+          onClick={() => genererRapport('save')}
+          disabled={generatingPdf || sentraler.length === 0}
+          className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30"
+        >
+          <Save className="w-6 h-6" />
+          Generer rapport
+        </button>
+
+        {/* Sekundære handlinger */}
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
+          <button
+            onClick={() => genererRapport('preview')}
+            disabled={generatingPdf || sentraler.length === 0}
+            className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+          >
+            <Eye className="w-4 h-4" />
+            Forhåndsvis
+          </button>
+          <span className="text-gray-300 dark:text-gray-600">|</span>
+          <button
+            onClick={() => genererRapport('save')}
+            disabled={generatingPdf || sentraler.length === 0}
+            className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            Kun lagre
+          </button>
         </div>
       </div>
 

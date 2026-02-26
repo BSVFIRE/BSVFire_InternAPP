@@ -104,8 +104,8 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Brannalarm styringer</h1>
-            <p className="text-sm sm:text-base text-gray-400 mt-1 truncate">{anleggsNavn}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Brannalarm styringer</h1>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 truncate">{anleggsNavn}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -158,7 +158,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
             </div>
             <div className="min-w-0">
               <div className="text-xs text-gray-400 truncate">Totalt komponenter</div>
-              <div className="text-2xl font-bold text-white">{totalKomponenter}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{totalKomponenter}</div>
             </div>
           </div>
         </div>
@@ -169,7 +169,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
             </div>
             <div className="min-w-0">
               <div className="text-xs text-gray-400 truncate">Aktive enhetstyper</div>
-              <div className="text-2xl font-bold text-white">{aktiveStyringer}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{aktiveStyringer}</div>
             </div>
           </div>
         </div>
@@ -180,7 +180,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
             </div>
             <div className="min-w-0">
               <div className="text-xs text-gray-400 truncate">Enhetstyper</div>
-              <div className="text-2xl font-bold text-white">{styringTyper.length}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{styringTyper.length}</div>
             </div>
           </div>
         </div>
@@ -194,7 +194,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
             key={kat}
             onClick={() => setFilterKategori(kat)}
             className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors whitespace-nowrap ${
-              filterKategori === kat ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              filterKategori === kat ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
             {kat === 'all' ? 'Alle' : kat}
@@ -213,7 +213,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
               {/* Første rad: Navn, Toggle, Antall */}
               <div className={`flex items-center gap-3 ${isActive ? 'mb-3' : ''}`}>
                 <span className="text-2xl flex-shrink-0">{icon}</span>
-                <span className={`font-medium text-sm flex-1 ${isActive ? 'text-white' : 'text-gray-400'}`}>
+                <span className={`font-medium text-sm flex-1 ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
                   {navn}
                 </span>
                 <button
@@ -223,12 +223,12 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
                       [key]: { ...prev[key], aktiv: !prev[key]?.aktiv }
                     }))
                   }}
-                  className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${
-                    isActive ? 'bg-primary' : 'bg-gray-700'
+                  className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 ${
+                    isActive ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700'
                   }`}
                 >
-                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                    isActive ? 'translate-x-5' : 'translate-x-1'
+                  <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
+                    isActive ? 'translate-x-5' : 'translate-x-0.5'
                   }`} />
                 </button>
                 <input
@@ -248,7 +248,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
               
               {/* Andre rad: Status og Notat (kun hvis aktiv) */}
               {isActive && (
-                <div className="space-y-2 pt-3 border-t border-gray-800">
+                <div className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-800">
                   <select
                     value={localStyringer[key]?.status || ''}
                     onChange={(e) => {

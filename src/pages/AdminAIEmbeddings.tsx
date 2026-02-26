@@ -111,11 +111,11 @@ export function AdminAIEmbeddings() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             <Sparkles className="w-8 h-8 text-teal-400" />
             AI Embeddings
           </h1>
-          <p className="text-gray-400 mt-2">
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
             Generer embeddings for nye kunder og anlegg
           </p>
         </div>
@@ -125,8 +125,8 @@ export function AdminAIEmbeddings() {
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
         <div className="flex items-start gap-3">
           <Info className="w-5 h-5 text-blue-400 mt-0.5" />
-          <div className="text-sm text-gray-300">
-            <p className="font-semibold text-white mb-2">Hva er embeddings?</p>
+          <div className="text-sm text-gray-600 dark:text-gray-300">
+            <p className="font-semibold text-gray-900 dark:text-white mb-2">Hva er embeddings?</p>
             <p>
               Embeddings er matematiske representasjoner av tekst som lar AI-assistenten
               forstå og søke i kunder og anlegg. Når du legger til nye kunder eller anlegg,
@@ -139,19 +139,19 @@ export function AdminAIEmbeddings() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4">👥 Kunder</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">👥 Kunder</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-400">Totalt:</span>
-                <span className="text-white font-semibold">{stats.totalCustomers}</span>
+                <span className="text-gray-500 dark:text-gray-400">Totalt:</span>
+                <span className="text-gray-900 dark:text-white font-semibold">{stats.totalCustomers}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Har embeddings:</span>
+                <span className="text-gray-500 dark:text-gray-400">Har embeddings:</span>
                 <span className="text-green-400 font-semibold">{stats.existingCustomers}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Nye (mangler):</span>
+                <span className="text-gray-500 dark:text-gray-400">Nye (mangler):</span>
                 <span className={`font-semibold ${stats.newCustomers > 0 ? 'text-yellow-400' : 'text-green-400'}`}>
                   {stats.newCustomers}
                 </span>
@@ -159,19 +159,19 @@ export function AdminAIEmbeddings() {
             </div>
           </div>
 
-          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4">🏢 Anlegg</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">🏢 Anlegg</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-400">Totalt:</span>
-                <span className="text-white font-semibold">{stats.totalAnlegg}</span>
+                <span className="text-gray-500 dark:text-gray-400">Totalt:</span>
+                <span className="text-gray-900 dark:text-white font-semibold">{stats.totalAnlegg}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Har embeddings:</span>
+                <span className="text-gray-500 dark:text-gray-400">Har embeddings:</span>
                 <span className="text-green-400 font-semibold">{stats.existingAnlegg}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Nye (mangler):</span>
+                <span className="text-gray-500 dark:text-gray-400">Nye (mangler):</span>
                 <span className={`font-semibold ${stats.newAnlegg > 0 ? 'text-yellow-400' : 'text-green-400'}`}>
                   {stats.newAnlegg}
                 </span>
@@ -182,7 +182,7 @@ export function AdminAIEmbeddings() {
       )}
 
       {/* Action Button */}
-      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
         <button
           onClick={generateEmbeddings}
           disabled={isRunning}
@@ -204,8 +204,8 @@ export function AdminAIEmbeddings() {
 
       {/* Logs */}
       {logs.length > 0 && (
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <h3 className="text-lg font-semibold text-white mb-4">📋 Logg</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">📋 Logg</h3>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {logs.map((log, index) => (
               <div
@@ -226,7 +226,7 @@ export function AdminAIEmbeddings() {
                   <Info className="w-5 h-5 text-blue-400 mt-0.5" />
                 )}
                 <div className="flex-1">
-                  <p className="text-sm text-gray-300">{log.message}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">{log.message}</p>
                   <p className="text-xs text-gray-500 mt-1">
                     {log.timestamp.toLocaleTimeString('no-NO')}
                   </p>
@@ -238,12 +238,12 @@ export function AdminAIEmbeddings() {
       )}
 
       {/* Manual Instructions */}
-      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-        <h3 className="text-lg font-semibold text-white mb-4">💻 Manuell Kjøring</h3>
-        <p className="text-sm text-gray-400 mb-3">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">💻 Manuell Kjøring</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
           Hvis knappen over ikke fungerer, kan du kjøre scriptet manuelt i terminalen:
         </p>
-        <div className="bg-gray-900 rounded p-4 font-mono text-sm text-gray-300">
+        <div className="bg-gray-100 dark:bg-gray-900 rounded p-4 font-mono text-sm text-gray-700 dark:text-gray-300">
           <code>npx tsx scripts/generate-embeddings.ts</code>
         </div>
       </div>

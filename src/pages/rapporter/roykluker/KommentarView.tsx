@@ -142,15 +142,15 @@ export function KommentarView({ anleggId, kundeNavn, anleggNavn }: KommentarView
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-white mb-2">Kommentarer</h2>
-        <p className="text-gray-400">{kundeNavn} - {anleggNavn}</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Kommentarer</h2>
+        <p className="text-gray-600 dark:text-gray-400">{kundeNavn} - {anleggNavn}</p>
       </div>
 
       {/* Ny kommentar */}
       <div className="card">
         <div className="flex items-center gap-3 mb-4">
           <MessageSquare className="w-5 h-5 text-primary" />
-          <h3 className="text-lg font-semibold text-white">Legg til kommentar</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Legg til kommentar</h3>
         </div>
 
         <div className="space-y-3">
@@ -161,8 +161,8 @@ export function KommentarView({ anleggId, kundeNavn, anleggNavn }: KommentarView
             placeholder="Skriv en kommentar om røyklukesystemet, observasjoner, avvik eller annen relevant informasjon..."
           />
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-400">
-              Kommentar av: <span className="text-white">{brukerNavn || user?.email || 'Ukjent'}</span>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Kommentar av: <span className="text-gray-900 dark:text-white">{brukerNavn || user?.email || 'Ukjent'}</span>
             </p>
             <button
               onClick={leggTilKommentar}
@@ -178,7 +178,7 @@ export function KommentarView({ anleggId, kundeNavn, anleggNavn }: KommentarView
 
       {/* Kommentarliste */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-white">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           Tidligere kommentarer ({kommentarer.length})
         </h3>
 
@@ -198,7 +198,7 @@ export function KommentarView({ anleggId, kundeNavn, anleggNavn }: KommentarView
                       <MessageSquare className="w-4 h-4 text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-white">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
                         {kommentar.opprettet_av || 'Ukjent'}
                       </p>
                       <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -207,7 +207,7 @@ export function KommentarView({ anleggId, kundeNavn, anleggNavn }: KommentarView
                       </div>
                     </div>
                   </div>
-                  <p className="text-gray-300 whitespace-pre-wrap ml-11">
+                  <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap ml-11">
                     {kommentar.kommentar}
                   </p>
                 </div>

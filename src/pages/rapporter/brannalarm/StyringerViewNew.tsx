@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Check, AlertCircle, Eye, Filter, Wifi, WifiOff } from 'lucide-react'
+import { ArrowLeft, Check, AlertCircle, Eye, Filter, Wifi, WifiOff, Save } from 'lucide-react'
 import { BrannalarmStyring } from '../Brannalarm'
 
 interface StyringerViewProps {
@@ -40,6 +40,9 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [pendingChanges, setPendingChanges] = useState(0)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [initialStyringer, setInitialStyringer] = useState<Record<string, any>>({})
   const localStorageKey = `styringer_offline_${anleggId}`
 
   useEffect(() => {
@@ -53,7 +56,26 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
       }
     })
     setLocalStyringer(initial)
+    setInitialStyringer(initial)
   }, [styringer])
+
+  // Sjekk om det er ulagrede endringer
+  useEffect(() => {
+    const hasChanges = JSON.stringify(localStyringer) !== JSON.stringify(initialStyringer)
+    setHasUnsavedChanges(hasChanges && Object.keys(initialStyringer).length > 0)
+  }, [localStyringer, initialStyringer])
+
+  // Advarsel ved navigering bort (browser)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
 
   useEffect(() => {
     const handleOnline = () => {
@@ -110,11 +132,13 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
           await supabase.from('anleggsdata_brannalarm').insert(data)
         }
         setLastSaved(new Date())
+        setInitialStyringer(localStyringer) // Reset ulagrede endringer
         onSave(anleggId)
         onBack()
       } else {
         localStorage.setItem(localStorageKey, JSON.stringify(data))
         setPendingChanges(1)
+        setInitialStyringer(localStyringer) // Reset ulagrede endringer
         alert('Offline - data lagret lokalt og vil synkroniseres når du er online igjen')
         onBack()
       }
@@ -151,18 +175,33 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3 sm:gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0">
+          <button 
+            onClick={() => {
+              if (hasUnsavedChanges) {
+                if (!confirm('⚠️ Du har ulagrede endringer!\n\nVil du lagre før du går tilbake?')) {
+                  if (confirm('Er du sikker på at du vil forkaste endringene?')) {
+                    onBack()
+                  }
+                } else {
+                  handleSave()
+                }
+              } else {
+                onBack()
+              }
+            }} 
+            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors flex-shrink-0"
+          >
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Brannalarm styringer</h1>
-            <p className="text-sm sm:text-base text-gray-400 mt-1 truncate">{anleggsNavn}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Brannalarm styringer</h1>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 truncate">{anleggsNavn}</p>
           </div>
         </div>
-        
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          {/* Online/Offline status */}
           <div className="flex items-center gap-2">
             {isOnline ? (
               <>
@@ -190,19 +229,6 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
               Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 text-sm sm:text-base min-w-[44px] justify-center">
-            {saving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span className="hidden sm:inline">Lagrer...</span>
-              </>
-            ) : (
-              <>
-                <Check className="w-5 h-5" />
-                <span className="hidden sm:inline">Lagre</span>
-              </>
-            )}
-          </button>
         </div>
       </div>
 
@@ -215,7 +241,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
             </div>
             <div className="min-w-0">
               <div className="text-xs text-gray-400 truncate">Aktive styringer</div>
-              <div className="text-2xl font-bold text-white">{aktiveStyringer}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{aktiveStyringer}</div>
             </div>
           </div>
         </div>
@@ -227,7 +253,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
             </div>
             <div className="min-w-0">
               <div className="text-xs text-gray-400 truncate">Med avvik</div>
-              <div className="text-2xl font-bold text-white">{avvikStyringer}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{avvikStyringer}</div>
             </div>
           </div>
         </div>
@@ -239,7 +265,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
             </div>
             <div className="min-w-0">
               <div className="text-xs text-gray-400 truncate">Totalt</div>
-              <div className="text-2xl font-bold text-white">{styringTyper.length}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{styringTyper.length}</div>
             </div>
           </div>
         </div>
@@ -252,7 +278,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
           <button
             onClick={() => setFilterStatus('all')}
             className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors whitespace-nowrap ${
-              filterStatus === 'all' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              filterStatus === 'all' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
             Alle ({styringTyper.length})
@@ -260,7 +286,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
           <button
             onClick={() => setFilterStatus('active')}
             className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors whitespace-nowrap ${
-              filterStatus === 'active' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              filterStatus === 'active' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
             Aktive ({aktiveStyringer})
@@ -268,7 +294,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
           <button
             onClick={() => setFilterStatus('inactive')}
             className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors whitespace-nowrap ${
-              filterStatus === 'inactive' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              filterStatus === 'inactive' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
             Inaktive ({styringTyper.length - aktiveStyringer})
@@ -278,16 +304,20 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <button
             onClick={() => setViewMode('compact')}
-            className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors ${
-              viewMode === 'compact' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === 'compact' 
+                ? 'bg-primary text-white shadow-sm' 
+                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700'
             }`}
           >
             Kompakt
           </button>
           <button
             onClick={() => setViewMode('detailed')}
-            className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors ${
-              viewMode === 'detailed' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === 'detailed' 
+                ? 'bg-primary text-white shadow-sm' 
+                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700'
             }`}
           >
             Detaljert
@@ -297,51 +327,82 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
 
       {/* Styringer List */}
       {viewMode === 'compact' ? (
-        <div className="space-y-3 pb-20">
+        /* KOMPAKT: Klikk for å ekspandere detaljer */
+        <div className="space-y-2 pb-24">
           {filteredStyringer.map(({ key, navn, icon }) => {
             const isActive = localStyringer[key]?.aktiv || false
+            const isExpanded = expandedKey === key && isActive
             
             return (
-              <div key={key} className={`card ${isActive ? 'border-primary/30 bg-primary/5' : ''}`}>
-                {/* Første rad: Navn, Toggle, Antall */}
-                <div className={`flex items-center gap-3 ${isActive ? 'mb-3' : ''}`}>
-                  <span className="text-2xl flex-shrink-0">{icon}</span>
-                  <span className={`font-medium text-sm flex-1 ${isActive ? 'text-white' : 'text-gray-400'}`}>
+              <div 
+                key={key} 
+                className={`rounded-xl border transition-all ${
+                  isActive 
+                    ? 'border-primary/30 bg-primary/5' 
+                    : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-dark-50'
+                }`}
+              >
+                {/* Hovedrad - alltid synlig */}
+                <div className="flex items-center gap-3 p-3">
+                  <span className="text-xl flex-shrink-0">{icon}</span>
+                  
+                  {/* Klikk på navn for å ekspandere */}
+                  <button
+                    onClick={() => {
+                      if (isActive) {
+                        setExpandedKey(expandedKey === key ? null : key)
+                      }
+                    }}
+                    className={`font-medium text-sm flex-1 text-left truncate ${
+                      isActive 
+                        ? 'text-gray-900 dark:text-white cursor-pointer hover:text-primary' 
+                        : 'text-gray-500 dark:text-gray-400 cursor-default'
+                    }`}
+                  >
                     {navn}
-                  </span>
+                    {isActive && <span className="ml-1 text-xs text-gray-400">{isExpanded ? '▲' : '▼'}</span>}
+                  </button>
+                  
+                  {/* Toggle */}
                   <button
                     onClick={() => {
                       setLocalStyringer(prev => ({
                         ...prev,
                         [key]: { ...prev[key], aktiv: !prev[key]?.aktiv }
                       }))
+                      if (!isActive) {
+                        setExpandedKey(key)
+                      }
                     }}
-                    className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${
-                      isActive ? 'bg-primary' : 'bg-gray-700'
+                    className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 ${
+                      isActive ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700'
                     }`}
                   >
-                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                      isActive ? 'translate-x-5' : 'translate-x-1'
+                    <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
+                      isActive ? 'translate-x-5' : 'translate-x-0.5'
                     }`} />
                   </button>
-                  <input
-                    type="number"
-                    value={localStyringer[key]?.antall || 0}
-                    onChange={(e) => {
-                      setLocalStyringer(prev => ({
-                        ...prev,
-                        [key]: { ...prev[key], antall: parseInt(e.target.value) || 0 }
-                      }))
-                    }}
-                    disabled={!isActive}
-                    className="input text-center w-16 text-sm flex-shrink-0"
-                    min="0"
-                  />
+                  
+                  {/* Antall - kun synlig når aktiv */}
+                  {isActive && (
+                    <input
+                      type="number"
+                      value={localStyringer[key]?.antall || 0}
+                      onChange={(e) => {
+                        setLocalStyringer(prev => ({
+                          ...prev,
+                          [key]: { ...prev[key], antall: parseInt(e.target.value) || 0 }
+                        }))
+                      }}
+                      className="input text-center w-16 text-sm flex-shrink-0"
+                      min="0"
+                    />
+                  )}
                 </div>
                 
-                {/* Andre rad: Status og Notat (kun hvis aktiv) */}
-                {isActive && (
-                  <div className="space-y-2 pt-3 border-t border-gray-800">
+                {/* Ekspandert detaljer */}
+                {isExpanded && (
+                  <div className="px-3 pb-3 pt-2 border-t border-gray-200 dark:border-gray-800 space-y-3">
                     <select
                       value={localStyringer[key]?.status || ''}
                       onChange={(e) => {
@@ -350,7 +411,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
                           [key]: { ...prev[key], status: e.target.value }
                         }))
                       }}
-                      className="input text-sm w-full"
+                      className="input text-sm w-full h-11"
                     >
                       <option value="">Velg status</option>
                       {statusOptions.map(opt => (
@@ -485,6 +546,29 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
           })}
         </div>
       )}
+
+      {/* Floating Save Button - Sticky på mobil/iPad */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white dark:from-dark via-white/95 dark:via-dark/95 to-transparent pointer-events-none z-40">
+        <div className="max-w-4xl mx-auto pointer-events-auto">
+          <button 
+            onClick={handleSave} 
+            disabled={saving} 
+            className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25"
+          >
+            {saving ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                {isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}
+              </>
+            ) : (
+              <>
+                <Save className="w-5 h-5" />
+                Lagre endringer
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

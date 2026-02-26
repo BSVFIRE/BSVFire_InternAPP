@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Search, Plus, Edit, FileText, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, Edit, FileText, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { DetektorlisteEditor } from './DetektorlisteEditor'
+import { Combobox } from '@/components/ui/Combobox'
 
 interface DetektorlisteViewProps {
   onBack: () => void
@@ -44,8 +45,6 @@ export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId }: D
   const [detektorlister, setDetektorlister] = useState<Detektorliste[]>([])
   const [selectedKunde, setSelectedKunde] = useState<string>(initialKundeId || '')
   const [selectedAnlegg, setSelectedAnlegg] = useState<string>(initialAnleggId || '')
-  const [searchKunde, setSearchKunde] = useState('')
-  const [searchAnlegg, setSearchAnlegg] = useState('')
   const [loading, setLoading] = useState(false)
   const [editingListeId, setEditingListeId] = useState<string | null>(null)
   const [isCreatingNew, setIsCreatingNew] = useState(false)
@@ -142,13 +141,6 @@ export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId }: D
     }
   }
 
-  const filteredKunder = kunder.filter(k =>
-    k.navn.toLowerCase().includes(searchKunde.toLowerCase())
-  )
-
-  const filteredAnlegg = anlegg.filter(a =>
-    a.anleggsnavn.toLowerCase().includes(searchAnlegg.toLowerCase())
-  )
 
   function handleCloseEditor() {
     setEditingListeId(null)
@@ -228,92 +220,41 @@ export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId }: D
       </div>
 
       {/* Kunde og Anlegg valg */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Kunde */}
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Velg kunde</h2>
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
-            <input
-              type="text"
-              placeholder="Søk etter kunde..."
-              value={searchKunde}
-              onChange={(e) => setSearchKunde(e.target.value)}
-              className="input w-full pl-10"
+      <div className="card">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Kunde */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Velg kunde <span className="text-red-500">*</span>
+            </label>
+            <Combobox
+              options={kunder.map(k => ({ id: k.id, value: k.id, label: k.navn }))}
+              value={selectedKunde}
+              onChange={(val) => {
+                setSelectedKunde(val)
+                setSelectedAnlegg('')
+              }}
+              placeholder="Søk og velg kunde..."
+              searchPlaceholder="Skriv for å søke..."
+              emptyMessage="Ingen kunder funnet"
             />
           </div>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {loading && !selectedKunde ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              </div>
-            ) : filteredKunder.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">Ingen kunder funnet</p>
-            ) : (
-              filteredKunder.map((kunde) => (
-                <button
-                  key={kunde.id}
-                  onClick={() => setSelectedKunde(kunde.id)}
-                  className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                    selectedKunde === kunde.id
-                      ? 'bg-primary text-white dark:text-white'
-                      : 'bg-gray-50 dark:bg-dark-100 text-gray-900 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200'
-                  }`}
-                >
-                  {kunde.navn}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
 
-        {/* Anlegg */}
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Velg anlegg</h2>
-          {!selectedKunde ? (
-            <p className="text-gray-500 text-center py-8">Velg en kunde først</p>
-          ) : (
-            <>
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Søk etter anlegg..."
-                  value={searchAnlegg}
-                  onChange={(e) => setSearchAnlegg(e.target.value)}
-                  className="input w-full pl-10"
-                />
-              </div>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {loading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                  </div>
-                ) : filteredAnlegg.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">Ingen anlegg funnet</p>
-                ) : (
-                  filteredAnlegg.map((anlegg) => (
-                    <button
-                      key={anlegg.id}
-                      onClick={() => setSelectedAnlegg(anlegg.id)}
-                      className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                        selectedAnlegg === anlegg.id
-                          ? 'bg-primary text-white dark:text-white'
-                          : 'bg-gray-50 dark:bg-dark-100 text-gray-900 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200'
-                      }`}
-                    >
-                      <div className="font-medium">{anlegg.anleggsnavn}</div>
-                      {anlegg.adresse && (
-                        <div className="text-sm opacity-75 mt-1">
-                          {anlegg.adresse}, {anlegg.postnummer} {anlegg.poststed}
-                        </div>
-                      )}
-                    </button>
-                  ))
-                )}
-              </div>
-            </>
-          )}
+          {/* Anlegg */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Velg anlegg <span className="text-red-500">*</span>
+            </label>
+            <Combobox
+              options={anlegg.map(a => ({ id: a.id, value: a.id, label: a.anleggsnavn }))}
+              value={selectedAnlegg}
+              onChange={(val) => setSelectedAnlegg(val)}
+              placeholder="Søk og velg anlegg..."
+              searchPlaceholder="Skriv for å søke..."
+              emptyMessage="Ingen anlegg funnet"
+              disabled={!selectedKunde}
+            />
+          </div>
         </div>
       </div>
 

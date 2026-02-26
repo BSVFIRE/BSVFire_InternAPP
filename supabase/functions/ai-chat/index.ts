@@ -7,7 +7,8 @@ const corsHeaders = {
 }
 
 const AZURE_ENDPOINT = Deno.env.get('AZURE_OPENAI_ENDPOINT')
-const AZURE_KEY = Deno.env.get('AZURE_OPENAI_KEY')
+const AZURE_KEY = Deno.env.get('AZURE_OPENAI_KEY') || Deno.env.get('AZURE_OPENAI_API_KEY')
+const AZURE_GPT_DEPLOYMENT = Deno.env.get('AZURE_GPT_DEPLOYMENT_NAME') || 'gpt-4o'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -233,7 +234,7 @@ serve(async (req) => {
 
     // 3. Send til Azure OpenAI (gpt-4o - nyeste modell!)
     const completion = await fetch(
-      `${AZURE_ENDPOINT}/openai/deployments/gpt-4o/chat/completions?api-version=2024-02-01`,
+      `${AZURE_ENDPOINT}/openai/deployments/${AZURE_GPT_DEPLOYMENT}/chat/completions?api-version=2024-02-01`,
       {
         method: 'POST',
         headers: {
@@ -244,7 +245,7 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `Du er en AI-assistent for BSV Fire AS, et brannvernsselskap.
+              content: `Du er en AI-assistent for FireCtrl, en brannvernplattform.
 
 Du hjelper ansatte med å finne informasjon om:
 - Kunder (navn, adresser, kontaktinfo)

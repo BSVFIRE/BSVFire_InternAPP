@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Check, Volume2, Radio, Key, X, Wifi, WifiOff } from 'lucide-react'
+import { ArrowLeft, Volume2, Radio, Key, X, Wifi, WifiOff, Save } from 'lucide-react'
 
 interface Kontaktperson {
   id: string
@@ -66,12 +66,34 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [pendingChanges, setPendingChanges] = useState(0)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [initialData, setInitialData] = useState<TilleggsutstyrData | null>(null)
   const localStorageKey = `tilleggsutstyr_offline_${anleggId}`
 
   useEffect(() => {
     loadData()
     loadKontaktpersoner()
   }, [anleggId])
+
+  // Sjekk om det er ulagrede endringer
+  useEffect(() => {
+    if (initialData) {
+      const hasChanges = JSON.stringify(data) !== JSON.stringify(initialData)
+      setHasUnsavedChanges(hasChanges)
+    }
+  }, [data, initialData])
+
+  // Advarsel ved navigering bort (browser)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
 
   useEffect(() => {
     const handleOnline = () => {
@@ -124,7 +146,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
 
       if (brannalarmData) {
         const eksternMottaker = brannalarmData.ekstern_mottaker || []
-        setData({
+        const loadedData = {
           id: brannalarmData.id,
           anlegg_id: anleggId,
           talevarsling: brannalarmData.talevarsling || false,
@@ -150,8 +172,12 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
           nokkelsafe_plassering: brannalarmData.nokkelsafe_plassering || '',
           nokkelsafe_innhold: brannalarmData.nokkelsafe_innhold || '',
           nokkelsafe_kommentar: brannalarmData.nokkelsafe_kommentar || '',
-        })
+        }
+        setData(loadedData)
+        setInitialData(loadedData)
         setSelectedKontakter(eksternMottaker)
+      } else {
+        setInitialData(data)
       }
     } catch (error) {
       console.error('Feil ved lasting av tilleggsutstyr:', error)
@@ -246,10 +272,12 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
           }
         }
         setLastSaved(new Date())
+        setInitialData(data) // Reset ulagrede endringer
         alert('Tilleggsutstyr lagret!')
       } else {
         localStorage.setItem(localStorageKey, JSON.stringify(saveData))
         setPendingChanges(1)
+        setInitialData(data) // Reset ulagrede endringer
         alert('Offline - data lagret lokalt og vil synkroniseres når du er online igjen')
       }
     } catch (error) {
@@ -283,18 +311,33 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
   return (
     <div className="space-y-6 pb-20">
       {/* Header */}
-      <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3 sm:gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0">
+          <button 
+            onClick={() => {
+              if (hasUnsavedChanges) {
+                if (!confirm('⚠️ Du har ulagrede endringer!\n\nVil du lagre før du går tilbake?')) {
+                  if (confirm('Er du sikker på at du vil forkaste endringene?')) {
+                    onBack()
+                  }
+                } else {
+                  handleSave()
+                }
+              } else {
+                onBack()
+              }
+            }} 
+            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors flex-shrink-0"
+          >
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Tilleggsutstyr</h1>
-            <p className="text-sm sm:text-base text-gray-400 mt-1 truncate">{anleggsNavn}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Tilleggsutstyr</h1>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 truncate">{anleggsNavn}</p>
           </div>
         </div>
-        
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          {/* Online/Offline status */}
           <div className="flex items-center gap-2">
             {isOnline ? (
               <>
@@ -322,19 +365,6 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
               Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 text-sm sm:text-base min-w-[44px] justify-center">
-            {saving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span className="hidden sm:inline">Lagrer...</span>
-              </>
-            ) : (
-              <>
-                <Check className="w-5 h-5" />
-                <span className="hidden sm:inline">Lagre</span>
-              </>
-            )}
-          </button>
         </div>
       </div>
 
@@ -342,25 +372,25 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
       <div className={`card transition-all ${data.talevarsling ? 'border-blue-500/30 bg-blue-500/5' : ''}`}>
         <div className="flex items-start gap-4">
           <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-            data.talevarsling ? 'bg-blue-500/20' : 'bg-gray-800'
+            data.talevarsling ? 'bg-blue-500/20' : 'bg-gray-100 dark:bg-gray-800'
           }`}>
             <Volume2 className={`w-6 h-6 ${data.talevarsling ? 'text-blue-400' : 'text-gray-500'}`} />
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className={`text-lg font-semibold ${data.talevarsling ? 'text-blue-400' : 'text-white'}`}>
+                <h3 className={`text-lg font-semibold ${data.talevarsling ? 'text-blue-400' : 'text-gray-900 dark:text-white'}`}>
                   Talevarsling
                 </h3>
                 <p className="text-sm text-gray-400">Registrer talevarslingsutstyr</p>
               </div>
               <button
                 onClick={() => setData({ ...data, talevarsling: !data.talevarsling })}
-                className={`w-12 h-6 rounded-full transition-colors relative ${
-                  data.talevarsling ? 'bg-blue-500' : 'bg-gray-700'
+                className={`w-14 h-8 rounded-full transition-colors relative ${
+                  data.talevarsling ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'
                 }`}
               >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
                   data.talevarsling ? 'translate-x-7' : 'translate-x-1'
                 }`} />
               </button>
@@ -369,7 +399,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
             {data.talevarsling && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Leverandør</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Leverandør</label>
                   <input
                     type="text"
                     value={data.talevarsling_leverandor || ''}
@@ -380,7 +410,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Batteri type</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Batteri type</label>
                   <input
                     type="text"
                     value={data.talevarsling_batteri_type || ''}
@@ -391,7 +421,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Batteri alder (år)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Batteri alder (år)</label>
                   <input
                     type="number"
                     value={data.talevarsling_batteri_alder || ''}
@@ -402,7 +432,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Plassering</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Plassering</label>
                   <input
                     type="text"
                     value={data.talevarsling_plassering || ''}
@@ -413,7 +443,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Kommentar</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Kommentar</label>
                   <textarea
                     value={data.talevarsling_kommentar || ''}
                     onChange={(e) => setData({ ...data, talevarsling_kommentar: e.target.value })}
@@ -432,25 +462,25 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
       <div className={`card transition-all ${data.alarmsender_i_anlegg ? 'border-orange-500/30 bg-orange-500/5' : ''}`}>
         <div className="flex items-start gap-4">
           <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-            data.alarmsender_i_anlegg ? 'bg-orange-500/20' : 'bg-gray-800'
+            data.alarmsender_i_anlegg ? 'bg-orange-500/20' : 'bg-gray-100 dark:bg-gray-800'
           }`}>
             <Radio className={`w-6 h-6 ${data.alarmsender_i_anlegg ? 'text-orange-400' : 'text-gray-500'}`} />
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className={`text-lg font-semibold ${data.alarmsender_i_anlegg ? 'text-orange-400' : 'text-white'}`}>
+                <h3 className={`text-lg font-semibold ${data.alarmsender_i_anlegg ? 'text-orange-400' : 'text-gray-900 dark:text-white'}`}>
                   Alarmsender
                 </h3>
                 <p className="text-sm text-gray-400">Registrer alarmsender i anlegg</p>
               </div>
               <button
                 onClick={() => setData({ ...data, alarmsender_i_anlegg: !data.alarmsender_i_anlegg })}
-                className={`w-12 h-6 rounded-full transition-colors relative ${
-                  data.alarmsender_i_anlegg ? 'bg-orange-500' : 'bg-gray-700'
+                className={`w-14 h-8 rounded-full transition-colors relative ${
+                  data.alarmsender_i_anlegg ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-700'
                 }`}
               >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
                   data.alarmsender_i_anlegg ? 'translate-x-7' : 'translate-x-1'
                 }`} />
               </button>
@@ -459,7 +489,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
             {data.alarmsender_i_anlegg && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Mottaker</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Mottaker</label>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {mottakerOptions.map((option) => (
                       <button
@@ -468,7 +498,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                         className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                           data.mottaker?.includes(option)
                             ? 'bg-orange-500 text-white'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                         }`}
                       >
                         {option}
@@ -479,7 +509,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Sender 2G/4G</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sender 2G/4G</label>
                     <select
                       value={data.sender_2G_4G || ''}
                       onChange={(e) => setData({ ...data, sender_2G_4G: e.target.value })}
@@ -493,7 +523,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">GSM-nummer</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">GSM-nummer</label>
                     <input
                       type="text"
                       value={data.gsm_nummer || ''}
@@ -504,7 +534,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Plassering</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Plassering</label>
                     <input
                       type="text"
                       value={data.plassering || ''}
@@ -515,7 +545,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Batterialder (år)</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Batterialder (år)</label>
                     <input
                       type="text"
                       value={data.batterialder || ''}
@@ -525,7 +555,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Batteritype</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Batteritype</label>
                     <input
                       type="text"
                       value={data.batteritype || ''}
@@ -544,7 +574,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                     onChange={(e) => setData({ ...data, forsynet_fra_brannsentral: e.target.checked })}
                     className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-orange-500 focus:ring-orange-500"
                   />
-                  <label htmlFor="forsynt" className="text-sm text-gray-300">
+                  <label htmlFor="forsynt" className="text-sm text-gray-700 dark:text-gray-300">
                     Forsynt fra brannsentral
                   </label>
                 </div>
@@ -552,7 +582,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                 {/* Eksterne mottakere - vises kun hvis "Ekstern" er valgt */}
                 {data.mottaker?.includes('Ekstern') && (
                   <div className="border border-orange-500/20 rounded-lg p-4 bg-orange-500/5">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Eksterne mottakere</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Eksterne mottakere</label>
                     <button
                       onClick={() => setShowKontaktDialog(true)}
                       className="btn-secondary mb-3"
@@ -587,7 +617,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Kommentar</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Kommentar</label>
                   <textarea
                     value={data.mottaker_kommentar || ''}
                     onChange={(e) => setData({ ...data, mottaker_kommentar: e.target.value })}
@@ -679,25 +709,25 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
       <div className={`card transition-all ${data.nokkelsafe ? 'border-purple-500/30 bg-purple-500/5' : ''}`}>
         <div className="flex items-start gap-4">
           <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-            data.nokkelsafe ? 'bg-purple-500/20' : 'bg-gray-800'
+            data.nokkelsafe ? 'bg-purple-500/20' : 'bg-gray-100 dark:bg-gray-800'
           }`}>
             <Key className={`w-6 h-6 ${data.nokkelsafe ? 'text-purple-400' : 'text-gray-500'}`} />
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className={`text-lg font-semibold ${data.nokkelsafe ? 'text-purple-400' : 'text-white'}`}>
+                <h3 className={`text-lg font-semibold ${data.nokkelsafe ? 'text-purple-400' : 'text-gray-900 dark:text-white'}`}>
                   Nøkkelsafe
                 </h3>
                 <p className="text-sm text-gray-400">Registrer nøkkelsafe</p>
               </div>
               <button
                 onClick={() => setData({ ...data, nokkelsafe: !data.nokkelsafe })}
-                className={`w-12 h-6 rounded-full transition-colors relative ${
-                  data.nokkelsafe ? 'bg-purple-500' : 'bg-gray-700'
+                className={`w-14 h-8 rounded-full transition-colors relative ${
+                  data.nokkelsafe ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-700'
                 }`}
               >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
                   data.nokkelsafe ? 'translate-x-7' : 'translate-x-1'
                 }`} />
               </button>
@@ -706,7 +736,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
             {data.nokkelsafe && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
                   <input
                     type="text"
                     value={data.nokkelsafe_type || ''}
@@ -717,7 +747,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Plassering</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Plassering</label>
                   <input
                     type="text"
                     value={data.nokkelsafe_plassering || ''}
@@ -728,7 +758,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Innhold</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Innhold</label>
                   <input
                     type="text"
                     value={data.nokkelsafe_innhold || ''}
@@ -739,7 +769,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Kommentar</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Kommentar</label>
                   <textarea
                     value={data.nokkelsafe_kommentar || ''}
                     onChange={(e) => setData({ ...data, nokkelsafe_kommentar: e.target.value })}
@@ -751,6 +781,29 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Floating Save Button - Sticky på mobil/iPad */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white dark:from-dark via-white/95 dark:via-dark/95 to-transparent pointer-events-none z-40">
+        <div className="max-w-4xl mx-auto pointer-events-auto">
+          <button 
+            onClick={handleSave} 
+            disabled={saving} 
+            className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25"
+          >
+            {saving ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                {isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}
+              </>
+            ) : (
+              <>
+                <Save className="w-5 h-5" />
+                Lagre endringer
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Wifi, WifiOff, Check, LayoutGrid, Table, FileText } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Wifi, WifiOff, Check, LayoutGrid, Table, FileText, ClipboardCheck, FileSpreadsheet } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -1121,14 +1121,14 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   // Fullskjerm-visning
   if (isFullscreen) {
     return (
-      <div className="fixed inset-0 z-50 bg-dark-200 overflow-auto">
+      <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-dark-200 overflow-auto">
         <div className="min-h-screen p-4 sm:p-6">
           {/* Header med lukkeknapp */}
-          <div className="flex flex-col gap-4 mb-4 pb-4 border-b border-gray-800">
+          <div className="flex flex-col gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
             <div className="flex items-start justify-between gap-2">
-              <h2 className="text-lg sm:text-2xl font-bold text-white leading-tight">
+              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight">
                 Brannslukkere - {kundeNavn} - {anleggNavn}
-                <span className="block sm:inline sm:ml-3 text-sm sm:text-lg text-gray-400 font-normal mt-1 sm:mt-0">
+                <span className="block sm:inline sm:ml-3 text-sm sm:text-lg text-gray-500 dark:text-gray-400 font-normal mt-1 sm:mt-0">
                   ({sortedSlukkere.length} {sortedSlukkere.length === 1 ? 'enhet' : 'enheter'})
                 </span>
               </h2>
@@ -1207,28 +1207,28 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
               <p className="text-gray-400">Ingen brannslukkere funnet</p>
             </div>
           ) : (
-            <div className="overflow-x-auto bg-dark-100 rounded-lg">
+            <div className="overflow-x-auto bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-gray-800">
               <table className="w-full min-w-[1400px]">
                 <thead>
-                  <tr className="border-b border-gray-800">
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Nr</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-48">Plassering</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Etasje</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Produsent</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-40">Modell</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-20">Klasse</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">År</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Service</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-36">Siste kontroll</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-32">Status</th>
-                    <th className="text-right py-3 px-4 text-gray-400 font-medium w-20">Handlinger</th>
+                  <tr className="border-b border-gray-200 dark:border-gray-800">
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Nr</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-48">Plassering</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Etasje</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Produsent</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-40">Modell</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-20">Klasse</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">År</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Service</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-36">Siste kontroll</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Status</th>
+                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-20">Handlinger</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedSlukkere.map((slukker, index) => (
                     <tr
                       key={slukker.id || `new-${index}`}
-                      className="border-b border-gray-800 hover:bg-dark-200 transition-colors"
+                      className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors"
                     >
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
@@ -1591,8 +1591,8 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Brannslukkere</h1>
-            <p className="text-gray-400">{kundeNavn} - {anleggNavn}</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Brannslukkere</h1>
+            <p className="text-gray-600 dark:text-gray-400">{kundeNavn} - {anleggNavn}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -1631,36 +1631,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
             </span>
           )}
           
-          <button
-            onClick={() => genererRapport('preview')}
-            disabled={loading || slukkere.length === 0 || hasUnsavedChanges}
-            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            title={hasUnsavedChanges ? 'Lagre endringer før du kan forhåndsvise rapport' : ''}
-          >
-            <Eye className="w-5 h-5" />
-            Forhåndsvisning
-          </button>
-          <button
-            onClick={() => genererRapport('save')}
-            disabled={loading || slukkere.length === 0 || hasUnsavedChanges}
-            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            title={hasUnsavedChanges ? 'Lagre endringer før du kan generere rapport' : ''}
-          >
-            <FileText className="w-5 h-5" />
-            Generer rapport
-          </button>
-          <button
-            onClick={lagreAlle}
-            disabled={loading || saving}
-            className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed relative"
-          >
-            <Save className="w-5 h-5" />
-            Lagre endringer
-            {hasUnsavedChanges && (
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full animate-pulse"></span>
-            )}
-          </button>
-        </div>
+          </div>
       </div>
 
       {/* Statistikk */}
@@ -1700,11 +1671,11 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
               className="input w-full pl-10"
             />
           </div>
-          <div className="md:w-64">
+          <div className="w-full md:w-48">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="input"
+              className="input w-full h-[44px]"
             >
               <option value="apparat_nr">Sorter: Nr</option>
               <option value="plassering">Sorter: Plassering</option>
@@ -1736,16 +1707,16 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
 
       {/* Kompakt tabell-visning */}
       <div className="card">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-800">
-          <h2 className="text-lg font-semibold text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Brannslukkere
-            <span className="ml-2 text-sm text-gray-400 font-normal">
+            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400 font-normal">
               ({sortedSlukkere.length} {sortedSlukkere.length === 1 ? 'enhet' : 'enheter'})
             </span>
           </h2>
           <div className="flex items-center gap-2">
             {/* View toggle */}
-            <div className="flex items-center gap-1 bg-dark-100 rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
               <button
                 onClick={() => setDisplayMode('table')}
                 className={`p-2 rounded transition-colors ${
@@ -1805,8 +1776,8 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                     <Shield className="w-5 h-5 text-red-500" />
                   </div>
                   <div>
-                    <p className="text-white font-medium">Nr: {slukker.apparat_nr || '-'}</p>
-                    <p className="text-xs text-gray-400">{slukker.modell || 'Ingen modell'}</p>
+                    <p className="text-gray-900 dark:text-white font-medium">Nr: {slukker.apparat_nr || '-'}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{slukker.modell || 'Ingen modell'}</p>
                   </div>
                 </div>
                 <button
@@ -1833,31 +1804,31 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Plassering:</span>
-                  <span className="text-gray-200 text-right">{slukker.plassering || '-'}</span>
+                  <span className="text-gray-700 dark:text-gray-200 text-right">{slukker.plassering || '-'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Etasje:</span>
-                  <span className="text-gray-200">{slukker.etasje || '-'}</span>
+                  <span className="text-gray-700 dark:text-gray-200">{slukker.etasje || '-'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Produsent:</span>
-                  <span className="text-gray-200">{slukker.produsent || '-'}</span>
+                  <span className="text-gray-700 dark:text-gray-200">{slukker.produsent || '-'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Brannklasse:</span>
-                  <span className="text-gray-200">{slukker.brannklasse || '-'}</span>
+                  <span className="text-gray-700 dark:text-gray-200">{slukker.brannklasse || '-'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Produksjonsår:</span>
-                  <span className="text-gray-200">{slukker.produksjonsaar || '-'}</span>
+                  <span className="text-gray-700 dark:text-gray-200">{slukker.produksjonsaar || '-'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Service:</span>
-                  <span className="text-gray-200">{slukker.service || '-'}</span>
+                  <span className="text-gray-700 dark:text-gray-200">{slukker.service || '-'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Siste kontroll:</span>
-                  <span className="text-gray-200">{slukker.siste_kontroll || '-'}</span>
+                  <span className="text-gray-700 dark:text-gray-200">{slukker.siste_kontroll || '-'}</span>
                 </div>
                 <div className="pt-2 border-t border-gray-800">
                   <span className="text-gray-400 text-xs block mb-2">Status:</span>
@@ -1889,37 +1860,37 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px]">
             <thead>
-              <tr className="border-b border-gray-800">
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Nr</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Plassering</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Etasje</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Produsent</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Modell</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Klasse</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">År</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
+              <tr className="border-b border-gray-200 dark:border-gray-800">
+                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Nr</th>
+                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Plassering</th>
+                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Etasje</th>
+                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Produsent</th>
+                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Modell</th>
+                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Klasse</th>
+                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">År</th>
+                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
           {sortedSlukkere.map((slukker, index) => (
             <tr 
               key={slukker.id || `new-${index}`} 
-              className="border-b border-gray-800 hover:bg-dark-200 transition-colors cursor-pointer"
+              className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors cursor-pointer"
               onClick={() => setIsFullscreen(true)}
               title="Klikk for å redigere i fullskjerm"
             >
               <td className="py-3 px-4">
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-red-500" />
-                  <span className="text-white font-medium">{slukker.apparat_nr || '-'}</span>
+                  <span className="text-gray-900 dark:text-white font-medium">{slukker.apparat_nr || '-'}</span>
                 </div>
               </td>
-              <td className="py-3 px-4 text-gray-300">{slukker.plassering || '-'}</td>
-              <td className="py-3 px-4 text-gray-300">{slukker.etasje || '-'}</td>
-              <td className="py-3 px-4 text-gray-300">{slukker.produsent || '-'}</td>
-              <td className="py-3 px-4 text-gray-300">{slukker.modell || '-'}</td>
-              <td className="py-3 px-4 text-gray-300">{slukker.brannklasse || '-'}</td>
-              <td className="py-3 px-4 text-gray-300">{slukker.produksjonsaar || '-'}</td>
+              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.plassering || '-'}</td>
+              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.etasje || '-'}</td>
+              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.produsent || '-'}</td>
+              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.modell || '-'}</td>
+              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.brannklasse || '-'}</td>
+              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.produksjonsaar || '-'}</td>
               <td className="py-3 px-4">
                 {slukker.status && slukker.status.length > 0 ? (
                   <div className="flex flex-wrap gap-1">
@@ -1948,44 +1919,150 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       )}
       </div>
 
-      {/* Tilleggsinformasjon */}
-      <div className="card">
-        <h2 className="text-lg font-semibold text-white mb-4">Tilleggsinformasjon</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Evakueringsplaner
-            </label>
-            <select
-              value={evakueringsplanStatus}
-              onChange={(e) => {
-                setEvakueringsplanStatus(e.target.value)
-                setHasUnsavedChanges(true)
-              }}
-              className="input"
-            >
-              <option value="">Velg status</option>
-              <option value="Ja">Ja</option>
-              <option value="Nei">Nei</option>
-              <option value="Må oppdateres">Må oppdateres</option>
-            </select>
+      {/* Fullfør kontroll - Samlet seksjon */}
+      <div className="card bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
+            <ClipboardCheck className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <KontrolldatoVelger
-              kontrolldato={kontrolldato}
-              onDatoChange={(dato) => {
-                setKontrolldato(dato)
-                setHasUnsavedChanges(true)
-              }}
-              label="Kontrolldato for rapport"
-            />
-            <p className="text-xs text-gray-500 mt-2">
-              Standard er dagens dato. Velg en annen dato hvis du trenger å tilbakedatere rapporten.
-            </p>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Fullfør kontroll</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Sjekkliste før du genererer rapport</p>
           </div>
-          <p className="text-xs text-gray-400">
-            Tilleggsinformasjon lagres automatisk når du trykker "Lagre endringer".
-          </p>
+        </div>
+
+        {/* Sjekkliste */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Status 1: Enheter kontrollert */}
+          <div className={`p-4 rounded-xl border-2 transition-all ${
+            slukkere.length > 0 && slukkere.every(s => s.status && s.status.length > 0)
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
+              : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                slukkere.length > 0 && slukkere.every(s => s.status && s.status.length > 0)
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400'
+              }`}>
+                {slukkere.length > 0 && slukkere.every(s => s.status && s.status.length > 0) ? '✓' : '1'}
+              </div>
+              <div>
+                <p className={`font-medium ${slukkere.length > 0 && slukkere.every(s => s.status && s.status.length > 0) ? 'text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                  Enheter kontrollert
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {slukkere.filter(s => s.status && s.status.length > 0).length} av {slukkere.length} enheter
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Status 2: Evakueringsplan */}
+          <div className={`p-4 rounded-xl border-2 transition-all ${
+            evakueringsplanStatus 
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
+              : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                evakueringsplanStatus
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400'
+              }`}>
+                {evakueringsplanStatus ? '✓' : '2'}
+              </div>
+              <div>
+                <p className={`font-medium ${evakueringsplanStatus ? 'text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                  Evakueringsplan
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {evakueringsplanStatus || 'Ikke satt'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Status 3: Dato valgt */}
+          <div className="p-4 rounded-xl border-2 bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-500 text-white">
+                ✓
+              </div>
+              <div>
+                <p className="font-medium text-green-700 dark:text-green-400">Kontrolldato</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {kontrolldato.toLocaleDateString('nb-NO')}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Evakueringsplan dropdown */}
+        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Evakueringsplaner status
+              </label>
+              <select
+                value={evakueringsplanStatus}
+                onChange={(e) => {
+                  setEvakueringsplanStatus(e.target.value)
+                  setHasUnsavedChanges(true)
+                }}
+                className="input"
+              >
+                <option value="">Velg status</option>
+                <option value="Ja">✓ Ja - I orden</option>
+                <option value="Nei">✗ Nei - Mangler</option>
+                <option value="Må oppdateres">⚠ Må oppdateres</option>
+              </select>
+            </div>
+            <div>
+              <KontrolldatoVelger
+                kontrolldato={kontrolldato}
+                onDatoChange={(dato) => {
+                  setKontrolldato(dato)
+                  setHasUnsavedChanges(true)
+                }}
+                label="Kontrolldato"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Hovedhandling - Stor knapp */}
+        <button
+          onClick={() => genererRapport('save')}
+          disabled={loading || slukkere.length === 0 || hasUnsavedChanges}
+          className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30"
+          title={hasUnsavedChanges ? 'Lagre endringer først' : ''}
+        >
+          <Save className="w-6 h-6" />
+          Generer rapport
+        </button>
+
+        {/* Sekundære handlinger */}
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
+          <button
+            onClick={() => genererRapport('preview')}
+            disabled={loading || slukkere.length === 0 || hasUnsavedChanges}
+            className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+          >
+            <Eye className="w-4 h-4" />
+            Forhåndsvis
+          </button>
+          <span className="text-gray-300 dark:text-gray-600">|</span>
+          <button
+            onClick={lagreAlle}
+            disabled={loading || saving}
+            className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            Lagre endringer
+          </button>
         </div>
       </div>
 

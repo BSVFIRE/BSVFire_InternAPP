@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Check, AlertCircle, Eye, Filter, Wifi, WifiOff } from 'lucide-react'
+import { ArrowLeft, Check, AlertCircle, Eye, Filter, Wifi, WifiOff, Plus, Minus, Save } from 'lucide-react'
 import { BrannalarmStyring } from '../Brannalarm'
 
 interface EnheterViewProps {
@@ -49,6 +49,9 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [pendingChanges, setPendingChanges] = useState(0)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [initialEnheter, setInitialEnheter] = useState<Record<string, any>>({})
   const localStorageKey = `enheter_offline_${anleggId}`
 
   useEffect(() => {
@@ -62,7 +65,26 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
       }
     })
     setLocalEnheter(initial)
+    setInitialEnheter(initial)
   }, [enheter])
+
+  // Sjekk om det er ulagrede endringer
+  useEffect(() => {
+    const hasChanges = JSON.stringify(localEnheter) !== JSON.stringify(initialEnheter)
+    setHasUnsavedChanges(hasChanges && Object.keys(initialEnheter).length > 0)
+  }, [localEnheter, initialEnheter])
+
+  // Advarsel ved navigering bort (browser)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
 
   // Online/offline event listeners
   useEffect(() => {
@@ -145,12 +167,14 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
             .insert(data)
         }
         setLastSaved(new Date())
+        setInitialEnheter(localEnheter) // Reset ulagrede endringer
         onSave(anleggId)
         onBack()
       } else {
         // Offline: lagre lokalt
         localStorage.setItem(localStorageKey, JSON.stringify(data))
         setPendingChanges(1)
+        setInitialEnheter(localEnheter) // Reset ulagrede endringer
         alert('Offline - data lagret lokalt og vil synkroniseres når du er online igjen')
         onBack()
       }
@@ -179,12 +203,27 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3 sm:gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0">
+          <button 
+            onClick={() => {
+              if (hasUnsavedChanges) {
+                if (!confirm('⚠️ Du har ulagrede endringer!\n\nVil du lagre før du går tilbake?')) {
+                  if (confirm('Er du sikker på at du vil forkaste endringene?')) {
+                    onBack()
+                  }
+                } else {
+                  handleSave()
+                }
+              } else {
+                onBack()
+              }
+            }} 
+            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors flex-shrink-0"
+          >
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Brannalarm enheter</h1>
-            <p className="text-sm sm:text-base text-gray-400 mt-1 truncate">{anleggsNavn}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Brannalarm enheter</h1>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 truncate">{anleggsNavn}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -248,7 +287,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
             </div>
             <div className="min-w-0">
               <div className="text-xs text-gray-400 truncate">Totalt komponenter</div>
-              <div className="text-2xl font-bold text-white">{totalKomponenter}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{totalKomponenter}</div>
             </div>
           </div>
         </div>
@@ -260,7 +299,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
             </div>
             <div className="min-w-0">
               <div className="text-xs text-gray-400 truncate">Aktive enhetstyper</div>
-              <div className="text-2xl font-bold text-white">{aktiveEnheter}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{aktiveEnheter}</div>
             </div>
           </div>
         </div>
@@ -272,7 +311,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
             </div>
             <div className="min-w-0">
               <div className="text-xs text-gray-400 truncate">Enhetstyper</div>
-              <div className="text-2xl font-bold text-white">{enhetsTyper.length}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{enhetsTyper.length}</div>
             </div>
           </div>
         </div>
@@ -287,7 +326,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
               key={kat}
               onClick={() => setFilterKategori(kat)}
               className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors whitespace-nowrap ${
-                filterKategori === kat ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                filterKategori === kat ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {kat === 'all' ? 'Alle' : kat}
@@ -298,16 +337,20 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => setViewMode('compact')}
-            className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors ${
-              viewMode === 'compact' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === 'compact' 
+                ? 'bg-primary text-white shadow-sm' 
+                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700'
             }`}
           >
             Kompakt
           </button>
           <button
             onClick={() => setViewMode('detailed')}
-            className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors ${
-              viewMode === 'detailed' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === 'detailed' 
+                ? 'bg-primary text-white shadow-sm' 
+                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700'
             }`}
           >
             Detaljert
@@ -317,51 +360,96 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
 
       {/* Enheter Table/Grid */}
       {viewMode === 'compact' ? (
-        <div className="space-y-3 pb-20">
+        /* KOMPAKT: Klikk for å ekspandere detaljer */
+        <div className="space-y-2 pb-24">
           {filteredEnheter.map(({ key, navn, icon }) => {
             const isActive = localEnheter[key]?.aktiv || false
+            const antall = localEnheter[key]?.antall || 0
+            const isExpanded = expandedKey === key && isActive
             
             return (
-              <div key={key} className={`card ${isActive ? 'border-primary/30 bg-primary/5' : ''}`}>
-                {/* Første rad: Navn, Toggle, Antall */}
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-2xl flex-shrink-0">{icon}</span>
-                  <span className={`font-medium text-sm flex-1 ${isActive ? 'text-white' : 'text-gray-400'}`}>
+              <div 
+                key={key} 
+                className={`rounded-xl border transition-all ${
+                  isActive 
+                    ? 'border-primary/30 bg-primary/5' 
+                    : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-dark-50'
+                }`}
+              >
+                {/* Hovedrad - alltid synlig */}
+                <div className="flex items-center gap-3 p-3">
+                  <span className="text-xl flex-shrink-0">{icon}</span>
+                  
+                  {/* Klikk på navn for å ekspandere */}
+                  <button
+                    onClick={() => {
+                      if (isActive) {
+                        setExpandedKey(expandedKey === key ? null : key)
+                      }
+                    }}
+                    className={`font-medium text-sm flex-1 text-left truncate ${
+                      isActive 
+                        ? 'text-gray-900 dark:text-white cursor-pointer hover:text-primary' 
+                        : 'text-gray-500 dark:text-gray-400 cursor-default'
+                    }`}
+                  >
                     {navn}
-                  </span>
+                    {isActive && <span className="ml-1 text-xs text-gray-400">{isExpanded ? '▲' : '▼'}</span>}
+                  </button>
+                  
+                  {/* Toggle */}
                   <button
                     onClick={() => {
                       setLocalEnheter(prev => ({
                         ...prev,
                         [key]: { ...prev[key], aktiv: !prev[key]?.aktiv }
                       }))
+                      if (!isActive) {
+                        setExpandedKey(key)
+                      }
                     }}
-                    className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${
-                      isActive ? 'bg-primary' : 'bg-gray-700'
+                    className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 ${
+                      isActive ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700'
                     }`}
                   >
-                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                      isActive ? 'translate-x-5' : 'translate-x-1'
+                    <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
+                      isActive ? 'translate-x-5' : 'translate-x-0.5'
                     }`} />
                   </button>
-                  <input
-                    type="number"
-                    value={localEnheter[key]?.antall || 0}
-                    onChange={(e) => {
-                      setLocalEnheter(prev => ({
-                        ...prev,
-                        [key]: { ...prev[key], antall: parseInt(e.target.value) || 0 }
-                      }))
-                    }}
-                    disabled={!isActive}
-                    className="input text-center w-16 text-sm flex-shrink-0"
-                    min="0"
-                  />
+                  
+                  {/* Stepper - alltid synlig når aktiv */}
+                  {isActive && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => {
+                          setLocalEnheter(prev => ({
+                            ...prev,
+                            [key]: { ...prev[key], antall: Math.max(0, antall - 1) }
+                          }))
+                        }}
+                        className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
+                      >
+                        <Minus className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                      </button>
+                      <span className="w-10 text-center font-semibold text-gray-900 dark:text-white">{antall}</span>
+                      <button
+                        onClick={() => {
+                          setLocalEnheter(prev => ({
+                            ...prev,
+                            [key]: { ...prev[key], antall: antall + 1 }
+                          }))
+                        }}
+                        className="w-9 h-9 rounded-lg bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
+                      >
+                        <Plus className="w-4 h-4 text-primary" />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 
-                {/* Andre rad: Type/Modell og Notat (kun hvis aktiv) */}
-                {isActive && (
-                  <div className="space-y-2 pt-3 border-t border-gray-800">
+                {/* Ekspandert detaljer */}
+                {isExpanded && (
+                  <div className="px-3 pb-3 pt-2 border-t border-gray-200 dark:border-gray-800 space-y-3">
                     <input
                       type="text"
                       value={localEnheter[key]?.type || ''}
@@ -372,7 +460,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                         }))
                       }}
                       placeholder="Type/modell..."
-                      className="input text-sm w-full"
+                      className="input text-sm w-full h-11"
                     />
                     <input
                       type="text"
@@ -384,7 +472,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                         }))
                       }}
                       placeholder="Legg til notat..."
-                      className="input text-sm w-full"
+                      className="input text-sm w-full h-11"
                     />
                   </div>
                 )}
@@ -401,14 +489,14 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
               <div key={key} className={`card ${isActive ? 'border-primary/30 bg-primary/5' : ''}`}>
                 <div className="flex items-start gap-4">
                   <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${
-                    isActive ? 'bg-primary/20' : 'bg-gray-800'
+                    isActive ? 'bg-primary/20' : 'bg-gray-100 dark:bg-gray-800'
                   }`}>
                     {icon}
                   </div>
                   <div className="flex-1 space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className={`font-semibold ${isActive ? 'text-primary' : 'text-white'}`}>
+                        <h3 className={`font-semibold ${isActive ? 'text-primary' : 'text-gray-900 dark:text-white'}`}>
                           {navn}
                         </h3>
                         <p className="text-xs text-gray-500">{kategori}</p>
@@ -421,7 +509,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                           }))
                         }}
                         className={`w-12 h-6 rounded-full transition-colors relative ${
-                          isActive ? 'bg-primary' : 'bg-gray-700'
+                          isActive ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700'
                         }`}
                       >
                         <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
@@ -433,7 +521,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                     {isActive && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Antall</label>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Antall</label>
                           <input
                             type="number"
                             value={localEnheter[key]?.antall || 0}
@@ -449,7 +537,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Type/Modell</label>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type/Modell</label>
                           <input
                             type="text"
                             value={localEnheter[key]?.type || ''}
@@ -465,7 +553,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                         </div>
 
                         <div className="md:col-span-2">
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Notat</label>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notat</label>
                           <textarea
                             value={localEnheter[key]?.note || ''}
                             onChange={(e) => {
@@ -488,6 +576,29 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
           })}
         </div>
       )}
+
+      {/* Floating Save Button - Sticky på mobil/iPad */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white dark:from-dark via-white/95 dark:via-dark/95 to-transparent pointer-events-none z-40">
+        <div className="max-w-4xl mx-auto pointer-events-auto">
+          <button 
+            onClick={handleSave} 
+            disabled={saving} 
+            className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25"
+          >
+            {saving ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                {isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}
+              </>
+            ) : (
+              <>
+                <Save className="w-5 h-5" />
+                Lagre endringer
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

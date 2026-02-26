@@ -30,7 +30,7 @@ export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'Hei! 👋 Jeg er BSV Fire AI-assistent. Hva kan jeg hjelpe deg med?',
+      content: 'Hei! 👋 Jeg er FireCtrl AI-assistent. Hva kan jeg hjelpe deg med?',
     },
   ])
   const [input, setInput] = useState('')

@@ -8,6 +8,7 @@ import { NettverkView } from './brannalarm/NettverkView.tsx'
 import { EnheterView } from './brannalarm/EnheterView.tsx'
 import { TilleggsutstyrView } from './brannalarm/TilleggsutstyrView.tsx'
 import { NyKontrollView } from './brannalarm/NyKontrollView.tsx'
+import { Combobox } from '@/components/ui/Combobox'
 
 interface Kunde {
   id: string
@@ -122,8 +123,6 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
   const [selectedKunde, setSelectedKunde] = useState(state?.kundeId || '')
   const [selectedAnlegg, setSelectedAnlegg] = useState(state?.anleggId || '')
   const [viewMode, setViewMode] = useState<ViewMode>('list')
-  const [kundeSok, setKundeSok] = useState('')
-  const [anleggSok, setAnleggSok] = useState('')
   
   const [styringer, setStyringer] = useState<BrannalarmStyring | null>(null)
   const [nettverkListe, setNettverkListe] = useState<NettverkEnhet[]>([])
@@ -234,14 +233,6 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
     }
   }
 
-  const filteredKunder = kunder.filter(k => 
-    k.navn.toLowerCase().includes(kundeSok.toLowerCase())
-  )
-
-  const filteredAnlegg = anlegg.filter(a => 
-    a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase())
-  )
-
   const selectedKundeData = kunder.find(k => k.id === selectedKunde)
   const selectedAnleggData = anlegg.find(a => a.id === selectedAnlegg)
 
@@ -320,71 +311,46 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
               <Flame className="w-8 h-8 text-red-500" />
               Brannalarm
             </h1>
-            <p className="text-gray-400 mt-1">Kontroll og registrering av brannalarmsystemer</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Kontroll og registrering av brannalarmsystemer</p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card">
-          <label className="block text-sm font-medium text-gray-300 mb-2">Velg kunde</label>
-          <div className="space-y-2">
-            <input
-              type="text"
-              placeholder="Søk kunde..."
-              value={kundeSok}
-              onChange={(e) => setKundeSok(e.target.value)}
-              className="input"
-            />
-            <select 
-              value={selectedKunde} 
-              onChange={(e) => {
-                setSelectedKunde(e.target.value)
-                setSelectedAnlegg('')
-              }} 
-              className="input"
-              size={Math.min(filteredKunder.length + 1, 8)}
-            >
-              <option value="">Velg kunde</option>
-              {filteredKunder.map((kunde) => (
-                <option key={kunde.id} value={kunde.id}>{kunde.navn}</option>
-              ))}
-            </select>
-          </div>
+          <Combobox
+            label="Velg kunde"
+            options={kunder.map(k => ({ id: k.id, label: k.navn }))}
+            value={selectedKunde}
+            onChange={(val) => {
+              setSelectedKunde(val)
+              setSelectedAnlegg('')
+            }}
+            placeholder="Søk og velg kunde..."
+            searchPlaceholder="Skriv for å søke..."
+            emptyMessage="Ingen kunder funnet"
+          />
         </div>
 
         <div className="card">
-          <label className="block text-sm font-medium text-gray-300 mb-2">Velg anlegg</label>
-          {!selectedKunde ? (
-            <div className="input bg-dark-100 text-gray-500 cursor-not-allowed">
-              Velg kunde først
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="Søk anlegg..."
-                value={anleggSok}
-                onChange={(e) => setAnleggSok(e.target.value)}
-                className="input"
-              />
-              <select 
-                value={selectedAnlegg} 
-                onChange={(e) => setSelectedAnlegg(e.target.value)} 
-                className="input"
-                size={Math.min(filteredAnlegg.length + 1, 8)}
-              >
-                <option value="">Velg anlegg</option>
-                {filteredAnlegg.map((anlegg) => (
-                  <option key={anlegg.id} value={anlegg.id}>{anlegg.anleggsnavn}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          <Combobox
+            label="Velg anlegg"
+            options={anlegg.map(a => ({ 
+              id: a.id, 
+              label: a.anleggsnavn,
+              sublabel: a.adresse ? `${a.adresse}${a.poststed ? `, ${a.poststed}` : ''}` : undefined
+            }))}
+            value={selectedAnlegg}
+            onChange={setSelectedAnlegg}
+            placeholder="Søk og velg anlegg..."
+            searchPlaceholder="Skriv for å søke..."
+            emptyMessage="Ingen anlegg funnet"
+            disabled={!selectedKunde}
+          />
         </div>
       </div>
 
@@ -393,17 +359,17 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
           <div className="flex items-start gap-3">
             <Flame className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-white mb-1">{selectedAnleggData.anleggsnavn}</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{selectedAnleggData.anleggsnavn}</h3>
               {selectedAnleggData.adresse && (
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   {selectedAnleggData.adresse}
                   {selectedAnleggData.postnummer && selectedAnleggData.poststed && 
                     `, ${selectedAnleggData.postnummer} ${selectedAnleggData.poststed}`}
                 </p>
               )}
-              <p className="text-sm text-gray-400 mt-1">Kunde: {selectedKundeData?.navn}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Kunde: {selectedKundeData?.navn}</p>
               {(leverandor || sentraltype) && (
-                <div className="flex items-center gap-4 mt-1 text-sm text-gray-400">
+                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
                   {leverandor && <span>Leverandør: {leverandor}</span>}
                   {sentraltype && <span>Sentraltype: {sentraltype}</span>}
                 </div>
@@ -425,7 +391,7 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-primary mb-2">Start ny kontroll</h3>
-                <p className="text-sm text-gray-400">Velg mellom FG790 eller NS3960 kontroll</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Velg mellom FG790 eller NS3960 kontroll</p>
               </div>
             </div>
           </button>
@@ -437,8 +403,8 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
                   <Cpu className="w-6 h-6 text-purple-500" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-white mb-2">Enheter</h3>
-                  <p className="text-sm text-gray-400 mb-3">Registrer detektorer og komponenter</p>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Enheter</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Registrer detektorer og komponenter</p>
                   {styringer && (
                     <div className="flex items-center gap-2 text-xs text-green-400">
                       <Check className="w-4 h-4" />
@@ -455,8 +421,8 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
                 <Settings className="w-6 h-6 text-orange-500" />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white mb-2">Styringer</h3>
-                <p className="text-sm text-gray-400 mb-3">Registrer og kontroller brannalarmstyringer</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Styringer</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Registrer og kontroller brannalarmstyringer</p>
                 {styringer && (
                   <div className="flex items-center gap-2 text-xs text-green-400">
                     <Check className="w-4 h-4" />
@@ -473,8 +439,8 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
                 <Network className="w-6 h-6 text-blue-500" />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white mb-2">Nettverk</h3>
-                <p className="text-sm text-gray-400 mb-3">Administrer brannalarmnettverk og systemer</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Nettverk</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Administrer brannalarmnettverk og systemer</p>
                 {nettverkListe.length > 0 && (
                   <div className="flex items-center gap-2 text-xs text-blue-400">
                     <Network className="w-4 h-4" />
@@ -491,8 +457,8 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
                 <Package className="w-6 h-6 text-green-500" />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white mb-2">Tilleggsutstyr</h3>
-                <p className="text-sm text-gray-400 mb-3">Talevarsling, alarmsender og nøkkelsafe</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Tilleggsutstyr</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Talevarsling, alarmsender og nøkkelsafe</p>
               </div>
             </div>
           </button>
@@ -503,8 +469,8 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
       {!selectedAnlegg && (
         <div className="card text-center py-12">
           <Flame className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-white mb-2">Velg kunde og anlegg for å starte</h3>
-          <p className="text-gray-400">Velg en kunde og et anlegg fra dropdownene over for å se brannalarmdata</p>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Velg kunde og anlegg for å starte</h3>
+          <p className="text-gray-600 dark:text-gray-400">Velg en kunde og et anlegg fra dropdownene over for å se brannalarmdata</p>
         </div>
       )}
     </div>

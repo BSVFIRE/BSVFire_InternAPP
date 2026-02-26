@@ -147,7 +147,7 @@ export function KommentarViewBrannslukkere({ anleggId, kundeNavn: _kundeNavn, an
       >
         <div className="flex items-center gap-3">
           <MessageSquare className="w-5 h-5 text-red-500" />
-          <h3 className="text-lg font-semibold text-white">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             Kommentarer {kommentarer.length > 0 && `(${kommentarer.length})`}
           </h3>
         </div>
@@ -163,7 +163,7 @@ export function KommentarViewBrannslukkere({ anleggId, kundeNavn: _kundeNavn, an
           {/* Ny kommentar */}
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <h4 className="text-md font-semibold text-white">Legg til kommentar</h4>
+              <h4 className="text-md font-semibold text-gray-900 dark:text-white">Legg til kommentar</h4>
             </div>
 
         <div className="space-y-3">
@@ -174,8 +174,8 @@ export function KommentarViewBrannslukkere({ anleggId, kundeNavn: _kundeNavn, an
             placeholder="Skriv en kommentar om brannslukkere, observasjoner, avvik eller annen relevant informasjon..."
           />
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-400">
-              Kommentar av: <span className="text-white">{brukerNavn || user?.email || 'Ukjent'}</span>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Kommentar av: <span className="text-gray-900 dark:text-white">{brukerNavn || user?.email || 'Ukjent'}</span>
             </p>
             <button
               onClick={leggTilKommentar}
@@ -191,7 +191,7 @@ export function KommentarViewBrannslukkere({ anleggId, kundeNavn: _kundeNavn, an
 
           {/* Kommentarliste */}
           <div className="space-y-4 mt-6">
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               Tidligere kommentarer ({kommentarer.length})
             </h3>
 
@@ -203,7 +203,7 @@ export function KommentarViewBrannslukkere({ anleggId, kundeNavn: _kundeNavn, an
               </div>
             ) : (
               kommentarer.map((kommentar) => (
-                <div key={kommentar.id} className="border border-gray-800 rounded-lg p-4 hover:border-red-500/20 transition-colors">
+                <div key={kommentar.id} className="border border-gray-200 dark:border-gray-800 rounded-lg p-4 hover:border-red-500/20 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
@@ -211,7 +211,7 @@ export function KommentarViewBrannslukkere({ anleggId, kundeNavn: _kundeNavn, an
                           <MessageSquare className="w-4 h-4 text-red-500" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-white">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
                             {kommentar.opprettet_av || 'Ukjent'}
                           </p>
                           <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -220,7 +220,7 @@ export function KommentarViewBrannslukkere({ anleggId, kundeNavn: _kundeNavn, an
                           </div>
                         </div>
                       </div>
-                      <p className="text-gray-300 whitespace-pre-wrap ml-11">
+                      <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap ml-11">
                         {kommentar.kommentar}
                       </p>
                     </div>

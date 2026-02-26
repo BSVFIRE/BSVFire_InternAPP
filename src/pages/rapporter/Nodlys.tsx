@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Download, Upload, LayoutGrid, Table, FileSpreadsheet, FileText } from 'lucide-react'
+import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Download, Upload, LayoutGrid, Table, FileSpreadsheet, ClipboardCheck } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useLocation, useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
@@ -14,6 +14,7 @@ import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
 import { KontrolldatoVelger } from '@/components/KontrolldatoVelger'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
+import { Combobox } from '@/components/ui/Combobox'
 
 interface Kunde {
   id: string
@@ -86,8 +87,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'bulk' | 'nettverk' | 'import'>('list')
   const [selectedNodlys, setSelectedNodlys] = useState<NodlysEnhet | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [kundeSok, setKundeSok] = useState('')
-  const [anleggSok, setAnleggSok] = useState('')
   const [sortBy, setSortBy] = useState<'internnummer' | 'amatur_id' | 'fordeling' | 'kurs' | 'plassering' | 'etasje' | 'type' | 'status' | 'kontrollert'>('amatur_id')
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -1176,7 +1175,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     nodlysId, 
     field, 
     value, 
-    className = "text-gray-300" 
+    className = "text-gray-700 dark:text-gray-300" 
   }: { 
     nodlysId: string
     field: string
@@ -1638,14 +1637,14 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   // Fullskjerm-visning (kun når viewMode === 'list')
   if (isFullscreen) {
     return (
-      <div className="fixed inset-0 z-50 bg-dark-200 overflow-auto">
+      <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-dark-200 overflow-auto">
         <div className="min-h-screen p-4 sm:p-6">
           {/* Header med lukkeknapp */}
-          <div className="flex flex-col gap-4 mb-4 pb-4 border-b border-gray-800">
+          <div className="flex flex-col gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
             <div className="flex items-start justify-between gap-2">
-              <h2 className="text-lg sm:text-2xl font-bold text-white leading-tight">
+              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight">
                 Nødlysenheter - {selectedKundeNavn} - {selectedAnleggNavn}
-                <span className="block sm:inline sm:ml-3 text-sm sm:text-lg text-gray-400 font-normal mt-1 sm:mt-0">
+                <span className="block sm:inline sm:ml-3 text-sm sm:text-lg text-gray-500 dark:text-gray-400 font-normal mt-1 sm:mt-0">
                   ({sortedNodlys.length} {sortedNodlys.length === 1 ? 'enhet' : 'enheter'})
                 </span>
               </h2>
@@ -1788,28 +1787,28 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
               <p className="text-gray-400">Ingen nødlysenheter funnet</p>
             </div>
           ) : (
-            <div className="overflow-x-auto bg-dark-100 rounded-lg">
+            <div className="overflow-x-auto bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-gray-800">
               <table className="w-full table-fixed">
                 <thead>
-                  <tr className="border-b border-gray-800">
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Intern nr.</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Armatur ID</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Fordeling</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Kurs</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Etasje</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-40">Plassering</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-32">Produsent</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-32">Type</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Status</th>
-                    <th className="text-center py-3 px-4 text-gray-400 font-medium w-28">Kontrollert</th>
-                    <th className="text-right py-3 px-4 text-gray-400 font-medium w-24">Handlinger</th>
+                  <tr className="border-b border-gray-200 dark:border-gray-800">
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Intern nr.</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Armatur ID</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Fordeling</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Kurs</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Etasje</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-40">Plassering</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Produsent</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Type</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Status</th>
+                    <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Kontrollert</th>
+                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Handlinger</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedNodlys.map((nodlys) => (
                     <tr
                       key={nodlys.id}
-                      className="border-b border-gray-800 hover:bg-dark-200 transition-colors"
+                      className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors"
                     >
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
@@ -1820,7 +1819,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                             nodlysId={nodlys.id} 
                             field="internnummer" 
                             value={nodlys.internnummer}
-                            className="text-white font-medium"
+                            className="text-gray-900 dark:text-white font-medium"
                           />
                         </div>
                       </td>
@@ -1899,10 +1898,11 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                           >
                             {nodlys.status ? (
                               <span className={`badge ${
-                                nodlys.status === 'OK' ? 'bg-green-900/30 text-green-400 border-green-800' :
-                                nodlys.status === 'Defekt' ? 'bg-red-900/30 text-red-400 border-red-800' :
-                                nodlys.status === 'Mangler' ? 'bg-yellow-900/30 text-yellow-400 border-yellow-800' :
-                                'bg-blue-900/30 text-blue-400 border-blue-800'
+                                nodlys.status === 'OK' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-800' :
+                                nodlys.status === 'Defekt' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800' :
+                                nodlys.status === 'Mangler' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-800' :
+                                nodlys.status === 'Batterifeil' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800' :
+                                'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800'
                               }`}>
                                 {nodlys.status}
                               </span>
@@ -1934,7 +1934,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                                 // Track endringen
                                 trackChange(nodlys.id, 'kontrollert', newValue)
                               }}
-                              className="w-5 h-5 text-green-600 bg-dark-100 border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+                              className="w-5 h-5 text-green-600 bg-white dark:bg-dark-100 border-gray-300 dark:border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
                               title={nodlys.kontrollert ? 'Marker som ikke kontrollert' : 'Marker som kontrollert'}
                             />
                           </div>
@@ -1999,8 +1999,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Nødlys</h1>
-            <p className="text-gray-400">Registrer og administrer nødlysarmaturer</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Nødlys</h1>
+            <p className="text-gray-600 dark:text-gray-400">Registrer og administrer nødlysarmaturer</p>
           </div>
         </div>
       </div>
@@ -2010,91 +2010,50 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Kunde */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Velg kunde <span className="text-red-500">*</span>
-            </label>
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="Søk etter kunde..."
-                value={kundeSok}
-                onChange={(e) => setKundeSok(e.target.value)}
-                className="input"
-              />
-              <select
-                value={selectedKunde}
-                onChange={(e) => {
-                  // Sjekk om det finnes ulagrede endringer
-                  if (unsavedChanges.size > 0 && e.target.value !== selectedKunde) {
-                    if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du bytter kunde nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
-                      return
-                    }
+            <Combobox
+              label="Velg kunde"
+              options={kunder.map(k => ({ id: k.id, label: k.navn }))}
+              value={selectedKunde}
+              onChange={(val) => {
+                // Sjekk om det finnes ulagrede endringer
+                if (unsavedChanges.size > 0 && val !== selectedKunde) {
+                  if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du bytter kunde nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
+                    return
                   }
-                  setSelectedKunde(e.target.value)
-                  setSelectedAnlegg('')
-                }}
-                className="input"
-                size={Math.min(kunder.filter(k => 
-                  k.navn.toLowerCase().includes(kundeSok.toLowerCase())
-                ).length + 1, 8)}
-              >
-                <option value="">Velg kunde</option>
-                {kunder
-                  .filter(k => k.navn.toLowerCase().includes(kundeSok.toLowerCase()))
-                  .map((kunde) => (
-                    <option key={kunde.id} value={kunde.id}>{kunde.navn}</option>
-                  ))}
-              </select>
-            </div>
+                }
+                setSelectedKunde(val)
+                setSelectedAnlegg('')
+              }}
+              placeholder="Søk og velg kunde..."
+              searchPlaceholder="Skriv for å søke..."
+              emptyMessage="Ingen kunder funnet"
+            />
           </div>
 
           {/* Anlegg */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Velg anlegg <span className="text-red-500">*</span>
-            </label>
-            {!selectedKunde ? (
-              <div className="input bg-dark-100 text-gray-500 cursor-not-allowed">
-                Velg kunde først
-              </div>
-            ) : anlegg.length === 0 ? (
-              <div className="input bg-dark-100 text-gray-500">
-                Ingen anlegg funnet for denne kunden
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="Søk etter anlegg..."
-                  value={anleggSok}
-                  onChange={(e) => setAnleggSok(e.target.value)}
-                  className="input"
-                />
-                <select
-                  value={selectedAnlegg}
-                  onChange={(e) => {
-                    // Sjekk om det finnes ulagrede endringer
-                    if (unsavedChanges.size > 0 && e.target.value !== selectedAnlegg) {
-                      if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du bytter anlegg nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
-                        return
-                      }
-                    }
-                    setSelectedAnlegg(e.target.value)
-                  }}
-                  className="input"
-                  size={Math.min(anlegg.filter(a => 
-                    a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase())
-                  ).length + 1, 8)}
-                >
-                  <option value="">Velg anlegg</option>
-                  {anlegg
-                    .filter(a => a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase()))
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>{a.anleggsnavn}</option>
-                    ))}
-                </select>
-              </div>
-            )}
+            <Combobox
+              label="Velg anlegg"
+              options={anlegg.map(a => ({ 
+                id: a.id, 
+                label: a.anleggsnavn,
+                sublabel: a.adresse ? `${a.adresse}${a.poststed ? `, ${a.poststed}` : ''}` : undefined
+              }))}
+              value={selectedAnlegg}
+              onChange={(val) => {
+                // Sjekk om det finnes ulagrede endringer
+                if (unsavedChanges.size > 0 && val !== selectedAnlegg) {
+                  if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du bytter anlegg nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
+                    return
+                  }
+                }
+                setSelectedAnlegg(val)
+              }}
+              placeholder="Søk og velg anlegg..."
+              searchPlaceholder="Skriv for å søke..."
+              emptyMessage="Ingen anlegg funnet"
+              disabled={!selectedKunde}
+            />
           </div>
         </div>
       </div>
@@ -2107,8 +2066,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
             <div className="flex items-center gap-3">
               <Building2 className="w-5 h-5 text-primary" />
               <div>
-                <p className="text-sm text-gray-400">Valgt anlegg</p>
-                <p className="text-white font-medium">{selectedKundeNavn} - {selectedAnleggNavn}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Valgt anlegg</p>
+                <p className="text-gray-900 dark:text-white font-medium">{selectedKundeNavn} - {selectedAnleggNavn}</p>
               </div>
             </div>
           </div>
@@ -2278,16 +2237,16 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
           {/* Nødlys Tabell */}
           <div className="card">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-800">
-              <h2 className="text-lg font-semibold text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Nødlysenheter
-                <span className="ml-2 text-sm text-gray-400 font-normal">
+                <span className="ml-2 text-sm text-gray-500 dark:text-gray-400 font-normal">
                   ({sortedNodlys.length} {sortedNodlys.length === 1 ? 'enhet' : 'enheter'})
                 </span>
               </h2>
               <div className="flex items-center gap-2">
                 {/* View toggle */}
-                <div className="flex items-center gap-1 bg-dark-100 rounded-lg p-1">
+                <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
                   <button
                     onClick={() => setDisplayMode('table')}
                     className={`p-2 rounded transition-colors ${
@@ -2359,8 +2318,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                           <Lightbulb className="w-5 h-5 text-yellow-500" />
                         </div>
                         <div>
-                          <p className="text-white font-medium">{nodlys.internnummer || '-'}</p>
-                          <p className="text-xs text-gray-400">Armatur: {nodlys.amatur_id || '-'}</p>
+                          <p className="text-gray-900 dark:text-white font-medium">{nodlys.internnummer || '-'}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Armatur: {nodlys.amatur_id || '-'}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
@@ -2387,36 +2346,37 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-400">Fordeling:</span>
-                        <span className="text-gray-200">{nodlys.fordeling || '-'}</span>
+                        <span className="text-gray-700 dark:text-gray-200">{nodlys.fordeling || '-'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Kurs:</span>
-                        <span className="text-gray-200">{nodlys.kurs || '-'}</span>
+                        <span className="text-gray-700 dark:text-gray-200">{nodlys.kurs || '-'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Etasje:</span>
-                        <span className="text-gray-200">{nodlys.etasje || '-'}</span>
+                        <span className="text-gray-700 dark:text-gray-200">{nodlys.etasje || '-'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Plassering:</span>
-                        <span className="text-gray-200 text-right">{nodlys.plassering || '-'}</span>
+                        <span className="text-gray-700 dark:text-gray-200 text-right">{nodlys.plassering || '-'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Produsent:</span>
-                        <span className="text-gray-200">{nodlys.produsent || '-'}</span>
+                        <span className="text-gray-700 dark:text-gray-200">{nodlys.produsent || '-'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Type:</span>
-                        <span className="text-gray-200">{nodlys.type || '-'}</span>
+                        <span className="text-gray-700 dark:text-gray-200">{nodlys.type || '-'}</span>
                       </div>
-                      <div className="flex justify-between items-center pt-2 border-t border-gray-800">
+                      <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-800">
                         <span className="text-gray-400">Status:</span>
                         {nodlys.status ? (
                           <span className={`badge ${
-                            nodlys.status === 'OK' ? 'bg-green-900/30 text-green-400 border-green-800' :
-                            nodlys.status === 'Defekt' ? 'bg-red-900/30 text-red-400 border-red-800' :
-                            nodlys.status === 'Mangler' ? 'bg-yellow-900/30 text-yellow-400 border-yellow-800' :
-                            'bg-blue-900/30 text-blue-400 border-blue-800'
+                            nodlys.status === 'OK' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-800' :
+                            nodlys.status === 'Defekt' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800' :
+                            nodlys.status === 'Mangler' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-800' :
+                            nodlys.status === 'Batterifeil' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800' :
+                            'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800'
                           }`}>
                             {nodlys.status}
                           </span>
@@ -2437,7 +2397,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                             setNodlysListe(updatedList)
                             trackChange(nodlys.id, 'kontrollert', newValue)
                           }}
-                          className="w-5 h-5 text-green-600 bg-dark-100 border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+                          className="w-5 h-5 text-green-600 bg-white dark:bg-dark-100 border-gray-300 dark:border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
                         />
                       </div>
                     </div>
@@ -2449,25 +2409,25 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
               <div className="overflow-x-auto">
                 <table className="w-full table-fixed">
                   <thead>
-                    <tr className="border-b border-gray-800">
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Intern nr.</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Armatur ID</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Fordeling</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Kurs</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-24">Etasje</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-40">Plassering</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-32">Produsent</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-32">Type</th>
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Status</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium w-28">Kontrollert</th>
-                      <th className="text-right py-3 px-4 text-gray-400 font-medium w-24">Handlinger</th>
+                    <tr className="border-b border-gray-200 dark:border-gray-800">
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Intern nr.</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Armatur ID</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Fordeling</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Kurs</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Etasje</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-40">Plassering</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Produsent</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Type</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Status</th>
+                      <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Kontrollert</th>
+                      <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Handlinger</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sortedNodlys.map((nodlys) => (
                       <tr
                         key={nodlys.id}
-                        className="border-b border-gray-800 hover:bg-dark-100 transition-colors"
+                        className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors"
                       >
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
@@ -2478,7 +2438,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                               nodlysId={nodlys.id} 
                               field="internnummer" 
                               value={nodlys.internnummer}
-                              className="text-white font-medium"
+                              className="text-gray-900 dark:text-white font-medium"
                             />
                           </div>
                         </td>
@@ -2557,10 +2517,11 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                             >
                               {nodlys.status ? (
                                 <span className={`badge ${
-                                  nodlys.status === 'OK' ? 'bg-green-900/30 text-green-400 border-green-800' :
-                                  nodlys.status === 'Defekt' ? 'bg-red-900/30 text-red-400 border-red-800' :
-                                  nodlys.status === 'Mangler' ? 'bg-yellow-900/30 text-yellow-400 border-yellow-800' :
-                                  'bg-blue-900/30 text-blue-400 border-blue-800'
+                                  nodlys.status === 'OK' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-800' :
+                                  nodlys.status === 'Defekt' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800' :
+                                  nodlys.status === 'Mangler' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-800' :
+                                  nodlys.status === 'Batterifeil' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800' :
+                                  'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800'
                                 }`}>
                                   {nodlys.status}
                                 </span>
@@ -2627,31 +2588,155 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
             )}
           </div>
 
-          {/* Evakueringsplan */}
-          <div className="card">
-            <h2 className="text-lg font-semibold text-white mb-4">Tilleggsinformasjon</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Evakueringsplaner
-                </label>
-                <select
-                  value={evakueringsplanStatus}
-                  onChange={(e) => setEvakueringsplanStatus(e.target.value)}
-                  className="input"
-                >
-                  <option value="">Velg status</option>
-                  <option value="Ja">Ja</option>
-                  <option value="Nei">Nei</option>
-                  <option value="Må oppdateres">Må oppdateres</option>
-                </select>
+          {/* Fullfør kontroll - Samlet seksjon */}
+          <div className="card bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
+                <ClipboardCheck className="w-6 h-6 text-primary" />
               </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Fullfør kontroll</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Sjekkliste før du genererer rapport</p>
+              </div>
+            </div>
+
+            {/* Sjekkliste */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {/* Status 1: Enheter kontrollert */}
+              <div className={`p-4 rounded-xl border-2 transition-all ${
+                nodlysListe.every(n => n.kontrollert) 
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
+                  : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    nodlysListe.every(n => n.kontrollert)
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400'
+                  }`}>
+                    {nodlysListe.every(n => n.kontrollert) ? '✓' : '1'}
+                  </div>
+                  <div>
+                    <p className={`font-medium ${nodlysListe.every(n => n.kontrollert) ? 'text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                      Enheter kontrollert
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {nodlysListe.filter(n => n.kontrollert).length} av {nodlysListe.length} enheter
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status 2: Evakueringsplan */}
+              <div className={`p-4 rounded-xl border-2 transition-all ${
+                evakueringsplanStatus 
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
+                  : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    evakueringsplanStatus
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400'
+                  }`}>
+                    {evakueringsplanStatus ? '✓' : '2'}
+                  </div>
+                  <div>
+                    <p className={`font-medium ${evakueringsplanStatus ? 'text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                      Evakueringsplan
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {evakueringsplanStatus || 'Ikke satt'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status 3: Dato valgt */}
+              <div className="p-4 rounded-xl border-2 bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-500 text-white">
+                    ✓
+                  </div>
+                  <div>
+                    <p className="font-medium text-green-700 dark:text-green-400">Kontrolldato</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {kontrolldato.toLocaleDateString('nb-NO')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Evakueringsplan dropdown */}
+            <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Evakueringsplaner status
+                  </label>
+                  <select
+                    value={evakueringsplanStatus}
+                    onChange={(e) => {
+                      setEvakueringsplanStatus(e.target.value)
+                      // Auto-lagre når bruker velger
+                      setTimeout(() => saveEvakueringsplan(), 100)
+                    }}
+                    className="input"
+                  >
+                    <option value="">Velg status</option>
+                    <option value="Ja">✓ Ja - I orden</option>
+                    <option value="Nei">✗ Nei - Mangler</option>
+                    <option value="Må oppdateres">⚠ Må oppdateres</option>
+                  </select>
+                </div>
+                <div>
+                  <KontrolldatoVelger
+                    kontrolldato={kontrolldato}
+                    onDatoChange={setKontrolldato}
+                    label="Kontrolldato"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Hovedhandling - Stor knapp */}
+            <button
+              onClick={() => genererPDF('save')}
+              disabled={loading || nodlysListe.length === 0}
+              className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30"
+            >
+              <Save className="w-6 h-6" />
+              Generer rapport
+            </button>
+
+            {/* Sekundære handlinger */}
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
               <button
-                onClick={saveEvakueringsplan}
-                className="btn-primary"
+                onClick={() => genererPDF('preview')}
+                disabled={loading || nodlysListe.length === 0}
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              >
+                <Eye className="w-4 h-4" />
+                Forhåndsvis
+              </button>
+              <span className="text-gray-300 dark:text-gray-600">|</span>
+              <button
+                onClick={() => genererPDF('save')}
+                disabled={loading || nodlysListe.length === 0}
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
-                Lagre tilleggsinformasjon
+                Kun lagre
+              </button>
+              <span className="text-gray-300 dark:text-gray-600">|</span>
+              <button
+                onClick={eksporterTilExcel}
+                disabled={nodlysListe.length === 0}
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Excel
               </button>
             </div>
           </div>
@@ -2663,71 +2748,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
             anleggNavn={anlegg.find(a => a.id === selectedAnlegg)?.anleggsnavn || ''}
             onBack={() => {}}
           />
-
-          {/* Rapportknapper */}
-          <div className="card">
-            <h2 className="text-lg font-semibold text-white mb-4">Generer rapport</h2>
-            <div className="mb-4">
-              <KontrolldatoVelger
-                kontrolldato={kontrolldato}
-                onDatoChange={setKontrolldato}
-                label="Kontrolldato for rapport"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                Standard er dagens dato. Velg en annen dato hvis du trenger å tilbakedatere rapporten.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => genererPDF('preview')}
-                disabled={loading || nodlysListe.length === 0}
-                className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Eye className="w-5 h-5" />
-                Forhåndsvis rapport
-              </button>
-              <button
-                onClick={() => genererPDF('save')}
-                disabled={loading || nodlysListe.length === 0}
-                className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Save className="w-5 h-5" />
-                Lagre rapport
-              </button>
-              <button
-                onClick={() => genererPDF('download')}
-                disabled={loading || nodlysListe.length === 0}
-                className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Download className="w-5 h-5" />
-                Lagre og last ned
-              </button>
-            </div>
-          </div>
-
-          {/* Eksporter nødlysliste */}
-          <div className="card">
-            <h2 className="text-lg font-semibold text-white mb-4">Eksporter nødlysliste</h2>
-            <p className="text-sm text-gray-400 mb-4">Last ned nødlyslisten som en enkel tabell (uten rapport-format)</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={eksporterTilPDF}
-                disabled={nodlysListe.length === 0}
-                className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FileText className="w-5 h-5" />
-                Eksporter til PDF
-              </button>
-              <button
-                onClick={eksporterTilExcel}
-                disabled={nodlysListe.length === 0}
-                className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FileSpreadsheet className="w-5 h-5" />
-                Eksporter til Excel
-              </button>
-            </div>
-          </div>
         </>
       )}
 

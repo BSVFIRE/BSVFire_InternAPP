@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { BSV_LOGO } from '@/assets/logoBase64'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
 import { checkDropboxStatus } from '@/services/dropboxServiceV2'
+import { Combobox } from '@/components/ui/Combobox'
 
 interface Servicerapport {
   id: string
@@ -58,8 +59,6 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
   const navigate = useNavigate()
   const [formData, setFormData] = useState<Servicerapport>(rapport)
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
-  const [filteredAnlegg, setFilteredAnlegg] = useState<Anlegg[]>([])
-  const [anleggSok, setAnleggSok] = useState('')
   const [ansatte, setAnsatte] = useState<Ansatt[]>([])
   const [anleggDetails, setAnleggDetails] = useState<AnleggDetails | null>(null)
   const [showPreview, setShowPreview] = useState(false)
@@ -114,18 +113,6 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
     }
   }
 
-  useEffect(() => {
-    // Filter anlegg based on search
-    if (anleggSok.trim() === '') {
-      setFilteredAnlegg(anlegg)
-    } else {
-      const searchLower = anleggSok.toLowerCase()
-      const filtered = anlegg.filter(a => 
-        a.anleggsnavn.toLowerCase().includes(searchLower)
-      )
-      setFilteredAnlegg(filtered)
-    }
-  }, [anleggSok, anlegg])
 
   async function loadAnlegg() {
     try {
@@ -137,7 +124,6 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
       if (error) throw error
       const anleggData = data || []
       setAnlegg(anleggData)
-      setFilteredAnlegg(anleggData)
     } catch (error) {
       console.error('Feil ved lasting av anlegg:', error)
     }
@@ -571,33 +557,14 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Anlegg <span className="text-red-500">*</span>
               </label>
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="Søk etter anlegg..."
-                  value={anleggSok}
-                  onChange={(e) => setAnleggSok(e.target.value)}
-                  className="input"
-                />
-                <select
-                  value={formData.anlegg_id}
-                  onChange={(e) => handleChange('anlegg_id', e.target.value)}
-                  className="input"
-                  required
-                  size={Math.min(filteredAnlegg.length + 1, 10)}
-                >
-                  <option value="">Velg anlegg ({filteredAnlegg.length} av {anlegg.length})</option>
-                  {filteredAnlegg.slice(0, 100).map((a) => (
-                    <option key={a.id} value={a.id}>{a.anleggsnavn}</option>
-                  ))}
-                  {filteredAnlegg.length > 100 && (
-                    <option disabled>... og {filteredAnlegg.length - 100} flere (søk for å begrense)</option>
-                  )}
-                </select>
-                {filteredAnlegg.length === 0 && anleggSok && (
-                  <p className="text-sm text-yellow-400 mt-1">⚠️ Ingen anlegg funnet for "{anleggSok}"</p>
-                )}
-              </div>
+              <Combobox
+                options={anlegg.map(a => ({ id: a.id, value: a.id, label: a.anleggsnavn }))}
+                value={formData.anlegg_id}
+                onChange={(val) => handleChange('anlegg_id', val)}
+                placeholder="Søk og velg anlegg..."
+                searchPlaceholder="Skriv for å søke..."
+                emptyMessage="Ingen anlegg funnet"
+              />
             </div>
 
             <div>

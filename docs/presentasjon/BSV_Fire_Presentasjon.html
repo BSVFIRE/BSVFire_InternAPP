@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FireCtrl - Plattform Presentasjon</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0a;
+            color: white;
+        }
+        
+        .slide {
+            width: 100%;
+            min-height: 100vh;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border-bottom: 4px solid #14b8a6;
+            position: relative;
+        }
+        
+        .slide::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, #14b8a6, #0d9488);
+        }
+        
+        .slide-number {
+            position: absolute;
+            bottom: 30px;
+            right: 40px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .logo {
+            position: absolute;
+            top: 30px;
+            right: 40px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #14b8a6;
+        }
+        
+        h1 {
+            font-size: 56px;
+            margin-bottom: 20px;
+            color: #14b8a6;
+        }
+        
+        h2 {
+            font-size: 42px;
+            margin-bottom: 30px;
+            color: #14b8a6;
+        }
+        
+        h3 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            color: #5eead4;
+        }
+        
+        .subtitle {
+            font-size: 28px;
+            color: #9ca3af;
+            margin-bottom: 40px;
+        }
+        
+        p {
+            font-size: 24px;
+            line-height: 1.6;
+            color: #d1d5db;
+            margin-bottom: 20px;
+        }
+        
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        li {
+            font-size: 22px;
+            line-height: 1.8;
+            color: #d1d5db;
+            padding-left: 30px;
+            position: relative;
+            margin-bottom: 10px;
+        }
+        
+        li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #14b8a6;
+            font-weight: bold;
+        }
+        
+        .highlight {
+            color: #14b8a6;
+            font-weight: bold;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+            margin-top: 30px;
+        }
+        
+        .grid-3 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        
+        .card {
+            background: #1a1a1a;
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid #333;
+        }
+        
+        .card h3 {
+            margin-bottom: 15px;
+        }
+        
+        .card ul li {
+            font-size: 18px;
+        }
+        
+        .stat-box {
+            background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 64px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .stat-label {
+            font-size: 20px;
+            color: rgba(255,255,255,0.9);
+            margin-top: 10px;
+        }
+        
+        .image-placeholder {
+            background: #1a1a1a;
+            border: 2px dashed #333;
+            border-radius: 16px;
+            height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 18px;
+            margin-top: 30px;
+        }
+        
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+        }
+        
+        .center {
+            text-align: center;
+        }
+        
+        .title-slide {
+            text-align: center;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .title-slide h1 {
+            font-size: 72px;
+            margin-bottom: 30px;
+        }
+        
+        .emoji {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        .tech-stack {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 40px;
+        }
+        
+        .tech-badge {
+            background: #1a1a1a;
+            padding: 15px 30px;
+            border-radius: 50px;
+            border: 1px solid #14b8a6;
+            font-size: 18px;
+        }
+        
+        @media print {
+            .slide {
+                page-break-after: always;
+                height: 100vh;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- SLIDE 1: Tittel -->
+<div class="slide title-slide">
+    <div class="emoji">🔥</div>
+    <h1>FireCtrl</h1>
+    <p class="subtitle">Den komplette plattformen for brannvernbransjen</p>
+    <div class="tech-stack">
+        <span class="tech-badge">React</span>
+        <span class="tech-badge">TypeScript</span>
+        <span class="tech-badge">Supabase</span>
+    </div>
+    <div class="slide-number">1</div>
+</div>
+
+<!-- SLIDE 2: Modulstruktur -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>Plattform & Moduler</h2>
+    <p class="subtitle">Én plattform. Seks kraftige moduler.</p>
+    <div class="grid grid-3" style="margin-top: 40px;">
+        <div class="card" style="border-left: 4px solid #ef4444;">
+            <h3 style="color: #ef4444;">🔔 FireCtrl Alarm</h3>
+            <p style="font-size: 18px;">Komplett brannalarmhåndtering med kontroller, rapporter og dokumentasjon.</p>
+        </div>
+        <div class="card" style="border-left: 4px solid #f59e0b;">
+            <h3 style="color: #f59e0b;">💡 FireCtrl Nødlys</h3>
+            <p style="font-size: 18px;">Nødlyskontroll med armaturlister, batteritester og Excel-import.</p>
+        </div>
+        <div class="card" style="border-left: 4px solid #10b981;">
+            <h3 style="color: #10b981;">🔧 FireCtrl Service</h3>
+            <p style="font-size: 18px;">Servicerapporter, tidsregistrering og digital kundesignatur.</p>
+        </div>
+        <div class="card" style="border-left: 4px solid #3b82f6;">
+            <h3 style="color: #3b82f6;">📚 FireCtrl Docs</h3>
+            <p style="font-size: 18px;">FDV, detektorlister, adressering og teknisk dokumentasjon.</p>
+        </div>
+        <div class="card" style="border-left: 4px solid #8b5cf6;">
+            <h3 style="color: #8b5cf6;">🤖 FireCtrl AI</h3>
+            <p style="font-size: 18px;">Intelligent assistent med naturlig språk og kontekstbaserte svar.</p>
+        </div>
+        <div class="card" style="border-left: 4px solid #14b8a6;">
+            <h3 style="color: #14b8a6;">🌐 FireCtrl 360</h3>
+            <p style="font-size: 18px;">Helhetlig oversikt: KS/HMS, ordre, tilbud og integrasjoner.</p>
+        </div>
+    </div>
+    <div class="slide-number">2</div>
+</div>
+
+<!-- SLIDE 3: Om appen -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>Om FireCtrl-plattformen</h2>
+    <div class="two-col">
+        <div>
+            <p>En <span class="highlight">moderne bedriftsapp</span> som dekker alt fra kundeadministrasjon til rapportering og HMS.</p>
+            <ul>
+                <li>Utviklet spesifikt for brannvernbransjen</li>
+                <li>Responsivt design for alle enheter</li>
+                <li>Fungerer offline</li>
+                <li>AI-assistent innebygd</li>
+                <li>Integrasjoner med Dropbox, PowerOffice, Google Maps</li>
+            </ul>
+        </div>
+        <img src="images/dashboard.png" alt="Dashboard" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">3</div>
+</div>
+
+<!-- SLIDE 4: Statistikk -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>Appen i tall</h2>
+    <div class="grid grid-3">
+        <div class="stat-box">
+            <div class="stat-number">50+</div>
+            <div class="stat-label">Unike moduler</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">6</div>
+            <div class="stat-label">Rapporttyper</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">6</div>
+            <div class="stat-label">KS/HMS moduler</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">6</div>
+            <div class="stat-label">Tekniske dokumenter</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">10+</div>
+            <div class="stat-label">Admin-funksjoner</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">3</div>
+            <div class="stat-label">Integrasjoner</div>
+        </div>
+    </div>
+    <div class="slide-number">4</div>
+</div>
+
+<!-- SLIDE 5: Hovedmoduler oversikt -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>Hovedmoduler</h2>
+    <div class="grid grid-3">
+        <div class="card">
+            <h3>📊 Dashboard</h3>
+            <ul>
+                <li>Statistikk og oversikt</li>
+                <li>Kommende oppgaver</li>
+                <li>Siste aktivitet</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>👥 Kunder</h3>
+            <ul>
+                <li>Kundeadministrasjon</li>
+                <li>Kontaktinfo</li>
+                <li>Søk og filter</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>🏢 Anlegg</h3>
+            <ul>
+                <li>Anleggshåndtering</li>
+                <li>Kontrollhistorikk</li>
+                <li>TODO-lister</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>📋 Ordre</h3>
+            <ul>
+                <li>Ordrehåndtering</li>
+                <li>Fakturering</li>
+                <li>PowerOffice-integrasjon</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>✅ Oppgaver</h3>
+            <ul>
+                <li>Oppgavestyring</li>
+                <li>Prioritering</li>
+                <li>Frister</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>📅 Kontrollplan</h3>
+            <ul>
+                <li>Planlegging</li>
+                <li>Kalendervisning</li>
+                <li>Påminnelser</li>
+            </ul>
+        </div>
+    </div>
+    <div class="slide-number">5</div>
+</div>
+
+<!-- SLIDE 6: Dashboard -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>📊 Dashboard</h2>
+    <div class="two-col">
+        <div>
+            <p>Få <span class="highlight">full oversikt</span> over hele virksomheten på én side.</p>
+            <ul>
+                <li>Statistikk over kunder, anlegg og ordre</li>
+                <li>Kommende oppgaver og frister</li>
+                <li>Siste aktivitet i sanntid</li>
+                <li>Hurtiglenker til vanlige handlinger</li>
+                <li>Varsler og påminnelser</li>
+            </ul>
+        </div>
+        <img src="images/dashboard.png" alt="Dashboard" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">6</div>
+</div>
+
+<!-- SLIDE 7: Kunder -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>👥 Kunder</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Komplett kundeadministrasjon</span> med alle nødvendige funksjoner.</p>
+            <ul>
+                <li>Opprett, rediger og slett kunder</li>
+                <li>Kundenummer og organisasjonsnummer</li>
+                <li>Kontaktinformasjon</li>
+                <li>Kobling til anlegg og kontaktpersoner</li>
+                <li>Avansert søk og filtrering</li>
+                <li>Eksport av kundelister</li>
+            </ul>
+        </div>
+        <img src="images/kunder.png" alt="Kunder" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">7</div>
+</div>
+
+<!-- SLIDE 8: Anlegg -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>🏢 Anlegg</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Administrer alle kontrolltyper</span> med komplett informasjon.</p>
+            <ul>
+                <li>Google Maps-integrasjon for adresser</li>
+                <li>Komplett anleggsdata alle fag</li>
+                <li>Kontrollhistorikk</li>
+                <li>TODO-liste per anlegg</li>
+                <li>Notatfunksjon</li>
+                <li>Dropbox-integrasjon for dokumenter</li>
+            </ul>
+        </div>
+        <img src="images/anlegg.png" alt="Anlegg" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">7</div>
+</div>
+
+<!-- SLIDE 7b: Oppgaver -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>✅ Oppgaver</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Effektiv oppgavestyring</span> for hele teamet.</p>
+            <ul>
+                <li>Opprett og tildel oppgaver</li>
+                <li>Prioritering (lav, medium, høy)</li>
+                <li>Frist og påminnelser</li>
+                <li>Status (åpen, pågår, fullført)</li>
+                <li>Kobling til anlegg/kunde</li>
+                <li>Kommentarer og historikk</li>
+            </ul>
+        </div>
+        <img src="images/oppgaver.png" alt="Oppgaver" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">7b</div>
+</div>
+
+<!-- SLIDE 7c: Møter -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>📅 Møter</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Møteplanlegging</span> og oppfølging.</p>
+            <ul>
+                <li>Kalender med møteoversikt</li>
+                <li>Møtedetaljer (tid, sted, deltakere)</li>
+                <li>Agenda og notater</li>
+                <li>Oppfølgingsoppgaver</li>
+                <li>Synkronisering med oppgaver</li>
+            </ul>
+        </div>
+        <img src="images/møte_modull.png" alt="Møter" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">7c</div>
+</div>
+
+<!-- SLIDE 7d: Ordre -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>📋 Ordre</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Komplett ordrehåndtering</span> med fakturering.</p>
+            <ul>
+                <li>Opprett ordre fra anlegg</li>
+                <li>Ordrelinjer med produkter/tjenester</li>
+                <li>Priskalkulator</li>
+                <li>Status-håndtering</li>
+                <li>PowerOffice-integrasjon</li>
+                <li>Ordrehistorikk</li>
+            </ul>
+        </div>
+        <img src="images/ordre.png" alt="Ordre" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">7d</div>
+</div>
+
+<!-- SLIDE 8: Rapporter oversikt -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>📊 Rapporter</h2>
+    <p class="subtitle">6 komplette rapporttyper med PDF-generering og e-postutsending</p>
+    <div class="grid grid-3">
+        <div class="card">
+            <h3>🔔 Brannalarm</h3>
+            <ul>
+                <li>Kontrollrapport</li>
+                <li>Sjekkliste</li>
+                <li>Feil og mangler</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>💡 Nødlys</h3>
+            <ul>
+                <li>Armaturliste</li>
+                <li>Excel-import</li>
+                <li>Batteritester</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>🧯 Slukkeutstyr</h3>
+            <ul>
+                <li>Apparatliste</li>
+                <li>Kontrollstatus</li>
+                <li>Neste kontrolldato</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>🌫️ Røykluker</h3>
+            <ul>
+                <li>Funksjonskontroll</li>
+                <li>Sjekkliste</li>
+                <li>PDF-rapport</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>🩹 Førstehjelp</h3>
+            <ul>
+                <li>Innholdsliste</li>
+                <li>Utløpsdatoer</li>
+                <li>Påminnelser</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>📧 Send Rapporter</h3>
+            <ul>
+                <li>Masseutsending</li>
+                <li>E-postmaler</li>
+                <li>Vedlegg</li>
+            </ul>
+        </div>
+    </div>
+    <div class="slide-number">8</div>
+</div>
+
+<!-- SLIDE 9: Nødlys rapport -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>💡 Nødlys-rapport</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Komplett nødlyskontroll</span> med import fra Excel.</p>
+            <ul>
+                <li>Import fra Excel/CSV</li>
+                <li>Armaturliste med status</li>
+                <li>Batteritester</li>
+                <li>Kommentarer per armatur</li>
+                <li>Profesjonell PDF-generering</li>
+                <li>Direkte e-postutsending</li>
+            </ul>
+        </div>
+        <img src="images/rapporter.png" alt="Rapporter" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">9</div>
+</div>
+
+<!-- SLIDE 9b: Brannalarm Data -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>🔔 Brannalarm - Data</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Komplett brannalarmdata</span> for hvert anlegg.</p>
+            <ul>
+                <li>Sentraltype og produsent</li>
+                <li>Detektoroversikt</li>
+                <li>Sløyfer og adresser</li>
+                <li>Kontrollhistorikk</li>
+                <li>Feil og mangler</li>
+            </ul>
+        </div>
+        <img src="images/brannalarm_data.png" alt="Brannalarm Data" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">9b</div>
+</div>
+
+<!-- SLIDE 9c: Brannalarm Nettverk -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>🔔 Brannalarm - Nettverk</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Nettverksoversikt</span> for brannalarmanlegg.</p>
+            <ul>
+                <li>IP-adresser og porter</li>
+                <li>Alarmoverføring</li>
+                <li>Tilkoblinger</li>
+                <li>Nettverkstopologi</li>
+            </ul>
+        </div>
+        <img src="images/brannalarm_nettverk.png" alt="Brannalarm Nettverk" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">9c</div>
+</div>
+
+<!-- SLIDE 9d: Brannslanger -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>🚿 Brannslanger</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Kontroll av brannslanger</span> og slangetromler.</p>
+            <ul>
+                <li>Slangeliste med plassering</li>
+                <li>Kontrollstatus</li>
+                <li>Neste kontrolldato</li>
+                <li>PDF-rapport</li>
+            </ul>
+        </div>
+        <img src="images/brannslanger.png" alt="Brannslanger" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">9d</div>
+</div>
+
+<!-- SLIDE 9e: Brannslukker -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>🧯 Slukkeutstyr</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Kontroll av slukkeutstyr</span> og apparater.</p>
+            <ul>
+                <li>Apparatliste med type</li>
+                <li>Plassering og status</li>
+                <li>Utløpsdatoer</li>
+                <li>Kontrollhistorikk</li>
+                <li>PDF-rapport</li>
+            </ul>
+        </div>
+        <img src="images/brannslukker.png" alt="Brannslukker" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">9e</div>
+</div>
+
+<!-- SLIDE 10: Teknisk -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>🔧 Teknisk dokumentasjon</h2>
+    <p class="subtitle">6 typer tekniske dokumenter</p>
+    <div class="grid grid-3">
+        <div class="card">
+            <h3>📝 Servicerapporter</h3>
+            <ul>
+                <li>Arbeidsbeskrivelse</li>
+                <li>Tidsregistrering</li>
+                <li>Kundesignatur</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>📋 Detektorlister</h3>
+            <ul>
+                <li>Detektoroversikt</li>
+                <li>Plassering og type</li>
+                <li>Adresser i sentral</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>🚨 Alarmorganisering</h3>
+            <ul>
+                <li>Alarmplan</li>
+                <li>Varslingslister</li>
+                <li>Ansvarlige</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>📐 Prosjektering</h3>
+            <ul>
+                <li>Prosjekteringsrapporter</li>
+                <li>Tekniske spesifikasjoner</li>
+                <li>Dokumenter</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>📚 FDV</h3>
+            <ul>
+                <li>FDV-datablader</li>
+                <li>Produktdokumentasjon</li>
+                <li>Vedlikeholdsinstrukser</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>🔢 Adressering</h3>
+            <ul>
+                <li>Adresseringslister</li>
+                <li>Sone/sløyfe-oversikt</li>
+                <li>Detektorplassering</li>
+            </ul>
+        </div>
+    </div>
+    <div class="slide-number">10</div>
+</div>
+
+<!-- SLIDE 11: Servicerapport -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>📝 Servicerapporter</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Dokumenter serviceoppdrag</span> profesjonelt.</p>
+            <ul>
+                <li>Detaljert arbeidsbeskrivelse</li>
+                <li>Tidsregistrering</li>
+                <li>Materiellbruk</li>
+                <li>Digital kundesignatur</li>
+                <li>Profesjonell PDF med logo</li>
+                <li>Direkte e-postutsending til kunde</li>
+            </ul>
+        </div>
+        <img src="images/teknisk.png" alt="Teknisk" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">11</div>
+</div>
+
+<!-- SLIDE 12: Tilbud -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>💰 Tilbud & Priser</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Generer profesjonelle tilbud</span> på sekunder.</p>
+            <ul>
+                <li>Tilbud på serviceavtaler</li>
+                <li>Tilbud på alarmoverføring</li>
+                <li>Automatisk prisberegning</li>
+                <li>Tilpasning av tjenester</li>
+                <li>PDF-generering</li>
+                <li>Status-håndtering (sendt, akseptert, avslått)</li>
+            </ul>
+        </div>
+        <img src="images/tilbud.png" alt="Tilbud" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">12</div>
+</div>
+
+<!-- SLIDE 13: KS/HMS -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>📋 KS/HMS</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Komplett kvalitets- og HMS-system</span></p>
+            <ul>
+                <li>Dashboard med statistikk</li>
+                <li>Risikovurderinger med matrise</li>
+                <li>Hendelsesrapportering</li>
+                <li>Avvikshåndtering</li>
+                <li>Opplæring og sertifiseringer</li>
+                <li>Tiltakshåndtering</li>
+            </ul>
+        </div>
+        <img src="images/hms:ks.png" alt="KS/HMS" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">13</div>
+</div>
+
+<!-- SLIDE 14: AI-assistent -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>🤖 AI-assistent</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Intelligent hjelp</span> innebygd i appen.</p>
+            <ul>
+                <li>Naturlig språk-søk</li>
+                <li>Spørsmål om anlegg, kunder, rapporter</li>
+                <li>Hjelp med oppgaver</li>
+                <li>Dokumentasjonssøk</li>
+                <li>Kontekstbaserte svar</li>
+                <li>Alltid tilgjengelig</li>
+            </ul>
+        </div>
+        <img src="images/AI-assistent.png" alt="AI-assistent" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">14</div>
+</div>
+
+<!-- SLIDE 15: Integrasjoner -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>🔗 Integrasjoner</h2>
+    <div class="grid grid-3">
+        <div class="card" style="text-align: center;">
+            <div style="font-size: 64px; margin-bottom: 20px;">📦</div>
+            <h3>Dropbox</h3>
+            <p style="font-size: 18px;">Synkroniser dokumenter automatisk. Filbrowser i appen.</p>
+        </div>
+        <div class="card" style="text-align: center;">
+            <div style="font-size: 64px; margin-bottom: 20px;">💳</div>
+            <h3>PowerOffice</h3>
+            <p style="font-size: 18px;">Fakturering og kundesynkronisering direkte fra appen.</p>
+        </div>
+        <div class="card" style="text-align: center;">
+            <div style="font-size: 64px; margin-bottom: 20px;">🗺️</div>
+            <h3>Google Maps</h3>
+            <p style="font-size: 18px;">Adressesøk, kartvisning og veibeskrivelse.</p>
+        </div>
+    </div>
+    <div class="slide-number">15</div>
+</div>
+
+<!-- SLIDE 16: Offline -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>🌐 Offline-modus</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Fungerer uten internett</span> - perfekt for feltarbeid.</p>
+            <ul>
+                <li>Automatisk caching av data</li>
+                <li>Kø for ventende endringer</li>
+                <li>Automatisk synkronisering ved tilkobling</li>
+                <li>Visuell indikator for offline-status</li>
+                <li>Ingen data går tapt</li>
+            </ul>
+        </div>
+        <img src="images/Offline-modus.png" alt="Offline-modus" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">16</div>
+</div>
+
+<!-- SLIDE 17: Responsivt design -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>📱 Responsivt design & Navigasjon</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Fungerer på alle enheter</span> med intuitiv navigasjon.</p>
+            <ul>
+                <li>Desktop med full sidebar</li>
+                <li>Nettbrett med tilpasset layout</li>
+                <li>Mobil med touch-vennlig meny</li>
+                <li>Kategoriserte moduler</li>
+                <li>Rask tilgang til alle funksjoner</li>
+            </ul>
+        </div>
+        <img src="images/meny.png" alt="Meny" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">17</div>
+</div>
+
+<!-- SLIDE 18: Sikkerhet -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>🔒 Sikkerhet</h2>
+    <div class="two-col">
+        <div>
+            <p><span class="highlight">Sikkerhet i fokus</span> - dine data er trygge.</p>
+            <ul>
+                <li>Supabase Auth for autentisering</li>
+                <li>Row Level Security (RLS)</li>
+                <li>Kryptert dataoverføring (HTTPS)</li>
+                <li>Rollebasert tilgangskontroll</li>
+                <li>Automatisk logging av aktivitet</li>
+                <li>GDPR-kompatibel</li>
+            </ul>
+        </div>
+        <div class="grid" style="gap: 20px;">
+            <div class="stat-box">
+                <div class="stat-number">🔐</div>
+                <div class="stat-label">Kryptert</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">👤</div>
+                <div class="stat-label">Rollebasert</div>
+            </div>
+        </div>
+    </div>
+    <div class="slide-number">18</div>
+</div>
+
+<!-- SLIDE 19: Admin -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>🔐 Administrator-funksjoner</h2>
+    <div class="two-col">
+        <div>
+            <ul>
+                <li>System Logger - feilsøking</li>
+                <li>AI Administrasjon - kunnskapsbase</li>
+                <li>Dropbox Folders - mapper og tilganger</li>
+                <li>Årsavslutning - rutiner og rapporter</li>
+                <li>Modul Oversikt - bruksstatistikk</li>
+                <li>Salg - leads og pipeline</li>
+            </ul>
+        </div>
+        <img src="images/modull_oversikt.png" alt="Modul Oversikt" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+    <div class="slide-number">19</div>
+</div>
+
+<!-- SLIDE 20: Oppsummering -->
+<div class="slide">
+    <div class="logo">FireCtrl</div>
+    <h2>✨ Oppsummering</h2>
+    <div class="grid">
+        <div>
+            <h3>Hovedfunksjoner</h3>
+            <ul>
+                <li>Komplett kundeadministrasjon</li>
+                <li>Anleggshåndtering med TODO-lister</li>
+                <li>6 rapporttyper med PDF</li>
+                <li>6 tekniske dokumenttyper</li>
+                <li>Tilbudsgenerering</li>
+                <li>KS/HMS-system</li>
+            </ul>
+        </div>
+        <div>
+            <h3>Spesialfunksjoner</h3>
+            <ul>
+                <li>AI-assistent</li>
+                <li>Offline-modus</li>
+                <li>Dropbox-integrasjon</li>
+                <li>PowerOffice-integrasjon</li>
+                <li>Google Maps</li>
+                <li>E-postutsending</li>
+            </ul>
+        </div>
+    </div>
+    <div class="slide-number">20</div>
+</div>
+
+<!-- SLIDE 21: Avslutning -->
+<div class="slide title-slide">
+    <div class="emoji">🔥</div>
+    <h1>FireCtrl</h1>
+    <p class="subtitle">Takk for oppmerksomheten!</p>
+    <p style="margin-top: 40px; color: #666;">Spørsmål?</p>
+    <div class="slide-number">21</div>
+</div>
+
+</body>
+</html>

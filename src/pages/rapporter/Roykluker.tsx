@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { SentralerView } from './roykluker/SentralerView'
 import { DataView } from './roykluker/DataView'
 import { KommentarView } from './roykluker/KommentarView'
+import { Combobox } from '@/components/ui/Combobox'
 
 interface Kunde {
   id: string
@@ -34,8 +35,6 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
   const [selectedKunde, setSelectedKunde] = useState(state?.kundeId || '')
   const [selectedAnlegg, setSelectedAnlegg] = useState(state?.anleggId || '')
-  const [kundeSok, setKundeSok] = useState('')
-  const [anleggSok, setAnleggSok] = useState('')
   const [activeView, setActiveView] = useState<'select' | 'sentraler' | 'data' | 'kommentar'>('select')
 
   useEffect(() => {
@@ -90,13 +89,13 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
         <div className="flex items-center gap-4">
           <button
             onClick={() => setActiveView('select')}
-            className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Røykluker</h1>
-            <p className="text-gray-400">Sentraler og Luker</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Røykluker</h1>
+            <p className="text-gray-600 dark:text-gray-400">Sentraler og Luker</p>
           </div>
         </div>
         <SentralerView
@@ -114,13 +113,13 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
         <div className="flex items-center gap-4">
           <button
             onClick={() => setActiveView('select')}
-            className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Røykluker</h1>
-            <p className="text-gray-400">Sentraldata</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Røykluker</h1>
+            <p className="text-gray-600 dark:text-gray-400">Sentraldata</p>
           </div>
         </div>
         <DataView
@@ -138,13 +137,13 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
         <div className="flex items-center gap-4">
           <button
             onClick={() => setActiveView('select')}
-            className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Røykluker</h1>
-            <p className="text-gray-400">Kommentarer</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Røykluker</h1>
+            <p className="text-gray-600 dark:text-gray-400">Kommentarer</p>
           </div>
         </div>
         <KommentarView
@@ -171,13 +170,13 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
                 onBack()
               }
             }}
-            className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Røykluker</h1>
-            <p className="text-gray-400">Kontroll av røykluker</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Røykluker</h1>
+            <p className="text-gray-600 dark:text-gray-400">Kontroll av røykluker</p>
           </div>
         </div>
       </div>
@@ -187,76 +186,46 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Kunde */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Velg kunde <span className="text-red-500">*</span>
             </label>
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="Søk etter kunde..."
-                value={kundeSok}
-                onChange={(e) => setKundeSok(e.target.value)}
-                className="input"
-              />
-              <select
-                value={selectedKunde}
-                onChange={(e) => {
-                  setSelectedKunde(e.target.value)
-                  setSelectedAnlegg('')
-                }}
-                className="input"
-                size={Math.min(kunder.filter(k => 
-                  k.navn.toLowerCase().includes(kundeSok.toLowerCase())
-                ).length + 1, 8)}
-              >
-                <option value="">Velg kunde</option>
-                {kunder
-                  .filter(k => k.navn.toLowerCase().includes(kundeSok.toLowerCase()))
-                  .map((kunde) => (
-                    <option key={kunde.id} value={kunde.id}>{kunde.navn}</option>
-                  ))}
-              </select>
-            </div>
+            <Combobox
+              options={kunder.map(k => ({ id: k.id, label: k.navn }))}
+              value={selectedKunde}
+              onChange={(value) => {
+                setSelectedKunde(value)
+                setSelectedAnlegg('')
+              }}
+              placeholder="Søk etter kunde..."
+              emptyMessage="Ingen kunder funnet"
+            />
           </div>
 
           {/* Anlegg */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Velg anlegg <span className="text-red-500">*</span>
             </label>
             {!selectedKunde ? (
-              <div className="input bg-dark-100 text-gray-500 cursor-not-allowed">
+              <div className="input bg-gray-100 dark:bg-dark-100 text-gray-500 cursor-not-allowed flex items-center">
                 Velg kunde først
               </div>
             ) : anlegg.length === 0 ? (
-              <div className="input bg-dark-100 text-gray-500">
+              <div className="input bg-gray-100 dark:bg-dark-100 text-gray-500 flex items-center">
                 Ingen anlegg funnet for denne kunden
               </div>
             ) : (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="Søk etter anlegg..."
-                  value={anleggSok}
-                  onChange={(e) => setAnleggSok(e.target.value)}
-                  className="input"
-                />
-                <select
-                  value={selectedAnlegg}
-                  onChange={(e) => setSelectedAnlegg(e.target.value)}
-                  className="input"
-                  size={Math.min(anlegg.filter(a => 
-                    a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase())
-                  ).length + 1, 8)}
-                >
-                  <option value="">Velg anlegg</option>
-                  {anlegg
-                    .filter(a => a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase()))
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>{a.anleggsnavn}</option>
-                    ))}
-                </select>
-              </div>
+              <Combobox
+                options={anlegg.map(a => ({ 
+                  id: a.id, 
+                  label: a.anleggsnavn,
+                  sublabel: a.adresse ? `${a.adresse}${a.poststed ? `, ${a.poststed}` : ''}` : undefined
+                }))}
+                value={selectedAnlegg}
+                onChange={setSelectedAnlegg}
+                placeholder="Søk etter anlegg..."
+                emptyMessage="Ingen anlegg funnet"
+              />
             )}
           </div>
         </div>
@@ -269,8 +238,8 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
             <div className="flex items-center gap-3">
               <Building2 className="w-5 h-5 text-primary" />
               <div>
-                <p className="text-sm text-gray-400">Valgt anlegg</p>
-                <p className="text-white font-medium">{selectedKundeNavn} - {selectedAnleggNavn}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Valgt anlegg</p>
+                <p className="text-gray-900 dark:text-white font-medium">{selectedKundeNavn} - {selectedAnleggNavn}</p>
               </div>
             </div>
           </div>
@@ -285,8 +254,8 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
               <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center mb-4">
                 <Server className="w-6 h-6 text-blue-500" />
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Sentraler og Luker</h3>
-              <p className="text-sm text-gray-400">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Sentraler og Luker</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Administrer røyklukesentraler og tilhørende luker
               </p>
             </button>
@@ -299,8 +268,8 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
               <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center mb-4">
                 <Battery className="w-6 h-6 text-green-500" />
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Sentraldata</h3>
-              <p className="text-sm text-gray-400">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Sentraldata</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Registrer batteriinformasjon og tekniske data per sentral
               </p>
             </button>
@@ -313,8 +282,8 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
               <div className="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center mb-4">
                 <MessageSquare className="w-6 h-6 text-purple-500" />
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Kommentarer</h3>
-              <p className="text-sm text-gray-400">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Kommentarer</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Legg til og vis kommentarer om røyklukesystemet
               </p>
             </button>
@@ -327,11 +296,11 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
         <div className="flex items-start gap-3">
           <Wind className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
           <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Om røykluker</h3>
-            <p className="text-gray-400 text-sm mb-3">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Om røykluker</h3>
+            <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">
               Røykluker-modulen lar deg registrere og administrere kontroller for røykluker.
             </p>
-            <ul className="space-y-2 text-sm text-gray-400">
+            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
               <li className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
                 Velg kunde og anlegg for å starte

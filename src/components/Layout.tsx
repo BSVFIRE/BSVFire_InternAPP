@@ -237,11 +237,11 @@ export function Layout({ children }: LayoutProps) {
           {/* Logo */}
           <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-200 dark:border-gray-800">
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">B</span>
+              <span className="text-white font-bold text-xl">F</span>
             </div>
             <div className="flex-1">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">BSV Fire</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Intern App</p>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">FireCtrl</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Brannvernplattform</p>
             </div>
             {/* Dropbox status indicator */}
             <div 
