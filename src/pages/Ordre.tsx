@@ -23,6 +23,7 @@ interface Ordre {
   tekniker_id: string | null
   kontrolltype: string[] | null
   sett_av_tekniker?: boolean
+  opprettet_av?: string | null
 }
 
 interface OrdreMedAnleggKunde extends Ordre {
@@ -991,6 +992,7 @@ interface Anlegg {
 
 function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCancel }: OrdreFormProps) {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [formData, setFormData] = useState({
     type: ordre?.type || '',
     kundenr: ordre?.kundenr || prefilledKundeId || '',
@@ -1139,9 +1141,24 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
           ).catch(err => console.log('Telegram-varsel feilet:', err))
         }
       } else {
+        // Hent brukerens navn fra ansatte-tabellen
+        let opprettetAvNavn = user?.email || 'Ukjent'
+        if (user?.email) {
+          const { data: ansatt } = await supabase
+            .from('ansatte')
+            .select('navn')
+            .eq('epost', user.email)
+            .single()
+          if (ansatt?.navn) opprettetAvNavn = ansatt.navn
+        }
+        
         const { data: insertedOrdre, error } = await supabase
           .from('ordre')
-          .insert([{ ...dataToSave, opprettet_dato: new Date().toISOString() }])
+          .insert([{ 
+            ...dataToSave, 
+            opprettet_dato: new Date().toISOString(),
+            opprettet_av: opprettetAvNavn
+          }])
           .select('ordre_nummer')
           .single()
 
@@ -1283,14 +1300,42 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
       )}
 
       <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            {ordre ? 'Rediger ordre' : 'Ny ordre'}
-          </h1>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+              {ordre ? 'Rediger ordre' : 'Ny ordre'}
+            </h1>
+            {ordre && (
+              <span className="px-3 py-1 bg-primary/10 text-primary font-mono font-semibold rounded-lg text-sm">
+                {ordre.ordre_nummer}
+              </span>
+            )}
+          </div>
           <p className="text-gray-400 dark:text-gray-400">
             {ordre ? 'Oppdater ordreinformasjon' : 'Opprett ny serviceordre'}
           </p>
+          
+          {/* Metadata for eksisterende ordre */}
+          {ordre && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-sm text-gray-500 dark:text-gray-400">
+              {ordre.opprettet_av && (
+                <span className="flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5" />
+                  Opprettet av: <span className="font-medium text-gray-700 dark:text-gray-300">{ordre.opprettet_av}</span>
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5" />
+                {formatDate(ordre.opprettet_dato)}
+              </span>
+              {ordre.sist_oppdatert && (
+                <span className="text-gray-400">
+                  (Oppdatert: {formatDate(ordre.sist_oppdatert)})
+                </span>
+              )}
+            </div>
+          )}
         </div>
         {prefilledAnleggId && !ordre && (
           <button
@@ -1304,7 +1349,8 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
       </div>
 
       <form onSubmit={handleSubmit} className="card space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Rad 1: Ordretype, Status og Tekniker */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Ordretype */}
           <div>
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
@@ -1323,22 +1369,50 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
             </select>
           </div>
 
-          {/* Status */}
+          {/* Tekniker */}
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+              Tekniker <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.tekniker_id}
+              onChange={(e) => setFormData({ ...formData, tekniker_id: e.target.value })}
+              className="input"
+              required
+            >
+              <option value="">Velg tekniker</option>
+              {teknikere.map((t) => (
+                <option key={t.id} value={t.id}>{t.navn}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status med farger */}
           <div>
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
               Status <span className="text-red-500">*</span>
             </label>
-            <select
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              className="input"
-              required
-            >
+            <div className="flex flex-wrap gap-2">
               {statuser.map((status) => (
-                <option key={status} value={status}>{status}</option>
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, status })}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                    formData.status === status
+                      ? ORDRE_STATUS_COLORS[status] || 'bg-primary text-white border-primary'
+                      : 'bg-dark-100 border-gray-700 text-gray-400 hover:border-gray-500'
+                  }`}
+                >
+                  {status}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
+        </div>
+
+        {/* Rad 2: Kunde og Anlegg */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
           {/* Kunde */}
           <div className="md:col-span-2">
@@ -1346,15 +1420,29 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-300">
                 Kunde <span className="text-red-500">*</span>
               </label>
-              {ordre && !kanRedigereKundeAnlegg && (
-                <button
-                  type="button"
-                  onClick={() => setKanRedigereKundeAnlegg(true)}
-                  className="text-xs text-primary hover:text-primary-400 flex items-center gap-1"
-                >
-                  <Edit className="w-3 h-3" />
-                  Rediger kunde/anlegg
-                </button>
+              {ordre && (
+                <div className="flex items-center gap-3">
+                  {formData.anlegg_id && (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/anlegg', { state: { viewAnleggId: formData.anlegg_id } })}
+                      className="text-xs text-primary hover:text-primary-400 flex items-center gap-1"
+                    >
+                      <Building2 className="w-3 h-3" />
+                      Gå til anlegg
+                    </button>
+                  )}
+                  {!kanRedigereKundeAnlegg && (
+                    <button
+                      type="button"
+                      onClick={() => setKanRedigereKundeAnlegg(true)}
+                      className="text-xs text-primary hover:text-primary-400 flex items-center gap-1"
+                    >
+                      <Edit className="w-3 h-3" />
+                      Rediger kunde/anlegg
+                    </button>
+                  )}
+                </div>
               )}
             </div>
             {ordre && !kanRedigereKundeAnlegg ? (
@@ -1442,24 +1530,6 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
                 </select>
               </div>
             )}
-          </div>
-
-          {/* Tekniker */}
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-              Tekniker <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.tekniker_id}
-              onChange={(e) => setFormData({ ...formData, tekniker_id: e.target.value })}
-              className="input"
-              required
-            >
-              <option value="">Velg tekniker</option>
-              {teknikere.map((t) => (
-                <option key={t.id} value={t.id}>{t.navn}</option>
-              ))}
-            </select>
           </div>
 
           {/* Kontrolltyper */}

@@ -32,6 +32,8 @@ import {
   KOMMUNER,
   type BrregEnhet,
 } from '@/services/brregService'
+import { berikMedProffData, erProffKonfigurert } from '@/services/proffService'
+import { ProffSok } from './ProffSok'
 
 interface SalgsLead {
   id: string
@@ -113,7 +115,7 @@ export function AdminSalg() {
   const { user } = useAuthStore()
   
   // Søk-state
-  const [searchMode, setSearchMode] = useState<'brreg' | 'leads'>('brreg')
+  const [searchMode, setSearchMode] = useState<'brreg' | 'proff' | 'leads'>('brreg')
   const [searchTerm, setSearchTerm] = useState('')
     const [kommuneFilter, setKommuneFilter] = useState('')
   const [orgformFilter, setOrgformFilter] = useState<string[]>(['SAM', 'BRL', 'ESEK'])
@@ -145,6 +147,9 @@ export function AdminSalg() {
   const [leadKommentarer, setLeadKommentarer] = useState<Record<string, LeadKommentar[]>>({})
   const [nyKommentar, setNyKommentar] = useState('')
   const [lagreKommentarLoading, setLagreKommentarLoading] = useState(false)
+  
+  // Proff berikelse state
+  const [berikLoading, setBerikLoading] = useState<string | null>(null)
   
   // Last lagrede leads ved oppstart
   useEffect(() => {
@@ -419,6 +424,44 @@ export function AdminSalg() {
     }
   }
 
+  // Berik lead med data fra Proff API
+  async function berikLeadMedProff(lead: SalgsLead) {
+    if (!erProffKonfigurert()) {
+      setError('Proff API er ikke konfigurert. Legg til VITE_PROFF_API_TOKEN i .env.local')
+      return
+    }
+    
+    setBerikLoading(lead.id)
+    try {
+      const proffData = await berikMedProffData(lead.organisasjonsnummer)
+      
+      if (!proffData) {
+        setError(`${lead.navn} finnes ikke i Proff sin database. Proff har primært data om aksjeselskaper.`)
+        return
+      }
+      
+      // Oppdater lead med Proff-data (kun felter som har verdi)
+      const updates: Partial<SalgsLead> = {}
+      if (proffData.telefon && !lead.telefon) updates.telefon = proffData.telefon
+      if (proffData.epost && !lead.epost) updates.epost = proffData.epost
+      if (proffData.hjemmeside && !lead.hjemmeside) updates.hjemmeside = proffData.hjemmeside
+      if (proffData.styreleder && !lead.styreleder) updates.styreleder = proffData.styreleder
+      if (proffData.daglig_leder && !lead.daglig_leder) updates.daglig_leder = proffData.daglig_leder
+      
+      if (Object.keys(updates).length === 0) {
+        setError(`${lead.navn} har ingen nye data i Proff (alle felter er allerede fylt ut)`)
+        return
+      }
+      
+      await oppdaterLead(lead.id, updates)
+      setError(null)
+    } catch (err: any) {
+      setError(err.message || 'Feil ved henting fra Proff')
+    } finally {
+      setBerikLoading(null)
+    }
+  }
+
   // Oppdater tjeneste-avkrysning
   async function oppdaterTjeneste(leadId: string, tjeneste: string, verdi: boolean) {
     try {
@@ -551,6 +594,17 @@ www.bsvfire.no`
           >
             <Search className="w-4 h-4 inline mr-2" />
             Søk BRREG
+          </button>
+          <button
+            onClick={() => setSearchMode('proff')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              searchMode === 'proff'
+                ? 'bg-white dark:bg-dark-50 text-gray-900 dark:text-white shadow'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            <Building2 className="w-4 h-4 inline mr-2" />
+            Proff Søk
           </button>
           <button
             onClick={() => setSearchMode('leads')}
@@ -879,6 +933,46 @@ www.bsvfire.no`
               )}
             </div>
           )}
+        </>
+      ) : searchMode === 'proff' ? (
+        <>
+          {/* Proff Søk - Embedded */}
+          <ProffSok onAddLead={async (company: any) => {
+            // Konverter Proff-bedrift til lead og legg til
+            setLoading(true)
+            try {
+              const leadData = {
+                organisasjonsnummer: company.organisationNumber,
+                navn: company.name,
+                organisasjonsform: company.companyType,
+                organisasjonsform_beskrivelse: company.companyTypeName,
+                forretningsadresse_gate: company.visitorAddress?.addressLine || null,
+                forretningsadresse_postnummer: company.visitorAddress?.zipCode || null,
+                forretningsadresse_poststed: company.visitorAddress?.postPlace || null,
+                forretningsadresse_kommune: company.location?.municipality || null,
+                epost: company.email || null,
+                telefon: company.phoneNumbers?.telephoneNumber || null,
+                hjemmeside: company.homePage || null,
+                styreleder: company.personRoles?.find((r: any) => r.titleCode === 'LEDE')?.name || null,
+                daglig_leder: company.personRoles?.find((r: any) => r.titleCode === 'DAGL')?.name || null,
+                status: 'ny',
+                kilde: 'proff',
+                opprettet_av: user?.email,
+              }
+
+              const { error } = await supabase
+                .from('salgs_leads')
+                .upsert(leadData, { onConflict: 'organisasjonsnummer' })
+
+              if (error) throw error
+              await loadLeads()
+              setSearchMode('leads')
+            } catch (err: any) {
+              setError(err.message || 'Kunne ikke legge til lead')
+            } finally {
+              setLoading(false)
+            }
+          }} />
         </>
       ) : (
         <>
@@ -1357,6 +1451,18 @@ www.bsvfire.no`
                               <Mail className="w-4 h-4" />
                               Generer e-post
                             </button>
+                            {/* Vis kun Berik-knapp hvis telefon eller e-post mangler */}
+                            {(!lead.telefon || !lead.epost) && (
+                              <button
+                                onClick={() => berikLeadMedProff(lead)}
+                                disabled={berikLoading === lead.id}
+                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm rounded-lg flex items-center gap-2"
+                                title={`Hent ${!lead.telefon && !lead.epost ? 'telefon og e-post' : !lead.telefon ? 'telefon' : 'e-post'} fra Proff.no`}
+                              >
+                                <RefreshCw className={`w-4 h-4 ${berikLoading === lead.id ? 'animate-spin' : ''}`} />
+                                {berikLoading === lead.id ? 'Henter...' : `Hent ${!lead.telefon && !lead.epost ? 'kontaktinfo' : !lead.telefon ? 'telefon' : 'e-post'}`}
+                              </button>
+                            )}
                             <button
                               onClick={() => {
                                 setEditingLead(lead.id)

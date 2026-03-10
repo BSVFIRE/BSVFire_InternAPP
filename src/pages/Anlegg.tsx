@@ -2946,6 +2946,7 @@ function AnleggDetailsWrapper({ anlegg, kundeNavn, onEdit, onClose, onTodoChange
       onOpprettNotat={opprettInterntNotat}
       onTodoChange={onTodoChange}
       onStatusChange={onStatusChange}
+      onKontaktLagtTil={loadKontaktpersoner}
     />
   )
 }
@@ -2970,9 +2971,10 @@ interface AnleggDetailsComponentProps {
   onOpprettNotat: (notat: string, mottakerId?: string) => Promise<boolean>
   onTodoChange?: () => void
   onStatusChange?: (newStatus: string) => Promise<void>
+  onKontaktLagtTil?: () => void
 }
 
-function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interneNotater, ordre, oppgaver, loadingKontakter, loadingDokumenter, loadingNotater, loadingOrdre, loadingOppgaver, onEdit, onClose, onSettPrimaer, onOpprettNotat, onTodoChange, onStatusChange }: AnleggDetailsComponentProps) {
+function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interneNotater, ordre, oppgaver, loadingKontakter, loadingDokumenter, loadingNotater, loadingOrdre, loadingOppgaver, onEdit, onClose, onSettPrimaer, onOpprettNotat, onTodoChange, onStatusChange, onKontaktLagtTil }: AnleggDetailsComponentProps) {
   const navigate = useNavigate()
   const [nyttNotat, setNyttNotat] = useState('')
   const [lagreNotat, setLagreNotat] = useState(false)
@@ -2981,6 +2983,14 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
   const [visAlleOrdre, setVisAlleOrdre] = useState(false)
   const [visAlleOppgaver, setVisAlleOppgaver] = useState(false)
   const [showDropboxBrowser, setShowDropboxBrowser] = useState(false)
+  
+  // Kontaktperson modal state
+  const [visKontaktModal, setVisKontaktModal] = useState(false)
+  const [alleKundeKontakter, setAlleKundeKontakter] = useState<Kontaktperson[]>([])
+  const [kontaktSok, setKontaktSok] = useState('')
+  const [visNyKontaktSkjema, setVisNyKontaktSkjema] = useState(false)
+  const [nyKontakt, setNyKontakt] = useState({ navn: '', epost: '', telefon: '', rolle: '' })
+  const [leggerTil, setLeggerTil] = useState(false)
   const [dokumentFane, setDokumentFane] = useState<'storage' | 'dropbox'>('storage')
   const [dropboxFiles, setDropboxFiles] = useState<any[]>([])
   const [loadingDropboxFiles, setLoadingDropboxFiles] = useState(false)
@@ -3186,6 +3196,124 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
     if (success) {
       setNyttNotat('')
       setMottakerId('')
+    }
+  }
+
+  // Kontaktperson modal funksjoner
+  async function loadKundeKontakter() {
+    try {
+      // Last alle kontaktpersoner (samme som i redigeringsskjemaet)
+      const { data, error } = await supabase
+        .from('kontaktpersoner')
+        .select('*')
+        .order('navn')
+
+      if (error) throw error
+      setAlleKundeKontakter(data || [])
+    } catch (error) {
+      console.error('Feil ved lasting av kontaktpersoner:', error)
+    }
+  }
+
+  async function leggTilEksisterendeKontakt(kontaktpersonId: string) {
+    setLeggerTil(true)
+    try {
+      // Sjekk om allerede knyttet
+      const { data: existing } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .select('id')
+        .eq('anlegg_id', anlegg.id)
+        .eq('kontaktperson_id', kontaktpersonId)
+        .single()
+
+      if (existing) {
+        alert('Denne kontaktpersonen er allerede knyttet til anlegget')
+        return
+      }
+
+      const { error } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .insert([{
+          anlegg_id: anlegg.id,
+          kontaktperson_id: kontaktpersonId,
+          primar: kontaktpersoner.length === 0
+        }])
+
+      if (error) throw error
+
+      setVisKontaktModal(false)
+      setKontaktSok('')
+      onKontaktLagtTil?.()
+    } catch (error) {
+      console.error('Feil ved tilknytning:', error)
+      alert('Kunne ikke legge til kontaktperson')
+    } finally {
+      setLeggerTil(false)
+    }
+  }
+
+  async function fjernKontaktFraAnlegg(kontaktpersonId: string) {
+    if (!confirm('Er du sikker på at du vil fjerne denne kontaktpersonen fra anlegget?')) return
+    
+    setLeggerTil(true)
+    try {
+      const { error } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .delete()
+        .eq('anlegg_id', anlegg.id)
+        .eq('kontaktperson_id', kontaktpersonId)
+
+      if (error) throw error
+      onKontaktLagtTil?.()
+    } catch (error) {
+      console.error('Feil ved fjerning:', error)
+      alert('Kunne ikke fjerne kontaktperson')
+    } finally {
+      setLeggerTil(false)
+    }
+  }
+
+  async function opprettNyKontakt() {
+    if (!nyKontakt.navn.trim()) {
+      alert('Navn er påkrevd')
+      return
+    }
+
+    setLeggerTil(true)
+    try {
+      const { data: nyPerson, error: insertError } = await supabase
+        .from('kontaktpersoner')
+        .insert([{
+          navn: nyKontakt.navn,
+          epost: nyKontakt.epost || null,
+          telefon: nyKontakt.telefon || null,
+          rolle: nyKontakt.rolle || null,
+          kunde_id: anlegg.kundenr
+        }])
+        .select()
+        .single()
+
+      if (insertError) throw insertError
+
+      const { error: linkError } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .insert([{
+          anlegg_id: anlegg.id,
+          kontaktperson_id: nyPerson.id,
+          primar: kontaktpersoner.length === 0
+        }])
+
+      if (linkError) throw linkError
+
+      setVisKontaktModal(false)
+      setVisNyKontaktSkjema(false)
+      setNyKontakt({ navn: '', epost: '', telefon: '', rolle: '' })
+      onKontaktLagtTil?.()
+    } catch (error) {
+      console.error('Feil ved opprettelse:', error)
+      alert('Kunne ikke opprette kontaktperson')
+    } finally {
+      setLeggerTil(false)
     }
   }
 
@@ -3456,11 +3584,161 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
             </div>
           )}
 
+          {/* Kontaktperson Modal */}
+          {visKontaktModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-dark-200 rounded-lg w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                    {visNyKontaktSkjema ? 'Opprett ny kontaktperson' : 'Legg til kontaktperson'}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setVisKontaktModal(false)
+                      setVisNyKontaktSkjema(false)
+                      setKontaktSok('')
+                      setNyKontakt({ navn: '', epost: '', telefon: '', rolle: '' })
+                    }}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                <div className="p-4 overflow-y-auto flex-1">
+                  {visNyKontaktSkjema ? (
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Navn *"
+                        value={nyKontakt.navn}
+                        onChange={(e) => setNyKontakt({ ...nyKontakt, navn: e.target.value })}
+                        className="input"
+                        autoFocus
+                      />
+                      <input
+                        type="text"
+                        placeholder="Rolle (f.eks. Driftstekniker)"
+                        value={nyKontakt.rolle}
+                        onChange={(e) => setNyKontakt({ ...nyKontakt, rolle: e.target.value })}
+                        className="input"
+                      />
+                      <input
+                        type="email"
+                        placeholder="E-post"
+                        value={nyKontakt.epost}
+                        onChange={(e) => setNyKontakt({ ...nyKontakt, epost: e.target.value })}
+                        className="input"
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Telefon"
+                        value={nyKontakt.telefon}
+                        onChange={(e) => setNyKontakt({ ...nyKontakt, telefon: e.target.value })}
+                        className="input"
+                      />
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          onClick={opprettNyKontakt}
+                          disabled={leggerTil || !nyKontakt.navn.trim()}
+                          className="btn-primary flex-1 disabled:opacity-50"
+                        >
+                          {leggerTil ? 'Oppretter...' : 'Opprett og legg til'}
+                        </button>
+                        <button
+                          onClick={() => setVisNyKontaktSkjema(false)}
+                          className="btn-secondary"
+                        >
+                          Tilbake
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Søk etter kontaktperson..."
+                          value={kontaktSok}
+                          onChange={(e) => setKontaktSok(e.target.value)}
+                          onFocus={() => loadKundeKontakter()}
+                          className="input pl-10"
+                          autoFocus
+                        />
+                      </div>
+                      
+                      {alleKundeKontakter.length > 0 ? (
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {alleKundeKontakter
+                            .filter((k: Kontaktperson) => 
+                              k.navn.toLowerCase().includes(kontaktSok.toLowerCase()) ||
+                              k.epost?.toLowerCase().includes(kontaktSok.toLowerCase())
+                            )
+                            .filter((k: Kontaktperson) => !kontaktpersoner.some(kp => kp.id === k.id))
+                            .map((k: Kontaktperson) => (
+                              <button
+                                key={k.id}
+                                onClick={() => leggTilEksisterendeKontakt(k.id)}
+                                disabled={leggerTil}
+                                className="w-full text-left p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-300 transition-colors disabled:opacity-50"
+                              >
+                                <p className="font-medium text-gray-900 dark:text-white">{k.navn}</p>
+                                {k.rolle && <p className="text-xs text-primary">{k.rolle}</p>}
+                                {k.epost && <p className="text-xs text-gray-400">{k.epost}</p>}
+                              </button>
+                            ))}
+                          {alleKundeKontakter
+                            .filter((k: Kontaktperson) => 
+                              k.navn.toLowerCase().includes(kontaktSok.toLowerCase()) ||
+                              k.epost?.toLowerCase().includes(kontaktSok.toLowerCase())
+                            )
+                            .filter((k: Kontaktperson) => !kontaktpersoner.some(kp => kp.id === k.id))
+                            .length === 0 && (
+                              <p className="text-gray-400 text-sm text-center py-2">
+                                Ingen tilgjengelige kontaktpersoner funnet
+                              </p>
+                            )}
+                        </div>
+                      ) : (
+                        <p className="text-gray-400 text-sm text-center py-4">
+                          Klikk i søkefeltet for å laste kontaktpersoner
+                        </p>
+                      )}
+                      
+                      <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <button
+                          onClick={() => setVisNyKontaktSkjema(true)}
+                          className="btn-primary w-full flex items-center justify-center gap-2"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Opprett ny kontaktperson
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Kontaktpersoner */}
           <div className="card">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
-              Kontaktpersoner ({kontaktpersoner.length})
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                Kontaktpersoner ({kontaktpersoner.length})
+              </h2>
+              <button
+                onClick={() => {
+                  setVisKontaktModal(true)
+                  loadKundeKontakter()
+                }}
+                className="btn-secondary text-sm flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                Legg til
+              </button>
+            </div>
             {loadingKontakter ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
@@ -3505,17 +3783,27 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                         </div>
                       </div>
                     </div>
-                    {!kontakt.primar && (
+                    <div className="flex items-center gap-2 self-start sm:ml-3">
+                      {!kontakt.primar && (
+                        <button
+                          onClick={() => onSettPrimaer(kontakt.id)}
+                          className="btn-secondary text-xs flex items-center gap-1 touch-target"
+                          title="Sett som primær kontaktperson"
+                        >
+                          <Star className="w-3 h-3" />
+                          <span className="hidden xs:inline">Sett som primær</span>
+                          <span className="xs:hidden">Primær</span>
+                        </button>
+                      )}
                       <button
-                        onClick={() => onSettPrimaer(kontakt.id)}
-                        className="btn-secondary text-xs flex items-center gap-1 self-start sm:ml-3 touch-target"
-                        title="Sett som primær kontaktperson"
+                        onClick={() => fjernKontaktFraAnlegg(kontakt.id)}
+                        className="btn-secondary text-xs flex items-center gap-1 touch-target text-red-400 hover:text-red-300 hover:border-red-400"
+                        title="Fjern fra anlegg"
                       >
-                        <Star className="w-3 h-3" />
-                        <span className="hidden xs:inline">Sett som primær</span>
-                        <span className="xs:hidden">Primær</span>
+                        <Trash2 className="w-3 h-3" />
+                        <span className="hidden xs:inline">Fjern</span>
                       </button>
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>

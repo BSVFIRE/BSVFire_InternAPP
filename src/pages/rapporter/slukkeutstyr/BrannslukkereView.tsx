@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Wifi, WifiOff, Check, LayoutGrid, Table, ClipboardCheck } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Wifi, WifiOff, Check, LayoutGrid, Table, ClipboardCheck, Calculator } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -11,6 +11,7 @@ import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
 import { KontrolldatoVelger } from '@/components/KontrolldatoVelger'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
+import { CO2VektKalkulator } from '@/components/CO2VektKalkulator'
 
 interface Brannslukker {
   id?: string
@@ -61,6 +62,7 @@ const modellAlternativer = [
   '9L Vann',
   '2KG CO2',
   '5KG CO2',
+  '10KG CO2',
   '6L Litium',
 ]
 
@@ -107,6 +109,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   // Autocomplete for produsent
   const [produsentOptions, setProdusentOptions] = useState<string[]>([])
   const [showProdusentSuggestions, setShowProdusentSuggestions] = useState<number | null>(null)
+  const [co2KalkulatorData, setCo2KalkulatorData] = useState<{ modell: string; apparatNr: string } | null>(null)
 
   useEffect(() => {
     loadSlukkere()
@@ -1218,8 +1221,8 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                     <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-40">Modell</th>
                     <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-20">Klasse</th>
                     <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">År</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Service</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-36">Siste kontroll</th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Service <span className="text-xs text-gray-400">(Tillegg C)</span></th>
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-36">Siste kontroll <span className="text-xs text-gray-400">(Tillegg B)</span></th>
                     <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Status</th>
                     <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-20">Handlinger</th>
                   </tr>
@@ -1340,24 +1343,38 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <select
-                          value={slukker.modell || ''}
-                          onChange={(e) => {
-                            const nyeSlukkere = [...slukkere]
-                            const originalIndex = slukkere.findIndex(s => s === slukker)
-                            if (originalIndex !== -1) {
-                              nyeSlukkere[originalIndex].modell = e.target.value
-                              updateSlukkere(nyeSlukkere)
-                            }
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                        >
-                          {modellAlternativer.map((modell) => (
-                            <option key={modell} value={modell}>
-                              {modell || '-- Velg --'}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={slukker.modell || ''}
+                            onChange={(e) => {
+                              const nyeSlukkere = [...slukkere]
+                              const originalIndex = slukkere.findIndex(s => s === slukker)
+                              if (originalIndex !== -1) {
+                                nyeSlukkere[originalIndex].modell = e.target.value
+                                updateSlukkere(nyeSlukkere)
+                              }
+                            }}
+                            className="input py-1 px-2 text-sm flex-1"
+                          >
+                            {modellAlternativer.map((modell) => (
+                              <option key={modell} value={modell}>
+                                {modell || '-- Velg --'}
+                              </option>
+                            ))}
+                          </select>
+                          {slukker.modell?.includes('CO2') && (
+                            <button
+                              onClick={() => setCo2KalkulatorData({ 
+                                modell: slukker.modell || '', 
+                                apparatNr: slukker.apparat_nr || '' 
+                              })}
+                              className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors flex-shrink-0"
+                              title="Åpne vektkalkulator"
+                            >
+                              <Calculator className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4">
                         <select
@@ -1566,6 +1583,14 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
               </div>
             </div>
           )}
+
+          {/* CO2 Vektkalkulator */}
+          <CO2VektKalkulator
+            isOpen={co2KalkulatorData !== null}
+            onClose={() => setCo2KalkulatorData(null)}
+            modell={co2KalkulatorData?.modell || ''}
+            apparatNr={co2KalkulatorData?.apparatNr}
+          />
         </div>
       </div>
     )

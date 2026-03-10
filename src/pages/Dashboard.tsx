@@ -16,7 +16,8 @@ import {
   Calendar,
   Inbox,
   Check,
-  Building
+  Building,
+  X
 } from 'lucide-react'
 import { ORDRE_STATUSER, OPPGAVE_STATUSER } from '@/lib/constants'
 
@@ -90,6 +91,11 @@ export function Dashboard() {
   const [kommendeOppgaver, setKommendeOppgaver] = useState<KommendeOppgave[]>([])
   const [kommendeOrdre, setKommendeOrdre] = useState<KommendeOrdre[]>([])
   const [meldinger, setMeldinger] = useState<Melding[]>([])
+  const [nyeKunderPopup, setNyeKunderPopup] = useState(false)
+  const [nyeAnleggPopup, setNyeAnleggPopup] = useState(false)
+  const [nyeKunderListe, setNyeKunderListe] = useState<{ id: string; navn: string; opprettet: string }[]>([])
+  const [nyeAnleggListe, setNyeAnleggListe] = useState<{ id: string; anleggsnavn: string; kundenavn: string; opprettet: string }[]>([])
+  const [lasterNyeData, setLasterNyeData] = useState(false)
 
   useEffect(() => {
     loadAnsattId()
@@ -263,6 +269,56 @@ export function Dashboard() {
       setMeldinger(meldinger.filter(m => m.id !== meldingId))
     } catch (error) {
       log.error('Feil ved markering som lest', { error })
+    }
+  }
+
+  async function loadNyeKunder() {
+    setLasterNyeData(true)
+    try {
+      const enMndSiden = new Date()
+      enMndSiden.setMonth(enMndSiden.getMonth() - 1)
+      
+      const { data } = await supabase
+        .from('customer')
+        .select('id, navn, opprettet')
+        .gte('opprettet', enMndSiden.toISOString())
+        .or('skjult.is.null,skjult.eq.false')
+        .order('opprettet', { ascending: false })
+
+      setNyeKunderListe(data || [])
+      setNyeKunderPopup(true)
+    } catch (error) {
+      log.error('Feil ved lasting av nye kunder', { error })
+    } finally {
+      setLasterNyeData(false)
+    }
+  }
+
+  async function loadNyeAnlegg() {
+    setLasterNyeData(true)
+    try {
+      const enMndSiden = new Date()
+      enMndSiden.setMonth(enMndSiden.getMonth() - 1)
+      
+      const { data } = await supabase
+        .from('anlegg')
+        .select('id, anleggsnavn, opprettet_dato, customer:kundenr(navn)')
+        .gte('opprettet_dato', enMndSiden.toISOString())
+        .order('opprettet_dato', { ascending: false })
+
+      const transformedData = (data || []).map((a: any) => ({
+        id: a.id,
+        anleggsnavn: a.anleggsnavn,
+        kundenavn: a.customer?.navn || 'Ukjent kunde',
+        opprettet: a.opprettet_dato
+      }))
+
+      setNyeAnleggListe(transformedData)
+      setNyeAnleggPopup(true)
+    } catch (error) {
+      log.error('Feil ved lasting av nye anlegg', { error })
+    } finally {
+      setLasterNyeData(false)
     }
   }
 
@@ -538,6 +594,126 @@ export function Dashboard() {
   }
 
   return (
+    <>
+      {/* Popup for nye kunder siste måned */}
+      {nyeKunderPopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-200 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-500/10 rounded-lg">
+                  <Building className="w-5 h-5 text-emerald-500" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Nye kunder siste måned</h2>
+                  <p className="text-sm text-gray-500">{nyeKunderListe.length} kunder</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setNyeKunderPopup(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {lasterNyeData ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : nyeKunderListe.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">Ingen nye kunder siste måned</div>
+              ) : (
+                <div className="space-y-2">
+                  {nyeKunderListe.map((kunde) => (
+                    <div
+                      key={kunde.id}
+                      onClick={() => {
+                        setNyeKunderPopup(false)
+                        navigate('/kunder', { state: { viewKundeId: kunde.id } })
+                      }}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-300 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-emerald-500/10 rounded-full flex items-center justify-center">
+                          <Building className="w-4 h-4 text-emerald-500" />
+                        </div>
+                        <span className="font-medium text-gray-900 dark:text-white">{kunde.navn}</span>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {new Date(kunde.opprettet).toLocaleDateString('nb-NO')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Popup for nye anlegg siste måned */}
+      {nyeAnleggPopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-200 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-500/10 rounded-lg">
+                  <Building2 className="w-5 h-5 text-orange-500" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Nye anlegg siste måned</h2>
+                  <p className="text-sm text-gray-500">{nyeAnleggListe.length} anlegg</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setNyeAnleggPopup(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {lasterNyeData ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : nyeAnleggListe.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">Ingen nye anlegg siste måned</div>
+              ) : (
+                <div className="space-y-2">
+                  {nyeAnleggListe.map((anlegg) => (
+                    <div
+                      key={anlegg.id}
+                      onClick={() => {
+                        setNyeAnleggPopup(false)
+                        navigate('/anlegg', { state: { viewAnleggId: anlegg.id } })
+                      }}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-300 cursor-pointer transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-orange-500/10 rounded-full flex items-center justify-center flex-shrink-0">
+                            <Building2 className="w-4 h-4 text-orange-500" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 dark:text-white truncate">{anlegg.anleggsnavn}</p>
+                            <p className="text-xs text-gray-500 truncate">{anlegg.kundenavn}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
+                        {new Date(anlegg.opprettet).toLocaleDateString('nb-NO')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -586,7 +762,24 @@ export function Dashboard() {
                 <card.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               {card.subText && (
-                <span className="text-xs text-green-500 font-medium">{card.subText}</span>
+                <span 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (card.title === 'Kunder' && stats.nyeKunderSisteManed > 0) {
+                      loadNyeKunder()
+                    } else if (card.title === 'Anlegg' && stats.nyeAnleggSisteManed > 0) {
+                      loadNyeAnlegg()
+                    }
+                  }}
+                  className={`text-xs text-green-500 font-medium ${
+                    (card.title === 'Kunder' && stats.nyeKunderSisteManed > 0) || 
+                    (card.title === 'Anlegg' && stats.nyeAnleggSisteManed > 0) 
+                      ? 'cursor-pointer hover:text-green-400 hover:underline' 
+                      : ''
+                  }`}
+                >
+                  {card.subText}
+                </span>
               )}
             </div>
             
@@ -859,5 +1052,6 @@ export function Dashboard() {
         </div>
       </div>
     </div>
+    </>
   )
 }

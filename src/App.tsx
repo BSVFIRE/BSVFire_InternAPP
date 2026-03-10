@@ -37,6 +37,7 @@ import { AdminDropboxFolders } from './pages/AdminDropboxFolders'
 import { AdminAarsavslutning } from './pages/AdminAarsavslutning'
 import { AdminModulOversikt } from './pages/AdminModulOversikt'
 import { AdminSalg } from './pages/AdminSalg'
+import { ProffSok } from './pages/ProffSok'
 import { KsHmsDashboard } from './pages/KsHmsDashboard'
 import { KsHmsRisikovurderinger } from './pages/KsHmsRisikovurderinger'
 import { KsHmsHendelser } from './pages/KsHmsHendelser'
@@ -130,6 +131,7 @@ function App() {
                     <Route path="/admin/aarsavslutning" element={<AdminAarsavslutning />} />
                     <Route path="/admin/modul-oversikt" element={<AdminModulOversikt />} />
                     <Route path="/admin/salg" element={<AdminSalg />} />
+                    <Route path="/admin/proff" element={<ProffSok />} />
                     <Route path="/poweroffice-test" element={<PowerOfficeTest />} />
                     <Route path="/ks-hms" element={<KsHmsDashboard />} />
                     <Route path="/ks-hms/risikovurderinger" element={<KsHmsRisikovurderinger />} />
