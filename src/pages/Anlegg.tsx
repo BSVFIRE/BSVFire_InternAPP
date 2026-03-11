@@ -3287,8 +3287,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
           navn: nyKontakt.navn,
           epost: nyKontakt.epost || null,
           telefon: nyKontakt.telefon || null,
-          rolle: nyKontakt.rolle || null,
-          kunde_id: anlegg.kundenr
+          rolle: nyKontakt.rolle || null
         }])
         .select()
         .single()
@@ -4191,6 +4190,20 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">KS/HMS</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Kvalitet og sikkerhet</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-400" />
+              </button>
+
+              <button
+                onClick={() => navigate('/teknisk', { state: { openServicerapport: true, anleggId: anlegg.id, anleggNavn: anlegg.anleggsnavn } })}
+                className="w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors text-left"
+              >
+                <div className="w-8 h-8 bg-cyan-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-4 h-4 text-cyan-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Ny servicerapport</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Opprett kontrollrapport</p>
                 </div>
                 <ExternalLink className="w-4 h-4 text-gray-400" />
               </button>

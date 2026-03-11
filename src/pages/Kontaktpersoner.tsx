@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Search, User, Mail, Phone, Building2, Trash2, Eye, Star, Pencil, Save, X as XIcon, LayoutGrid, Table } from 'lucide-react'
+import { Search, User, Mail, Phone, Building2, Trash2, Eye, Star, Pencil, Save, X as XIcon, LayoutGrid, Table, Plus, Link } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useLocation, useNavigate } from 'react-router-dom'
 
@@ -524,6 +524,11 @@ interface KontaktpersonDetailsProps {
   onClose: () => void
 }
 
+interface Anlegg {
+  id: string
+  anleggsnavn: string
+}
+
 function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
   const navigate = useNavigate()
   const [isEditing, setIsEditing] = useState(false)
@@ -534,6 +539,90 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
     telefon: kontakt.telefon || '',
     rolle: kontakt.rolle || ''
   })
+  
+  // State for å knytte til anlegg
+  const [visKnyttAnleggModal, setVisKnyttAnleggModal] = useState(false)
+  const [alleAnlegg, setAlleAnlegg] = useState<Anlegg[]>([])
+  const [anleggSok, setAnleggSok] = useState('')
+  const [knytterTil, setKnytterTil] = useState(false)
+  const [tilknyttedeAnlegg, setTilknyttedeAnlegg] = useState(kontakt.anlegg)
+
+  async function loadAlleAnlegg() {
+    try {
+      const { data, error } = await supabase
+        .from('anlegg')
+        .select('id, anleggsnavn')
+        .order('anleggsnavn')
+
+      if (error) throw error
+      setAlleAnlegg(data || [])
+    } catch (error) {
+      console.error('Feil ved lasting av anlegg:', error)
+    }
+  }
+
+  async function knyttTilAnlegg(anleggId: string) {
+    // Sjekk om allerede knyttet
+    if (tilknyttedeAnlegg.some(a => a.anlegg_id === anleggId)) {
+      alert('Kontaktpersonen er allerede knyttet til dette anlegget')
+      return
+    }
+
+    setKnytterTil(true)
+    try {
+      const { error } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .insert([{
+          anlegg_id: anleggId,
+          kontaktperson_id: kontakt.id,
+          primar: tilknyttedeAnlegg.length === 0
+        }])
+
+      if (error) throw error
+
+      // Hent anleggsnavn for oppdatering av lokal state
+      const anlegg = alleAnlegg.find(a => a.id === anleggId)
+      if (anlegg) {
+        setTilknyttedeAnlegg(prev => [...prev, {
+          anlegg_id: anleggId,
+          kontaktperson_id: kontakt.id,
+          primar: prev.length === 0,
+          anlegg: { anleggsnavn: anlegg.anleggsnavn, kundenr: '' }
+        }])
+      }
+
+      setVisKnyttAnleggModal(false)
+      setAnleggSok('')
+    } catch (error) {
+      console.error('Feil ved tilknytning:', error)
+      alert('Kunne ikke knytte til anlegg')
+    } finally {
+      setKnytterTil(false)
+    }
+  }
+
+  async function fjernFraAnlegg(anleggId: string) {
+    if (!confirm('Er du sikker på at du vil fjerne kontaktpersonen fra dette anlegget?')) return
+
+    try {
+      const { error } = await supabase
+        .from('anlegg_kontaktpersoner')
+        .delete()
+        .eq('anlegg_id', anleggId)
+        .eq('kontaktperson_id', kontakt.id)
+
+      if (error) throw error
+
+      setTilknyttedeAnlegg(prev => prev.filter(a => a.anlegg_id !== anleggId))
+    } catch (error) {
+      console.error('Feil ved fjerning:', error)
+      alert('Kunne ikke fjerne fra anlegg')
+    }
+  }
+
+  const filtrerteAnlegg = alleAnlegg.filter(a =>
+    a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase())
+  )
 
   async function handleSave() {
     if (!editForm.navn.trim()) {
@@ -705,42 +794,133 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
           </div>
 
           <div className="card">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
-              Tilknyttede anlegg ({kontakt.anlegg.length})
-            </h2>
-            {kontakt.anlegg.length > 0 ? (
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                Tilknyttede anlegg ({tilknyttedeAnlegg.length})
+              </h2>
+              <button
+                onClick={() => {
+                  setVisKnyttAnleggModal(true)
+                  loadAlleAnlegg()
+                }}
+                className="btn-secondary text-sm flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                Knytt til anlegg
+              </button>
+            </div>
+            {tilknyttedeAnlegg.length > 0 ? (
               <div className="space-y-3">
-                {kontakt.anlegg.map((anlegg, idx) => (
+                {tilknyttedeAnlegg.map((anlegg, idx) => (
                   <div
                     key={idx}
-                    onClick={() => {
-                      navigate('/anlegg', {
-                        state: {
-                          viewAnleggId: anlegg.anlegg_id
-                        }
-                      })
-                    }}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   >
-                    <div className="flex items-center gap-3">
+                    <div 
+                      className="flex items-center gap-3 flex-1 cursor-pointer"
+                      onClick={() => {
+                        navigate('/anlegg', {
+                          state: {
+                            viewAnleggId: anlegg.anlegg_id
+                          }
+                        })
+                      }}
+                    >
                       <Building2 className="w-5 h-5 text-primary" />
                       <div>
                         <p className="text-gray-900 dark:text-white font-medium">{anlegg.anlegg.anleggsnavn}</p>
                       </div>
                     </div>
-                    {anlegg.primar && (
-                      <div className="flex items-center gap-1 text-yellow-500">
-                        <Star className="w-4 h-4 fill-yellow-500" />
-                        <span className="text-sm">Primær</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {anlegg.primar && (
+                        <div className="flex items-center gap-1 text-yellow-500">
+                          <Star className="w-4 h-4 fill-yellow-500" />
+                          <span className="text-sm">Primær</span>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => fjernFraAnlegg(anlegg.anlegg_id)}
+                        className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Fjern fra anlegg"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-gray-400 dark:text-gray-400">Ingen tilknyttede anlegg</p>
+              <div className="text-center py-6">
+                <Link className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-400 dark:text-gray-400">Ingen tilknyttede anlegg</p>
+                <p className="text-sm text-gray-500 mt-1">Klikk "Knytt til anlegg" for å legge til</p>
+              </div>
             )}
           </div>
+
+          {/* Modal for å knytte til anlegg */}
+          {visKnyttAnleggModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-dark-200 rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Knytt til anlegg</h3>
+                    <button
+                      onClick={() => {
+                        setVisKnyttAnleggModal(false)
+                        setAnleggSok('')
+                      }}
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                      <XIcon className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </div>
+                  <div className="mt-3 relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Søk etter anlegg..."
+                      value={anleggSok}
+                      onChange={(e) => setAnleggSok(e.target.value)}
+                      className="input pl-10 w-full"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2">
+                  {filtrerteAnlegg.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">Ingen anlegg funnet</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {filtrerteAnlegg.slice(0, 50).map((anlegg) => {
+                        const erTilknyttet = tilknyttedeAnlegg.some(a => a.anlegg_id === anlegg.id)
+                        return (
+                          <button
+                            key={anlegg.id}
+                            onClick={() => !erTilknyttet && knyttTilAnlegg(anlegg.id)}
+                            disabled={knytterTil || erTilknyttet}
+                            className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
+                              erTilknyttet
+                                ? 'bg-green-500/10 text-green-400 cursor-default'
+                                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            <Building2 className={`w-5 h-5 ${erTilknyttet ? 'text-green-400' : 'text-gray-400'}`} />
+                            <span className={erTilknyttet ? 'text-green-400' : 'text-gray-900 dark:text-white'}>
+                              {anlegg.anleggsnavn}
+                            </span>
+                            {erTilknyttet && (
+                              <span className="ml-auto text-xs text-green-400">Tilknyttet</span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4 sm:space-y-6">

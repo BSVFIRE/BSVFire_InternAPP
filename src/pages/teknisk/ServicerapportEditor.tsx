@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Save, Eye, Sparkles, Upload, X, Cloud } from 'lucide-react'
+import { ArrowLeft, Save, Eye, Sparkles, Upload, X, Cloud, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { BSV_LOGO } from '@/assets/logoBase64'
@@ -536,40 +536,51 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Header Section */}
         <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Header</h2>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+              <FileText className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Grunnleggende informasjon</h2>
+              <p className="text-sm text-gray-500">Fyll ut tittel, anlegg, dato og tekniker</p>
+            </div>
+          </div>
+          
+          {/* Første rad: Tittel (full bredde) */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Rapporttittel <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.header}
+              onChange={(e) => handleChange('header', e.target.value)}
+              className="input w-full text-lg"
+              placeholder="F.eks. Årlig service brannalarmanlegg"
+              required
+            />
+          </div>
+          
+          {/* Andre rad: Anlegg (full bredde) */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Anlegg <span className="text-red-500">*</span>
+            </label>
+            <Combobox
+              options={anlegg.map(a => ({ id: a.id, value: a.id, label: a.anleggsnavn }))}
+              value={formData.anlegg_id}
+              onChange={(val) => handleChange('anlegg_id', val)}
+              placeholder="Søk og velg anlegg..."
+              searchPlaceholder="Skriv for å søke..."
+              emptyMessage="Ingen anlegg funnet"
+            />
+          </div>
+
+          {/* Tredje rad: Dato og Tekniker */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Rapporttittel *
-              </label>
-              <input
-                type="text"
-                value={formData.header}
-                onChange={(e) => handleChange('header', e.target.value)}
-                className="input w-full"
-                placeholder="F.eks. Årlig service brannalarmanlegg"
-                required
-              />
-            </div>
-
-            {/* Anlegg */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Anlegg <span className="text-red-500">*</span>
-              </label>
-              <Combobox
-                options={anlegg.map(a => ({ id: a.id, value: a.id, label: a.anleggsnavn }))}
-                value={formData.anlegg_id}
-                onChange={(val) => handleChange('anlegg_id', val)}
-                placeholder="Søk og velg anlegg..."
-                searchPlaceholder="Skriv for å søke..."
-                emptyMessage="Ingen anlegg funnet"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Dato *
+                Dato <span className="text-red-500">*</span>
               </label>
               <input
                 type="date"
@@ -582,7 +593,7 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Tekniker *
+                Tekniker <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.tekniker_navn}
@@ -641,63 +652,76 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
 
         {/* Report Content Section */}
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Rapportinnhold</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-purple-500" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Rapportinnhold</h2>
+                <p className="text-sm text-gray-500">Skriv stikkord og la AI generere rapporten</p>
+              </div>
+            </div>
             <button
               type="button"
               onClick={handleAiImprove}
               disabled={aiLoading || !formData.rapport_innhold.trim()}
-              className="btn-primary flex items-center gap-2 text-sm"
+              className="btn-primary flex items-center gap-2 whitespace-nowrap"
               title="Bruk AI til å forbedre rapporten"
             >
               <Sparkles className="w-4 h-4" />
               {aiLoading ? 'Genererer...' : 'Forbedre med AI'}
             </button>
           </div>
+          
+          {/* AI Tips boks */}
+          <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-4 mb-4">
+            <p className="text-sm text-gray-300">
+              <strong className="text-purple-400">💡 Tips:</strong> Skriv stikkord som "service brannalarm, testet detektorer, byttet batteri i sentral" og klikk "Forbedre med AI" for å få en profesjonell rapport.
+            </p>
+          </div>
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Rapport tekst *
+              Rapport tekst <span className="text-red-500">*</span>
             </label>
             <textarea
               value={formData.rapport_innhold}
               onChange={(e) => handleChange('rapport_innhold', e.target.value)}
-              className="input w-full font-mono"
-              rows={20}
-              placeholder="Skriv rapportinnholdet her...
+              className="input w-full font-mono text-sm leading-relaxed"
+              rows={16}
+              placeholder="Skriv stikkord eller rapportinnhold her...
 
-Eksempel:
-1. INNLEDNING
-   - Formål med service
-   - Dato og tid for utførelse
-
-2. UTFØRT ARBEID
-   - Beskrivelse av utførte arbeider
-   - Komponenter som er kontrollert
-
-3. FUNN OG OBSERVASJONER
-   - Eventuelle avvik
-   - Anbefalinger
-
-4. KONKLUSJON
-   - Oppsummering
-   - Neste service"
+Eksempler på stikkord:
+- Årlig service brannalarm
+- Testet alle detektorer
+- Byttet batteri i sentral
+- Rengjort optiske detektorer
+- Alt OK, ingen avvik"
               required
             />
-            <div className="flex items-start gap-2 mt-2">
-              <div className="flex-1">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  💡 <strong>Tips:</strong> Skriv stikkord eller en kort beskrivelse, og klikk "Forbedre med AI" for å få en profesjonell rapport.
-                </p>
-              </div>
+            <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+              <span>{formData.rapport_innhold.length} tegn</span>
+              <span>{formData.rapport_innhold.split(/\s+/).filter(w => w).length} ord</span>
             </div>
           </div>
         </div>
 
         {/* Image Upload Section */}
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Bilder</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Vises på side 2 i PDF</p>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
+              <Upload className="w-5 h-5 text-green-500" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Bilder</h2>
+              <p className="text-sm text-gray-500">Legg til bilder som vises på side 2 i PDF</p>
+            </div>
+            {imagePreviewUrls.length > 0 && (
+              <span className="px-2 py-1 bg-green-500/10 text-green-400 text-sm rounded-lg">
+                {imagePreviewUrls.length} bilde{imagePreviewUrls.length !== 1 ? 'r' : ''}
+              </span>
+            )}
           </div>
           
           <div className="space-y-4">

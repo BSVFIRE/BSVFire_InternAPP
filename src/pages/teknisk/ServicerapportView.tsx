@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { ArrowLeft, Eye, FileText, Plus, Trash2 } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { ArrowLeft, Eye, FileText, Plus, Trash2, Search, ArrowUpDown, Calendar, User, Building2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { ServicerapportEditor } from './ServicerapportEditor'
 import { ServicerapportPreview } from './ServicerapportPreview'
@@ -24,12 +24,64 @@ interface ServicerapportViewProps {
   initialOrdreId?: string
 }
 
+type SortField = 'dato' | 'tittel' | 'anlegg' | 'tekniker'
+type SortDirection = 'asc' | 'desc'
+
 export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: ServicerapportViewProps) {
   const [rapporter, setRapporter] = useState<Servicerapport[]>([])
   const [selectedRapport, setSelectedRapport] = useState<Servicerapport | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortField, setSortField] = useState<SortField>('dato')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+
+  // Filtrert og sortert liste
+  const filteredAndSortedRapporter = useMemo(() => {
+    let result = [...rapporter]
+    
+    // Søk
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter(r => 
+        r.header?.toLowerCase().includes(query) ||
+        r.anlegg_navn?.toLowerCase().includes(query) ||
+        r.tekniker_navn?.toLowerCase().includes(query)
+      )
+    }
+    
+    // Sortering
+    result.sort((a, b) => {
+      let comparison = 0
+      switch (sortField) {
+        case 'dato':
+          comparison = new Date(a.rapport_dato).getTime() - new Date(b.rapport_dato).getTime()
+          break
+        case 'tittel':
+          comparison = (a.header || '').localeCompare(b.header || '')
+          break
+        case 'anlegg':
+          comparison = (a.anlegg_navn || '').localeCompare(b.anlegg_navn || '')
+          break
+        case 'tekniker':
+          comparison = (a.tekniker_navn || '').localeCompare(b.tekniker_navn || '')
+          break
+      }
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+    
+    return result
+  }, [rapporter, searchQuery, sortField, sortDirection])
+
+  function toggleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('desc')
+    }
+  }
 
   useEffect(() => {
     loadRapporter()
@@ -237,7 +289,57 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
 
       {/* Rapporter liste */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Eksisterende rapporter</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Eksisterende rapporter
+            {rapporter.length > 0 && (
+              <span className="text-sm font-normal text-gray-500 ml-2">({filteredAndSortedRapporter.length} av {rapporter.length})</span>
+            )}
+          </h2>
+          
+          {/* Søkefelt */}
+          {rapporter.length > 0 && (
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Søk i rapporter..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="input pl-10 py-2 text-sm"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Sorteringsknapper */}
+        {rapporter.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+            <span className="text-sm text-gray-500 dark:text-gray-400 self-center mr-2">Sorter etter:</span>
+            {[
+              { field: 'dato' as SortField, label: 'Dato', icon: Calendar },
+              { field: 'tittel' as SortField, label: 'Tittel', icon: FileText },
+              { field: 'anlegg' as SortField, label: 'Anlegg', icon: Building2 },
+              { field: 'tekniker' as SortField, label: 'Tekniker', icon: User },
+            ].map(({ field, label, icon: Icon }) => (
+              <button
+                key={field}
+                onClick={() => toggleSort(field)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                  sortField === field
+                    ? 'bg-primary text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {label}
+                {sortField === field && (
+                  <ArrowUpDown className={`w-3 h-3 ${sortDirection === 'asc' ? 'rotate-180' : ''}`} />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
         
         {loading ? (
           <div className="text-center py-8 text-gray-600 dark:text-gray-400">Laster...</div>
@@ -247,30 +349,48 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
             <p className="text-gray-600 dark:text-gray-400">Ingen servicerapporter ennå</p>
             <p className="text-gray-500 dark:text-gray-500 text-sm mt-1">Klikk "Ny rapport" for å opprette din første rapport</p>
           </div>
+        ) : filteredAndSortedRapporter.length === 0 ? (
+          <div className="text-center py-8">
+            <Search className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
+            <p className="text-gray-600 dark:text-gray-400">Ingen rapporter matcher søket</p>
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="text-primary text-sm mt-2 hover:underline"
+            >
+              Nullstill søk
+            </button>
+          </div>
         ) : (
           <div className="space-y-3">
-            {rapporter.map((rapport) => (
+            {filteredAndSortedRapporter.map((rapport) => (
               <div
                 key={rapport.id}
-                className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors gap-3"
               >
-                <div className="flex-1">
-                  <h3 className="text-gray-900 dark:text-white font-medium">{rapport.header || 'Uten tittel'}</h3>
-                  <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
-                    <span>{rapport.anlegg_navn || 'Ikke tilknyttet anlegg'}</span>
-                    <span>•</span>
-                    <span>{new Date(rapport.rapport_dato).toLocaleDateString('nb-NO')}</span>
-                    <span>•</span>
-                    <span>{rapport.tekniker_navn}</span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-gray-900 dark:text-white font-medium truncate">{rapport.header || 'Uten tittel'}</h3>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-600 dark:text-gray-400">
+                    <span className="flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5" />
+                      {rapport.anlegg_navn || 'Ikke tilknyttet'}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {new Date(rapport.rapport_dato).toLocaleDateString('nb-NO')}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5" />
+                      {rapport.tekniker_navn}
+                    </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-end sm:self-center">
                   <button
                     onClick={() => {
                       setSelectedRapport(rapport)
                       setShowPreview(true)
                     }}
-                    className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                     title="Forhåndsvisning"
                   >
                     <Eye className="w-5 h-5 text-gray-500 dark:text-gray-400" />

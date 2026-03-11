@@ -111,13 +111,15 @@ export function Combobox({
         
         <div className="flex items-center gap-1">
           {value && !disabled && (
-            <button
-              type="button"
+            <span
+              role="button"
+              tabIndex={0}
               onClick={handleClear}
-              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+              onKeyDown={(e) => e.key === 'Enter' && handleClear(e as any)}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors cursor-pointer"
             >
               <X className="w-4 h-4 text-gray-400" />
-            </button>
+            </span>
           )}
           <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </div>
