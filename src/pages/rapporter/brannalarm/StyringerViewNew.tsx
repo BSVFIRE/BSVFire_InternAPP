@@ -188,16 +188,6 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
     localStyringer[key]?.aktiv && localStyringer[key]?.status === 'Avvik'
   ).length
 
-  function getStatusColor(status: string) {
-    switch (status) {
-      case 'Kontrollert Ok': return 'text-green-400 bg-green-500/10'
-      case 'Avvik': return 'text-red-400 bg-red-500/10'
-      case 'Visuell kontroll': return 'text-blue-400 bg-blue-500/10'
-      case 'Ikke aktuelt': return 'text-gray-400 bg-gray-500/10'
-      default: return 'text-gray-400 bg-gray-500/10'
-    }
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -560,7 +550,6 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
         <div className="space-y-4">
           {filteredStyringer.map(({ key, navn, icon, kategori }) => {
             const isActive = localStyringer[key]?.aktiv || false
-            const status = localStyringer[key]?.status || ''
             
             return (
               <div key={key} className={`card ${isActive ? 'border-primary/30 bg-primary/5' : ''}`}>
