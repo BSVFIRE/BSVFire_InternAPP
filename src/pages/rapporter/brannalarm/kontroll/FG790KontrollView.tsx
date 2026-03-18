@@ -363,7 +363,6 @@ export function FG790KontrollView({
         posisjon: punkt.posisjon,
         kategori: punkt.kategori,
         tittel: punkt.tittel,
-        sjekkpunkt: punkt.tittel, // Bruker tittel som sjekkpunkt for bakoverkompatibilitet
         status: punkt.status,
         avvik_type: punkt.avvik_type || null,
         feilkode: punkt.feilkode || null,

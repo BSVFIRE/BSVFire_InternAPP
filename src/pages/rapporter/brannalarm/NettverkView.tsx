@@ -155,9 +155,21 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, enheterData
 
       if (isOnline) {
         if (editingSystem) {
-          await supabase.from('nettverk_brannalarm').update(data).eq('id', editingSystem.id)
+          const { error } = await supabase.from('nettverk_brannalarm').update(data).eq('id', editingSystem.id)
+          if (error) {
+            console.error('Feil ved oppdatering av nettverk:', error)
+            alert(`Feil ved lagring: ${error.message}`)
+            setSaving(false)
+            return
+          }
         } else {
-          await supabase.from('nettverk_brannalarm').insert(data)
+          const { error } = await supabase.from('nettverk_brannalarm').insert(data)
+          if (error) {
+            console.error('Feil ved innsetting av nettverk:', error)
+            alert(`Feil ved lagring: ${error.message}`)
+            setSaving(false)
+            return
+          }
         }
         onRefresh()
         setShowDialog(false)

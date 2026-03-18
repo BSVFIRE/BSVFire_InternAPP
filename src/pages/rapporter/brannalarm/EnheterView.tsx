@@ -163,7 +163,27 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
     try {
       const data: any = { anlegg_id: anleggId }
       
+      // Samle opp type-endringer for synkronisering til nettverk
+      const typeChanges: { oldType: string; newType: string; category: string }[] = []
+      
       enhetsTyper.forEach(({ key }) => {
+        const newTyper = localEnheter[key]?.typer || []
+        const oldTyper = initialEnheter[key]?.typer || []
+        
+        // Sjekk om typer har endret seg (for brannsentral og panel)
+        if (key === 'brannsentral' || key === 'panel') {
+          oldTyper.forEach((oldItem: { type: string; antall: number }, index: number) => {
+            const newItem = newTyper[index]
+            if (newItem && oldItem.type && newItem.type && oldItem.type !== newItem.type) {
+              typeChanges.push({
+                oldType: oldItem.type,
+                newType: newItem.type,
+                category: key
+              })
+            }
+          })
+        }
+        
         data[`${key}_antall`] = localEnheter[key]?.antall || 0
         data[`${key}_type`] = localEnheter[key]?.type || ''
         data[`${key}_note`] = localEnheter[key]?.note || ''
@@ -182,17 +202,25 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
             .from('anleggsdata_brannalarm')
             .insert(data)
         }
+        
+        // Synkroniser type-endringer til nettverk
+        for (const change of typeChanges) {
+          await supabase
+            .from('nettverk_brannalarm')
+            .update({ type: change.newType })
+            .eq('anlegg_id', anleggId)
+            .eq('type', change.oldType)
+        }
+        
         setLastSaved(new Date())
         setInitialEnheter(localEnheter) // Reset ulagrede endringer
         onSave(anleggId)
-        onBack()
       } else {
         // Offline: lagre lokalt
         localStorage.setItem(localStorageKey, JSON.stringify(data))
         setPendingChanges(1)
         setInitialEnheter(localEnheter) // Reset ulagrede endringer
         alert('Offline - data lagret lokalt og vil synkroniseres når du er online igjen')
-        onBack()
       }
     } catch (error) {
       console.error('Feil ved lagring:', error)
