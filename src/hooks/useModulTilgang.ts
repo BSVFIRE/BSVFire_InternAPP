@@ -87,6 +87,9 @@ export function useModulTilgang() {
         }
 
         const tilgangMap = new Map<string, { kanSe: boolean; kanRediger: boolean }>()
+        
+        console.log('[useModulTilgang] Hentet tilganger:', modulTilganger?.length || 0)
+        
         modulTilganger?.forEach((mt: any) => {
           if (mt.modul?.modul_key) {
             tilgangMap.set(mt.modul.modul_key, {
@@ -95,6 +98,8 @@ export function useModulTilgang() {
             })
           }
         })
+        
+        console.log('[useModulTilgang] Tilganger i map:', tilgangMap.size)
 
         setTilganger(tilgangMap)
       } catch (error) {
@@ -111,8 +116,20 @@ export function useModulTilgang() {
     // Super admin har alltid tilgang
     if (isSuperAdmin) return true
 
+    // Hvis ingen tilganger er definert (tom tabell eller bruker ikke satt opp), gi standard tilgang
+    // Dette sikrer at eksisterende brukere fortsatt har tilgang til menyen
+    if (tilganger.size === 0) {
+      // Gi tilgang til alle ikke-admin moduler som standard
+      return !modulKey.startsWith('admin_')
+    }
+
     const tilgang = tilganger.get(modulKey)
-    if (!tilgang) return false
+    
+    // Hvis modulen ikke finnes i tilgangene, gi standard tilgang for ikke-admin moduler
+    // Dette håndterer tilfeller der modul_key i koden ikke matcher databasen
+    if (!tilgang) {
+      return !modulKey.startsWith('admin_')
+    }
 
     return type === 'rediger' ? tilgang.kanRediger : tilgang.kanSe
   }, [tilganger, isSuperAdmin])
