@@ -57,9 +57,25 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
   useEffect(() => {
     const initial: Record<string, any> = {}
     enhetsTyper.forEach(({ key }) => {
+      const existingType = enheter?.[`${key}_type` as keyof BrannalarmStyring] || ''
+      const existingAntall = enheter?.[`${key}_antall` as keyof BrannalarmStyring] || 0
+      
+      // Parse existing types - støtter både gammelt format (string) og nytt format (JSON array)
+      let typer: { type: string; antall: number }[] = []
+      if (typeof existingType === 'string' && existingType.startsWith('[')) {
+        try {
+          typer = JSON.parse(existingType)
+        } catch {
+          typer = existingType ? [{ type: existingType, antall: existingAntall as number }] : []
+        }
+      } else if (existingType) {
+        typer = [{ type: existingType as string, antall: existingAntall as number }]
+      }
+      
       initial[key] = {
-        antall: enheter?.[`${key}_antall` as keyof BrannalarmStyring] || 0,
-        type: enheter?.[`${key}_type` as keyof BrannalarmStyring] || '',
+        antall: existingAntall,
+        type: existingType,
+        typer: typer,
         note: enheter?.[`${key}_note` as keyof BrannalarmStyring] || '',
         aktiv: enheter?.[`${key}_aktiv` as keyof BrannalarmStyring] || false,
       }
@@ -400,9 +416,16 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                   {/* Toggle */}
                   <button
                     onClick={() => {
+                      const wasActive = localEnheter[key]?.aktiv
+                      const currentTyper = localEnheter[key]?.typer || []
                       setLocalEnheter(prev => ({
                         ...prev,
-                        [key]: { ...prev[key], aktiv: !prev[key]?.aktiv }
+                        [key]: { 
+                          ...prev[key], 
+                          aktiv: !wasActive,
+                          typer: !wasActive && currentTyper.length === 0 ? [{ type: '', antall: 1 }] : currentTyper,
+                          antall: !wasActive && currentTyper.length === 0 ? 1 : prev[key]?.antall || 0
+                        }
                       }))
                       if (!isActive) {
                         setExpandedKey(key)
@@ -417,51 +440,84 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                     }`} />
                   </button>
                   
-                  {/* Stepper - alltid synlig når aktiv */}
-                  {isActive && (
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => {
-                          setLocalEnheter(prev => ({
-                            ...prev,
-                            [key]: { ...prev[key], antall: Math.max(0, antall - 1) }
-                          }))
-                        }}
-                        className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
-                      >
-                        <Minus className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                      </button>
-                      <span className="w-10 text-center font-semibold text-gray-900 dark:text-white">{antall}</span>
-                      <button
-                        onClick={() => {
-                          setLocalEnheter(prev => ({
-                            ...prev,
-                            [key]: { ...prev[key], antall: antall + 1 }
-                          }))
-                        }}
-                        className="w-9 h-9 rounded-lg bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
-                      >
-                        <Plus className="w-4 h-4 text-primary" />
-                      </button>
-                    </div>
-                  )}
+                  {/* Antall visning - viser totalt antall fra alle typer */}
+                  <div className="flex items-center gap-2 flex-shrink-0 w-16 justify-end">
+                    {isActive && (
+                      <span className="px-3 py-1.5 bg-primary/10 text-primary font-semibold rounded-lg text-sm whitespace-nowrap">
+                        {antall} stk
+                      </span>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Ekspandert detaljer */}
                 {isExpanded && (
                   <div className="px-3 pb-3 pt-2 border-t border-gray-200 dark:border-gray-800 space-y-3">
-                    <input
-                      type="text"
-                      value={localEnheter[key]?.type || ''}
-                      onChange={(e) => {
-                        setLocalEnheter(prev => ({
-                          ...prev,
-                          [key]: { ...prev[key], type: e.target.value }
-                        }))
-                      }}
-                      placeholder="Type/modell..."
-                      className="input text-sm w-full h-11"
-                    />
+                    {/* Type/modell liste */}
+                    <div className="space-y-2">
+                      {(localEnheter[key]?.typer || []).map((t: { type: string; antall: number }, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={t.type}
+                            onChange={(e) => {
+                              const newTyper = [...(localEnheter[key]?.typer || [])]
+                              newTyper[idx] = { ...newTyper[idx], type: e.target.value }
+                              const totalAntall = newTyper.reduce((sum, item) => sum + (item.antall || 0), 0)
+                              setLocalEnheter(prev => ({
+                                ...prev,
+                                [key]: { ...prev[key], typer: newTyper, antall: totalAntall, type: JSON.stringify(newTyper) }
+                              }))
+                            }}
+                            placeholder="Type/modell..."
+                            className="input text-sm flex-1 h-10"
+                          />
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={t.antall || 0}
+                            onChange={(e) => {
+                              const newTyper = [...(localEnheter[key]?.typer || [])]
+                              newTyper[idx] = { ...newTyper[idx], antall: parseInt(e.target.value) || 0 }
+                              const totalAntall = newTyper.reduce((sum, item) => sum + (item.antall || 0), 0)
+                              setLocalEnheter(prev => ({
+                                ...prev,
+                                [key]: { ...prev[key], typer: newTyper, antall: totalAntall, type: JSON.stringify(newTyper) }
+                              }))
+                            }}
+                            className="w-14 h-10 text-center font-semibold text-gray-900 dark:text-white bg-white dark:bg-dark-100 border border-gray-200 dark:border-gray-700 rounded-lg"
+                          />
+                          <button
+                            onClick={() => {
+                              const newTyper = (localEnheter[key]?.typer || []).filter((_: any, i: number) => i !== idx)
+                              const totalAntall = newTyper.reduce((sum: number, item: { antall: number }) => sum + (item.antall || 0), 0)
+                              setLocalEnheter(prev => ({
+                                ...prev,
+                                [key]: { ...prev[key], typer: newTyper, antall: totalAntall, type: JSON.stringify(newTyper) }
+                              }))
+                            }}
+                            className="w-10 h-10 flex items-center justify-center text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const newTyper = [...(localEnheter[key]?.typer || []), { type: '', antall: 1 }]
+                          const totalAntall = newTyper.reduce((sum, item) => sum + (item.antall || 0), 0)
+                          setLocalEnheter(prev => ({
+                            ...prev,
+                            [key]: { ...prev[key], typer: newTyper, antall: totalAntall, type: JSON.stringify(newTyper) }
+                          }))
+                        }}
+                        className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Legg til type/modell
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={localEnheter[key]?.note || ''}
@@ -582,8 +638,8 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
         <div className="max-w-4xl mx-auto pointer-events-auto">
           <button 
             onClick={handleSave} 
-            disabled={saving} 
-            className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25"
+            disabled={saving || !hasUnsavedChanges} 
+            className={`w-full py-4 px-6 ${hasUnsavedChanges ? 'bg-primary hover:bg-primary/90' : 'bg-gray-400'} disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg ${hasUnsavedChanges ? 'shadow-primary/25' : 'shadow-gray-400/25'}`}
           >
             {saving ? (
               <>

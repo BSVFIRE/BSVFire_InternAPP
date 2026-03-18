@@ -118,6 +118,8 @@ interface Styring {
   antall: number
   status: string
   note?: string
+  har_avvik?: boolean
+  avvik?: string[]
 }
 
 interface NettverkEnhet {
@@ -128,6 +130,7 @@ interface NettverkEnhet {
   spenning?: number
   ah?: number
   batterialder?: number
+  batteri_ikke_aktuelt?: boolean
 }
 
 export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG790RapportViewProps) {
@@ -298,7 +301,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       // Hent nettverk
       const { data: nettverkData, error: nettverkError } = await supabase
         .from('nettverk_brannalarm')
-        .select('nettverk_id, plassering, type, sw_id, spenning, ah, batterialder')
+        .select('nettverk_id, plassering, type, sw_id, spenning, ah, batterialder, batteri_ikke_aktuelt')
         .eq('anlegg_id', anleggId)
         .order('nettverk_id')
 
@@ -367,6 +370,34 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
       
+      // Last Noralarm-logo på forhånd
+      let noralarmLogoImg: HTMLImageElement | null = null
+      try {
+        noralarmLogoImg = new Image()
+        noralarmLogoImg.src = '/noralarm-logo.png'
+        await new Promise((resolve, reject) => {
+          noralarmLogoImg!.onload = resolve
+          noralarmLogoImg!.onerror = reject
+          setTimeout(reject, 2000)
+        })
+      } catch {
+        noralarmLogoImg = null
+      }
+      
+      // Last FG-logo på forhånd
+      let fgLogoImg: HTMLImageElement | null = null
+      try {
+        fgLogoImg = new Image()
+        fgLogoImg.src = '/fg_logo.png'
+        await new Promise((resolve, reject) => {
+          fgLogoImg!.onload = resolve
+          fgLogoImg!.onerror = reject
+          setTimeout(reject, 2000)
+        })
+      } catch {
+        fgLogoImg = null
+      }
+      
       // Funksjon for å legge til footer på hver side
       const addFooter = (pageNum: number) => {
         const footerY = pageHeight - 20
@@ -402,6 +433,39 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         doc.setTextColor(100, 100, 100)
         doc.text(`Side ${pageNum}`, pageWidth - 20, footerY, { align: 'right' })
         
+        // Logoer på side 1 (FG og Noralarm)
+        if (pageNum === 1) {
+          // FG-logo (venstre)
+          if (fgLogoImg) {
+            const fgX = pageWidth - 70
+            const fgY = footerY + 1
+            doc.addImage(fgLogoImg, 'PNG', fgX, fgY, 15, 10)
+            
+            doc.setFontSize(5)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(100, 100, 100)
+            doc.text('FG-godkjent', fgX, fgY - 1)
+          }
+          
+          // Noralarm-logo (høyre)
+          const noralarmX = pageWidth - 50
+          const noralarmY = footerY + 1
+          
+          if (noralarmLogoImg) {
+            doc.addImage(noralarmLogoImg, 'PNG', noralarmX, noralarmY, 20, 10)
+            
+            doc.setFontSize(5)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(100, 100, 100)
+            doc.text('Medlem av', noralarmX, noralarmY - 1)
+          } else {
+            doc.setFontSize(6)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(227, 30, 36)
+            doc.text('Medlem av NORALARM', noralarmX, noralarmY + 5)
+          }
+        }
+        
         // Reset farge
         doc.setTextColor(0)
       }
@@ -432,8 +496,14 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       // Tittel
       doc.setFontSize(18)
       doc.setFont('helvetica', 'bold')
-      doc.text('RAPPORT - BRANNALARM FG790', 20, yPos)
-      yPos += 12
+      doc.text('KONTROLLRAPPORT - BRANNALARM FG790', 20, yPos)
+      yPos += 6
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(80, 80, 80)
+      doc.text('Kontrollen er utført i henhold til FG-790 og gjeldende forebyggendeforskrift (FOB)', 20, yPos)
+      doc.setTextColor(0)
+      yPos += 10
 
       // Anleggsinformasjon - Profesjonell layout
       doc.setDrawColor(220, 220, 220)
@@ -544,71 +614,118 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       doc.setTextColor(0, 0, 0)
       yPos += 38
 
-      // Teknisk informasjon
+      // Teknisk informasjon - med boks
       if (brannalarmData?.leverandor || brannalarmData?.sentraltype) {
-        doc.setFontSize(14)
-        doc.setFont('helvetica', 'bold')
-        doc.text('Teknisk informasjon', 20, yPos)
-        yPos += 7
-
+        // Beregn høyde for boksen
+        const tekniskRows = (brannalarmData.leverandor ? 1 : 0) + (brannalarmData.sentraltype ? 1 : 0)
+        const boksHoyde = 10 + (tekniskRows * 6)
+        
+        // Tegn boks med lys bakgrunn
+        doc.setDrawColor(220, 220, 220)
+        doc.setLineWidth(0.3)
+        doc.setFillColor(250, 250, 250)
+        doc.rect(17, yPos - 2, 176, boksHoyde, 'FD')
+        
         doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(41, 128, 185)
+        doc.text('Teknisk informasjon', 20, yPos + 4)
+        
+        doc.setFontSize(9)
         doc.setFont('helvetica', 'normal')
+        doc.setTextColor(0, 0, 0)
+        
+        let tekniskY = yPos + 10
         if (brannalarmData.leverandor) {
-          doc.text(`Leverandør: ${brannalarmData.leverandor}`, 20, yPos)
-          yPos += 5
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(80, 80, 80)
+          doc.text('Leverandør', 20, tekniskY)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(0, 0, 0)
+          doc.text(brannalarmData.leverandor, 55, tekniskY)
+          tekniskY += 6
         }
         if (brannalarmData.sentraltype) {
-          doc.text(`Sentraltype: ${brannalarmData.sentraltype}`, 20, yPos)
-          yPos += 5
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(80, 80, 80)
+          doc.text('Sentraltype', 20, tekniskY)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(0, 0, 0)
+          doc.text(brannalarmData.sentraltype, 55, tekniskY)
         }
-        yPos += 5
+        
+        yPos += boksHoyde + 5
       }
 
-      // Tilleggsinformasjon (merknader, feil, utkoblinger) - på side 1
-      if (kontrollData.merknader || kontrollData.har_feil || kontrollData.har_utkoblinger) {
-        doc.setFontSize(14)
-        doc.setFont('helvetica', 'bold')
-        doc.text('Tilleggsinformasjon', 20, yPos)
-        yPos += 7
-
+      // Merknader - egen boks
+      if (kontrollData.merknader) {
+        const merknadLines = doc.splitTextToSize(kontrollData.merknader, 165)
+        const merknadHoyde = 10 + (merknadLines.length * 4)
+        
+        doc.setDrawColor(220, 220, 220)
+        doc.setLineWidth(0.3)
+        doc.setFillColor(250, 250, 250)
+        doc.rect(17, yPos - 2, 176, merknadHoyde, 'FD')
+        
         doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(41, 128, 185)
+        doc.text('Generell kommentar', 20, yPos + 4)
+        
+        doc.setFontSize(9)
         doc.setFont('helvetica', 'normal')
+        doc.setTextColor(0, 0, 0)
+        doc.text(merknadLines, 20, yPos + 10)
+        
+        yPos += merknadHoyde + 5
+      }
 
-        if (kontrollData.merknader) {
-          doc.setFont('helvetica', 'bold')
-          doc.text('Merknader:', 20, yPos)
-          yPos += 5
-          doc.setFont('helvetica', 'normal')
-          const merknadLines = doc.splitTextToSize(kontrollData.merknader, 170)
-          doc.text(merknadLines, 20, yPos)
-          yPos += merknadLines.length * 5 + 5
-        }
+      // Feil registrert - egen boks med rød markering
+      if (kontrollData.har_feil) {
+        const feilTekst = kontrollData.feil_kommentar || 'Ja'
+        const feilLines = doc.splitTextToSize(feilTekst, 165)
+        const feilHoyde = 10 + (feilLines.length * 4)
+        
+        doc.setDrawColor(220, 53, 69)
+        doc.setLineWidth(0.5)
+        doc.setFillColor(255, 245, 245)
+        doc.rect(17, yPos - 2, 176, feilHoyde, 'FD')
+        
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(220, 53, 69)
+        doc.text('Feil registrert ved ankomst', 20, yPos + 4)
+        
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(0, 0, 0)
+        doc.text(feilLines, 20, yPos + 10)
+        
+        yPos += feilHoyde + 5
+      }
 
-        if (kontrollData.har_feil) {
-          doc.setFont('helvetica', 'bold')
-          doc.text('Feil registrert:', 20, yPos)
-          yPos += 5
-          doc.setFont('helvetica', 'normal')
-          if (kontrollData.feil_kommentar) {
-            const feilLines = doc.splitTextToSize(kontrollData.feil_kommentar, 170)
-            doc.text(feilLines, 20, yPos)
-            yPos += feilLines.length * 5 + 5
-          }
-        }
-
-        if (kontrollData.har_utkoblinger) {
-          doc.setFont('helvetica', 'bold')
-          doc.text('Utkoblinger registrert:', 20, yPos)
-          yPos += 5
-          doc.setFont('helvetica', 'normal')
-          if (kontrollData.utkobling_kommentar) {
-            const utkoblingLines = doc.splitTextToSize(kontrollData.utkobling_kommentar, 170)
-            doc.text(utkoblingLines, 20, yPos)
-            yPos += utkoblingLines.length * 5 + 5
-          }
-        }
-
-        yPos += 5
+      // Utkoblinger - egen boks med oransje markering
+      if (kontrollData.har_utkoblinger) {
+        const utkoblingTekst = kontrollData.utkobling_kommentar || 'Ja'
+        const utkoblingLines = doc.splitTextToSize(utkoblingTekst, 165)
+        const utkoblingHoyde = 10 + (utkoblingLines.length * 4)
+        
+        doc.setDrawColor(255, 152, 0)
+        doc.setLineWidth(0.5)
+        doc.setFillColor(255, 250, 240)
+        doc.rect(17, yPos - 2, 176, utkoblingHoyde, 'FD')
+        
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(255, 152, 0)
+        doc.text('Utkoblinger registrert ved ankomst', 20, yPos + 4)
+        
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(0, 0, 0)
+        doc.text(utkoblingLines, 20, yPos + 10)
+        
+        yPos += utkoblingHoyde + 5
       }
 
       // Legg til footer på første side
@@ -618,7 +735,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       doc.addPage()
       yPos = 20
 
-      // Enheter
+      // Enheter - med undertabell for type/modell
       if (enheter.length > 0) {
         if (yPos > 250) {
           doc.addPage()
@@ -630,21 +747,81 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         doc.text('Enheter', 20, yPos)
         yPos += 7
 
-        const enheterRows = enheter.map(e => [
-          e.type,
-          e.antall.toString(),
-          e.typeModell || '-',
-          e.kommentar || '-'
-        ])
+        // Bygg hierarkisk tabell med enheter og type/modell detaljer
+        const enheterTableData: (string | { content: string; styles?: any; rowSpan?: number })[][] = []
+        
+        enheter.forEach(e => {
+          // Parse typeModell - kan være JSON array eller kommaseparert streng
+          let typeModellItems: { type: string; antall: number }[] = []
+          if (e.typeModell && e.typeModell.trim() !== '') {
+            try {
+              // Prøv å parse som JSON først
+              const parsed = JSON.parse(e.typeModell)
+              if (Array.isArray(parsed)) {
+                typeModellItems = parsed.filter((item: any) => item.type)
+              }
+            } catch {
+              // Fallback til kommaseparert streng format: "Type1 (2), Type2 (3)"
+              const types = e.typeModell.split(', ')
+              types.forEach(t => {
+                const match = t.match(/^(.+?)\s*\((\d+)\)$/)
+                if (match) {
+                  typeModellItems.push({ type: match[1].trim(), antall: parseInt(match[2]) })
+                } else if (t.trim()) {
+                  typeModellItems.push({ type: t.trim(), antall: 1 })
+                }
+              })
+            }
+          }
+          
+          const underrader = typeModellItems.length
+          
+          // Hovedrad for enheten med rowSpan på kommentar
+          enheterTableData.push([
+            { content: e.type, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+            { content: e.antall.toString(), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+            { content: e.kommentar || '-', styles: { fillColor: [240, 240, 240] }, rowSpan: underrader > 0 ? underrader + 1 : 1 }
+          ])
+          
+          // Legg til type/modell detaljer som underrader
+          typeModellItems.forEach(item => {
+            enheterTableData.push([
+              { content: `              ${item.type}`, styles: { textColor: [80, 80, 80], fontSize: 8 } },
+              { content: item.antall.toString(), styles: { textColor: [80, 80, 80], fontSize: 8 } }
+            ])
+          })
+        })
 
         autoTable(doc, {
           startY: yPos,
-          head: [['Type', 'Antall', 'Type/Modell', 'Kommentar']],
-          body: enheterRows,
+          head: [['Enhet / Type', 'Antall', 'Kommentar']],
+          body: enheterTableData,
           theme: 'grid',
           headStyles: { fillColor: [41, 128, 185] },
           styles: { fontSize: 9 },
+          columnStyles: {
+            0: { cellWidth: 100 },
+            1: { cellWidth: 30, halign: 'center' },
+            2: { cellWidth: 55 }
+          },
           margin: { left: 10, right: 10, bottom: 25 },
+          didDrawCell: (data: any) => {
+            // Tegn pil for underrader (type/modell)
+            if (data.section === 'body' && data.column.index === 0) {
+              const cellText = data.cell.raw?.content || data.cell.raw
+              if (typeof cellText === 'string' && cellText.startsWith('              ')) {
+                const x = data.cell.x + 4
+                const y = data.cell.y + data.cell.height / 2
+                
+                // Tegn grønn pil ->
+                doc.setDrawColor(40, 167, 69) // Grønn
+                doc.setLineWidth(0.5)
+                doc.line(x, y, x + 6, y) // Horisontal linje
+                doc.line(x + 4, y - 1.8, x + 6, y) // Øvre pilspiss
+                doc.line(x + 4, y + 1.8, x + 6, y) // Nedre pilspiss
+              }
+            }
+          },
           didDrawPage: () => {
             const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
             addFooter(currentPage)
@@ -654,12 +831,10 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         yPos = (doc as any).lastAutoTable.finalY + 10
       }
 
-      // Styringer
+      // Styringer - alltid på ny side
       if (styringer.length > 0) {
-        if (yPos > 250) {
-          doc.addPage()
-          yPos = 20
-        }
+        doc.addPage()
+        yPos = 20
 
         doc.setFontSize(14)
         doc.setFont('helvetica', 'bold')
@@ -667,27 +842,62 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         yPos += 7
 
         const styringerRows = styringer.map(s => [
-          s.type,
+          (s as any).har_avvik ? `${s.type} *` : s.type,
           s.antall.toString(),
-          s.status,
-          s.note || '-'
+          s.status || '-',
+          s.note || '-',
+          (s as any).har_avvik ? 'Ja' : 'Ingen'
         ])
 
         autoTable(doc, {
           startY: yPos,
-          head: [['Type', 'Antall', 'Status', 'Notat']],
+          head: [['Type', 'Antall', 'Status', 'Notat', 'Avvik']],
           body: styringerRows,
           theme: 'grid',
-          headStyles: { fillColor: [41, 128, 185] },
+          headStyles: { fillColor: [41, 128, 185], fontSize: 8 },
           styles: { fontSize: 9 },
           margin: { left: 10, right: 10, bottom: 25 },
+          columnStyles: {
+            0: { cellWidth: 45 },
+            1: { cellWidth: 20, halign: 'center' },
+            2: { cellWidth: 45 },
+            3: { cellWidth: 55 },
+            4: { cellWidth: 20, halign: 'center' }
+          },
+          didParseCell: (data: any) => {
+            // Marker hele raden med svak gul bakgrunn hvis det er avvik
+            if (data.section === 'body') {
+              const typeText = data.row.cells[0]?.raw as string
+              if (typeText?.endsWith(' *')) {
+                data.cell.styles.fillColor = [255, 248, 225] // Svak gul bakgrunn
+              }
+              // Fargelegg avvik-kolonnen basert på verdi
+              if (data.column.index === 4) {
+                const avvikText = data.cell.raw as string
+                if (avvikText === 'Ja') {
+                  data.cell.styles.textColor = [220, 53, 69] // Rød
+                  data.cell.styles.fontStyle = 'bold'
+                } else if (avvikText === 'Ingen') {
+                  data.cell.styles.textColor = [40, 167, 69] // Grønn
+                }
+              }
+            }
+          },
           didDrawPage: () => {
             const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
             addFooter(currentPage)
           }
         })
 
-        yPos = (doc as any).lastAutoTable.finalY + 10
+        yPos = (doc as any).lastAutoTable.finalY + 5
+        
+        // Legg til forklarende fotnote etter styringer
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'italic')
+        doc.setTextColor(100)
+        doc.text('* Markerte punkter har utvidet informasjon i "Oppsummering av avvik" eller "Kommentarer"', 20, yPos)
+        doc.setTextColor(0)
+        yPos += 8
       }
 
       // Nettverk
@@ -703,15 +913,20 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         doc.text('Nettverk', 20, yPos)
         yPos += 7
 
-        const nettverkRows = nettverk.map(n => [
-          n.nettverk_id.toString(),
-          n.plassering || '-',
-          n.type || '-',
-          n.sw_id || '-',
-          n.spenning ? `${n.spenning}V` : '-',
-          n.ah ? `${n.ah}Ah` : '-',
-          n.batterialder ? n.batterialder.toString() : '-'
-        ])
+        const nettverkRows = nettverk.map(n => {
+          // Sjekk om batteri ikke er aktuelt (eksplisitt flagg)
+          const batterIkkeAktuelt = n.batteri_ikke_aktuelt === true
+          
+          return [
+            n.nettverk_id.toString(),
+            n.plassering || '-',
+            n.type || '-',
+            n.sw_id || '-',
+            batterIkkeAktuelt ? 'N/A' : (n.spenning ? `${n.spenning}V` : '-'),
+            batterIkkeAktuelt ? 'N/A' : (n.ah ? `${n.ah}Ah` : '-'),
+            batterIkkeAktuelt ? 'N/A' : (n.batterialder ? n.batterialder.toString() : '-')
+          ]
+        })
 
         autoTable(doc, {
           startY: yPos,
@@ -906,8 +1121,6 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       // Talevarsling, Nøkkelsafe, Alarmsender - start på ny side
       if (brannalarmData?.talevarsling || brannalarmData?.nokkelsafe || brannalarmData?.alarmsender_i_anlegg) {
         doc.addPage()
-        const tilleggsutstyrPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-        addFooter(tilleggsutstyrPage)
         yPos = 20
 
         doc.setFontSize(14)
@@ -915,233 +1128,235 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         doc.text('Tilleggsutstyr', 20, yPos)
         yPos += 10
 
-        // Talevarsling
+        // Talevarsling - med tabell
         if (brannalarmData.talevarsling) {
-          doc.setFontSize(12)
-          doc.setFont('helvetica', 'bold')
-          doc.text('Talevarsling:', 20, yPos)
-          yPos += 7
-
-          doc.setFontSize(10)
-          doc.setFont('helvetica', 'normal')
-          
+          const talevarslingData: string[][] = []
           if (brannalarmData.talevarsling_leverandor) {
-            doc.text(`Leverandør: ${brannalarmData.talevarsling_leverandor}`, 25, yPos)
-            yPos += 5
+            talevarslingData.push(['Leverandør', brannalarmData.talevarsling_leverandor])
           }
           if (brannalarmData.talevarsling_batteri_type) {
-            doc.text(`Batteri type: ${brannalarmData.talevarsling_batteri_type}`, 25, yPos)
-            yPos += 5
+            talevarslingData.push(['Batteritype', brannalarmData.talevarsling_batteri_type])
           }
           if (brannalarmData.talevarsling_batteri_alder) {
-            doc.text(`Batteri alder: ${brannalarmData.talevarsling_batteri_alder} år`, 25, yPos)
-            yPos += 5
+            talevarslingData.push(['Batterialder', `${brannalarmData.talevarsling_batteri_alder} år`])
           }
           if (brannalarmData.talevarsling_plassering) {
-            doc.text(`Plassering: ${brannalarmData.talevarsling_plassering}`, 25, yPos)
-            yPos += 5
+            talevarslingData.push(['Plassering', brannalarmData.talevarsling_plassering])
           }
           if (brannalarmData.talevarsling_kommentar) {
-            doc.text('Kommentar:', 25, yPos)
-            yPos += 5
-            const talevarslingLines = doc.splitTextToSize(brannalarmData.talevarsling_kommentar, 165)
-            doc.text(talevarslingLines, 25, yPos)
-            yPos += talevarslingLines.length * 5
+            talevarslingData.push(['Kommentar', brannalarmData.talevarsling_kommentar])
           }
-          yPos += 5
+
+          if (talevarslingData.length > 0) {
+            autoTable(doc, {
+              startY: yPos,
+              head: [['Talevarsling', '']],
+              body: talevarslingData,
+              theme: 'grid',
+              headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+              styles: { fontSize: 9, cellPadding: 3 },
+              columnStyles: {
+                0: { cellWidth: 45, fontStyle: 'bold', fillColor: [245, 245, 245] },
+                1: { cellWidth: 140 }
+              },
+              margin: { left: 10, right: 10, bottom: 25 },
+              didDrawPage: () => {
+                const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
+                addFooter(currentPage)
+              }
+            })
+            yPos = (doc as any).lastAutoTable.finalY + 8
+          }
         }
 
-        // Nøkkelsafe
+        // Nøkkelsafe - med tabell
         if (brannalarmData.nokkelsafe) {
-          if (yPos > 250) {
+          if (yPos > 230) {
             doc.addPage()
             yPos = 20
           }
 
-          doc.setFontSize(12)
-          doc.setFont('helvetica', 'bold')
-          doc.text('Nøkkelsafe:', 20, yPos)
-          yPos += 7
-
-          doc.setFontSize(10)
-          doc.setFont('helvetica', 'normal')
-          
+          const nokkelsafeData: string[][] = []
           if (brannalarmData.nokkelsafe_type) {
-            doc.text(`Type: ${brannalarmData.nokkelsafe_type}`, 25, yPos)
-            yPos += 5
+            nokkelsafeData.push(['Type', brannalarmData.nokkelsafe_type])
           }
           if (brannalarmData.nokkelsafe_plassering) {
-            doc.text(`Plassering: ${brannalarmData.nokkelsafe_plassering}`, 25, yPos)
-            yPos += 5
+            nokkelsafeData.push(['Plassering', brannalarmData.nokkelsafe_plassering])
           }
           if (brannalarmData.nokkelsafe_innhold) {
-            doc.text(`Innhold: ${brannalarmData.nokkelsafe_innhold}`, 25, yPos)
-            yPos += 5
+            nokkelsafeData.push(['Innhold', brannalarmData.nokkelsafe_innhold])
           }
           if (brannalarmData.nokkelsafe_kommentar) {
-            doc.text('Kommentar:', 25, yPos)
-            yPos += 5
-            const nokkelLines = doc.splitTextToSize(brannalarmData.nokkelsafe_kommentar, 165)
-            doc.text(nokkelLines, 25, yPos)
-            yPos += nokkelLines.length * 5
+            nokkelsafeData.push(['Kommentar', brannalarmData.nokkelsafe_kommentar])
           }
-          yPos += 5
+
+          if (nokkelsafeData.length > 0) {
+            autoTable(doc, {
+              startY: yPos,
+              head: [['Nøkkelsafe', '']],
+              body: nokkelsafeData,
+              theme: 'grid',
+              headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+              styles: { fontSize: 9, cellPadding: 3 },
+              columnStyles: {
+                0: { cellWidth: 45, fontStyle: 'bold', fillColor: [245, 245, 245] },
+                1: { cellWidth: 140 }
+              },
+              margin: { left: 10, right: 10, bottom: 25 },
+              didDrawPage: () => {
+                const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
+                addFooter(currentPage)
+              }
+            })
+            yPos = (doc as any).lastAutoTable.finalY + 8
+          }
         }
 
-        // Alarmsender
+        // Alarmsender - med tabell
         if (brannalarmData.alarmsender_i_anlegg) {
-          if (yPos > 250) {
+          if (yPos > 200) {
             doc.addPage()
             yPos = 20
           }
 
-          doc.setFontSize(12)
-          doc.setFont('helvetica', 'bold')
-          doc.text('Alarmsender:', 20, yPos)
-          yPos += 7
-
-          doc.setFontSize(10)
-          doc.setFont('helvetica', 'normal')
-          
+          const alarmsenderData: string[][] = []
           if (brannalarmData.mottaker && brannalarmData.mottaker.length > 0) {
-            doc.text(`Mottaker: ${brannalarmData.mottaker.join(', ')}`, 25, yPos)
-            yPos += 5
+            alarmsenderData.push(['Mottaker', brannalarmData.mottaker.join(', ')])
           }
           if (brannalarmData.sender_2G_4G) {
-            doc.text(`Sender type: ${brannalarmData.sender_2G_4G}`, 25, yPos)
-            yPos += 5
+            alarmsenderData.push(['Sendertype', brannalarmData.sender_2G_4G])
           }
           if (brannalarmData.gsm_nummer) {
-            doc.text(`GSM-nummer: ${brannalarmData.gsm_nummer}`, 25, yPos)
-            yPos += 5
+            alarmsenderData.push(['GSM-nummer', brannalarmData.gsm_nummer])
           }
           if (brannalarmData.plassering) {
-            doc.text(`Plassering: ${brannalarmData.plassering}`, 25, yPos)
-            yPos += 5
+            alarmsenderData.push(['Plassering', brannalarmData.plassering])
           }
           if (brannalarmData.batterialder) {
-            doc.text(`Batterialder: ${brannalarmData.batterialder} år`, 25, yPos)
-            yPos += 5
+            alarmsenderData.push(['Batterialder', `${brannalarmData.batterialder} år`])
           }
           if (brannalarmData.batteritype) {
-            doc.text(`Batteritype: ${brannalarmData.batteritype}`, 25, yPos)
-            yPos += 5
+            alarmsenderData.push(['Batteritype', brannalarmData.batteritype])
           }
           if (brannalarmData.forsynet_fra_brannsentral) {
-            doc.text('Forsynt fra brannsentral: Ja', 25, yPos)
-            yPos += 5
+            alarmsenderData.push(['Forsynt fra brannsentral', 'Ja'])
           }
-          
-          // Eksterne mottakere
+          // Eksterne mottakere - inkludert i samme tabell
           if (brannalarmData.ekstern_mottaker_aktiv && brannalarmData.ekstern_mottaker_info) {
-            yPos += 3
-            doc.setFont('helvetica', 'bold')
-            doc.text('Eksterne mottakere:', 25, yPos)
-            yPos += 5
-            doc.setFont('helvetica', 'normal')
-            
-            const eksternLines = doc.splitTextToSize(brannalarmData.ekstern_mottaker_info, 165)
-            doc.text(eksternLines, 25, yPos)
-            yPos += eksternLines.length * 5
+            alarmsenderData.push(['Eksterne mottakere', brannalarmData.ekstern_mottaker_info])
           }
-          
+          // Kommentar til alarmsender
           if (brannalarmData.mottaker_kommentar) {
-            yPos += 3
-            doc.text('Kommentar:', 25, yPos)
-            yPos += 5
-            const alarmLines = doc.splitTextToSize(brannalarmData.mottaker_kommentar, 165)
-            doc.text(alarmLines, 25, yPos)
-            yPos += alarmLines.length * 5
+            alarmsenderData.push(['Kommentar', brannalarmData.mottaker_kommentar])
           }
-          yPos += 5
+
+          if (alarmsenderData.length > 0) {
+            autoTable(doc, {
+              startY: yPos,
+              head: [['Alarmsender', '']],
+              body: alarmsenderData,
+              theme: 'grid',
+              headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+              styles: { fontSize: 9, cellPadding: 3 },
+              columnStyles: {
+                0: { cellWidth: 45, fontStyle: 'bold', fillColor: [245, 245, 245] },
+                1: { cellWidth: 140 }
+              },
+              margin: { left: 10, right: 10, bottom: 25 },
+              didDrawPage: () => {
+                const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
+                addFooter(currentPage)
+              }
+            })
+            yPos = (doc as any).lastAutoTable.finalY + 8
+          }
         }
       }
 
       // Avvik-oppsummering - etter tilleggsutstyr
       const avvikPunkter = kontrollpunkter.filter(p => p.avvik_type)
-      console.log('Avvik-punkter for PDF:', avvikPunkter)
-      console.log('Alle kontrollpunkter:', kontrollpunkter)
-      if (avvikPunkter.length > 0) {
-        // Start på ny side hvis ikke nok plass
-        if (yPos > 200 || !brannalarmData?.talevarsling && !brannalarmData?.nokkelsafe && !brannalarmData?.alarmsender_i_anlegg) {
-          doc.addPage()
-          yPos = 20
-        } else if (yPos > 100) {
-          doc.addPage()
-          yPos = 20
-        }
+      const styringerMedAvvik = styringer.filter(s => s.har_avvik && s.avvik && s.avvik.length > 0)
+      
+      if (avvikPunkter.length > 0 || styringerMedAvvik.length > 0) {
+        // Alltid ny side for avviksoppsummering
+        doc.addPage()
+        yPos = 20
 
         doc.setFontSize(14)
         doc.setFont('helvetica', 'bold')
         doc.text('Oppsummering av avvik', 20, yPos)
         yPos += 10
 
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'normal')
+        // Bygg avvikstabell-data
+        const avvikTableData: string[][] = []
+        let avvikNr = 1
 
-        avvikPunkter.forEach((punkt, index) => {
-          // Sjekk om vi trenger ny side
-          if (yPos > 250) {
-            doc.addPage()
-            yPos = 20
-          }
+        // Kontrollpunkt-avvik
+        avvikPunkter.forEach((punkt) => {
+          const avvikInfo = punkt.avvik_type || '-'
+          const agInfo = punkt.ag_verdi ? `${punkt.ag_verdi} (${punkt.poeng_trekk} × ${punkt.antall_avvik})` : '-'
 
-          // Avvik nummer og kontrollpunkt
-          doc.setFont('helvetica', 'bold')
-          const tittelLines = doc.splitTextToSize(`${index + 1}. ${punkt.tittel}`, 170)
-          doc.text(tittelLines, 20, yPos)
-          yPos += tittelLines.length * 6
+          avvikTableData.push([
+            avvikNr.toString(),
+            'Kontrollpunkt',
+            punkt.tittel,
+            `${avvikInfo}${punkt.feilkode ? ` - ${punkt.feilkode}` : ''}${agInfo !== '-' ? `\nAG: ${agInfo}` : ''}`,
+            punkt.kommentar || '-'
+          ])
+          avvikNr++
+        })
 
-          // Avvik type
-          doc.setFont('helvetica', 'normal')
-          if (punkt.avvik_type) {
-            doc.text(`Avvik: ${punkt.avvik_type}`, 25, yPos)
-            yPos += 5
-          }
+        // Styringer-avvik
+        styringerMedAvvik.forEach((styring) => {
+          const avvikBeskrivelser = styring.avvik?.filter(a => a.trim() !== '') || []
+          
+          avvikTableData.push([
+            avvikNr.toString(),
+            'Styring',
+            styring.type,
+            avvikBeskrivelser.join('\n') || '-',
+            styring.note || '-'
+          ])
+          avvikNr++
+        })
 
-          // AG-verdi og poeng
-          if (punkt.ag_verdi) {
-            doc.text(`AG-verdi: ${punkt.ag_verdi} (${punkt.poeng_trekk} poeng × ${punkt.antall_avvik})`, 25, yPos)
-            yPos += 5
-          }
-
-          // Feilkode
-          if (punkt.feilkode) {
-            doc.text(`Feilkode: ${punkt.feilkode}`, 25, yPos)
-            yPos += 5
-          }
-
-          // Status
-          doc.setFont('helvetica', 'normal')
-          if (punkt.status) {
-            doc.text(`Status: ${punkt.status}`, 25, yPos)
-            yPos += 5
-          }
-
-          // Kommentar (hvis finnes)
-          if (punkt.kommentar) {
-            doc.setFont('helvetica', 'bold')
-            doc.text('Kommentar:', 25, yPos)
-            yPos += 5
-            doc.setFont('helvetica', 'normal')
-            const kommentarLines = doc.splitTextToSize(punkt.kommentar || '', 165)
-            doc.text(kommentarLines, 25, yPos)
-            yPos += kommentarLines.length * 5 + 8
-          } else {
-            yPos += 3
-          }
-
-          // Sjekk igjen om vi trenger ny side for neste avvik
-          if (yPos > 250 && index < avvikPunkter.length - 1) {
-            doc.addPage()
-            yPos = 20
+        // Tegn tabell
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Nr', 'Type', 'Punkt/Styring', 'Avvik', 'Kommentar']],
+          body: avvikTableData,
+          theme: 'grid',
+          headStyles: { 
+            fillColor: [220, 53, 69],
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 9
+          },
+          styles: { 
+            fontSize: 8,
+            cellPadding: 3,
+            overflow: 'linebreak',
+            valign: 'top'
+          },
+          columnStyles: {
+            0: { cellWidth: 12, halign: 'center' },
+            1: { cellWidth: 25 },
+            2: { cellWidth: 45 },
+            3: { cellWidth: 55 },
+            4: { cellWidth: 45 }
+          },
+          margin: { left: 10, right: 10, bottom: 25 },
+          didDrawPage: () => {
+            const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
+            addFooter(currentPage)
           }
         })
+
+        yPos = (doc as any).lastAutoTable.finalY + 10
       }
 
       // Kommentarer (uten avvik) - vises separat
       const kommentarPunkter = kontrollpunkter.filter(p => !p.avvik_type && p.kommentar && p.kommentar.trim() !== '')
-      console.log('📝 Kommentarpunkter funnet:', kommentarPunkter.length)
       if (kommentarPunkter.length > 0) {
         // Start på ny side hvis ikke nok plass
         if (yPos > 200) {
@@ -1169,9 +1384,8 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
 
           // Kommentar nummer og kontrollpunkt
           doc.setFont('helvetica', 'bold')
-          const tittelLines = doc.splitTextToSize(`${index + 1}. ${punkt.tittel}`, 170)
-          doc.text(tittelLines, 20, yPos)
-          yPos += tittelLines.length * 6
+          doc.text(`${index + 1}. ${punkt.tittel}`, 20, yPos)
+          yPos += 6
 
           // Status
           doc.setFont('helvetica', 'normal')
@@ -1197,11 +1411,142 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         })
       }
 
-      // Legg til footer på siste side (etter både avvik og kommentarer)
-      if (avvikPunkter.length > 0 || kommentarPunkter.length > 0) {
-        const totalPages = (doc as any).internal.getNumberOfPages()
-        addFooter(totalPages)
-      }
+      // ===== FORSKRIFTER OG EIERS PLIKTER =====
+      doc.addPage()
+      yPos = 20
+      const forskrifterPage = (doc as any).internal.getCurrentPageInfo().pageNumber
+
+      // Hovedoverskrift
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Forskrifter og eiers plikter', 20, yPos)
+      yPos += 10
+
+      // Innledning
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(80, 80, 80)
+      const innledning = 'Basert på gjeldende krav i brann- og eksplosjonsvernloven med tilhørende forskrifter.'
+      doc.text(innledning, 20, yPos)
+      doc.setTextColor(0)
+      yPos += 10
+
+      // Eiers ansvar
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Eiers ansvar', 20, yPos)
+      yPos += 6
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      const eiersAnsvar = 'Eier av byggverk har et overordnet ansvar for at bygget til enhver tid oppfyller gjeldende krav til brannsikkerhet. Dette innebærer at bygning, tekniske installasjoner og organisatoriske tiltak skal være tilpasset byggets bruk og risikobilde.'
+      const eiersAnsvarLines = doc.splitTextToSize(eiersAnsvar, 170)
+      doc.text(eiersAnsvarLines, 20, yPos)
+      yPos += eiersAnsvarLines.length * 4 + 6
+
+      // Eier skal påse at:
+      doc.setFont('helvetica', 'bold')
+      doc.text('Eier skal påse at:', 20, yPos)
+      yPos += 5
+
+      doc.setFont('helvetica', 'normal')
+      const plikter = [
+        'Brannalarmanlegg og øvrige sikkerhetsinstallasjoner er prosjektert, installert og vedlikeholdt i henhold til gjeldende regelverk og standarder',
+        'Sikkerhetsinstallasjoner fungerer som forutsatt og bidrar til å oppdage og begrense konsekvensene av brann',
+        'Brukere av byggverket har nødvendig kunnskap om rutiner og bruk av sikkerhetsutstyr'
+      ]
+
+      plikter.forEach(plikt => {
+        const pliktLines = doc.splitTextToSize('- ' + plikt, 165)
+        doc.text(pliktLines, 25, yPos)
+        yPos += pliktLines.length * 4 + 2
+      })
+      yPos += 4
+
+      // Systematisk kontroll
+      doc.setFont('helvetica', 'bold')
+      doc.text('Systematisk kontroll og vedlikehold', 20, yPos)
+      yPos += 5
+
+      doc.setFont('helvetica', 'normal')
+      const systematisk = 'I henhold til NS 3960 skal brannalarmanlegg underlegges årlig kontroll utført av kvalifisert personell. Kontrollen skal verifisere at anlegget fungerer som forutsatt, og omfatter blant annet:'
+      const systematiskLines = doc.splitTextToSize(systematisk, 170)
+      doc.text(systematiskLines, 20, yPos)
+      yPos += systematiskLines.length * 4 + 3
+
+      const faktorer = ['Funksjon av deteksjon, alarmorganer og styringer', 'Gjennomgang av hendelser, feil og tidligere avvik', 'Kontroll av dokumentasjon og tegninger']
+      faktorer.forEach(faktor => {
+        doc.text('- ' + faktor, 25, yPos)
+        yPos += 4
+      })
+      yPos += 4
+
+      // Eiers ansvar for kontroll
+      const eierAnsvarKontroll = 'Eier er ansvarlig for at kontroll og vedlikehold gjennomføres og dokumenteres i samsvar med gjeldende krav.'
+      const eierAnsvarKontrollLines = doc.splitTextToSize(eierAnsvarKontroll, 170)
+      doc.text(eierAnsvarKontrollLines, 20, yPos)
+      yPos += eierAnsvarKontrollLines.length * 4 + 10
+
+      // Kommentarer vedrørende byggtekniske forhold
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Kommentarer vedrørende byggtekniske og driftsmessige forhold', 20, yPos)
+      yPos += 6
+
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(80, 80, 80)
+      doc.text('(Ref. krav til eksisterende byggverk og endringer som påvirker brannsikkerhet)', 20, yPos)
+      doc.setTextColor(0)
+      yPos += 6
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      const vurdering = 'Det er gjennomført en vurdering av hvorvidt bygget og dets tekniske installasjoner er i samsvar med de forutsetninger som lå til grunn ved prosjektering av brannalarmanlegget.'
+      const vurderingLines = doc.splitTextToSize(vurdering, 170)
+      doc.text(vurderingLines, 20, yPos)
+      yPos += vurderingLines.length * 4 + 4
+
+      const dokumentasjon = 'Dersom det ikke foreligger tilstrekkelig dokumentasjon, er kontrollen utført basert på:'
+      const dokumentasjonLines = doc.splitTextToSize(dokumentasjon, 170)
+      doc.text(dokumentasjonLines, 20, yPos)
+      yPos += dokumentasjonLines.length * 4 + 2
+
+      const basertPa = ['Visuell befaring', 'Gjeldende standarder og normer', 'Erfaringstall og beste praksis']
+      basertPa.forEach(punkt => {
+        doc.text('- ' + punkt, 25, yPos)
+        yPos += 4
+      })
+      yPos += 4
+
+      // Følgende legges til grunn
+      doc.setFont('helvetica', 'bold')
+      doc.text('Følgende legges til grunn:', 20, yPos)
+      yPos += 5
+
+      doc.setFont('helvetica', 'normal')
+      const grunnlag = [
+        'For bygg oppført før gjeldende teknisk forskrift (TEK), kan enkelte forhold vurderes som avvik eller forbedringspunkter uten at dette nødvendigvis innebærer regelverksbrudd',
+        'Endringer i bruk, planløsning eller tekniske installasjoner kan påvirke anleggets funksjon og må vurderes særskilt'
+      ]
+
+      grunnlag.forEach(punkt => {
+        const punktLines = doc.splitTextToSize('- ' + punkt, 165)
+        doc.text(punktLines, 25, yPos)
+        yPos += punktLines.length * 4 + 2
+      })
+      yPos += 4
+
+      // Anbefaling
+      doc.setFillColor(240, 248, 255)
+      doc.rect(15, yPos - 2, 180, 14, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      const anbefaling = 'Det anbefales at identifiserte avvik og forbedringspunkter utbedres i henhold til gjeldende standarder for å sikre optimal funksjon og økt personsikkerhet.'
+      const anbefalingLines = doc.splitTextToSize(anbefaling, 170)
+      doc.text(anbefalingLines, 20, yPos + 2)
+
+      addFooter(forskrifterPage)
 
       const pdfBlob = doc.output('blob')
       const datoForFilnavn = kontrollData.dato ? new Date(kontrollData.dato) : new Date()
@@ -1427,12 +1772,12 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
+          <button onClick={onBack} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors">
+            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-white">Generer rapport</h1>
-            <p className="text-gray-400 mt-1">{anleggData?.anleggsnavn}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Generer rapport</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">{anleggData?.anleggsnavn}</p>
           </div>
         </div>
       </div>
@@ -1441,51 +1786,51 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       <div className="card">
         <div className="flex items-center gap-3 mb-4">
           <FileText className="w-6 h-6 text-primary" />
-          <h2 className="text-lg font-semibold text-white">Rapportinnhold</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Rapportinnhold</h2>
         </div>
 
         <div className="space-y-4 text-sm">
           <div>
-            <h3 className="font-semibold text-white mb-2">Anleggsinformasjon</h3>
-            <p className="text-gray-400">{anleggData?.anleggsnavn}</p>
-            {kundeData && <p className="text-gray-400">Kunde: {kundeData.navn}</p>}
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Anleggsinformasjon</h3>
+            <p className="text-gray-600 dark:text-gray-400">{anleggData?.anleggsnavn}</p>
+            {kundeData && <p className="text-gray-600 dark:text-gray-400">Kunde: {kundeData.navn}</p>}
           </div>
 
           {(brannalarmData?.leverandor || brannalarmData?.sentraltype) && (
             <div>
-              <h3 className="font-semibold text-white mb-2">Teknisk informasjon</h3>
-              {brannalarmData.leverandor && <p className="text-gray-400">Leverandør: {brannalarmData.leverandor}</p>}
-              {brannalarmData.sentraltype && <p className="text-gray-400">Sentraltype: {brannalarmData.sentraltype}</p>}
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Teknisk informasjon</h3>
+              {brannalarmData.leverandor && <p className="text-gray-600 dark:text-gray-400">Leverandør: {brannalarmData.leverandor}</p>}
+              {brannalarmData.sentraltype && <p className="text-gray-600 dark:text-gray-400">Sentraltype: {brannalarmData.sentraltype}</p>}
             </div>
           )}
 
           {enheter.length > 0 && (
             <div>
-              <h3 className="font-semibold text-white mb-2">Enheter</h3>
-              <p className="text-gray-400">{enheter.length} aktive enheter</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Enheter</h3>
+              <p className="text-gray-600 dark:text-gray-400">{enheter.length} aktive enheter</p>
             </div>
           )}
 
           {styringer.length > 0 && (
             <div>
-              <h3 className="font-semibold text-white mb-2">Styringer</h3>
-              <p className="text-gray-400">{styringer.length} aktive styringer</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Styringer</h3>
+              <p className="text-gray-600 dark:text-gray-400">{styringer.length} aktive styringer</p>
             </div>
           )}
 
           {nettverk.length > 0 && (
             <div>
-              <h3 className="font-semibold text-white mb-2">Nettverk</h3>
-              <p className="text-gray-400">{nettverk.length} nettverksenheter</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Nettverk</h3>
+              <p className="text-gray-600 dark:text-gray-400">{nettverk.length} nettverksenheter</p>
             </div>
           )}
 
           {kontrollpunkter.length > 0 && (
             <div>
-              <h3 className="font-semibold text-white mb-2">Kontrollpunkter</h3>
-              <p className="text-gray-400">{kontrollpunkter.length} kontrollpunkter</p>
-              <p className="text-gray-400">Avvik: {kontrollpunkter.filter(p => p.avvik_type).length}</p>
-              <p className="text-gray-400">Score: {Math.max(0, 100 - kontrollpunkter.reduce((sum, p) => sum + ((p.poeng_trekk || 0) * (p.antall_avvik || 1)), 0)).toFixed(1)} / 100</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Kontrollpunkter</h3>
+              <p className="text-gray-600 dark:text-gray-400">{kontrollpunkter.length} kontrollpunkter</p>
+              <p className="text-gray-600 dark:text-gray-400">Avvik: {kontrollpunkter.filter(p => p.avvik_type).length}</p>
+              <p className="text-gray-600 dark:text-gray-400">Score: {Math.max(0, 100 - kontrollpunkter.reduce((sum, p) => sum + ((p.poeng_trekk || 0) * (p.antall_avvik || 1)), 0)).toFixed(1)} / 100</p>
             </div>
           )}
         </div>
@@ -1498,13 +1843,13 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           onDatoChange={setKontrolldato}
           label="Kontrolldato for rapport"
         />
-        <p className="text-xs text-gray-500 mt-2">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
           Standard er dagens dato. Velg en annen dato hvis du trenger å tilbakedatere rapporten.
         </p>
       </div>
 
       {/* Action buttons */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950 border-t border-gray-800">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 md:left-64">
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => generatePDF(true)}

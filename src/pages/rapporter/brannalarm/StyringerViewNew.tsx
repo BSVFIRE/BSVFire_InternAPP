@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Check, AlertCircle, Eye, Filter, Wifi, WifiOff, Save } from 'lucide-react'
+import { ArrowLeft, Check, AlertCircle, Eye, Filter, Wifi, WifiOff, Save, Plus, Trash2 } from 'lucide-react'
 import { BrannalarmStyring } from '../Brannalarm'
 
 interface StyringerViewProps {
@@ -11,7 +11,7 @@ interface StyringerViewProps {
   onSave: (anleggId: string) => void
 }
 
-const statusOptions = ['Kontrollert Ok', 'Avvik', 'Visuell kontroll', 'Ikke aktuelt']
+const statusOptions = ['Kontrollert', 'Ikke aktuelt', 'Ikke tilkomst']
 
 const styringTyper = [
   { key: 'ovrige', navn: 'Øvrige styringer', icon: '📋', kategori: 'Generelt' },
@@ -48,11 +48,24 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
   useEffect(() => {
     const initial: Record<string, any> = {}
     styringTyper.forEach(({ key }) => {
+      // Parse avvik fra JSON string hvis det finnes
+      let avvikListe: string[] = []
+      const avvikStr = styringer?.[`${key}_avvik` as keyof BrannalarmStyring]
+      if (avvikStr && typeof avvikStr === 'string') {
+        try {
+          avvikListe = JSON.parse(avvikStr)
+        } catch {
+          avvikListe = avvikStr ? [avvikStr] : []
+        }
+      }
+      
       initial[key] = {
         antall: styringer?.[`${key}_antall` as keyof BrannalarmStyring] || 0,
         status: styringer?.[`${key}_status` as keyof BrannalarmStyring] || '',
         note: styringer?.[`${key}_note` as keyof BrannalarmStyring] || '',
         aktiv: styringer?.[`${key}_aktiv` as keyof BrannalarmStyring] || false,
+        har_avvik: styringer?.[`${key}_har_avvik` as keyof BrannalarmStyring] || false,
+        avvik: avvikListe,
       }
     })
     setLocalStyringer(initial)
@@ -124,17 +137,30 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
         data[`${key}_status`] = localStyringer[key]?.status || ''
         data[`${key}_note`] = localStyringer[key]?.note || ''
         data[`${key}_aktiv`] = localStyringer[key]?.aktiv || false
+        data[`${key}_har_avvik`] = localStyringer[key]?.har_avvik || false
+        data[`${key}_avvik`] = JSON.stringify(localStyringer[key]?.avvik || [])
       })
       if (isOnline) {
+        let error = null
         if (styringer?.id) {
-          await supabase.from('anleggsdata_brannalarm').update(data).eq('id', styringer.id)
+          const result = await supabase.from('anleggsdata_brannalarm').update(data).eq('id', styringer.id)
+          error = result.error
         } else {
-          await supabase.from('anleggsdata_brannalarm').insert(data)
+          const result = await supabase.from('anleggsdata_brannalarm').insert(data)
+          error = result.error
         }
+        
+        if (error) {
+          console.error('Feil ved lagring av styringer:', error)
+          alert(`Feil ved lagring: ${error.message}`)
+          setSaving(false)
+          return
+        }
+        
         setLastSaved(new Date())
         setInitialStyringer(localStyringer) // Reset ulagrede endringer
         onSave(anleggId)
-        onBack()
+        // Ikke hopp tilbake automatisk - la brukeren bli på siden
       } else {
         localStorage.setItem(localStorageKey, JSON.stringify(data))
         setPendingChanges(1)
@@ -403,21 +429,115 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
                 {/* Ekspandert detaljer */}
                 {isExpanded && (
                   <div className="px-3 pb-3 pt-2 border-t border-gray-200 dark:border-gray-800 space-y-3">
-                    <select
-                      value={localStyringer[key]?.status || ''}
-                      onChange={(e) => {
-                        setLocalStyringer(prev => ({
-                          ...prev,
-                          [key]: { ...prev[key], status: e.target.value }
-                        }))
-                      }}
-                      className="input text-sm w-full h-11"
-                    >
-                      <option value="">Velg status</option>
-                      {statusOptions.map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
+                    {/* Status-knapper og Avvik checkbox */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex flex-wrap gap-2">
+                        {statusOptions.map(opt => (
+                          <button
+                            key={opt}
+                            onClick={() => {
+                              setLocalStyringer(prev => ({
+                                ...prev,
+                                [key]: { ...prev[key], status: opt }
+                              }))
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                              localStyringer[key]?.status === opt
+                                ? 'bg-primary text-white'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id={`avvik-compact-${key}`}
+                          checked={localStyringer[key]?.har_avvik || false}
+                          onChange={(e) => {
+                            setLocalStyringer(prev => ({
+                              ...prev,
+                              [key]: { 
+                                ...prev[key], 
+                                har_avvik: e.target.checked,
+                                avvik: e.target.checked ? (prev[key]?.avvik?.length ? prev[key].avvik : ['']) : []
+                              }
+                            }))
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-orange-500 focus:ring-orange-500"
+                        />
+                        <label htmlFor={`avvik-compact-${key}`} className="text-sm text-gray-700 dark:text-gray-300">
+                          Avvik
+                        </label>
+                      </div>
+                    </div>
+                    
+                    {/* Avviksliste */}
+                    {localStyringer[key]?.har_avvik && (
+                      <div className="bg-orange-50 dark:bg-orange-900/10 rounded-lg p-3 border border-orange-200 dark:border-orange-800/30">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {(localStyringer[key]?.avvik || []).map((avvik: string, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-orange-200 dark:bg-orange-800/50 text-orange-700 dark:text-orange-300 flex items-center justify-center text-xs font-medium flex-shrink-0">
+                                {idx + 1}
+                              </span>
+                              <input
+                                type="text"
+                                value={avvik}
+                                onChange={(e) => {
+                                  setLocalStyringer(prev => {
+                                    const newAvvik = [...(prev[key]?.avvik || [])]
+                                    newAvvik[idx] = e.target.value
+                                    return {
+                                      ...prev,
+                                      [key]: { ...prev[key], avvik: newAvvik }
+                                    }
+                                  })
+                                }}
+                                className="input text-sm flex-1 py-1.5"
+                                placeholder={`Avvik ${idx + 1}`}
+                              />
+                              <button
+                                onClick={() => {
+                                  setLocalStyringer(prev => {
+                                    const newAvvik = (prev[key]?.avvik || []).filter((_: string, i: number) => i !== idx)
+                                    return {
+                                      ...prev,
+                                      [key]: { 
+                                        ...prev[key], 
+                                        avvik: newAvvik,
+                                        har_avvik: newAvvik.length > 0
+                                      }
+                                    }
+                                  })
+                                }}
+                                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setLocalStyringer(prev => ({
+                              ...prev,
+                              [key]: { 
+                                ...prev[key], 
+                                avvik: [...(prev[key]?.avvik || []), '']
+                              }
+                            }))
+                          }}
+                          className="flex items-center gap-1 text-sm text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 transition-colors mt-2"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Legg til avvik
+                        </button>
+                      </div>
+                    )}
+                    
                     <textarea
                       value={localStyringer[key]?.note || ''}
                       onChange={(e) => {
@@ -428,7 +548,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
                       }}
                       className="input text-sm w-full"
                       rows={2}
-                      placeholder="Legg til notat..."
+                      placeholder="Kommentar..."
                     />
                   </div>
                 )}
@@ -476,67 +596,131 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
                     </div>
 
                     {isActive && (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Antall</label>
-                          <input
-                            type="number"
-                            value={localStyringer[key]?.antall || 0}
-                            onChange={(e) => {
-                              setLocalStyringer(prev => ({
-                                ...prev,
-                                [key]: { ...prev[key], antall: parseInt(e.target.value) || 0 }
-                              }))
-                            }}
-                            className="input"
-                            min="0"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-                          <select
-                            value={localStyringer[key]?.status || ''}
-                            onChange={(e) => {
-                              setLocalStyringer(prev => ({
-                                ...prev,
-                                [key]: { ...prev[key], status: e.target.value }
-                              }))
-                            }}
-                            className="input"
-                          >
-                            <option value="">Velg status</option>
+                      <div className="space-y-4">
+                        {/* Status-knapper og Avvik checkbox på samme rad */}
+                        <div className="flex flex-wrap items-center gap-4">
+                          <div className="flex flex-wrap gap-2">
                             {statusOptions.map(opt => (
-                              <option key={opt} value={opt}>{opt}</option>
+                              <button
+                                key={opt}
+                                onClick={() => {
+                                  setLocalStyringer(prev => ({
+                                    ...prev,
+                                    [key]: { ...prev[key], status: opt }
+                                  }))
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                  localStyringer[key]?.status === opt
+                                    ? 'bg-primary text-white'
+                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                }`}
+                              >
+                                {opt}
+                              </button>
                             ))}
-                          </select>
+                          </div>
+                          
+                          {/* Avvik checkbox */}
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`avvik-${key}`}
+                              checked={localStyringer[key]?.har_avvik || false}
+                              onChange={(e) => {
+                                setLocalStyringer(prev => ({
+                                  ...prev,
+                                  [key]: { 
+                                    ...prev[key], 
+                                    har_avvik: e.target.checked,
+                                    avvik: e.target.checked ? (prev[key]?.avvik?.length ? prev[key].avvik : ['']) : []
+                                  }
+                                }))
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-orange-500 focus:ring-orange-500"
+                            />
+                            <label htmlFor={`avvik-${key}`} className="text-sm text-gray-700 dark:text-gray-300">
+                              Avvik
+                            </label>
+                          </div>
                         </div>
-
-                        <div className="md:col-span-1">
-                          {status && (
-                            <div className="pt-7">
-                              <span className={`inline-block px-3 py-1.5 text-sm rounded-lg ${getStatusColor(status)}`}>
-                                {status}
-                              </span>
+                        
+                        {/* Avviksliste - kompakt grid layout */}
+                        {localStyringer[key]?.har_avvik && (
+                          <div className="bg-orange-50 dark:bg-orange-900/10 rounded-lg p-3 border border-orange-200 dark:border-orange-800/30">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {(localStyringer[key]?.avvik || []).map((avvik: string, idx: number) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <span className="w-5 h-5 rounded-full bg-orange-200 dark:bg-orange-800/50 text-orange-700 dark:text-orange-300 flex items-center justify-center text-xs font-medium flex-shrink-0">
+                                    {idx + 1}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={avvik}
+                                    onChange={(e) => {
+                                      setLocalStyringer(prev => {
+                                        const newAvvik = [...(prev[key]?.avvik || [])]
+                                        newAvvik[idx] = e.target.value
+                                        return {
+                                          ...prev,
+                                          [key]: { ...prev[key], avvik: newAvvik }
+                                        }
+                                      })
+                                    }}
+                                    className="input text-sm flex-1 py-1.5"
+                                    placeholder={`Avvik ${idx + 1}`}
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      setLocalStyringer(prev => {
+                                        const newAvvik = (prev[key]?.avvik || []).filter((_: string, i: number) => i !== idx)
+                                        return {
+                                          ...prev,
+                                          [key]: { 
+                                            ...prev[key], 
+                                            avvik: newAvvik,
+                                            har_avvik: newAvvik.length > 0
+                                          }
+                                        }
+                                      })
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
                             </div>
-                          )}
-                        </div>
-
-                        <div className="md:col-span-3">
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Notat</label>
-                          <textarea
-                            value={localStyringer[key]?.note || ''}
-                            onChange={(e) => {
-                              setLocalStyringer(prev => ({
-                                ...prev,
-                                [key]: { ...prev[key], note: e.target.value }
-                              }))
-                            }}
-                            className="input"
-                            rows={2}
-                            placeholder="Legg til notat..."
-                          />
-                        </div>
+                            <button
+                              onClick={() => {
+                                setLocalStyringer(prev => ({
+                                  ...prev,
+                                  [key]: { 
+                                    ...prev[key], 
+                                    avvik: [...(prev[key]?.avvik || []), '']
+                                  }
+                                }))
+                              }}
+                              className="flex items-center gap-1 text-sm text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 transition-colors mt-2"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Legg til avvik
+                            </button>
+                          </div>
+                        )}
+                        
+                        {/* Kommentar */}
+                        <textarea
+                          value={localStyringer[key]?.note || ''}
+                          onChange={(e) => {
+                            setLocalStyringer(prev => ({
+                              ...prev,
+                              [key]: { ...prev[key], note: e.target.value }
+                            }))
+                          }}
+                          className="input w-full"
+                          rows={2}
+                          placeholder="Kommentar..."
+                        />
                       </div>
                     )}
                   </div>
@@ -552,8 +736,8 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
         <div className="max-w-4xl mx-auto pointer-events-auto">
           <button 
             onClick={handleSave} 
-            disabled={saving} 
-            className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25"
+            disabled={saving || !hasUnsavedChanges} 
+            className={`w-full py-4 px-6 ${hasUnsavedChanges ? 'bg-primary hover:bg-primary/90' : 'bg-gray-400'} disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg ${hasUnsavedChanges ? 'shadow-primary/25' : 'shadow-gray-400/25'}`}
           >
             {saving ? (
               <>

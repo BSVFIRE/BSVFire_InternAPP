@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Check, AlertCircle, Eye, Filter, Wifi, WifiOff } from 'lucide-react'
+import { ArrowLeft, Check, AlertCircle, Eye, Filter, Wifi, WifiOff, Plus, Trash2 } from 'lucide-react'
 import { BrannalarmStyring } from '../Brannalarm'
 
 interface StyringerViewProps {
@@ -11,7 +11,7 @@ interface StyringerViewProps {
   onSave: (anleggId: string) => void
 }
 
-const statusOptions = ['Kontrollert Ok', 'Avvik', 'Visuell kontroll', 'Ikke aktuelt']
+const statusOptions = ['Kontrollert', 'Ikke aktuelt', 'Ikke tilkomst']
 
 const styringTyper = [
   { key: 'ovrige', navn: 'Øvrige styringer', icon: '📋', kategori: 'Generelt' },
@@ -42,11 +42,24 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
   useEffect(() => {
     const initial: Record<string, any> = {}
     styringTyper.forEach(({ key }) => {
+      // Parse avvik fra JSON string hvis det finnes
+      let avvikListe: string[] = []
+      const avvikStr = styringer?.[`${key}_avvik` as keyof BrannalarmStyring]
+      if (avvikStr && typeof avvikStr === 'string') {
+        try {
+          avvikListe = JSON.parse(avvikStr)
+        } catch {
+          avvikListe = avvikStr ? [avvikStr] : []
+        }
+      }
+      
       initial[key] = {
         antall: styringer?.[`${key}_antall` as keyof BrannalarmStyring] || 0,
         status: styringer?.[`${key}_status` as keyof BrannalarmStyring] || '',
         note: styringer?.[`${key}_note` as keyof BrannalarmStyring] || '',
         aktiv: styringer?.[`${key}_aktiv` as keyof BrannalarmStyring] || false,
+        har_avvik: styringer?.[`${key}_har_avvik` as keyof BrannalarmStyring] || false,
+        avvik: avvikListe,
       }
     })
     setLocalStyringer(initial)
@@ -62,17 +75,31 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
         data[`${key}_status`] = localStyringer[key]?.status || ''
         data[`${key}_note`] = localStyringer[key]?.note || ''
         data[`${key}_aktiv`] = localStyringer[key]?.aktiv || false
+        data[`${key}_har_avvik`] = localStyringer[key]?.har_avvik || false
+        data[`${key}_avvik`] = JSON.stringify(localStyringer[key]?.avvik || [])
       })
 
       if (styringer?.id) {
-        await supabase
+        const { error } = await supabase
           .from('anleggsdata_brannalarm')
           .update(data)
           .eq('id', styringer.id)
+        
+        if (error) {
+          console.error('Feil ved oppdatering av styringer:', error)
+          alert(`Feil ved lagring: ${error.message}`)
+          return
+        }
       } else {
-        await supabase
+        const { error } = await supabase
           .from('anleggsdata_brannalarm')
           .insert(data)
+        
+        if (error) {
+          console.error('Feil ved innsetting av styringer:', error)
+          alert(`Feil ved lagring: ${error.message}`)
+          return
+        }
       }
 
       setLastSaved(new Date())
@@ -91,9 +118,8 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
     return kategori === filterKategori
   })
   const aktiveStyringer = styringTyper.filter(({ key }) => localStyringer[key]?.aktiv).length
-  const totalKomponenter = styringTyper.reduce((sum, { key }) => 
-    sum + (localStyringer[key]?.antall || 0), 0
-  )
+  const medAvvik = styringTyper.filter(({ key }) => localStyringer[key]?.aktiv && localStyringer[key]?.har_avvik).length
+  const totalStyringer = styringTyper.length
 
   return (
     <div className="space-y-6">
@@ -150,26 +176,26 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <div className="card bg-blue-500/10 border-blue-500/20">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <Check className="w-6 h-6 text-blue-400" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs text-gray-400 truncate">Totalt komponenter</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{totalKomponenter}</div>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="card bg-green-500/10 border-green-500/20">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
-              <AlertCircle className="w-6 h-6 text-green-400" />
+              <Check className="w-6 h-6 text-green-400" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs text-gray-400 truncate">Aktive enhetstyper</div>
+              <div className="text-xs text-gray-400 truncate">Aktive styringer</div>
               <div className="text-2xl font-bold text-gray-900 dark:text-white">{aktiveStyringer}</div>
+            </div>
+          </div>
+        </div>
+        <div className="card bg-red-500/10 border-red-500/20">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-6 h-6 text-red-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-gray-400 truncate">Med avvik</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{medAvvik}</div>
             </div>
           </div>
         </div>
@@ -179,8 +205,8 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
               <Eye className="w-6 h-6 text-gray-400" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs text-gray-400 truncate">Enhetstyper</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{styringTyper.length}</div>
+              <div className="text-xs text-gray-400 truncate">Totalt</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{totalStyringer}</div>
             </div>
           </div>
         </div>
@@ -246,24 +272,117 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
                 />
               </div>
               
-              {/* Andre rad: Status og Notat (kun hvis aktiv) */}
+              {/* Andre rad: Status-knapper, Avvik og Notat (kun hvis aktiv) */}
               {isActive && (
-                <div className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-800">
-                  <select
-                    value={localStyringer[key]?.status || ''}
-                    onChange={(e) => {
-                      setLocalStyringer(prev => ({
-                        ...prev,
-                        [key]: { ...prev[key], status: e.target.value }
-                      }))
-                    }}
-                    className="input text-sm w-full"
-                  >
-                    <option value="">-- Velg status --</option>
+                <div className="space-y-3 pt-3 border-t border-gray-200 dark:border-gray-800">
+                  {/* Status-knapper */}
+                  <div className="flex flex-wrap gap-2">
                     {statusOptions.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
+                      <button
+                        key={opt}
+                        onClick={() => {
+                          setLocalStyringer(prev => ({
+                            ...prev,
+                            [key]: { ...prev[key], status: opt }
+                          }))
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                          localStyringer[key]?.status === opt
+                            ? 'bg-primary text-white'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {opt}
+                      </button>
                     ))}
-                  </select>
+                  </div>
+                  
+                  {/* Avvik checkbox */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id={`avvik-${key}`}
+                      checked={localStyringer[key]?.har_avvik || false}
+                      onChange={(e) => {
+                        setLocalStyringer(prev => ({
+                          ...prev,
+                          [key]: { 
+                            ...prev[key], 
+                            har_avvik: e.target.checked,
+                            avvik: e.target.checked ? (prev[key]?.avvik?.length ? prev[key].avvik : ['']) : []
+                          }
+                        }))
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-orange-500 focus:ring-orange-500"
+                    />
+                    <label htmlFor={`avvik-${key}`} className="text-sm text-gray-700 dark:text-gray-300">
+                      Avvik
+                    </label>
+                  </div>
+                  
+                  {/* Avviksliste */}
+                  {localStyringer[key]?.har_avvik && (
+                    <div className="space-y-2 pl-6">
+                      {(localStyringer[key]?.avvik || []).map((avvik: string, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center text-xs font-medium flex-shrink-0">
+                            {idx + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={avvik}
+                            onChange={(e) => {
+                              setLocalStyringer(prev => {
+                                const newAvvik = [...(prev[key]?.avvik || [])]
+                                newAvvik[idx] = e.target.value
+                                return {
+                                  ...prev,
+                                  [key]: { ...prev[key], avvik: newAvvik }
+                                }
+                              })
+                            }}
+                            className="input text-sm flex-1"
+                            placeholder={`Avvik ${idx + 1}`}
+                          />
+                          <button
+                            onClick={() => {
+                              setLocalStyringer(prev => {
+                                const newAvvik = (prev[key]?.avvik || []).filter((_: string, i: number) => i !== idx)
+                                return {
+                                  ...prev,
+                                  [key]: { 
+                                    ...prev[key], 
+                                    avvik: newAvvik,
+                                    har_avvik: newAvvik.length > 0
+                                  }
+                                }
+                              })
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          setLocalStyringer(prev => ({
+                            ...prev,
+                            [key]: { 
+                              ...prev[key], 
+                              avvik: [...(prev[key]?.avvik || []), '']
+                            }
+                          }))
+                        }}
+                        className="flex items-center gap-1 text-sm text-orange-500 hover:text-orange-600 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Legg til avvik
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Kommentar */}
                   <textarea
                     value={localStyringer[key]?.note || ''}
                     onChange={(e) => {
@@ -274,7 +393,7 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
                     }}
                     className="input text-sm w-full"
                     rows={2}
-                    placeholder="Legg til notat..."
+                    placeholder="Kommentar..."
                   />
                 </div>
               )}

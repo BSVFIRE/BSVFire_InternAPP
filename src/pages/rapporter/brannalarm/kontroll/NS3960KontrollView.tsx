@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Save, Search, CheckCircle, AlertTriangle, WifiOff, Wifi } from 'lucide-react'
+import { ArrowLeft, Save, Search, CheckCircle, AlertTriangle, WifiOff, Wifi, Plus, Trash2 } from 'lucide-react'
 import { useOfflineStatus, useOfflineQueue } from '@/hooks/useOffline'
 import { cacheData, getCachedData } from '@/lib/offline'
+
+interface Avvik {
+  id: string
+  beskrivelse: string
+}
 
 interface KontrollpunktData {
   kontrollpunkt_navn: string
   status: 'Kontrollert' | 'Ikke aktuell' | 'Ikke tilkomst' | null
   avvik: boolean
+  avvikListe: Avvik[]
   kommentar: string
 }
 
@@ -34,6 +40,10 @@ const KONTROLLPUNKTER_BY_CATEGORY = {
     'Test av alarmorganer',
     'Test av alarmoverføring',
     'Test av signalutganger',
+    'Trådløse anlegg - internkommunikasjon',
+    'Enhet for utkobling',
+    'Tidsforsinkelse',
+    'Todetektor-avhengighet',
   ],
   'Visuelle kontroller': [
     'Visuell kontroll av O-planer',
@@ -47,6 +57,8 @@ const KONTROLLPUNKTER_BY_CATEGORY = {
     'Gjennomgang egenkontroll med sluttbruker',
     'Servicemerking/kontroll oblat',
     'Opplæring sluttkunde',
+    'Tegninger som bygget',
+    'Projekteringsgrunnlag, Overvåket område, Spesielle områder, Begrenset alarmanlegg, Dokumentasjon på fravik fra prosjekteringsstandard',
   ],
 }
 
@@ -83,7 +95,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
     Object.fromEntries(
       allKontrollpunkter.map(navn => [
         navn,
-        { kontrollpunkt_navn: navn, status: null, avvik: false, kommentar: '' }
+        { kontrollpunkt_navn: navn, status: null, avvik: false, avvikListe: [], kommentar: '' }
       ])
     )
   )
@@ -270,7 +282,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
         // Hent kontrolldata
         const { data: kontrollData, error: kontrollError } = await supabase
           .from('anleggsdata_kontroll')
-          .select('merknader, har_feil, feil_kommentar')
+          .select('merknader, har_feil, feil_kommentar, har_utkoblinger, utkobling_kommentar')
           .eq('id', idToUse)
           .single()
         
@@ -280,6 +292,8 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           setMerknader(kontrollData.merknader || '')
           setHarFeil(kontrollData.har_feil || false)
           setFeilKommentar(kontrollData.feil_kommentar || '')
+          setHarUtkoblinger(kontrollData.har_utkoblinger || false)
+          setUtkoblingKommentar(kontrollData.utkobling_kommentar || '')
         }
         
         // Hent kontrollpunkter
@@ -299,6 +313,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                 kontrollpunkt_navn: punkt.kontrollpunkt_navn,
                 status: punkt.status,
                 avvik: punkt.avvik || false,
+                avvikListe: punkt.avvik_liste ? JSON.parse(punkt.avvik_liste) : [],
                 kommentar: punkt.kommentar || '',
               }
             }
@@ -320,6 +335,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
               kontrollpunkt_navn: p.kontrollpunkt_navn,
               status: p.status,
               avvik: p.avvik || false,
+              avvikListe: p.avvik_liste ? JSON.parse(p.avvik_liste) : [],
               kommentar: p.kommentar || '',
             }])
           ) : data
@@ -353,6 +369,8 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
       merknader,
       harFeil,
       feilKommentar,
+      harUtkoblinger,
+      utkoblingKommentar,
       data
     })
     
@@ -366,6 +384,8 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
         merknader,
         har_feil: harFeil,
         feil_kommentar: feilKommentar,
+        har_utkoblinger: harUtkoblinger,
+        utkobling_kommentar: utkoblingKommentar,
         updated_at: new Date().toISOString(),
       })
       
@@ -403,6 +423,8 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           merknader,
           har_feil: harFeil,
           feil_kommentar: feilKommentar,
+          har_utkoblinger: harUtkoblinger,
+          utkobling_kommentar: utkoblingKommentar,
           updated_at: new Date().toISOString(),
         })
         .eq('id', currentKontrollId)
@@ -435,8 +457,11 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
         kontrollpunkt_navn: punkt.kontrollpunkt_navn,
         status: punkt.status,
         avvik: punkt.avvik,
+        avvik_liste: JSON.stringify(punkt.avvikListe || []),
         kommentar: punkt.kommentar,
       }))
+      
+      console.log('Lagrer kontrollpunkter:', punkterToSave.length)
 
       const { error } = await supabase
         .from('ns3960_kontrollpunkter')
@@ -447,6 +472,12 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
 
       if (error) {
         console.error('Supabase error:', error)
+        console.error('Feilmelding:', error.message)
+        console.error('Feilkode:', error.code)
+        console.error('Detaljer:', error.details)
+        if (error.message?.includes('avvik_liste')) {
+          throw new Error('Database-feil: avvik_liste kolonnen mangler. Kjør SQL: ALTER TABLE ns3960_kontrollpunkter ADD COLUMN IF NOT EXISTS avvik_liste TEXT;')
+        }
         if (error.message?.includes('kontroll_id')) {
           throw new Error('Database-feil: kontroll_id kolonnen mangler. Kjør SQL-migrasjonen først.')
         }
@@ -556,6 +587,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
         kontrollpunkt_navn: punkt.kontrollpunkt_navn,
         status: punkt.status,
         avvik: punkt.avvik,
+        avvik_liste: JSON.stringify(punkt.avvikListe || []),
         kommentar: punkt.kommentar,
       }))
 
@@ -611,9 +643,10 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
     : KONTROLLPUNKTER_BY_CATEGORY
 
   const totalPunkter = allKontrollpunkter.length
-  const kontrollertePunkter = Object.values(data).filter(p => p.status === 'Kontrollert').length
+  // Teller alle punkter som har en status (Kontrollert, Ikke aktuell, eller Ikke tilkomst)
+  const ferdigVurdertePunkter = Object.values(data).filter(p => p.status !== null).length
   const avvikPunkter = Object.values(data).filter(p => p.avvik).length
-  const progress = Math.round((kontrollertePunkter / totalPunkter) * 100)
+  const progress = Math.round((ferdigVurdertePunkter / totalPunkter) * 100)
 
   if (loading) {
     return (
@@ -626,7 +659,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
   return (
     <div className="min-h-screen pb-20">
       {/* Fixed Header */}
-      <div className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800">
+      <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">
         <div className="p-3 sm:p-4">
           <div className="flex flex-col gap-3 mb-3 sm:mb-4">
             <div className="flex items-center gap-2 sm:gap-3">
@@ -634,8 +667,8 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                 <ArrowLeft className="w-5 h-5 text-gray-400" />
               </button>
               <div className="min-w-0 flex-1">
-                <h1 className="text-lg sm:text-xl font-bold text-white truncate">NS3960 Kontroll</h1>
-                <p className="text-xs sm:text-sm text-gray-400 truncate">{anleggsNavn}</p>
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">NS3960 Kontroll</h1>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{anleggsNavn}</p>
               </div>
               <button
                 onClick={() => setShowSearch(!showSearch)}
@@ -700,12 +733,12 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           )}
 
           {/* Progress */}
-          <div className="bg-gray-900 rounded-lg p-3">
+          <div className="bg-gray-100 dark:bg-gray-900 rounded-lg p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs sm:text-sm text-gray-400">Fremdrift</span>
-              <span className="text-sm sm:text-base font-semibold text-white">{progress}%</span>
+              <span className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">{progress}%</span>
             </div>
-            <div className="w-full bg-gray-800 rounded-full h-2 mb-3">
+            <div className="w-full bg-gray-300 dark:bg-gray-800 rounded-full h-2 mb-3">
               <div 
                 className="bg-green-500 h-2 rounded-full transition-all"
                 style={{ width: `${progress}%` }}
@@ -713,8 +746,8 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
             </div>
             <div className="grid grid-cols-3 gap-2 sm:gap-3 text-xs">
               <div className="text-center">
-                <div className="text-gray-400 truncate">Kontrollert</div>
-                <div className="text-green-400 font-semibold">{kontrollertePunkter}/{totalPunkter}</div>
+                <div className="text-gray-400 truncate">Vurdert</div>
+                <div className="text-green-400 font-semibold">{ferdigVurdertePunkter}/{totalPunkter}</div>
               </div>
               <div className="text-center">
                 <div className="text-gray-400 truncate">Avvik</div>
@@ -722,7 +755,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
               </div>
               <div className="text-center">
                 <div className="text-gray-400 truncate">Gjenstår</div>
-                <div className="text-blue-400 font-semibold">{totalPunkter - kontrollertePunkter}</div>
+                <div className="text-blue-400 font-semibold">{totalPunkter - ferdigVurdertePunkter}</div>
               </div>
             </div>
           </div>
@@ -734,9 +767,9 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
         {Object.entries(filteredCategories).map(([category, punkter]) => {
           const isCollapsed = collapsedCategories.has(category)
           const categoryPunkter = showOnlyUnchecked 
-            ? punkter.filter(p => data[p].status !== 'Kontrollert')
+            ? punkter.filter(p => data[p].status === null)
             : punkter
-          const completedCount = punkter.filter(p => data[p].status === 'Kontrollert').length
+          const completedCount = punkter.filter(p => data[p].status !== null).length
           
           if (showOnlyUnchecked && categoryPunkter.length === 0) return null
           
@@ -754,14 +787,14 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-white group-hover:text-primary transition-colors">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-primary transition-colors">
                     {category}
                   </h3>
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-xs text-gray-400">
-                      {completedCount}/{punkter.length} kontrollert
+                      {completedCount}/{punkter.length} vurdert
                     </span>
-                    <div className="flex-1 max-w-xs bg-gray-800 rounded-full h-1.5">
+                    <div className="flex-1 max-w-xs bg-gray-300 dark:bg-gray-800 rounded-full h-1.5">
                       <div 
                         className="bg-green-500 h-1.5 rounded-full transition-all"
                         style={{ width: `${(completedCount / punkter.length) * 100}%` }}
@@ -802,7 +835,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                         ? 'border-orange-500/30 bg-orange-500/5'
                         : punktData.status === 'Kontrollert'
                         ? 'border-green-500/30 bg-green-500/5'
-                        : 'border-gray-800 bg-gray-900/50'
+                        : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50'
                     }`}
                   >
                     <div className="flex items-start gap-3 mb-3">
@@ -813,7 +846,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                         <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
                       )}
                       <div className="flex-1">
-                        <p className="text-white font-medium mb-3">{punkt}</p>
+                        <p className="text-gray-900 dark:text-white font-medium mb-3">{punkt}</p>
 
                         {/* Status buttons */}
                         <div className="flex flex-wrap gap-2 mb-3">
@@ -824,7 +857,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                               className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                 punktData.status === status
                                   ? 'bg-green-500 text-white'
-                                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                  : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
                               }`}
                             >
                               {status}
@@ -837,11 +870,65 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                           <input
                             type="checkbox"
                             checked={punktData.avvik}
-                            onChange={(e) => updatePunkt(punkt, { avvik: e.target.checked })}
+                            onChange={(e) => {
+                              const newAvvikListe = e.target.checked && punktData.avvikListe.length === 0
+                                ? [{ id: crypto.randomUUID(), beskrivelse: '' }]
+                                : punktData.avvikListe
+                              updatePunkt(punkt, { 
+                                avvik: e.target.checked,
+                                avvikListe: e.target.checked ? newAvvikListe : []
+                              })
+                            }}
                             className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-orange-500"
                           />
-                          <span className="text-sm text-gray-300">Avvik</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">Avvik</span>
                         </label>
+
+                        {/* Avviksliste */}
+                        {punktData.avvik && (
+                          <div className="mb-3 space-y-2">
+                            {punktData.avvikListe.map((avvik, idx) => (
+                              <div key={avvik.id} className="flex items-start gap-2">
+                                <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-orange-500/20 text-orange-400 rounded-lg text-sm font-semibold">
+                                  {idx + 1}
+                                </span>
+                                <input
+                                  type="text"
+                                  value={avvik.beskrivelse}
+                                  onChange={(e) => {
+                                    const newListe = [...punktData.avvikListe]
+                                    newListe[idx] = { ...newListe[idx], beskrivelse: e.target.value }
+                                    updatePunkt(punkt, { avvikListe: newListe })
+                                  }}
+                                  placeholder="Beskriv avviket..."
+                                  className="input text-sm flex-1"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const newListe = punktData.avvikListe.filter((_, i) => i !== idx)
+                                    updatePunkt(punkt, { 
+                                      avvikListe: newListe,
+                                      avvik: newListe.length > 0
+                                    })
+                                  }}
+                                  className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                const newListe = [...punktData.avvikListe, { id: crypto.randomUUID(), beskrivelse: '' }]
+                                updatePunkt(punkt, { avvikListe: newListe })
+                              }}
+                              className="flex items-center gap-2 text-sm text-orange-400 hover:text-orange-300 transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Legg til avvik
+                            </button>
+                          </div>
+                        )}
 
                         {/* Kommentar */}
                         <textarea
@@ -865,12 +952,12 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
 
       {/* Ekstra informasjon */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-white mb-4">Tilleggsinformasjon</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tilleggsinformasjon</h3>
         
         {/* Anleggsinfo */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Leverandør
             </label>
             <input
@@ -885,7 +972,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Sentraltype
             </label>
             <input
@@ -903,7 +990,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
         
         {/* Merknader */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Merknader
           </label>
           <textarea
@@ -930,7 +1017,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
               }}
               className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-red-500 focus:ring-red-500"
             />
-            <span className="text-sm font-medium text-gray-300">Har feil</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Har feil</span>
           </label>
           {harFeil && (
             <textarea
@@ -958,7 +1045,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
               }}
               className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-yellow-500 focus:ring-yellow-500"
             />
-            <span className="text-sm font-medium text-gray-300">Har utkoblinger</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Har utkoblinger</span>
           </label>
           {harUtkoblinger && (
             <textarea
@@ -976,7 +1063,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
       </div>
 
       {/* Fixed Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950 border-t border-gray-800">
+      <div className="fixed bottom-0 left-0 md:left-64 right-0 p-4 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 z-40">
         <div className="flex gap-3">
           <button
             onClick={handleSave}

@@ -249,11 +249,46 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
   }
 
   if (viewMode === 'nettverk' && selectedAnlegg) {
+    // Hent sentralenheter fra styringer-data for å vise i NettverkView
+    // Parse type/modell JSON arrays
+    const parseTyper = (typeStr: string | undefined): { type: string; antall: number }[] => {
+      if (!typeStr) return []
+      try {
+        if (typeStr.startsWith('[')) {
+          return JSON.parse(typeStr)
+        }
+        return typeStr ? [{ type: typeStr, antall: 1 }] : []
+      } catch {
+        return typeStr ? [{ type: typeStr, antall: 1 }] : []
+      }
+    }
+    
+    // Hvis det finnes enheter men ingen type, legg til generisk type
+    const getTyperWithFallback = (typeStr: string | undefined, antall: number, fallbackName: string): { type: string; antall: number }[] => {
+      const typer = parseTyper(typeStr)
+      if (typer.length === 0 && antall > 0) {
+        return [{ type: `${fallbackName} (ukjent type)`, antall }]
+      }
+      return typer
+    }
+    
+    const enheterData = styringer ? {
+      brannsentral: (styringer as any).brannsentral_antall || 0,
+      brannsentral_typer: getTyperWithFallback((styringer as any).brannsentral_type, (styringer as any).brannsentral_antall || 0, 'Brannsentral'),
+      panel: (styringer as any).panel_antall || 0,
+      panel_typer: getTyperWithFallback((styringer as any).panel_type, (styringer as any).panel_antall || 0, 'Brannpanel'),
+      asp: (styringer as any).asp_antall || 0,
+      asp_typer: getTyperWithFallback((styringer as any).asp_type, (styringer as any).asp_antall || 0, 'Aspirasjon'),
+      kraftforsyning: (styringer as any).kraftforsyning_antall || 0,
+      kraftforsyning_typer: getTyperWithFallback((styringer as any).kraftforsyning_type, (styringer as any).kraftforsyning_antall || 0, 'Kraftforsyning'),
+    } : undefined
+    
     return (
       <NettverkView
         anleggId={selectedAnlegg}
         anleggsNavn={selectedAnleggData?.anleggsnavn || ''}
         nettverkListe={nettverkListe}
+        enheterData={enheterData}
         onBack={() => setViewMode('list')}
         onRefresh={() => loadNettverk(selectedAnlegg)}
       />
@@ -381,21 +416,6 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
 
       {selectedAnlegg && (
         <>
-          <button 
-            onClick={() => setViewMode('ny-kontroll')} 
-            className="card text-left hover:border-primary hover:shadow-lg hover:shadow-primary/20 transition-all bg-gradient-to-br from-primary/10 to-transparent border-primary/30"
-          >
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                <ClipboardCheck className="w-6 h-6 text-primary" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-primary mb-2">Start ny kontroll</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Velg mellom FG790 eller NS3960 kontroll</p>
-              </div>
-            </div>
-          </button>
-
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <button onClick={() => setViewMode('enheter')} className="card text-left hover:border-primary hover:shadow-lg hover:shadow-primary/20 transition-all">
               <div className="flex items-start gap-4">
@@ -463,6 +483,22 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
             </div>
           </button>
           </div>
+
+          {/* Start ny kontroll - plassert under Enheter, Styringer, Nettverk og Tilleggsutstyr */}
+          <button 
+            onClick={() => setViewMode('ny-kontroll')} 
+            className="card text-left hover:border-primary hover:shadow-lg hover:shadow-primary/20 transition-all bg-gradient-to-br from-primary/10 to-transparent border-primary/30"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <ClipboardCheck className="w-6 h-6 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-primary mb-2">Start ny kontroll</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Velg mellom FG790 eller NS3960 kontroll</p>
+              </div>
+            </div>
+          </button>
         </>
       )}
 

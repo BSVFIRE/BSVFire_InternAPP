@@ -303,8 +303,8 @@ export function KontrollOversiktView({
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-white">Kontroller</h1>
-            <p className="text-gray-400 mt-1">{anleggsNavn}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Kontroller</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">{anleggsNavn}</p>
           </div>
         </div>
 
@@ -333,10 +333,10 @@ export function KontrollOversiktView({
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Kontroller</h1>
-            <p className="text-sm sm:text-base text-gray-400 mt-1 truncate">{anleggsNavn}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Kontroller</h1>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 truncate">{anleggsNavn}</p>
             {(leverandor || sentraltype) && (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2 text-xs sm:text-sm text-gray-400">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                 {leverandor && <span className="truncate">Leverandør: {leverandor}</span>}
                 {sentraltype && <span className="truncate">Sentraltype: {sentraltype}</span>}
               </div>
@@ -364,8 +364,8 @@ export function KontrollOversiktView({
                         <Clock className="w-6 h-6 text-yellow-400" />
                       </div>
                       <div className="min-w-0">
-                        <h3 className="text-base sm:text-lg font-semibold text-white">Pågående utkast</h3>
-                        <p className="text-xs sm:text-sm text-gray-400 truncate">
+                        <h3 className="text-base sm:text-lg font-semibold text-yellow-800 dark:text-yellow-200">Pågående utkast</h3>
+                        <p className="text-xs sm:text-sm text-yellow-700 dark:text-yellow-300/80 truncate">
                           {u.rapport_type} • Opprettet {new Date(u.dato).toLocaleDateString('nb-NO')}
                         </p>
                       </div>
@@ -387,7 +387,7 @@ export function KontrollOversiktView({
                       </button>
                     </div>
                   </div>
-                  <p className="text-xs sm:text-sm text-gray-400">
+                  <p className="text-xs sm:text-sm text-yellow-700 dark:text-gray-400">
                     Du har et utkast som ikke er fullført. Fortsett arbeidet eller start en ny kontroll.
                   </p>
                 </div>

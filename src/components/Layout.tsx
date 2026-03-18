@@ -1,8 +1,10 @@
-import { ReactNode, useState, useEffect } from 'react'
+import { useState, useEffect, ReactNode } from 'react'
+import { supabase } from '@/lib/supabase'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   Home, 
   Users, 
+  UserPlus,
   Building2, 
   ClipboardList, 
   CheckSquare, 
@@ -34,28 +36,27 @@ import { useModulTilgang } from '@/hooks/useModulTilgang'
 import { OfflineInfoDialog } from './OfflineInfoDialog'
 import { WhatsNewDialog } from './WhatsNewDialog'
 import { UpdateChecker } from './UpdateChecker'
-import { supabase } from '@/lib/supabase'
-import { checkDropboxStatus } from '@/services/dropboxServiceV2'
 
 interface LayoutProps {
   children: ReactNode
 }
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: Home },
-  { name: 'Kunder', href: '/kunder', icon: Users },
-  { name: 'Anlegg', href: '/anlegg', icon: Building2 },
-  { name: 'Kontrollplan', href: '/kontrollplan', icon: Calendar },
-  { name: 'Kontaktpersoner', href: '/kontaktpersoner', icon: Users },
-  { name: 'Ordre', href: '/ordre', icon: ClipboardList },
-  { name: 'Oppgaver', href: '/oppgaver', icon: CheckSquare },
-  { name: 'Meldinger', href: '/meldinger', icon: Inbox },
-  { name: 'Prosjekter', href: '/prosjekter', icon: FolderKanban },
-  { name: 'Møter', href: '/moter', icon: Calendar },
-  { name: 'KS/HMS', href: '/ks-hms', icon: ShieldCheck },
-  { name: 'Rapporter', href: '/rapporter', icon: FileText },
-  { name: 'Teknisk', href: '/teknisk', icon: Settings },
-  { name: 'Dokumentasjon', href: '/dokumentasjon', icon: BookOpen },
+  { name: 'Dashboard', href: '/', icon: Home, modulKey: 'dashboard', alwaysShow: true },
+  { name: 'Kunder', href: '/kunder', icon: Users, modulKey: 'kunder' },
+  { name: 'Anlegg', href: '/anlegg', icon: Building2, modulKey: 'anlegg' },
+  { name: 'Kontrollplan', href: '/kontrollplan', icon: Calendar, modulKey: 'kontrollplan' },
+  { name: 'Kontaktpersoner', href: '/kontaktpersoner', icon: Users, modulKey: 'kontaktpersoner' },
+  { name: 'Ordre', href: '/ordre', icon: ClipboardList, modulKey: 'ordre_oppgaver' },
+  { name: 'Oppgaver', href: '/oppgaver', icon: CheckSquare, modulKey: 'ordre_oppgaver' },
+  { name: 'Meldinger', href: '/meldinger', icon: Inbox, modulKey: 'meldinger' },
+  { name: 'Prosjekter', href: '/prosjekter', icon: FolderKanban, modulKey: 'prosjekter' },
+  { name: 'Møter', href: '/moter', icon: Calendar, modulKey: 'ordre_oppgaver' },
+  { name: 'KS/HMS', href: '/ks-hms', icon: ShieldCheck, modulKey: 'ks_hms' },
+  { name: 'Rapporter', href: '/rapporter', icon: FileText, modulKey: 'rapporter' },
+  { name: 'Teknisk', href: '/teknisk', icon: Settings, modulKey: 'teknisk' },
+  { name: 'Dokumentasjon', href: '/dokumentasjon', icon: BookOpen, modulKey: 'dokumentasjon', alwaysShow: true },
+  { name: 'Brukere', href: '/admin/bedrift', icon: UserPlus, modulKey: 'admin_brukere', adminOnly: true },
 ]
 
 const adminNavigation = [
@@ -73,140 +74,104 @@ const adminNavigation = [
 // Super admin users (har alltid full tilgang)
 const SUPER_ADMIN_EMAILS = ['erik.skille@bsvfire.no']
 
+// BSV company_id - kun dette firmaet skal se admin-tjenestene
+// TODO: Aktiver når company_id er implementert i databasen
+// const BSV_COMPANY_ID = 'dd400027-8d88-4108-ae87-a1cf2de10dc3'
+
 export function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const { theme, toggleTheme } = useThemeStore()
   const { user, signOut } = useAuthStore()
   const [showOfflineInfo, setShowOfflineInfo] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [ulestemeldinger, setUlestemeldinger] = useState(0)
-  const [aktiveOrdre, setAktiveOrdre] = useState(0)
-  const [aktiveOppgaver, setAktiveOppgaver] = useState(0)
-  const [dropboxConnected, setDropboxConnected] = useState<boolean | null>(null)
+  const [isBsvAdmin, setIsBsvAdmin] = useState(false)
+  
+  // Deaktiverte tellere (brukes i UI men hentes ikke fra DB ennå)
+  const ulestemeldinger = 0
+  const aktiveOrdre = 0
+  const aktiveOppgaver = 0
   
   // Bruk modul-tilgang hook
-  const { harTilgang, harAdminTilgang } = useModulTilgang()
+  const { harTilgang } = useModulTilgang()
+  
+  // Sjekk om bruker er BSV admin
+  // TODO: Aktiver company_id sjekk når kolonnen er opprettet i databasen
+  useEffect(() => {
+    async function checkBsvAdmin() {
+      if (!user?.email) {
+        setIsBsvAdmin(false)
+        return
+      }
+      
+      try {
+        // Midlertidig: Sjekk kun rolle, ikke company_id (kolonnen eksisterer ikke ennå)
+        const { data, error } = await supabase
+          .from('ansatte')
+          .select('rolle')
+          .eq('epost', user.email.toLowerCase())
+          .single()
+        
+        if (error) {
+          // Ignorer feil stille - bruker er kanskje ikke i ansatte-tabellen
+          setIsBsvAdmin(false)
+          return
+        }
+        
+        // Midlertidig: Alle admins får BSV admin tilgang inntil company_id er implementert
+        const isAdmin = data?.rolle === 'admin' || data?.rolle === 'administrator'
+        setIsBsvAdmin(isAdmin)
+      } catch (err) {
+        console.error('[Layout] Exception ved BSV admin sjekk:', err)
+        setIsBsvAdmin(false)
+      }
+    }
+    checkBsvAdmin()
+  }, [user])
   
   // Sjekk om bruker har tilgang til admin-seksjonen
   const isSuperAdminUser = user?.email && SUPER_ADMIN_EMAILS.includes(user.email)
-  const showAdminSection = isSuperAdminUser || harAdminTilgang()
+  const showAdminSection = isSuperAdminUser || isBsvAdmin
 
-  // Sjekk Dropbox-status
-  useEffect(() => {
-    checkDropboxStatus()
-      .then(status => setDropboxConnected(status.connected))
-      .catch(() => setDropboxConnected(false))
-  }, [])
+  // Meldingssystem deaktivert midlertidig - tabeller mangler
+  // useEffect(() => {
+  //   async function loadUlestemeldinger() {
+  //     if (!user?.email) return
+  //     try {
+  //       const { data: ansatt } = await supabase
+  //         .from('ansatte')
+  //         .select('id')
+  //         .eq('epost', user.email)
+  //         .single()
+  //       if (ansatt) {
+  //         const { count, error } = await supabase
+  //           .from('intern_kommentar')
+  //           .select('*', { count: 'exact', head: true })
+  //           .eq('mottaker_id', ansatt.id)
+  //           .eq('lest', false)
+  //         if (error) {
+  //           if (error.code === '42703') return
+  //           throw error
+  //         }
+  //         setUlestemeldinger(count || 0)
+  //       }
+  //     } catch (error) {
+  //       console.error('Feil ved henting av uleste meldinger:', error)
+  //     }
+  //   }
+  //   loadUlestemeldinger()
+  //   const interval = setInterval(loadUlestemeldinger, 30000)
+  //   return () => clearInterval(interval)
+  // }, [user])
 
-  // Hent antall uleste meldinger
-  useEffect(() => {
-    async function loadUlestemeldinger() {
-      if (!user?.email) return
-      
-      try {
-        // Finn ansatt basert på email
-        const { data: ansatt } = await supabase
-          .from('ansatte')
-          .select('id')
-          .eq('epost', user.email)
-          .single()
-        
-        if (ansatt) {
-          // Hent antall uleste meldinger
-          const { count, error } = await supabase
-            .from('intern_kommentar')
-            .select('*', { count: 'exact', head: true })
-            .eq('mottaker_id', ansatt.id)
-            .eq('lest', false)
-          
-          if (error) {
-            // Hvis kolonner ikke finnes ennå, ignorer feilen
-            if (error.code === '42703') {
-              console.log('Meldingssystem-kolonner finnes ikke ennå. Kjør database-migrasjon.')
-              return
-            }
-            throw error
-          }
-          
-          setUlestemeldinger(count || 0)
-        }
-      } catch (error) {
-        console.error('Feil ved henting av uleste meldinger:', error)
-      }
-    }
-
-    loadUlestemeldinger()
-    
-    // Oppdater hver 30. sekund
-    const interval = setInterval(loadUlestemeldinger, 30000)
-    return () => clearInterval(interval)
-  }, [user])
-
-  // Hent antall usette ordre og oppgaver for brukeren
-  useEffect(() => {
-    async function loadUsetteElementer() {
-      if (!user?.email) return
-      
-      try {
-        // Finn ansatt basert på email
-        const { data: ansatt } = await supabase
-          .from('ansatte')
-          .select('id')
-          .eq('epost', user.email)
-          .single()
-        
-        if (ansatt) {
-          // Hent antall usette ordre (ikke sett av tekniker, og ikke fullført/fakturert)
-          const { count: ordreCount, error: ordreError } = await supabase
-            .from('ordre')
-            .select('*', { count: 'exact', head: true })
-            .eq('tekniker_id', ansatt.id)
-            .eq('sett_av_tekniker', false)
-            .not('status', 'in', '("Fullført","Fakturert")')
-          
-          // Hvis kolonnen ikke finnes ennå, fall tilbake til status-basert telling
-          if (ordreError?.code === '42703') {
-            const { count } = await supabase
-              .from('ordre')
-              .select('*', { count: 'exact', head: true })
-              .eq('tekniker_id', ansatt.id)
-              .in('status', ['Ventende', 'Pågående'])
-            setAktiveOrdre(count || 0)
-          } else {
-            setAktiveOrdre(ordreCount || 0)
-          }
-
-          // Hent antall usette oppgaver (ikke sett av tekniker, og ikke fullført)
-          const { count: oppgaveCount, error: oppgaveError } = await supabase
-            .from('oppgaver')
-            .select('*', { count: 'exact', head: true })
-            .eq('tekniker_id', ansatt.id)
-            .eq('sett_av_tekniker', false)
-            .neq('status', 'Fullført')
-          
-          // Hvis kolonnen ikke finnes ennå, fall tilbake til status-basert telling
-          if (oppgaveError?.code === '42703') {
-            const { count } = await supabase
-              .from('oppgaver')
-              .select('*', { count: 'exact', head: true })
-              .eq('tekniker_id', ansatt.id)
-              .in('status', ['Ikke påbegynt', 'Pågående'])
-            setAktiveOppgaver(count || 0)
-          } else {
-            setAktiveOppgaver(oppgaveCount || 0)
-          }
-        }
-      } catch (error) {
-        console.error('Feil ved henting av usette elementer:', error)
-      }
-    }
-
-    loadUsetteElementer()
-    
-    // Oppdater hver 30. sekund
-    const interval = setInterval(loadUsetteElementer, 30000)
-    return () => clearInterval(interval)
-  }, [user])
+  // Ordre/oppgaver-telling deaktivert midlertidig - tabeller mangler
+  // useEffect(() => {
+  //   async function loadUsetteElementer() {
+  //     // ... deaktivert
+  //   }
+  //   loadUsetteElementer()
+  //   const interval = setInterval(loadUsetteElementer, 30000)
+  //   return () => clearInterval(interval)
+  // }, [user])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark">
@@ -236,38 +201,34 @@ export function Layout({ children }: LayoutProps) {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-200 dark:border-gray-800">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">F</span>
+            <div className="w-10 h-10 bg-[#3d4f5f] rounded-xl flex items-center justify-center">
+              {/* FireCtrl F-logo */}
+              <svg viewBox="0 0 40 40" className="w-7 h-7" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 12C8 10 10 8 12 8H28V14H14V18H24V24H14V32H8V12Z" fill="white"/>
+                <path d="M12 8C10 8 8 10 8 12L12 8Z" fill="white"/>
+                <path d="M28 8L20 16H28V8Z" fill="white" fillOpacity="0.7"/>
+              </svg>
             </div>
             <div className="flex-1">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">FireCtrl</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Brannvernplattform</p>
-            </div>
-            {/* Dropbox status indicator */}
-            <div 
-              className="relative group"
-              title={dropboxConnected === null ? 'Sjekker Dropbox...' : dropboxConnected ? 'Dropbox tilkoblet' : 'Dropbox ikke tilkoblet'}
-            >
-              <Cloud className={`w-5 h-5 ${
-                dropboxConnected === null 
-                  ? 'text-gray-400 animate-pulse' 
-                  : dropboxConnected 
-                    ? 'text-green-500' 
-                    : 'text-red-500'
-              }`} />
-              <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${
-                dropboxConnected === null 
-                  ? 'bg-gray-400' 
-                  : dropboxConnected 
-                    ? 'bg-green-500' 
-                    : 'bg-red-500'
-              }`} />
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-wide">
+                <span className="font-light">FIRE</span><span className="font-bold">CTRL</span>
+              </h1>
+              <p className="text-xs text-emerald-500 font-medium tracking-wider">BRANNVERNPLATTFORMEN</p>
             </div>
           </div>
 
           {/* Navigation */}
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {navigation.map((item) => {
+            {navigation
+              .filter(item => {
+                // Alltid vis hvis alwaysShow
+                if (item.alwaysShow) return true
+                // Skjul adminOnly-elementer hvis bruker ikke har admin-tilgang
+                if ((item as any).adminOnly && !showAdminSection) return false
+                // Vis hvis bruker har tilgang til modulen
+                return harTilgang(item.modulKey, 'se')
+              })
+              .map((item) => {
               const isActive = location.pathname === item.href
               const showMeldingBadge = item.href === '/meldinger' && ulestemeldinger > 0
               const showOrdreBadge = item.href === '/ordre' && aktiveOrdre > 0
@@ -303,7 +264,7 @@ export function Layout({ children }: LayoutProps) {
               )
             })}
 
-            {/* Admin Section - Kun synlig for brukere med admin-tilgang */}
+            {/* Admin Section - Kun synlig for BSV admins og super admins */}
             {showAdminSection && (
               <>
                 <div className="pt-4 pb-2 px-3">
@@ -312,9 +273,7 @@ export function Layout({ children }: LayoutProps) {
                     Administrator
                   </div>
                 </div>
-                {adminNavigation
-                  .filter(item => isSuperAdminUser || harTilgang(item.modulKey, 'se'))
-                  .map((item) => {
+                {adminNavigation.map((item) => {
                     const isActive = location.pathname === item.href
                     return (
                       <Link

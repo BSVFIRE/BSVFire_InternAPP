@@ -1,17 +1,34 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Search, Edit, Trash2, X, Wifi, WifiOff } from 'lucide-react'
+import { ArrowLeft, Plus, Search, Edit, Trash2, X, Wifi, WifiOff, Info, Check } from 'lucide-react'
 import { NettverkEnhet } from '../Brannalarm'
+
+interface EnhetTypeInfo {
+  type: string
+  antall: number
+}
+
+interface EnheterData {
+  brannsentral?: number
+  brannsentral_typer?: EnhetTypeInfo[]
+  panel?: number
+  panel_typer?: EnhetTypeInfo[]
+  asp?: number
+  asp_typer?: EnhetTypeInfo[]
+  kraftforsyning?: number
+  kraftforsyning_typer?: EnhetTypeInfo[]
+}
 
 interface NettverkViewProps {
   anleggId: string
   anleggsNavn: string
   nettverkListe: NettverkEnhet[]
+  enheterData?: EnheterData
   onBack: () => void
   onRefresh: () => void
 }
 
-export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onRefresh }: NettverkViewProps) {
+export function NettverkView({ anleggId, anleggsNavn, nettverkListe, enheterData, onBack, onRefresh }: NettverkViewProps) {
   const [showDialog, setShowDialog] = useState(false)
   const [editingSystem, setEditingSystem] = useState<NettverkEnhet | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -20,9 +37,10 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
     plassering: '',
     type: '',
     sw_id: '',
-    spenning: 0,
-    ah: 0,
-    batterialder: 0,
+    spenning: '',
+    ah: '',
+    batterialder: '',
+    batteri_ikke_aktuelt: false,
   })
   const [saving, setSaving] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
@@ -74,6 +92,22 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
     String(n.sw_id || '').toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  // Beregn hvilke typer som allerede er brukt i nettverk (for å hindre duplikater)
+  const usedTypes = (nettverkListe || []).map(n => n.type).filter(Boolean)
+  
+  // Funksjon for å sjekke om en type er brukt (og hvor mange ganger)
+  const getTypeUsageCount = (type: string) => usedTypes.filter(t => t === type).length
+  
+  // Funksjon for å sjekke om en type kan velges (basert på antall registrert vs brukt)
+  const canSelectType = (type: string, maxCount: number) => {
+    const currentUsage = getTypeUsageCount(type)
+    // Hvis vi redigerer og typen er den samme som før, tillat det
+    if (editingSystem && editingSystem.type === type) {
+      return currentUsage <= maxCount
+    }
+    return currentUsage < maxCount
+  }
+
   function openDialog(system?: NettverkEnhet) {
     if (system) {
       setEditingSystem(system)
@@ -82,9 +116,10 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
         plassering: system.plassering || '',
         type: system.type || '',
         sw_id: system.sw_id || '',
-        spenning: system.spenning || 0,
-        ah: system.ah || 0,
-        batterialder: system.batterialder || 0,
+        spenning: system.spenning ? String(system.spenning) : '',
+        ah: system.ah ? String(system.ah) : '',
+        batterialder: system.batterialder ? String(system.batterialder) : '',
+        batteri_ikke_aktuelt: (system as any).batteri_ikke_aktuelt || false,
       })
     } else {
       setEditingSystem(null)
@@ -93,9 +128,10 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
         plassering: '',
         type: '',
         sw_id: '',
-        spenning: 0,
-        ah: 0,
-        batterialder: 0,
+        spenning: '',
+        ah: '',
+        batterialder: '',
+        batteri_ikke_aktuelt: false,
       })
     }
     setShowDialog(true)
@@ -104,9 +140,17 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
   async function handleSave() {
     setSaving(true)
     try {
+      // Konverter string-verdier til riktige typer for databasen
       const data = {
         anlegg_id: anleggId,
-        ...formData
+        nettverk_id: formData.nettverk_id,
+        plassering: formData.plassering,
+        type: formData.type,
+        sw_id: formData.sw_id,
+        spenning: formData.spenning ? parseFloat(formData.spenning) : null,
+        ah: formData.ah ? parseFloat(formData.ah) : null,
+        batterialder: formData.batterialder ? parseInt(formData.batterialder) : null,
+        batteri_ikke_aktuelt: formData.batteri_ikke_aktuelt,
       }
 
       if (isOnline) {
@@ -160,17 +204,16 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0">
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
-          </button>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Brannalarm nettverk</h1>
-            <p className="text-sm sm:text-base text-gray-400 mt-1 truncate">{anleggsNavn}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <button onClick={onBack} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors flex-shrink-0">
+              <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Brannalarm nettverk</h1>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 truncate">{anleggsNavn}</p>
+            </div>
           </div>
-        </div>
-        
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             {isOnline ? (
               <>
@@ -184,6 +227,9 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
               </>
             )}
           </div>
+        </div>
+        
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           {pendingChanges > 0 && (
             <span className="text-xs sm:text-sm text-orange-400">{pendingChanges} endringer venter</span>
           )}
@@ -194,6 +240,111 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
           </button>
         </div>
       </div>
+
+      {/* Hjelpe-info: Sentralenheter som kan være i nettverk */}
+      {enheterData && (enheterData.brannsentral || enheterData.panel || enheterData.asp || enheterData.kraftforsyning) && (
+        <div className="card bg-blue-500/10 border border-blue-500/20">
+          <div className="flex items-start gap-3">
+            <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-medium text-blue-400 mb-2">Registrerte sentralenheter</h3>
+              <p className="text-xs text-gray-400 mb-3">
+                Følgende enheter kan kobles i nettverk:
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {enheterData.brannsentral ? (
+                  <div className="bg-gray-200 dark:bg-gray-800/50 px-3 py-2 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🏢</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Brannsentral: <strong className="text-gray-900 dark:text-white">{enheterData.brannsentral}</strong></span>
+                    </div>
+                    {enheterData.brannsentral_typer && enheterData.brannsentral_typer.length > 0 && (
+                      <div className="mt-1 ml-7 text-xs space-y-0.5">
+                        {enheterData.brannsentral_typer.map((t, i) => {
+                          const usedCount = getTypeUsageCount(t.type)
+                          const allUsed = usedCount >= t.antall
+                          return (
+                            <div key={i} className={`flex items-center gap-1 ${allUsed ? 'text-green-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                              {allUsed && <Check className="w-3 h-3" />}
+                              <span>{t.type} ({usedCount}/{t.antall})</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+                {enheterData.panel ? (
+                  <div className="bg-gray-200 dark:bg-gray-800/50 px-3 py-2 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🎛️</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Brannpanel: <strong className="text-gray-900 dark:text-white">{enheterData.panel}</strong></span>
+                    </div>
+                    {enheterData.panel_typer && enheterData.panel_typer.length > 0 && (
+                      <div className="mt-1 ml-7 text-xs space-y-0.5">
+                        {enheterData.panel_typer.map((t, i) => {
+                          const usedCount = getTypeUsageCount(t.type)
+                          const allUsed = usedCount >= t.antall
+                          return (
+                            <div key={i} className={`flex items-center gap-1 ${allUsed ? 'text-green-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                              {allUsed && <Check className="w-3 h-3" />}
+                              <span>{t.type} ({usedCount}/{t.antall})</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+                {enheterData.asp ? (
+                  <div className="bg-gray-200 dark:bg-gray-800/50 px-3 py-2 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">💨</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Aspirasjon: <strong className="text-gray-900 dark:text-white">{enheterData.asp}</strong></span>
+                    </div>
+                    {enheterData.asp_typer && enheterData.asp_typer.length > 0 && (
+                      <div className="mt-1 ml-7 text-xs space-y-0.5">
+                        {enheterData.asp_typer.map((t, i) => {
+                          const usedCount = getTypeUsageCount(t.type)
+                          const allUsed = usedCount >= t.antall
+                          return (
+                            <div key={i} className={`flex items-center gap-1 ${allUsed ? 'text-green-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                              {allUsed && <Check className="w-3 h-3" />}
+                              <span>{t.type} ({usedCount}/{t.antall})</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+                {enheterData.kraftforsyning ? (
+                  <div className="bg-gray-200 dark:bg-gray-800/50 px-3 py-2 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">⚡</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Kraftforsyning: <strong className="text-gray-900 dark:text-white">{enheterData.kraftforsyning}</strong></span>
+                    </div>
+                    {enheterData.kraftforsyning_typer && enheterData.kraftforsyning_typer.length > 0 && (
+                      <div className="mt-1 ml-7 text-xs space-y-0.5">
+                        {enheterData.kraftforsyning_typer.map((t, i) => {
+                          const usedCount = getTypeUsageCount(t.type)
+                          const allUsed = usedCount >= t.antall
+                          return (
+                            <div key={i} className={`flex items-center gap-1 ${allUsed ? 'text-green-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                              {allUsed && <Check className="w-3 h-3" />}
+                              <span>{t.type} ({usedCount}/{t.antall})</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
@@ -227,15 +378,15 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 pb-20">
             {filteredNettverk.map((system) => (
-              <div key={system.id} className="card bg-gray-800/50 hover:bg-gray-800 transition-colors">
+              <div key={system.id} className="card bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
                       <span className="text-blue-500 font-bold">{system.nettverk_id}</span>
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white">Nettverk {system.nettverk_id}</h3>
-                      <p className="text-xs text-gray-400">{system.plassering}</p>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">Nettverk {system.nettverk_id}</h3>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{system.plassering}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -263,21 +414,27 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
                 )}
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-gray-900/50 p-2 rounded">
-                    <div className="text-gray-400 mb-1">SW-versjon</div>
-                    <div className="text-white font-medium">{system.sw_id || 'N/A'}</div>
+                  <div className="bg-gray-100 dark:bg-gray-900/50 p-2 rounded">
+                    <div className="text-gray-500 dark:text-gray-400 mb-1">SW-versjon</div>
+                    <div className="text-gray-900 dark:text-white font-medium">{system.sw_id || 'N/A'}</div>
                   </div>
-                  <div className="bg-gray-900/50 p-2 rounded">
-                    <div className="text-gray-400 mb-1">Spenning</div>
-                    <div className="text-white font-medium">{system.spenning || 0}V</div>
+                  <div className="bg-gray-100 dark:bg-gray-900/50 p-2 rounded">
+                    <div className="text-gray-500 dark:text-gray-400 mb-1">Spenning</div>
+                    <div className="text-gray-900 dark:text-white font-medium">
+                      {(system as any).batteri_ikke_aktuelt ? 'N/A' : `${system.spenning || 0}V`}
+                    </div>
                   </div>
-                  <div className="bg-gray-900/50 p-2 rounded">
-                    <div className="text-gray-400 mb-1">Kapasitet</div>
-                    <div className="text-white font-medium">{system.ah || 0}Ah</div>
+                  <div className="bg-gray-100 dark:bg-gray-900/50 p-2 rounded">
+                    <div className="text-gray-500 dark:text-gray-400 mb-1">Kapasitet</div>
+                    <div className="text-gray-900 dark:text-white font-medium">
+                      {(system as any).batteri_ikke_aktuelt ? 'N/A' : `${system.ah || 0}Ah`}
+                    </div>
                   </div>
-                  <div className="bg-gray-900/50 p-2 rounded">
-                    <div className="text-gray-400 mb-1">Batterialder</div>
-                    <div className="text-white font-medium">{system.batterialder || 0} år</div>
+                  <div className="bg-gray-100 dark:bg-gray-900/50 p-2 rounded">
+                    <div className="text-gray-500 dark:text-gray-400 mb-1">Batterialder</div>
+                    <div className="text-gray-900 dark:text-white font-medium">
+                      {(system as any).batteri_ikke_aktuelt ? 'N/A' : `${system.batterialder || 0} år`}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -326,13 +483,85 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
-                <input
-                  type="text"
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="input"
-                  placeholder="F.eks. Sentral, Repeater, Detektorløkke"
-                />
+                {/* Dropdown med typer fra sentralenheter */}
+                {enheterData && (enheterData.brannsentral_typer?.length || enheterData.panel_typer?.length || enheterData.asp_typer?.length || enheterData.kraftforsyning_typer?.length) ? (
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">Velg type...</option>
+                    {enheterData.brannsentral_typer && enheterData.brannsentral_typer.length > 0 && (
+                      <optgroup label="🏢 Brannsentral">
+                        {enheterData.brannsentral_typer.map((t, i) => {
+                          const canSelect = canSelectType(t.type, t.antall)
+                          return (
+                            <option key={`bs-${i}`} value={t.type} disabled={!canSelect}>
+                              {t.type} {!canSelect ? '(alle brukt)' : `(${getTypeUsageCount(t.type)}/${t.antall})`}
+                            </option>
+                          )
+                        })}
+                      </optgroup>
+                    )}
+                    {enheterData.panel_typer && enheterData.panel_typer.length > 0 && (
+                      <optgroup label="🎛️ Brannpanel">
+                        {enheterData.panel_typer.map((t, i) => {
+                          const canSelect = canSelectType(t.type, t.antall)
+                          return (
+                            <option key={`bp-${i}`} value={t.type} disabled={!canSelect}>
+                              {t.type} {!canSelect ? '(alle brukt)' : `(${getTypeUsageCount(t.type)}/${t.antall})`}
+                            </option>
+                          )
+                        })}
+                      </optgroup>
+                    )}
+                    {enheterData.asp_typer && enheterData.asp_typer.length > 0 && (
+                      <optgroup label="💨 Aspirasjon">
+                        {enheterData.asp_typer.map((t, i) => {
+                          const canSelect = canSelectType(t.type, t.antall)
+                          return (
+                            <option key={`asp-${i}`} value={t.type} disabled={!canSelect}>
+                              {t.type} {!canSelect ? '(alle brukt)' : `(${getTypeUsageCount(t.type)}/${t.antall})`}
+                            </option>
+                          )
+                        })}
+                      </optgroup>
+                    )}
+                    {enheterData.kraftforsyning_typer && enheterData.kraftforsyning_typer.length > 0 && (
+                      <optgroup label="⚡ Kraftforsyning">
+                        {enheterData.kraftforsyning_typer.map((t, i) => {
+                          const canSelect = canSelectType(t.type, t.antall)
+                          return (
+                            <option key={`kf-${i}`} value={t.type} disabled={!canSelect}>
+                              {t.type} {!canSelect ? '(alle brukt)' : `(${getTypeUsageCount(t.type)}/${t.antall})`}
+                            </option>
+                          )
+                        })}
+                      </optgroup>
+                    )}
+                    <optgroup label="Annet">
+                      <option value="__custom__">Skriv inn manuelt...</option>
+                    </optgroup>
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    className="input"
+                    placeholder="F.eks. BS420, BX-420"
+                  />
+                )}
+                {formData.type === '__custom__' && (
+                  <input
+                    type="text"
+                    value=""
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    className="input mt-2"
+                    placeholder="Skriv inn type manuelt..."
+                    autoFocus
+                  />
+                )}
               </div>
 
               <div>
@@ -346,40 +575,57 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, onBack, onR
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Spenning (V)</label>
-                  <input
-                    type="number"
-                    value={formData.spenning}
-                    onChange={(e) => setFormData({ ...formData, spenning: parseFloat(e.target.value) || 0 })}
-                    className="input"
-                    min="0"
-                    step="0.1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Ah</label>
-                  <input
-                    type="number"
-                    value={formData.ah}
-                    onChange={(e) => setFormData({ ...formData, ah: parseFloat(e.target.value) || 0 })}
-                    className="input"
-                    min="0"
-                    step="0.1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Batterialder (år)</label>
-                  <input
-                    type="number"
-                    value={formData.batterialder}
-                    onChange={(e) => setFormData({ ...formData, batterialder: parseInt(e.target.value) || 0 })}
-                    className="input"
-                    min="0"
-                  />
-                </div>
+              {/* Batteri ikke aktuelt checkbox */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="batteri_ikke_aktuelt"
+                  checked={formData.batteri_ikke_aktuelt}
+                  onChange={(e) => setFormData({ ...formData, batteri_ikke_aktuelt: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-primary focus:ring-primary"
+                />
+                <label htmlFor="batteri_ikke_aktuelt" className="text-sm text-gray-300">
+                  Batteri ikke aktuelt (vises som N/A i rapport)
+                </label>
               </div>
+
+              {!formData.batteri_ikke_aktuelt && (
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Spenning (V)</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formData.spenning || ''}
+                      onChange={(e) => setFormData({ ...formData, spenning: e.target.value })}
+                      className="input"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Ah</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formData.ah || ''}
+                      onChange={(e) => setFormData({ ...formData, ah: e.target.value })}
+                      className="input"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Batterialder (år)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formData.batterialder || ''}
+                      onChange={(e) => setFormData({ ...formData, batterialder: e.target.value })}
+                      className="input"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-6 border-t border-white/10 flex justify-end gap-3">

@@ -789,8 +789,8 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
         <div className="max-w-4xl mx-auto pointer-events-auto">
           <button 
             onClick={handleSave} 
-            disabled={saving} 
-            className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25"
+            disabled={saving || !hasUnsavedChanges} 
+            className={`w-full py-4 px-6 ${hasUnsavedChanges ? 'bg-primary hover:bg-primary/90' : 'bg-gray-400'} disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg ${hasUnsavedChanges ? 'shadow-primary/25' : 'shadow-gray-400/25'}`}
           >
             {saving ? (
               <>

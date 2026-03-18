@@ -330,6 +330,7 @@ export function FG790KontrollView({
           posisjon: punkt.posisjon,
           kategori: punkt.kategori,
           tittel: punkt.tittel,
+          sjekkpunkt: punkt.tittel, // Bruker tittel som sjekkpunkt for bakoverkompatibilitet
           status: punkt.status,
           avvik_type: punkt.avvik_type || null,
           feilkode: punkt.feilkode || null,
@@ -362,6 +363,7 @@ export function FG790KontrollView({
         posisjon: punkt.posisjon,
         kategori: punkt.kategori,
         tittel: punkt.tittel,
+        sjekkpunkt: punkt.tittel, // Bruker tittel som sjekkpunkt for bakoverkompatibilitet
         status: punkt.status,
         avvik_type: punkt.avvik_type || null,
         feilkode: punkt.feilkode || null,
@@ -779,9 +781,9 @@ export function FG790KontrollView({
                                   {punktData.posisjon === 'POS.2 - Visuell kontroll' && 
                                    punktData.tittel.toLowerCase().includes('detektor') && (
                                     <div>
-                                      <label className="block text-sm text-gray-400 mb-2">
+                                      <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
                                         AG-verdi
-                                        <span className="text-xs text-gray-500 ml-2">(Forurensningsgrad)</span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">(Forurensningsgrad)</span>
                                       </label>
                                       <div className="grid grid-cols-5 gap-2">
                                         {AG_VERDIER.map(ag => (
@@ -801,7 +803,7 @@ export function FG790KontrollView({
                                                   : ag.poeng < 1
                                                   ? 'bg-yellow-500 text-white'
                                                   : 'bg-red-500 text-white'
-                                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                                : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
                                             }`}
                                           >
                                             <div className="text-xs">{ag.verdi}</div>
@@ -819,7 +821,7 @@ export function FG790KontrollView({
                                   )}
 
                                   <div>
-                                    <label className="block text-sm text-gray-400 mb-2">Avvik type</label>
+                                    <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">Avvik type</label>
                                     <select
                                       value={punktData.avvik_type || ''}
                                       onChange={(e) => updatePunkt(key, { avvik_type: e.target.value || null })}
@@ -835,7 +837,7 @@ export function FG790KontrollView({
                                   {/* Feilkode - vises kun hvis det er avvik */}
                                   {punktData.avvik_type && (
                                     <div>
-                                      <label className="block text-sm text-gray-400 mb-2">Feilkode</label>
+                                      <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">Feilkode</label>
                                       <select
                                         value={punktData.feilkode || ''}
                                         onChange={(e) => updatePunkt(key, { feilkode: e.target.value })}
@@ -888,7 +890,7 @@ export function FG790KontrollView({
                                                   : ag.poeng < 1
                                                   ? 'bg-yellow-500 text-white'
                                                   : 'bg-red-500 text-white'
-                                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                                : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
                                             }`}
                                           >
                                             <div className="text-xs">{ag.verdi}</div>
@@ -966,7 +968,7 @@ export function FG790KontrollView({
       </div>
 
       {/* Fixed Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950 border-t border-gray-800 z-50">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950 border-t border-gray-800 z-50 md:left-64">
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
             <button
@@ -1087,28 +1089,28 @@ export function FG790KontrollView({
         if (!kategorier) return null
           
           return (
-            <div className="fixed inset-0 bg-gray-950 z-50 overflow-auto pb-20">
+            <div className="fixed inset-0 bg-white dark:bg-gray-950 z-50 overflow-auto pb-20">
               <div className="max-w-6xl mx-auto p-6">
                 {/* Header */}
-                <div className="flex items-start justify-between mb-6 sticky top-0 bg-gray-950 pb-4 border-b border-gray-800">
+                <div className="flex items-start justify-between mb-6 sticky top-0 bg-white dark:bg-gray-950 pb-4 border-b border-gray-200 dark:border-gray-800">
                   <div className="flex-1">
-                    <h2 className="text-2xl font-bold text-white mb-2">{posisjon}</h2>
-                    <p className="text-sm text-gray-400">Fullskjerm-visning</p>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{posisjon}</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Fullskjerm-visning</p>
                   </div>
                   <button
                     onClick={() => setFullscreenPunkt(null)}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
                     title="Lukk fullskjerm"
                   >
-                    <X className="w-6 h-6 text-gray-400" />
+                    <X className="w-6 h-6 text-gray-500 dark:text-gray-400" />
                   </button>
                 </div>
 
                 {/* Alle punkter i posisjonen */}
                 <div className="space-y-6">
                   {Object.entries(kategorier).map(([kategori, punkter]) => (
-                    <div key={kategori} className="bg-gray-900 rounded-lg border border-gray-800 p-6">
-                      <h3 className="text-xl font-semibold text-white mb-4">{kategori}</h3>
+                    <div key={kategori} className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{kategori}</h3>
                       
                       <div className="space-y-4">
                         {punkter.map(tittel => {
@@ -1116,8 +1118,8 @@ export function FG790KontrollView({
                           const punktData = data[key]
                           
                           return (
-                            <div key={key} className="border border-gray-700 rounded-lg p-4">
-                              <p className="text-white font-medium mb-3">{tittel}</p>
+                            <div key={key} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-transparent">
+                              <p className="text-gray-900 dark:text-white font-medium mb-3">{tittel}</p>
                               
                               {/* Status buttons */}
                               <div className="flex flex-wrap gap-2 mb-3">
@@ -1128,7 +1130,7 @@ export function FG790KontrollView({
                                     className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                       punktData.status === status
                                         ? 'bg-green-500 text-white'
-                                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                        : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
                                     }`}
                                   >
                                     {status}
@@ -1138,14 +1140,14 @@ export function FG790KontrollView({
 
                               {/* Vis resten av feltene hvis kontrollert */}
                               {punktData.status === 'Kontrollert' && (
-                                <div className="space-y-3 mt-3 pt-3 border-t border-gray-700">
+                                <div className="space-y-3 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                                   {/* AG-verdi (kun for POS.2 detektor-punkter) */}
                                   {punktData.posisjon === 'POS.2 - Visuell kontroll' && 
                                    punktData.tittel.toLowerCase().includes('detektor') && (
                                     <div>
-                                      <label className="block text-sm text-gray-400 mb-2">
+                                      <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
                                         AG-verdi
-                                        <span className="text-xs text-gray-500 ml-2">(Forurensningsgrad)</span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">(Forurensningsgrad)</span>
                                       </label>
                                       <div className="grid grid-cols-5 gap-2">
                                         {AG_VERDIER.map(ag => (
@@ -1165,7 +1167,7 @@ export function FG790KontrollView({
                                                   : ag.poeng < 1
                                                   ? 'bg-yellow-500 text-white'
                                                   : 'bg-red-500 text-white'
-                                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                                : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
                                             }`}
                                           >
                                             <div className="text-xs">{ag.verdi}</div>
@@ -1183,7 +1185,7 @@ export function FG790KontrollView({
                                   )}
 
                                   <div>
-                                    <label className="block text-sm text-gray-400 mb-2">Avvik type</label>
+                                    <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">Avvik type</label>
                                     <select
                                       value={punktData.avvik_type || ''}
                                       onChange={(e) => updatePunkt(key, { avvik_type: e.target.value || null })}
@@ -1199,7 +1201,7 @@ export function FG790KontrollView({
                                   {/* Feilkode - vises kun hvis det er avvik */}
                                   {punktData.avvik_type && (
                                     <div>
-                                      <label className="block text-sm text-gray-400 mb-2">Feilkode</label>
+                                      <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">Feilkode</label>
                                       <select
                                         value={punktData.feilkode || ''}
                                         onChange={(e) => updatePunkt(key, { feilkode: e.target.value })}
@@ -1252,7 +1254,7 @@ export function FG790KontrollView({
                                                   : ag.poeng < 1
                                                   ? 'bg-yellow-500 text-white'
                                                   : 'bg-red-500 text-white'
-                                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                                : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
                                             }`}
                                           >
                                             <div className="text-xs">{ag.verdi}</div>
@@ -1306,7 +1308,7 @@ export function FG790KontrollView({
 
                                   {/* Kommentar */}
                                   <div>
-                                    <label className="block text-sm text-gray-400 mb-2">Kommentar</label>
+                                    <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">Kommentar</label>
                                     <textarea
                                       value={punktData.kommentar || ''}
                                       onChange={(e) => updatePunkt(key, { kommentar: e.target.value || null })}
