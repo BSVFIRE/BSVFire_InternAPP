@@ -92,6 +92,7 @@ export function useModulTilgang() {
         
         modulTilganger?.forEach((mt: any) => {
           if (mt.modul?.modul_key) {
+            console.log('[useModulTilgang] Modul:', mt.modul.modul_key, 'kan_se:', mt.kan_se)
             tilgangMap.set(mt.modul.modul_key, {
               kanSe: mt.kan_se,
               kanRediger: mt.kan_redigere
@@ -99,7 +100,7 @@ export function useModulTilgang() {
           }
         })
         
-        console.log('[useModulTilgang] Tilganger i map:', tilgangMap.size)
+        console.log('[useModulTilgang] Tilganger i map:', tilgangMap.size, Array.from(tilgangMap.keys()))
 
         setTilganger(tilgangMap)
       } catch (error) {

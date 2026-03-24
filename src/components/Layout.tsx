@@ -130,7 +130,9 @@ export function Layout({ children }: LayoutProps) {
   
   // Sjekk om bruker har tilgang til admin-seksjonen
   const isSuperAdminUser = user?.email && SUPER_ADMIN_EMAILS.includes(user.email)
-  const showAdminSection = isSuperAdminUser || isBsvAdmin
+  // Vis admin-seksjonen hvis bruker er super admin, BSV admin, eller har tilgang til minst én admin-modul
+  const hasAnyAdminModuleAccess = adminNavigation.some(item => harTilgang(item.modulKey, 'se'))
+  const showAdminSection = isSuperAdminUser || isBsvAdmin || hasAnyAdminModuleAccess
 
   // Meldingssystem deaktivert midlertidig - tabeller mangler
   // useEffect(() => {
@@ -273,7 +275,9 @@ export function Layout({ children }: LayoutProps) {
                     Administrator
                   </div>
                 </div>
-                {adminNavigation.map((item) => {
+                {adminNavigation
+                  .filter(item => harTilgang(item.modulKey, 'se'))
+                  .map((item) => {
                     const isActive = location.pathname === item.href
                     return (
                       <Link

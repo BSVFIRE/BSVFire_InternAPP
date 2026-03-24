@@ -614,7 +614,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       // Tabell
       autoTable(doc, {
         startY: yPos,
-        head: [['Nr', 'Plassering', 'Etasje', 'Produsent', 'Modell', 'Klasse', 'År', 'Service', 'Status']],
+        head: [['Nr', 'Plassering', 'Etasje', 'Produsent', 'Modell', 'Klasse', 'År', 'Service', 'Siste kontroll', 'Status']],
         body: sortedForPdf.map(s => [
           s.apparat_nr || '-',
           s.plassering || '-',
@@ -624,15 +624,28 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
           s.brannklasse || '-',
           s.produksjonsaar || '-',
           s.service || '-',
+          s.siste_kontroll || '-',
           // Vis alle statuser kommaseparert
           (Array.isArray(s.status) && s.status.length > 0) 
             ? s.status.join(', ') 
             : 'OK'
         ]),
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 8 },
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 7 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { left: 10, right: 10, bottom: 30 },
+        margin: { left: 5, right: 5, bottom: 30 },
+        columnStyles: {
+          0: { cellWidth: 12 },  // Nr
+          1: { cellWidth: 28 },  // Plassering
+          2: { cellWidth: 16 },  // Etasje
+          3: { cellWidth: 20 },  // Produsent (krympet)
+          4: { cellWidth: 22 },  // Modell
+          5: { cellWidth: 14 },  // Klasse (krympet)
+          6: { cellWidth: 14 },  // År
+          7: { cellWidth: 16 },  // Service
+          8: { cellWidth: 22 },  // Siste kontroll
+          9: { cellWidth: 'auto' },  // Status
+        },
       })
 
       // Kommentarer seksjon - på ny side hvis det finnes kommentarer
