@@ -382,9 +382,15 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
                   {/* Toggle */}
                   <button
                     onClick={() => {
+                      const wasActive = localStyringer[key]?.aktiv
                       setLocalStyringer(prev => ({
                         ...prev,
-                        [key]: { ...prev[key], aktiv: !prev[key]?.aktiv }
+                        [key]: { 
+                          ...prev[key], 
+                          aktiv: !wasActive,
+                          // Sett antall til minimum 1 når toggle settes til ON
+                          antall: !wasActive ? Math.max(prev[key]?.antall || 0, 1) : prev[key]?.antall
+                        }
                       }))
                       if (!isActive) {
                         setExpandedKey(key)
@@ -569,9 +575,15 @@ export function StyringerView({ anleggId, anleggsNavn, styringer, onBack, onSave
                       </div>
                       <button
                         onClick={() => {
+                          const wasActive = localStyringer[key]?.aktiv
                           setLocalStyringer(prev => ({
                             ...prev,
-                            [key]: { ...prev[key], aktiv: !prev[key]?.aktiv }
+                            [key]: { 
+                              ...prev[key], 
+                              aktiv: !wasActive,
+                              // Sett antall til minimum 1 når toggle settes til ON
+                              antall: !wasActive ? Math.max(prev[key]?.antall || 0, 1) : prev[key]?.antall
+                            }
                           }))
                         }}
                         className={`w-12 h-6 rounded-full transition-colors relative ${

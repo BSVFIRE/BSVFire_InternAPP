@@ -34,6 +34,9 @@ interface TilbudData {
   opprettet: string
   gyldig_til?: string
   tilbudsnummer?: string
+  
+  // Description
+  beskrivelse?: string
 }
 
 export async function generateTilbudPDF(tilbudData: TilbudData) {
@@ -150,6 +153,28 @@ export async function generateTilbudPDF(tilbudData: TilbudData) {
     }
     
     yPos += 5
+  }
+
+  // Beskrivelse section (if provided)
+  if (tilbudData.beskrivelse) {
+    doc.setFillColor(240, 240, 240)
+    doc.rect(20, yPos, 170, 8, 'F')
+    doc.setFontSize(12)
+    doc.setTextColor(0, 0, 0)
+    doc.text('BESKRIVELSE', 22, yPos + 5.5)
+    
+    yPos += 12
+    doc.setFontSize(10)
+    doc.setTextColor(60, 60, 60)
+    const beskrivelseLines = doc.splitTextToSize(tilbudData.beskrivelse, 165)
+    doc.text(beskrivelseLines, 20, yPos)
+    yPos += beskrivelseLines.length * 5 + 5
+  }
+
+  // Sjekk om vi trenger ny side før tjenester (hvis yPos er for langt ned)
+  if (yPos > 200) {
+    doc.addPage()
+    yPos = 20
   }
 
   // Services section
