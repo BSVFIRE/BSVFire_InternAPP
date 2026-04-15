@@ -59,29 +59,17 @@ export function TilbudForm({ tilbud, onSave, onCancel }: TilbudFormProps) {
         console.log('Fetching user name for:', user.email)
         console.log('User object:', { id: user.id, email: user.email, metadata: user.user_metadata })
         
-        // Try to find user by email in ansatte table
-        // First try with 'epost' column
+        // Try to find user by email in ansatte table (column is 'epost')
         console.log('Attempting to fetch from ansatte with email:', user.email)
-        let result = await supabase
+        const result = await supabase
           .from('ansatte')
           .select('navn, epost')
-          .eq('epost', user.email)
+          .eq('epost', user.email?.toLowerCase())
           .maybeSingle()
         
         console.log('Raw result:', result)
-        let data = result.data
-        let error = result.error
-        
-        // If not found, try with 'email' column
-        if (!data) {
-          const result2 = await supabase
-            .from('ansatte')
-            .select('navn, email')
-            .eq('email', user.email)
-            .maybeSingle()
-          data = result2.data as any
-          error = result2.error
-        }
+        const data = result.data
+        const error = result.error
         
         console.log('Search result for', user.email, ':', { data, error })
         
