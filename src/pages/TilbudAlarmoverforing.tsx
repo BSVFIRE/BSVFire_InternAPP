@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { downloadAlarmoverforingPDF, getAlarmoverforingPDFBlob, previewAlarmoverforingPDF } from './tilbud/AlarmoverforingPDF'
-import { uploadToDropbox } from '@/services/dropboxServiceV2'
+import { uploadTilbudToDropbox } from '@/services/dropboxServiceV2'
 
 // Konstanter for prisberegning
 const FAST_PRIS_PER_MAANED = 400 // kr eks mva
@@ -1200,19 +1200,29 @@ function AlarmoverforingDetails({ tilbud, onEdit, onClose, onStatusChange }: Ala
   const [generatingPDF, setGeneratingPDF] = useState(false)
   const [sendingPDF, setSendingPDF] = useState(false)
 
-  // Hent kundenummer for Dropbox-sti
+  // Hent kundenummer fra customers-tabellen via anlegg
   const [kundenummer, setKundenummer] = useState<string>('')
   
   useEffect(() => {
     async function fetchKundenummer() {
       if (tilbud.anlegg_id) {
-        const { data } = await supabase
+        // Hent kundenr fra anlegg, deretter kundenummer fra customers
+        const { data: anleggData } = await supabase
           .from('anlegg')
           .select('kundenr')
           .eq('id', tilbud.anlegg_id)
           .single()
-        if (data?.kundenr) {
-          setKundenummer(data.kundenr)
+        
+        if (anleggData?.kundenr) {
+          const { data: customerData } = await supabase
+            .from('customers')
+            .select('kundenummer')
+            .eq('id', anleggData.kundenr)
+            .single()
+          
+          if (customerData?.kundenummer) {
+            setKundenummer(customerData.kundenummer)
+          }
         }
       }
     }
@@ -1277,20 +1287,14 @@ function AlarmoverforingDetails({ tilbud, onEdit, onClose, onStatusChange }: Ala
       // Generer PDF blob
       const pdfBlob = await getAlarmoverforingPDFBlob(getPDFData())
       
-      // Bygg filnavn og sti
+      // Bygg filnavn
       const kundeNavn = tilbud.anlegg?.customer?.navn || 'Ukjent'
       const anleggNavn = tilbud.anlegg?.anleggsnavn || 'Ukjent'
       const dato = new Date().toISOString().split('T')[0]
       const fileName = `Tilbud_Alarmoverforing_${dato}.pdf`
       
-      // Bygg Dropbox-sti (bruker tilpasset sti for tilbud)
-      const safeKundeNavn = kundeNavn.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim()
-      const safeAnleggNavn = anleggNavn.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim()
-      const basePath = '/NY MAPPESTRUKTUR 2026/01_KUNDER'
-      const dropboxPath = `${basePath}/${kundenummer}_${safeKundeNavn}/02_Bygg/${safeAnleggNavn}/08_Tilbud/${fileName}`
-      
-      // Last opp til Dropbox
-      const uploadResult = await uploadToDropbox(dropboxPath, pdfBlob)
+      // Last opp til Dropbox med riktig sti
+      const uploadResult = await uploadTilbudToDropbox(kundenummer, kundeNavn, anleggNavn, fileName, pdfBlob)
       
       if (!uploadResult.success) {
         throw new Error(uploadResult.error || 'Kunne ikke laste opp til Dropbox')
@@ -1301,7 +1305,7 @@ function AlarmoverforingDetails({ tilbud, onEdit, onClose, onStatusChange }: Ala
         .from('alarmoverforing')
         .update({ 
           status: 'Sendt',
-          pdf_url: dropboxPath,
+          pdf_url: uploadResult.path || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', tilbud.id)

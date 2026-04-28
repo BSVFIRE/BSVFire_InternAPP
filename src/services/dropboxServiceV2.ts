@@ -401,6 +401,64 @@ export interface DropboxEntry {
 }
 
 /**
+ * Bygger Dropbox-mappesti for tilbud
+ * Format: /NY MAPPESTRUKTUR 2026/01_KUNDER/{kundenummer}_{kundenavn}/02_Bygg/{anleggsnavn}/08_Tilbud/{filnavn}
+ */
+export function buildTilbudDropboxPath(
+  kundeNummer: string,
+  kundeNavn: string,
+  anleggNavn: string,
+  fileName: string
+): string {
+  const safeKundeNavn = kundeNavn
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const safeAnleggNavn = anleggNavn
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const basePath = '/NY MAPPESTRUKTUR 2026/01_KUNDER'
+  const kundePath = `${kundeNummer}_${safeKundeNavn}`
+  const fullPath = `${basePath}/${kundePath}/02_Bygg/${safeAnleggNavn}/08_Tilbud/${fileName}`
+
+  return fullPath
+}
+
+/**
+ * Laster opp tilbud-PDF til riktig kundemappe (08_Tilbud)
+ */
+export async function uploadTilbudToDropbox(
+  kundeNummer: string,
+  kundeNavn: string,
+  anleggNavn: string,
+  fileName: string,
+  pdfBlob: Blob
+): Promise<DropboxResponse> {
+  if (!kundeNummer) {
+    return { success: false, error: 'Kundenummer mangler' }
+  }
+  if (!kundeNavn) {
+    return { success: false, error: 'Kundenavn mangler' }
+  }
+  if (!anleggNavn) {
+    return { success: false, error: 'Anleggsnavn mangler' }
+  }
+
+  const filePath = buildTilbudDropboxPath(kundeNummer, kundeNavn, anleggNavn, fileName)
+  
+  log.info('Laster opp tilbud til Dropbox', { filePath, kundeNummer, kundeNavn, anleggNavn })
+  
+  // Sørg for at mappen eksisterer
+  const folderPath = filePath.substring(0, filePath.lastIndexOf('/'))
+  await ensureDropboxFolderExists(folderPath)
+
+  return uploadToDropbox(filePath, pdfBlob)
+}
+
+/**
  * Bygger Dropbox-mappesti for et anlegg (hele 02_Bygg-mappen)
  */
 export function buildAnleggDropboxPath(
