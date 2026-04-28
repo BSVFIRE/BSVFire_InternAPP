@@ -92,9 +92,21 @@ export function KommentarViewBrannslukkere({ anleggId, kundeNavn: _kundeNavn, an
       
       setNyKommentar('')
       await loadKommentarer()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Feil ved opprettelse av kommentar:', error)
-      alert('Kunne ikke legge til kommentar')
+      
+      let feilmelding = 'Kunne ikke legge til kommentar. '
+      if (error?.message?.includes('Load failed') || error?.message?.includes('fetch')) {
+        feilmelding += 'Sjekk internettforbindelsen din og prøv igjen.'
+      } else if (error?.code === '42501') {
+        feilmelding += 'Du har ikke tilgang til å legge til kommentarer.'
+      } else if (!navigator.onLine) {
+        feilmelding += 'Du er ikke tilkoblet internett.'
+      } else {
+        feilmelding += 'Prøv igjen senere.'
+      }
+      
+      alert(feilmelding)
     }
   }
 

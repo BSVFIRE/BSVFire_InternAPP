@@ -373,9 +373,21 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       // Reset unsaved changes og oppdater original data
       setOriginalData(nodlysListe)
       setUnsavedChanges(new Map())
-    } catch (error) {
+    } catch (error: any) {
       console.error('Feil ved lagring av endringer:', error)
-      alert('Kunne ikke lagre endringer')
+      
+      let feilmelding = 'Kunne ikke lagre endringer. '
+      if (error?.message?.includes('Load failed') || error?.message?.includes('fetch')) {
+        feilmelding += 'Sjekk internettforbindelsen din og prøv igjen.'
+      } else if (error?.code === '42501') {
+        feilmelding += 'Du har ikke tilgang til å lagre endringer.'
+      } else if (!navigator.onLine) {
+        feilmelding += 'Du er ikke tilkoblet internett.'
+      } else {
+        feilmelding += 'Prøv igjen senere.'
+      }
+      
+      alert(feilmelding)
     } finally {
       setIsSaving(false)
     }

@@ -478,26 +478,28 @@ export function FG790KontrollView({
                 </div>
               )}
               
-              {/* Fullscreen toggle */}
-              <button
-                onClick={() => {
-                  if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen()
-                    setIsFullscreen(true)
-                  } else {
-                    document.exitFullscreen()
-                    setIsFullscreen(false)
-                  }
-                }}
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0"
-                title={isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                ) : (
-                  <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                )}
-              </button>
+              {/* Fullscreen toggle - skjules på iOS som ikke støtter fullscreen API */}
+              {document.documentElement.requestFullscreen && (
+                <button
+                  onClick={() => {
+                    if (!document.fullscreenElement) {
+                      document.documentElement.requestFullscreen?.()
+                      setIsFullscreen(true)
+                    } else {
+                      document.exitFullscreen?.()
+                      setIsFullscreen(false)
+                    }
+                  }}
+                  className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0"
+                  title={isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                  ) : (
+                    <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                  )}
+                </button>
+              )}
             </div>
           </div>
 

@@ -423,7 +423,7 @@ serve(async (req) => {
           }
         )
 
-        const data = await response.json()
+        let data = await response.json()
         
         if (!response.ok) {
           // Hvis mappen ikke finnes, returner tom liste
@@ -439,11 +439,33 @@ serve(async (req) => {
           throw new Error(data.error_summary || 'Kunne ikke liste mappe')
         }
 
+        // Samle alle entries, håndter paginering
+        let allEntries = data.entries || []
+        
+        // Fortsett å hente hvis det er flere resultater
+        while (data.has_more && data.cursor) {
+          console.log('Henter flere resultater fra Dropbox...')
+          const continueResponse = await callDropboxAPI(
+            '/files/list_folder/continue',
+            accessToken,
+            config.root_namespace_id,
+            { cursor: data.cursor }
+          )
+          
+          data = await continueResponse.json()
+          
+          if (!continueResponse.ok) {
+            console.error('Feil ved fortsettelse av listing:', data.error_summary)
+            break
+          }
+          
+          allEntries = allEntries.concat(data.entries || [])
+        }
+
         return new Response(JSON.stringify({ 
           success: true, 
-          entries: data.entries || [],
-          cursor: data.cursor,
-          has_more: data.has_more
+          entries: allEntries,
+          has_more: false
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
