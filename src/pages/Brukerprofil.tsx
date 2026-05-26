@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { User, Mail, Phone, Save, Loader2, Camera, Award, MessageCircle, Shield } from 'lucide-react'
+import { User, Mail, Phone, Save, Loader2, Camera, Award, MessageCircle, Shield, Lock, CheckCircle, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 
@@ -17,7 +17,7 @@ interface AnsattProfil {
 }
 
 export function Brukerprofil() {
-  const { user } = useAuthStore()
+  const { user, updatePassword } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [profil, setProfil] = useState<AnsattProfil | null>(null)
@@ -28,6 +28,14 @@ export function Brukerprofil() {
     gronn_sertifikat_nummer: '',
     telegram_chat_id: '',
   })
+  
+  // Passord-state
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
 
   useEffect(() => {
     if (user?.email) {
@@ -96,6 +104,37 @@ export function Brukerprofil() {
       alert('Kunne ikke lagre endringer')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handlePasswordChange() {
+    setPasswordError('')
+    setPasswordSuccess(false)
+
+    if (newPassword.length < 8) {
+      setPasswordError('Passordet må være minst 8 tegn')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passordene stemmer ikke overens')
+      return
+    }
+
+    try {
+      setPasswordSaving(true)
+      await updatePassword(newPassword)
+      setPasswordSuccess(true)
+      setNewPassword('')
+      setConfirmPassword('')
+      setTimeout(() => {
+        setShowPasswordForm(false)
+        setPasswordSuccess(false)
+      }, 2000)
+    } catch (error) {
+      setPasswordError('Kunne ikke oppdatere passordet. Prøv igjen.')
+    } finally {
+      setPasswordSaving(false)
     }
   }
 
@@ -314,6 +353,107 @@ export function Brukerprofil() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Endre passord-seksjon */}
+        <div className="lg:col-span-3 card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <Lock className="w-5 h-5" />
+              Endre passord
+            </h3>
+            {!showPasswordForm && (
+              <button
+                onClick={() => setShowPasswordForm(true)}
+                className="btn-secondary text-sm"
+              >
+                Endre passord
+              </button>
+            )}
+          </div>
+
+          {showPasswordForm && (
+            <div className="space-y-4">
+              {passwordSuccess && (
+                <div className="p-4 bg-green-900/20 border border-green-800 rounded-lg flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-green-400">Passord oppdatert!</p>
+                </div>
+              )}
+
+              {passwordError && (
+                <div className="p-4 bg-red-900/20 border border-red-800 rounded-lg flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-400">{passwordError}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Nytt passord
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="input"
+                  placeholder="Minst 8 tegn"
+                  minLength={8}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Bekreft nytt passord
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="input"
+                  placeholder="Skriv passordet på nytt"
+                  minLength={8}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handlePasswordChange}
+                  disabled={passwordSaving}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  {passwordSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Oppdaterer...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      Oppdater passord
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPasswordForm(false)
+                    setPasswordError('')
+                    setNewPassword('')
+                    setConfirmPassword('')
+                  }}
+                  className="btn-secondary"
+                >
+                  Avbryt
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!showPasswordForm && (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Klikk "Endre passord" for å oppdatere passordet ditt.
+            </p>
+          )}
         </div>
       </div>
     </div>

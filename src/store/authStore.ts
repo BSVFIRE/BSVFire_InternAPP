@@ -9,6 +9,8 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
   initialize: () => Promise<void>
+  resetPassword: (email: string) => Promise<void>
+  updatePassword: (newPassword: string) => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -48,6 +50,26 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       logger.error('Auth initialization failed', { error })
       set({ loading: false })
+    }
+  },
+
+  resetPassword: async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    if (error) {
+      logger.error('Password reset failed', { email, error: error.message })
+      throw error
+    }
+  },
+
+  updatePassword: async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    })
+    if (error) {
+      logger.error('Password update failed', { error: error.message })
+      throw error
     }
   },
 }))

@@ -13,6 +13,7 @@ import { AIAssistant } from './components/AIAssistant'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { DropboxCallback } from './pages/DropboxCallback'
+import { ResetPassword } from './pages/ResetPassword'
 
 // Lazy-loaded sider (lastes når de trengs)
 const Kunder = lazy(() => import('./pages/Kunder').then(m => ({ default: m.Kunder })))
@@ -103,6 +104,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/dropbox-callback" element={<DropboxCallback />} />
           <Route
             path="/*"
