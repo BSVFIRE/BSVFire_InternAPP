@@ -79,6 +79,7 @@ interface MineKontroller {
   kundenavn: string | null
   kontroll_status: string | null
   kontroll_type: string[] | null
+  kontroll_maaned: string | null
 }
 
 export function Dashboard() {
@@ -108,6 +109,7 @@ export function Dashboard() {
   const [lasterNyeData, setLasterNyeData] = useState(false)
   const [mineKontroller, setMineKontroller] = useState<MineKontroller[]>([])
   const [currentMonth] = useState(() => MAANEDER[new Date().getMonth()])
+  const [visAlleKontroller, setVisAlleKontroller] = useState(false)
 
   useEffect(() => {
     loadAnsattId()
@@ -165,17 +167,30 @@ export function Dashboard() {
         data: data?.map(a => ({ navn: a.anleggsnavn, maaned: a.kontroll_maaned, status: a.kontroll_status }))
       })
 
-      // Filtrer på måned og status klient-side for bedre debugging
+      // Vis anlegg med status "Planlagt" eller "Utsatt" - unngår at alle "Ikke utført" hoper seg opp
       const kontroller = (data || [])
-        .filter(a => a.kontroll_maaned === currentMonth && a.kontroll_status !== 'Utført')
+        .filter(a => a.kontroll_status === 'Planlagt' || a.kontroll_status === 'Utsatt')
         .map((a: any) => ({
           id: a.id,
           anleggsnavn: a.anleggsnavn,
           adresse: a.adresse,
           kundenavn: a.customer?.navn || null,
           kontroll_status: a.kontroll_status,
-          kontroll_type: a.kontroll_type
+          kontroll_type: a.kontroll_type,
+          kontroll_maaned: a.kontroll_maaned
         }))
+        .sort((a, b) => {
+          // Sorter etter måned (inneværende måned først)
+          const maanedIndex = (m: string | null) => m ? MAANEDER.indexOf(m as typeof MAANEDER[number]) : 99
+          const aIndex = maanedIndex(a.kontroll_maaned)
+          const bIndex = maanedIndex(b.kontroll_maaned)
+          const currentIndex = MAANEDER.indexOf(currentMonth as typeof MAANEDER[number])
+          
+          // Beregn avstand fra inneværende måned
+          const aDist = (aIndex - currentIndex + 12) % 12
+          const bDist = (bIndex - currentIndex + 12) % 12
+          return aDist - bDist
+        })
 
       setMineKontroller(kontroller)
     } catch (error) {
@@ -937,7 +952,7 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Mine kontroller denne måneden */}
+      {/* Mine oppfølginger */}
       {mineKontroller.length > 0 && (
         <div className="card border-l-4 border-orange-500">
           <div className="flex items-center justify-between mb-4">
@@ -946,28 +961,41 @@ export function Dashboard() {
                 <Bell className="w-5 h-5 text-orange-500" />
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Mine oppfølginger - {currentMonth}</h2>
+                <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Mine oppfølginger</h2>
                 <p className="text-xs text-gray-500">{mineKontroller.length} anlegg venter på oppfølging</p>
               </div>
             </div>
-            <button
-              onClick={() => navigate('/kontrollplan')}
-              className="text-sm text-primary hover:underline"
-            >
-              Se alle
-            </button>
+            {mineKontroller.length > 3 && (
+              <button
+                onClick={() => setVisAlleKontroller(!visAlleKontroller)}
+                className="text-sm text-primary hover:underline"
+              >
+                {visAlleKontroller ? 'Vis færre' : 'Se alle'}
+              </button>
+            )}
           </div>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {mineKontroller.map((kontroll) => (
+          <div className={`space-y-2 ${visAlleKontroller ? 'max-h-[600px]' : 'max-h-64'} overflow-y-auto transition-all`}>
+            {(visAlleKontroller ? mineKontroller : mineKontroller.slice(0, 3)).map((kontroll) => (
               <div
                 key={kontroll.id}
                 className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors"
                 onClick={() => navigate('/anlegg', { state: { viewAnleggId: kontroll.id } })}
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {kontroll.anleggsnavn}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {kontroll.anleggsnavn}
+                    </p>
+                    {kontroll.kontroll_maaned && (
+                      <span className={`px-1.5 py-0.5 text-xs rounded ${
+                        kontroll.kontroll_maaned === currentMonth 
+                          ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                          : 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-gray-400'
+                      }`}>
+                        {kontroll.kontroll_maaned}
+                      </span>
+                    )}
+                  </div>
                   {kontroll.kundenavn && (
                     <p className="text-xs text-gray-500 truncate">{kontroll.kundenavn}</p>
                   )}

@@ -49,6 +49,8 @@ interface Anlegg {
   status_oppdatert_av: string | null
   status_oppdatert_av_navn: string | null
   fg_database_registrert: boolean | null
+  ansvarlig_tekniker_id: string | null
+  ansvarlig_tekniker?: { navn: string } | null
 }
 
 interface Kunde {
@@ -230,7 +232,7 @@ export function Anlegg() {
       
       // Hent anlegg og kunder parallelt
       const [anleggResponse, kunderResponse] = await Promise.all([
-        supabase.from('anlegg').select('*').order('anleggsnavn', { ascending: true }),
+        supabase.from('anlegg').select('*, ansvarlig_tekniker:ansvarlig_tekniker_id(navn)').order('anleggsnavn', { ascending: true }),
         supabase.from('customer').select('id, navn, kunde_nummer').or('skjult.is.null,skjult.eq.false')
       ])
 
@@ -3453,6 +3455,15 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                   </button>
                 </div>
               )}
+              <div>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Oppfølges av (BSV Fire)</p>
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-primary" />
+                  <p className="text-gray-900 dark:text-white">
+                    {anlegg.ansvarlig_tekniker?.navn || 'Ikke tildelt'}
+                  </p>
+                </div>
+              </div>
             </div>
             )}
           </div>
