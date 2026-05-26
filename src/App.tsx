@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { useThemeStore } from './store/themeStore'
@@ -6,52 +6,62 @@ import { Layout } from './components/Layout'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { setupErrorTracking } from './lib/errorTracking'
 import { useScrollToInput } from './hooks/useKeyboardHeight'
-import { Login } from './pages/Login'
-import { Dashboard } from './pages/Dashboard'
-import { Kunder } from './pages/Kunder'
-import { Anlegg } from './pages/Anlegg'
-import { Kontaktpersoner } from './pages/Kontaktpersoner'
-import { EksternKontaktpersoner } from './pages/EksternKontaktpersoner'
-import { Ordre } from './pages/Ordre'
-import { Oppgaver } from './pages/Oppgaver'
-import { Rapporter } from './pages/Rapporter'
-import { RapportOversikt } from './pages/RapportOversikt'
-import { SendRapporter } from './pages/SendRapporter'
-import { Teknisk } from './pages/Teknisk'
-import { Dokumentasjon } from './pages/Dokumentasjon'
-import { LastOpp } from './pages/LastOpp'
-import { Nedlastinger } from './pages/Nedlastinger'
-import { AdminLogger } from './pages/AdminLogger'
-import { Priser } from './pages/Priser'
-import { TilbudServiceavtale } from './pages/TilbudServiceavtale'
-import { TilbudAlarmoverforing } from './pages/TilbudAlarmoverforing'
-import { PrisAdministrasjon } from './pages/PrisAdministrasjon'
-import { AdminAIEmbeddings } from './pages/AdminAIEmbeddings'
-import { AdminAIKnowledge } from './pages/AdminAIKnowledge'
-import { Moter } from './pages/Moter'
-import { Kontrollplan } from './pages/Kontrollplan'
-import { Meldinger } from './pages/Meldinger'
-import PowerOfficeTest from './pages/PowerOfficeTest'
-import { DropboxCallback } from './pages/DropboxCallback'
-import { AdminDropboxFolders } from './pages/AdminDropboxFolders'
-import { AdminAarsavslutning } from './pages/AdminAarsavslutning'
-import { AdminModulOversikt } from './pages/AdminModulOversikt'
-import { AdminSalg } from './pages/AdminSalg'
-import { ProffSok } from './pages/ProffSok'
-import { KsHmsDashboard } from './pages/KsHmsDashboard'
-import { KsHmsRisikovurderinger } from './pages/KsHmsRisikovurderinger'
-import { KsHmsHendelser } from './pages/KsHmsHendelser'
-import { KsHmsAvvik } from './pages/KsHmsAvvik'
-import { KsHmsOpplaering } from './pages/KsHmsOpplaering'
-import { KsHmsTiltak } from './pages/KsHmsTiltak'
 import { OfflineIndicator } from './components/OfflineIndicator'
 import { AIAssistant } from './components/AIAssistant'
 
-// Placeholder pages
+// Eager-loaded (trengs med en gang)
+import { Login } from './pages/Login'
+import { Dashboard } from './pages/Dashboard'
+import { DropboxCallback } from './pages/DropboxCallback'
 
-function Prosjekter() {
-  return <div className="text-white"><h1 className="text-2xl font-bold">Prosjekter</h1><p className="text-gray-400 mt-2">Under utvikling...</p></div>
+// Lazy-loaded sider (lastes når de trengs)
+const Kunder = lazy(() => import('./pages/Kunder').then(m => ({ default: m.Kunder })))
+const Anlegg = lazy(() => import('./pages/Anlegg').then(m => ({ default: m.Anlegg })))
+const Kontaktpersoner = lazy(() => import('./pages/Kontaktpersoner').then(m => ({ default: m.Kontaktpersoner })))
+const EksternKontaktpersoner = lazy(() => import('./pages/EksternKontaktpersoner').then(m => ({ default: m.EksternKontaktpersoner })))
+const Ordre = lazy(() => import('./pages/Ordre').then(m => ({ default: m.Ordre })))
+const Oppgaver = lazy(() => import('./pages/Oppgaver').then(m => ({ default: m.Oppgaver })))
+const Rapporter = lazy(() => import('./pages/Rapporter').then(m => ({ default: m.Rapporter })))
+const RapportOversikt = lazy(() => import('./pages/RapportOversikt').then(m => ({ default: m.RapportOversikt })))
+const SendRapporter = lazy(() => import('./pages/SendRapporter').then(m => ({ default: m.SendRapporter })))
+const Teknisk = lazy(() => import('./pages/Teknisk').then(m => ({ default: m.Teknisk })))
+const Dokumentasjon = lazy(() => import('./pages/Dokumentasjon').then(m => ({ default: m.Dokumentasjon })))
+const LastOpp = lazy(() => import('./pages/LastOpp').then(m => ({ default: m.LastOpp })))
+const Nedlastinger = lazy(() => import('./pages/Nedlastinger').then(m => ({ default: m.Nedlastinger })))
+const AdminLogger = lazy(() => import('./pages/AdminLogger').then(m => ({ default: m.AdminLogger })))
+const Priser = lazy(() => import('./pages/Priser').then(m => ({ default: m.Priser })))
+const TilbudServiceavtale = lazy(() => import('./pages/TilbudServiceavtale').then(m => ({ default: m.TilbudServiceavtale })))
+const TilbudAlarmoverforing = lazy(() => import('./pages/TilbudAlarmoverforing').then(m => ({ default: m.TilbudAlarmoverforing })))
+const PrisAdministrasjon = lazy(() => import('./pages/PrisAdministrasjon').then(m => ({ default: m.PrisAdministrasjon })))
+const AdminAIEmbeddings = lazy(() => import('./pages/AdminAIEmbeddings').then(m => ({ default: m.AdminAIEmbeddings })))
+const AdminAIKnowledge = lazy(() => import('./pages/AdminAIKnowledge').then(m => ({ default: m.AdminAIKnowledge })))
+const Moter = lazy(() => import('./pages/Moter').then(m => ({ default: m.Moter })))
+const Kontrollplan = lazy(() => import('./pages/Kontrollplan').then(m => ({ default: m.Kontrollplan })))
+const Meldinger = lazy(() => import('./pages/Meldinger').then(m => ({ default: m.Meldinger })))
+const PowerOfficeTest = lazy(() => import('./pages/PowerOfficeTest'))
+const AdminDropboxFolders = lazy(() => import('./pages/AdminDropboxFolders').then(m => ({ default: m.AdminDropboxFolders })))
+const AdminAarsavslutning = lazy(() => import('./pages/AdminAarsavslutning').then(m => ({ default: m.AdminAarsavslutning })))
+const AdminModulOversikt = lazy(() => import('./pages/AdminModulOversikt').then(m => ({ default: m.AdminModulOversikt })))
+const AdminSalg = lazy(() => import('./pages/AdminSalg').then(m => ({ default: m.AdminSalg })))
+const ProffSok = lazy(() => import('./pages/ProffSok').then(m => ({ default: m.ProffSok })))
+const KsHmsDashboard = lazy(() => import('./pages/KsHmsDashboard').then(m => ({ default: m.KsHmsDashboard })))
+const KsHmsRisikovurderinger = lazy(() => import('./pages/KsHmsRisikovurderinger').then(m => ({ default: m.KsHmsRisikovurderinger })))
+const KsHmsHendelser = lazy(() => import('./pages/KsHmsHendelser').then(m => ({ default: m.KsHmsHendelser })))
+const KsHmsAvvik = lazy(() => import('./pages/KsHmsAvvik').then(m => ({ default: m.KsHmsAvvik })))
+const KsHmsOpplaering = lazy(() => import('./pages/KsHmsOpplaering').then(m => ({ default: m.KsHmsOpplaering })))
+const KsHmsTiltak = lazy(() => import('./pages/KsHmsTiltak').then(m => ({ default: m.KsHmsTiltak })))
+const Prosjekter = lazy(() => import('./pages/Prosjekter'))
+const Brukerprofil = lazy(() => import('./pages/Brukerprofil').then(m => ({ default: m.Brukerprofil })))
+
+// Loading spinner for lazy-loaded sider
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    </div>
+  )
 }
+
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((state) => state.user)
@@ -99,47 +109,50 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout>
-                  <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/kunder" element={<Kunder />} />
-                    <Route path="/anlegg" element={<Anlegg />} />
-                    <Route path="/kontrollplan" element={<Kontrollplan />} />
-                    <Route path="/kontaktpersoner" element={<Kontaktpersoner />} />
-                    <Route path="/ekstern-kontaktpersoner" element={<EksternKontaktpersoner />} />
-                    <Route path="/ordre" element={<Ordre />} />
-                    <Route path="/oppgaver" element={<Oppgaver />} />
-                    <Route path="/meldinger" element={<Meldinger />} />
-                    <Route path="/prosjekter" element={<Prosjekter />} />
-                    <Route path="/moter" element={<Moter />} />
-                    <Route path="/rapporter" element={<Rapporter />} />
-                    <Route path="/rapport-oversikt" element={<RapportOversikt />} />
-                    <Route path="/send-rapporter" element={<SendRapporter />} />
-                    <Route path="/teknisk" element={<Teknisk />} />
-                    <Route path="/dokumentasjon" element={<Dokumentasjon />} />
-                    <Route path="/last-opp" element={<LastOpp />} />
-                    <Route path="/nedlastinger" element={<Nedlastinger />} />
-                    <Route path="/priser" element={<Priser />} />
-                    <Route path="/tilbud-serviceavtale" element={<TilbudServiceavtale />} />
-                    <Route path="/tilbud-alarmoverforing" element={<TilbudAlarmoverforing />} />
-                    <Route path="/admin/prisadministrasjon" element={<PrisAdministrasjon />} />
-                    <Route path="/admin/poweroffice" element={<PowerOfficeTest />} />
-                    <Route path="/admin/logger" element={<AdminLogger />} />
-                    <Route path="/admin/ai-embeddings" element={<AdminAIEmbeddings />} />
-                    <Route path="/admin/ai-knowledge" element={<AdminAIKnowledge />} />
-                    <Route path="/admin/dropbox-folders" element={<AdminDropboxFolders />} />
-                    <Route path="/admin/aarsavslutning" element={<AdminAarsavslutning />} />
-                    <Route path="/admin/modul-oversikt" element={<AdminModulOversikt />} />
-                    <Route path="/admin/salg" element={<AdminSalg />} />
-                    <Route path="/admin/proff" element={<ProffSok />} />
-                    <Route path="/poweroffice-test" element={<PowerOfficeTest />} />
-                    <Route path="/ks-hms" element={<KsHmsDashboard />} />
-                    <Route path="/ks-hms/risikovurderinger" element={<KsHmsRisikovurderinger />} />
-                    <Route path="/ks-hms/hendelser" element={<KsHmsHendelser />} />
-                    <Route path="/ks-hms/avvik" element={<KsHmsAvvik />} />
-                    <Route path="/ks-hms/opplaering" element={<KsHmsOpplaering />} />
-                    <Route path="/ks-hms/tiltak" element={<KsHmsTiltak />} />
-                  </Routes>
+                  <Suspense fallback={<PageLoader />}>
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/kunder" element={<Kunder />} />
+                      <Route path="/anlegg" element={<Anlegg />} />
+                      <Route path="/kontrollplan" element={<Kontrollplan />} />
+                      <Route path="/kontaktpersoner" element={<Kontaktpersoner />} />
+                      <Route path="/ekstern-kontaktpersoner" element={<EksternKontaktpersoner />} />
+                      <Route path="/ordre" element={<Ordre />} />
+                      <Route path="/oppgaver" element={<Oppgaver />} />
+                      <Route path="/meldinger" element={<Meldinger />} />
+                      <Route path="/prosjekter" element={<Prosjekter />} />
+                      <Route path="/moter" element={<Moter />} />
+                      <Route path="/rapporter" element={<Rapporter />} />
+                      <Route path="/rapport-oversikt" element={<RapportOversikt />} />
+                      <Route path="/send-rapporter" element={<SendRapporter />} />
+                      <Route path="/teknisk" element={<Teknisk />} />
+                      <Route path="/dokumentasjon" element={<Dokumentasjon />} />
+                      <Route path="/last-opp" element={<LastOpp />} />
+                      <Route path="/nedlastinger" element={<Nedlastinger />} />
+                      <Route path="/priser" element={<Priser />} />
+                      <Route path="/tilbud-serviceavtale" element={<TilbudServiceavtale />} />
+                      <Route path="/tilbud-alarmoverforing" element={<TilbudAlarmoverforing />} />
+                      <Route path="/admin/prisadministrasjon" element={<PrisAdministrasjon />} />
+                      <Route path="/admin/poweroffice" element={<PowerOfficeTest />} />
+                      <Route path="/admin/logger" element={<AdminLogger />} />
+                      <Route path="/admin/ai-embeddings" element={<AdminAIEmbeddings />} />
+                      <Route path="/admin/ai-knowledge" element={<AdminAIKnowledge />} />
+                      <Route path="/admin/dropbox-folders" element={<AdminDropboxFolders />} />
+                      <Route path="/admin/aarsavslutning" element={<AdminAarsavslutning />} />
+                      <Route path="/admin/modul-oversikt" element={<AdminModulOversikt />} />
+                      <Route path="/admin/salg" element={<AdminSalg />} />
+                      <Route path="/admin/proff" element={<ProffSok />} />
+                      <Route path="/admin/bedrift" element={<Brukerprofil />} />
+                      <Route path="/poweroffice-test" element={<PowerOfficeTest />} />
+                      <Route path="/ks-hms" element={<KsHmsDashboard />} />
+                      <Route path="/ks-hms/risikovurderinger" element={<KsHmsRisikovurderinger />} />
+                      <Route path="/ks-hms/hendelser" element={<KsHmsHendelser />} />
+                      <Route path="/ks-hms/avvik" element={<KsHmsAvvik />} />
+                      <Route path="/ks-hms/opplaering" element={<KsHmsOpplaering />} />
+                      <Route path="/ks-hms/tiltak" element={<KsHmsTiltak />} />
+                    </Routes>
+                  </Suspense>
                 </Layout>
               </ProtectedRoute>
             }

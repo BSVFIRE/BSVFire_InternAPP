@@ -18,6 +18,11 @@ export function Teknisk() {
   const [returnToAnlegg, setReturnToAnlegg] = useState<string | null>(null)
 
   useEffect(() => {
+    // Sjekk URL-parametere for anlegg og prosjekt
+    const searchParams = new URLSearchParams(location.search)
+    const anleggParam = searchParams.get('anlegg')
+    const prosjektParam = searchParams.get('prosjekt')
+    
     // Sjekk om vi kommer fra ordre med state for servicerapport
     if (location.state?.openServicerapport) {
       setActiveView('servicerapport')
@@ -27,7 +32,20 @@ export function Teknisk() {
         ordreId: location.state.ordreId
       })
     }
-    // Sjekk om vi kommer fra anlegg med tab-parameter
+    // Sjekk om vi kommer fra prosjekt med URL-parametere
+    else if (anleggParam) {
+      // Finn hvilken view basert på pathname
+      if (location.pathname.includes('detektorliste')) {
+        setActiveView('detektorliste')
+      } else if (location.pathname.includes('alarmorganisering')) {
+        setActiveView('alarm')
+      }
+      setServiceRapportState({
+        anleggId: anleggParam,
+        prosjektId: prosjektParam
+      })
+    }
+    // Sjekk om vi kommer fra anlegg eller prosjekt med tab-parameter
     else if (location.state?.tab) {
       const tabMap: Record<string, TekniskView> = {
         'detektorliste': 'detektorliste',
@@ -44,7 +62,8 @@ export function Teknisk() {
         if (location.state.anleggId) {
           setServiceRapportState({
             anleggId: location.state.anleggId,
-            kundeId: location.state.kundeId
+            kundeId: location.state.kundeId,
+            prosjektId: location.state.prosjektId
           })
           // Lagre anlegg-ID for tilbake-navigasjon
           setReturnToAnlegg(location.state.anleggId)
@@ -68,6 +87,7 @@ export function Teknisk() {
       onBack={handleBack} 
       initialAnleggId={serviceRapportState?.anleggId}
       initialKundeId={serviceRapportState?.kundeId}
+      initialProsjektId={serviceRapportState?.prosjektId}
     />
   }
 
@@ -76,6 +96,7 @@ export function Teknisk() {
       onBack={handleBack} 
       initialAnleggId={serviceRapportState?.anleggId}
       initialKundeId={serviceRapportState?.kundeId}
+      initialProsjektId={serviceRapportState?.prosjektId}
     />
   }
 

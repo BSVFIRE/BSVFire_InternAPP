@@ -9,6 +9,7 @@ interface DetektorlisteEditorProps {
   anleggId: string
   kundeNavn: string
   anleggNavn: string
+  prosjektId?: string
   onBack: () => void
 }
 
@@ -43,6 +44,7 @@ export function DetektorlisteEditor({
   anleggId,
   kundeNavn,
   anleggNavn,
+  prosjektId,
   onBack
 }: DetektorlisteEditorProps) {
   const [loading, setLoading] = useState(false)
@@ -195,6 +197,7 @@ export function DetektorlisteEditor({
       const detektorlisteData = {
         kunde_id: kundeId,
         anlegg_id: anleggId,
+        prosjekt_id: prosjektId || null,
         revisjon,
         dato,
         service_ingeniør: servicetekniker,
@@ -290,6 +293,7 @@ export function DetektorlisteEditor({
       const detektorlisteData = {
         kunde_id: kundeId,
         anlegg_id: anleggId,
+        prosjekt_id: prosjektId || null,
         revisjon,
         dato,
         service_ingeniør: servicetekniker,

@@ -17,9 +17,10 @@ import {
   Inbox,
   Check,
   Building,
-  X
+  X,
+  Bell
 } from 'lucide-react'
-import { ORDRE_STATUSER, OPPGAVE_STATUSER } from '@/lib/constants'
+import { ORDRE_STATUSER, OPPGAVE_STATUSER, MAANEDER } from '@/lib/constants'
 
 interface Stats {
   ordre: { total: number; aktive: number; fullfort: number; fakturert: number }
@@ -71,6 +72,15 @@ interface KommendeOrdre {
 
 type TidsFilter = 'dag' | 'uke' | 'maned' | 'ar'
 
+interface MineKontroller {
+  id: string
+  anleggsnavn: string
+  adresse: string | null
+  kundenavn: string | null
+  kontroll_status: string | null
+  kontroll_type: string[] | null
+}
+
 export function Dashboard() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
@@ -96,6 +106,8 @@ export function Dashboard() {
   const [nyeKunderListe, setNyeKunderListe] = useState<{ id: string; navn: string; opprettet: string }[]>([])
   const [nyeAnleggListe, setNyeAnleggListe] = useState<{ id: string; anleggsnavn: string; kundenavn: string; opprettet: string }[]>([])
   const [lasterNyeData, setLasterNyeData] = useState(false)
+  const [mineKontroller, setMineKontroller] = useState<MineKontroller[]>([])
+  const [currentMonth] = useState(() => MAANEDER[new Date().getMonth()])
 
   useEffect(() => {
     loadAnsattId()
@@ -115,92 +127,132 @@ export function Dashboard() {
         .single()
       
       setAnsattId(data?.id || null)
+      
+      // Last mine kontroller hvis vi har ansatt-ID
+      if (data?.id) {
+        loadMineKontroller(data.id)
+      }
     } catch (error) {
       log.error('Feil ved henting av ansatt-ID', { error })
       setAnsattId(null)
     }
   }
 
+  async function loadMineKontroller(teknikerId: string) {
+    try {
+      // Hent alle anlegg hvor brukeren er ansvarlig tekniker
+      const { data, error } = await supabase
+        .from('anlegg')
+        .select(`
+          id,
+          anleggsnavn,
+          adresse,
+          kontroll_status,
+          kontroll_type,
+          kontroll_maaned,
+          kundenr,
+          customer:kundenr (navn)
+        `)
+        .eq('ansvarlig_tekniker_id', teknikerId)
+        .order('anleggsnavn')
+
+      if (error) throw error
+
+      log.info('Mine kontroller lastet', { 
+        teknikerId, 
+        currentMonth,
+        antall: data?.length || 0,
+        data: data?.map(a => ({ navn: a.anleggsnavn, maaned: a.kontroll_maaned, status: a.kontroll_status }))
+      })
+
+      // Filtrer på måned og status klient-side for bedre debugging
+      const kontroller = (data || [])
+        .filter(a => a.kontroll_maaned === currentMonth && a.kontroll_status !== 'Utført')
+        .map((a: any) => ({
+          id: a.id,
+          anleggsnavn: a.anleggsnavn,
+          adresse: a.adresse,
+          kundenavn: a.customer?.navn || null,
+          kontroll_status: a.kontroll_status,
+          kontroll_type: a.kontroll_type
+        }))
+
+      setMineKontroller(kontroller)
+    } catch (error) {
+      log.error('Feil ved henting av mine kontroller', { error })
+    }
+  }
+
   async function loadStats() {
     try {
-      // Hent ordre statistikk
-      let ordreQuery = supabase.from('ordre').select('status, tekniker_id')
-      if (!visAlle && ansattId) {
-        ordreQuery = ordreQuery.eq('tekniker_id', ansattId)
-      }
-      const { data: ordreData } = await ordreQuery
-      
-      const fullfort = ordreData?.filter(o => o.status === ORDRE_STATUSER.FULLFORT).length || 0
-      const fakturert = ordreData?.filter(o => o.status === ORDRE_STATUSER.FAKTURERT).length || 0
-      const aktive = ordreData?.filter(o => o.status !== ORDRE_STATUSER.FULLFORT && o.status !== ORDRE_STATUSER.FAKTURERT).length || 0
-      
-      const ordreStats = {
-        total: ordreData?.length || 0,
-        aktive: aktive,
-        fullfort: fullfort,
-        fakturert: fakturert
-      }
-
-      // Hent oppgaver statistikk
-      let oppgaverQuery = supabase.from('oppgaver').select('status, tekniker_id')
-      if (!visAlle && ansattId) {
-        oppgaverQuery = oppgaverQuery.eq('tekniker_id', ansattId)
-      }
-      const { data: oppgaverData } = await oppgaverQuery
-      
-      const oppgaverStats = {
-        total: oppgaverData?.length || 0,
-        aktive: oppgaverData?.filter(o => o.status === 'Aktiv' || o.status === 'Pågår').length || 0,
-        fullfort: oppgaverData?.filter(o => o.status === OPPGAVE_STATUSER.FULLFORT).length || 0
-      }
-
-      // Hent prosjekter statistikk
-      let prosjekterQuery = supabase.from('prosjekter').select('status, prosjektleder_id')
-      if (!visAlle && ansattId) {
-        prosjekterQuery = prosjekterQuery.eq('prosjektleder_id', ansattId)
-      }
-      const { data: prosjekterData } = await prosjekterQuery
-      
-      const prosjekterStats = {
-        total: prosjekterData?.length || 0,
-        pagaar: prosjekterData?.filter(p => p.status === 'Pågår').length || 0,
-        planlagt: prosjekterData?.filter(p => p.status === 'Planlagt').length || 0
-      }
-
-      // Hent anlegg count
-      const { count: anleggCount } = await supabase
-        .from('anlegg')
-        .select('*', { count: 'exact', head: true })
-
-      // Hent kunder count
-      const { count: kunderCount } = await supabase
-        .from('customer')
-        .select('*', { count: 'exact', head: true })
-        .or('skjult.is.null,skjult.eq.false')
-
-      // Hent nye kunder siste måned
       const enMndSiden = new Date()
       enMndSiden.setMonth(enMndSiden.getMonth() - 1)
-      const { count: nyeKunder } = await supabase
-        .from('customer')
-        .select('*', { count: 'exact', head: true })
-        .gte('opprettet', enMndSiden.toISOString())
-        .or('skjult.is.null,skjult.eq.false')
 
-      // Hent nye anlegg siste måned
-      const { count: nyeAnlegg } = await supabase
-        .from('anlegg')
-        .select('*', { count: 'exact', head: true })
-        .gte('opprettet_dato', enMndSiden.toISOString())
+      // Bygg queries basert på filter
+      const ordreQuery = !visAlle && ansattId 
+        ? supabase.from('ordre').select('status, tekniker_id').eq('tekniker_id', ansattId)
+        : supabase.from('ordre').select('status, tekniker_id')
+      
+      const oppgaverQuery = !visAlle && ansattId
+        ? supabase.from('oppgaver').select('status, tekniker_id').eq('tekniker_id', ansattId)
+        : supabase.from('oppgaver').select('status, tekniker_id')
+      
+      const prosjekterQuery = !visAlle && ansattId
+        ? supabase.from('prosjekter').select('status, prosjektleder_id').eq('prosjektleder_id', ansattId)
+        : supabase.from('prosjekter').select('status, prosjektleder_id')
+
+      // Kjør ALLE queries parallelt for mye raskere lasting
+      const [
+        ordreResult,
+        oppgaverResult,
+        prosjekterResult,
+        anleggResult,
+        kunderResult,
+        nyeKunderResult,
+        nyeAnleggResult
+      ] = await Promise.all([
+        ordreQuery,
+        oppgaverQuery,
+        prosjekterQuery,
+        supabase.from('anlegg').select('*', { count: 'exact', head: true }),
+        supabase.from('customer').select('*', { count: 'exact', head: true }).or('skjult.is.null,skjult.eq.false'),
+        supabase.from('customer').select('*', { count: 'exact', head: true }).gte('opprettet', enMndSiden.toISOString()).or('skjult.is.null,skjult.eq.false'),
+        supabase.from('anlegg').select('*', { count: 'exact', head: true }).gte('opprettet_dato', enMndSiden.toISOString())
+      ])
+
+      // Prosesser ordre-data
+      const ordreData = ordreResult.data || []
+      const fullfort = ordreData.filter(o => o.status === ORDRE_STATUSER.FULLFORT).length
+      const fakturert = ordreData.filter(o => o.status === ORDRE_STATUSER.FAKTURERT).length
+      const aktive = ordreData.filter(o => o.status !== ORDRE_STATUSER.FULLFORT && o.status !== ORDRE_STATUSER.FAKTURERT).length
+
+      // Prosesser oppgaver-data
+      const oppgaverData = oppgaverResult.data || []
+
+      // Prosesser prosjekter-data
+      const prosjekterData = prosjekterResult.data || []
 
       setStats({
-        ordre: ordreStats,
-        oppgaver: oppgaverStats,
-        prosjekter: prosjekterStats,
-        anlegg: anleggCount || 0,
-        kunder: kunderCount || 0,
-        nyeKunderSisteManed: nyeKunder || 0,
-        nyeAnleggSisteManed: nyeAnlegg || 0
+        ordre: {
+          total: ordreData.length,
+          aktive,
+          fullfort,
+          fakturert
+        },
+        oppgaver: {
+          total: oppgaverData.length,
+          aktive: oppgaverData.filter(o => o.status === 'Aktiv' || o.status === 'Pågår').length,
+          fullfort: oppgaverData.filter(o => o.status === OPPGAVE_STATUSER.FULLFORT).length
+        },
+        prosjekter: {
+          total: prosjekterData.length,
+          pagaar: prosjekterData.filter(p => p.status === 'Pågår').length,
+          planlagt: prosjekterData.filter(p => p.status === 'Planlagt').length
+        },
+        anlegg: anleggResult.count || 0,
+        kunder: kunderResult.count || 0,
+        nyeKunderSisteManed: nyeKunderResult.count || 0,
+        nyeAnleggSisteManed: nyeAnleggResult.count || 0
       })
     } catch (error) {
       log.error('Feil ved lasting av statistikk', { error })
@@ -879,6 +931,68 @@ export function Dashboard() {
                 >
                   <Check className="w-4 h-4" />
                 </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Mine kontroller denne måneden */}
+      {mineKontroller.length > 0 && (
+        <div className="card border-l-4 border-orange-500">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-500/10 rounded-lg">
+                <Bell className="w-5 h-5 text-orange-500" />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Mine oppfølginger - {currentMonth}</h2>
+                <p className="text-xs text-gray-500">{mineKontroller.length} anlegg venter på oppfølging</p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/kontrollplan')}
+              className="text-sm text-primary hover:underline"
+            >
+              Se alle
+            </button>
+          </div>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {mineKontroller.map((kontroll) => (
+              <div
+                key={kontroll.id}
+                className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors"
+                onClick={() => navigate('/anlegg', { state: { viewAnleggId: kontroll.id } })}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {kontroll.anleggsnavn}
+                  </p>
+                  {kontroll.kundenavn && (
+                    <p className="text-xs text-gray-500 truncate">{kontroll.kundenavn}</p>
+                  )}
+                  {kontroll.adresse && (
+                    <p className="text-xs text-gray-400 truncate">{kontroll.adresse}</p>
+                  )}
+                  {kontroll.kontroll_type && kontroll.kontroll_type.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {kontroll.kontroll_type.map(type => (
+                        <span key={type} className="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-dark-200 text-gray-600 dark:text-gray-400 rounded">
+                          {type}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <span className={`px-2 py-1 text-xs rounded-full flex-shrink-0 ${
+                  kontroll.kontroll_status === 'Ikke utført' 
+                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                    : kontroll.kontroll_status === 'Planlagt'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                    : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                }`}>
+                  {kontroll.kontroll_status || 'Ikke utført'}
+                </span>
               </div>
             ))}
           </div>

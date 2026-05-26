@@ -7,6 +7,9 @@ import { generateAlarmorganiseringPDF } from './AlarmorganiseringPDF'
 interface AlarmorganiseringEditorProps {
   existingData?: any
   onClose: (saved: boolean) => void
+  initialAnleggId?: string
+  initialKundeId?: string
+  initialProsjektId?: string
 }
 
 interface Styring {
@@ -21,15 +24,16 @@ const VERIFICATION_METHODS = ['Visuell kontroll', 'Telefonkontakt', 'Fysisk oppm
 const CONTROL_TYPES = ['Brannklokke/Sirene', 'Talevarsling', 'Visuell varsling', 'Røykventilasjon', 'Branndører', 'Sprinkleranlegg', 'Slokkeanlegg', 'Heisblokering', 'Strømkutt', 'Ventilasjonsstopp', 'Annet utstyr']
 const ALARM_LEVELS = ['Forvarsel', 'Liten alarm', 'Storalarm']
 
-export function AlarmorganiseringEditor({ existingData, onClose }: AlarmorganiseringEditorProps) {
+export function AlarmorganiseringEditor({ existingData, onClose, initialAnleggId, initialKundeId, initialProsjektId }: AlarmorganiseringEditorProps) {
   const [saving, setSaving] = useState(false)
   const [customers, setCustomers] = useState<any[]>([])
   const [facilities, setFacilities] = useState<any[]>([])
   const [serviceTechnicians, setServiceTechnicians] = useState<any[]>([])
   
   const [formData, setFormData] = useState({
-    kunde_id: existingData?.kunde_id || '',
-    anlegg_id: existingData?.anlegg_id || '',
+    kunde_id: existingData?.kunde_id || initialKundeId || '',
+    anlegg_id: existingData?.anlegg_id || initialAnleggId || '',
+    prosjekt_id: existingData?.prosjekt_id || initialProsjektId || null,
     dato: existingData?.dato || new Date().toISOString().split('T')[0],
     revisjon: existingData?.revisjon || '1.0',
     service_ingeniør: existingData?.service_ingeniør || '',

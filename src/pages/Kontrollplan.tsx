@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Calendar, ChevronLeft, ChevronRight, CheckCircle, Clock, XCircle, Building2, Search, Eye, Ban } from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, CheckCircle, Clock, XCircle, Building2, Search, Eye, Ban, User } from 'lucide-react'
 import { MAANEDER, KONTROLLTYPER, ANLEGG_STATUSER } from '@/lib/constants'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -22,6 +22,12 @@ interface Anlegg {
   slukkeutstyr_fullfort: boolean | null
   forstehjelp_fullfort: boolean | null
   ekstern_fullfort: boolean | null
+  ansvarlig_tekniker_id: string | null
+}
+
+interface Ansatt {
+  id: string
+  navn: string
 }
 
 interface Kunde {
@@ -42,6 +48,7 @@ export function Kontrollplan() {
   const location = useLocation()
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
   const [kunder, setKunder] = useState<Kunde[]>([])
+  const [ansatte, setAnsatte] = useState<Ansatt[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonth())
   const [selectedKontrolltype, setSelectedKontrolltype] = useState<string>('Alle')
@@ -79,16 +86,19 @@ export function Kontrollplan() {
     try {
       setLoading(true)
       
-      const [anleggResponse, kunderResponse] = await Promise.all([
+      const [anleggResponse, kunderResponse, ansatteResponse] = await Promise.all([
         supabase.from('anlegg').select('*').order('anleggsnavn', { ascending: true }),
-        supabase.from('customer').select('id, navn')
+        supabase.from('customer').select('id, navn'),
+        supabase.from('ansatte').select('id, navn').order('navn')
       ])
 
       if (anleggResponse.error) throw anleggResponse.error
       if (kunderResponse.error) throw kunderResponse.error
+      if (ansatteResponse.error) throw ansatteResponse.error
 
       setAnlegg(anleggResponse.data || [])
       setKunder(kunderResponse.data || [])
+      setAnsatte(ansatteResponse.data || [])
     } catch (err) {
       log.error('Feil ved lasting av data', { error: err })
     } finally {
@@ -214,6 +224,31 @@ export function Kontrollplan() {
       // Reverter optimistisk oppdatering ved feil
       await loadData()
       alert('Kunne ikke oppdatere status. Prøv igjen.')
+    }
+  }
+
+  async function handleTeknikerChange(anleggId: string, teknikerId: string | null) {
+    try {
+      // Optimistisk UI-oppdatering
+      setAnlegg(prevAnlegg => 
+        prevAnlegg.map(a => 
+          a.id === anleggId ? { ...a, ansvarlig_tekniker_id: teknikerId } : a
+        )
+      )
+
+      // Oppdater database
+      const { error } = await supabase
+        .from('anlegg')
+        .update({ ansvarlig_tekniker_id: teknikerId })
+        .eq('id', anleggId)
+
+      if (error) throw error
+
+      log.info('Tekniker oppdatert', { anleggId, teknikerId })
+    } catch (err) {
+      log.error('Feil ved oppdatering av tekniker', { error: err, anleggId, teknikerId })
+      await loadData()
+      alert('Kunne ikke oppdatere tekniker. Prøv igjen.')
     }
   }
 
@@ -367,8 +402,10 @@ export function Kontrollplan() {
             borderColor="border-red-200 dark:border-red-800"
             anlegg={groupedAnlegg.ikkeUtfort}
             kunder={kunder}
+            ansatte={ansatte}
             onViewAnlegg={handleViewAnlegg}
             onStatusChange={handleStatusChange}
+            onTeknikerChange={handleTeknikerChange}
           />
         )}
 
@@ -382,8 +419,10 @@ export function Kontrollplan() {
             borderColor="border-yellow-200 dark:border-yellow-800"
             anlegg={groupedAnlegg.utsatt}
             kunder={kunder}
+            ansatte={ansatte}
             onViewAnlegg={handleViewAnlegg}
             onStatusChange={handleStatusChange}
+            onTeknikerChange={handleTeknikerChange}
           />
         )}
 
@@ -397,8 +436,10 @@ export function Kontrollplan() {
             borderColor="border-blue-200 dark:border-blue-800"
             anlegg={groupedAnlegg.planlagt}
             kunder={kunder}
+            ansatte={ansatte}
             onViewAnlegg={handleViewAnlegg}
             onStatusChange={handleStatusChange}
+            onTeknikerChange={handleTeknikerChange}
           />
         )}
 
@@ -412,8 +453,10 @@ export function Kontrollplan() {
             borderColor="border-green-200 dark:border-green-800"
             anlegg={groupedAnlegg.utfort}
             kunder={kunder}
+            ansatte={ansatte}
             onViewAnlegg={handleViewAnlegg}
             onStatusChange={handleStatusChange}
+            onTeknikerChange={handleTeknikerChange}
           />
         )}
 
@@ -427,8 +470,10 @@ export function Kontrollplan() {
             borderColor="border-gray-200 dark:border-gray-800"
             anlegg={groupedAnlegg.oppsagt}
             kunder={kunder}
+            ansatte={ansatte}
             onViewAnlegg={handleViewAnlegg}
             onStatusChange={handleStatusChange}
+            onTeknikerChange={handleTeknikerChange}
           />
         )}
 
@@ -457,16 +502,24 @@ interface AnleggGroupProps {
   borderColor: string
   anlegg: Anlegg[]
   kunder: Kunde[]
+  ansatte: Ansatt[]
   onViewAnlegg: (id: string) => void
   onStatusChange: (anleggId: string, newStatus: string) => void
+  onTeknikerChange: (anleggId: string, teknikerId: string | null) => void
 }
 
-function AnleggGroup({ title, icon: Icon, iconColor, bgColor, borderColor, anlegg, kunder, onViewAnlegg, onStatusChange }: AnleggGroupProps) {
+function AnleggGroup({ title, icon: Icon, iconColor, bgColor, borderColor, anlegg, kunder, ansatte, onViewAnlegg, onStatusChange, onTeknikerChange }: AnleggGroupProps) {
   const [isExpanded, setIsExpanded] = useState(true)
 
   function getKundeNavn(kundenr: string): string {
     const kunde = kunder.find(k => k.id === kundenr)
     return kunde?.navn || 'Ukjent kunde'
+  }
+
+  function getTeknikerNavn(teknikerId: string | null): string {
+    if (!teknikerId) return ''
+    const tekniker = ansatte.find(a => a.id === teknikerId)
+    return tekniker?.navn || ''
   }
 
   return (
@@ -489,6 +542,23 @@ function AnleggGroup({ title, icon: Icon, iconColor, bgColor, borderColor, anleg
 
       {isExpanded && (
         <div className="bg-white dark:bg-dark-50 divide-y divide-gray-200 dark:divide-gray-800">
+          {/* Header-rad med kolonnetitler */}
+          <div className="hidden sm:flex px-6 py-2 bg-gray-50 dark:bg-dark-100 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex-1 min-w-0">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Anlegg / Kunde / Adresse
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-40 text-center">
+                Oppfølges av
+              </span>
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28 text-center">
+                Status
+              </span>
+              <span className="w-9"></span>
+            </div>
+          </div>
           {anlegg.map(a => (
             <div
               key={a.id}
@@ -528,7 +598,28 @@ function AnleggGroup({ title, icon: Icon, iconColor, bgColor, borderColor, anleg
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-start">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 self-start">
+                  {/* Tekniker-velger */}
+                  <div className="flex items-center gap-1">
+                    <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <select
+                      value={a.ansvarlig_tekniker_id || ''}
+                      onChange={(e) => {
+                        e.stopPropagation()
+                        onTeknikerChange(a.id, e.target.value || null)
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="px-2 py-1.5 text-xs sm:text-sm bg-white dark:bg-dark-100 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-gray-900 dark:text-white cursor-pointer hover:border-primary transition-colors"
+                      title={getTeknikerNavn(a.ansvarlig_tekniker_id)}
+                    >
+                      <option value="">Velg tekniker</option>
+                      {ansatte.map(tekniker => (
+                        <option key={tekniker.id} value={tekniker.id}>{tekniker.navn}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Status-velger */}
                   <select
                     value={a.kontroll_status || ''}
                     onChange={(e) => {

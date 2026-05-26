@@ -987,6 +987,8 @@ interface Kunde {
 interface Anlegg {
   id: string
   anleggsnavn: string
+  kundenr: string
+  adresse?: string | null
   kontroll_type: string[] | null
 }
 
@@ -1004,12 +1006,15 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
   })
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
+  const [alleAnlegg, setAlleAnlegg] = useState<(Anlegg & { kundenavn?: string })[]>([])
   const [teknikere, setTeknikere] = useState<Tekniker[]>([])
   const [tilgjengeligeKontrolltyper, setTilgjengeligeKontrolltyper] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [kundeSok, setKundeSok] = useState('')
   const [anleggSok, setAnleggSok] = useState('')
+  const [globalAnleggSok, setGlobalAnleggSok] = useState('')
+  const [sokModus, setSokModus] = useState<'kunde' | 'anlegg'>('kunde')
   const [showFakturaDialog, setShowFakturaDialog] = useState(false)
   const [erFakturert, setErFakturert] = useState<boolean | null>(null)
   const [fakturaAnsvarlig, setFakturaAnsvarlig] = useState('')
@@ -1031,13 +1036,23 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
 
   async function loadData() {
     try {
-      const [kunderRes, teknikereRes] = await Promise.all([
+      const [kunderRes, teknikereRes, alleAnleggRes] = await Promise.all([
         supabase.from('customer').select('id, navn').order('navn'),
-        supabase.from('ansatte').select('id, navn').order('navn')
+        supabase.from('ansatte').select('id, navn').order('navn'),
+        supabase.from('anlegg').select('id, anleggsnavn, kundenr, kontroll_type, adresse').order('anleggsnavn')
       ])
 
       if (kunderRes.data) setKunder(kunderRes.data)
       if (teknikereRes.data) setTeknikere(teknikereRes.data)
+      
+      // Kombiner anlegg med kundenavn
+      if (alleAnleggRes.data && kunderRes.data) {
+        const anleggMedKunde = alleAnleggRes.data.map(a => ({
+          ...a,
+          kundenavn: kunderRes.data.find(k => k.id === a.kundenr)?.navn || 'Ukjent kunde'
+        }))
+        setAlleAnlegg(anleggMedKunde)
+      }
 
       if (formData.kundenr) {
         await loadAnlegg(formData.kundenr)
@@ -1057,7 +1072,7 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
     try {
       const { data } = await supabase
         .from('anlegg')
-        .select('id, anleggsnavn, kontroll_type')
+        .select('id, anleggsnavn, kundenr, adresse, kontroll_type')
         .eq('kundenr', kundeId)
         .order('anleggsnavn')
 
@@ -1349,8 +1364,8 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
       </div>
 
       <form onSubmit={handleSubmit} className="card space-y-6">
-        {/* Rad 1: Ordretype, Status og Tekniker */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Rad 1: Ordretype og Tekniker */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Ordretype */}
           <div>
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
@@ -1386,151 +1401,253 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
               ))}
             </select>
           </div>
+        </div>
 
-          {/* Status med farger */}
-          <div>
-            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-              Status <span className="text-red-500">*</span>
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {statuser.map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => setFormData({ ...formData, status })}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
-                    formData.status === status
-                      ? ORDRE_STATUS_COLORS[status] || 'bg-primary text-white border-primary'
-                      : 'bg-dark-100 border-gray-700 text-gray-400 hover:border-gray-500'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
+        {/* Rad 2: Status */}
+        <div>
+          <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+            Status <span className="text-red-500">*</span>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {statuser.map((status) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => setFormData({ ...formData, status })}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                  formData.status === status
+                    ? ORDRE_STATUS_COLORS[status] || 'bg-primary text-white border-primary'
+                    : 'bg-dark-100 border-gray-700 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                {status}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Rad 2: Kunde og Anlegg */}
+        {/* Rad 2: Søkemodus-toggle og Kunde/Anlegg */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-          {/* Kunde */}
-          <div className="md:col-span-2">
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300">
-                Kunde <span className="text-red-500">*</span>
+          
+          {/* Søkemodus toggle - kun for nye ordre */}
+          {!ordre && kanRedigereKundeAnlegg && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+                Søk etter
               </label>
-              {ordre && (
-                <div className="flex items-center gap-3">
-                  {formData.anlegg_id && (
-                    <button
-                      type="button"
-                      onClick={() => navigate('/anlegg', { state: { viewAnleggId: formData.anlegg_id } })}
-                      className="text-xs text-primary hover:text-primary-400 flex items-center gap-1"
-                    >
-                      <Building2 className="w-3 h-3" />
-                      Gå til anlegg
-                    </button>
-                  )}
-                  {!kanRedigereKundeAnlegg && (
-                    <button
-                      type="button"
-                      onClick={() => setKanRedigereKundeAnlegg(true)}
-                      className="text-xs text-primary hover:text-primary-400 flex items-center gap-1"
-                    >
-                      <Edit className="w-3 h-3" />
-                      Rediger kunde/anlegg
-                    </button>
-                  )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSokModus('kunde')
+                    setGlobalAnleggSok('')
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                    sokModus === 'kunde'
+                      ? 'bg-primary border-primary text-white'
+                      : 'bg-dark-100 border-gray-700 text-gray-400 hover:border-gray-500'
+                  }`}
+                >
+                  Kunde først
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSokModus('anlegg')
+                    setKundeSok('')
+                    setFormData(prev => ({ ...prev, kundenr: '', anlegg_id: '' }))
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                    sokModus === 'anlegg'
+                      ? 'bg-primary border-primary text-white'
+                      : 'bg-dark-100 border-gray-700 text-gray-400 hover:border-gray-500'
+                  }`}
+                >
+                  Søk anlegg direkte
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Anlegg-søk modus */}
+          {sokModus === 'anlegg' && !ordre && kanRedigereKundeAnlegg && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+                Søk etter anlegg <span className="text-red-500">*</span>
+              </label>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Søk etter anleggsnavn eller adresse..."
+                  value={globalAnleggSok}
+                  onChange={(e) => setGlobalAnleggSok(e.target.value)}
+                  className="input"
+                  autoFocus
+                />
+                {globalAnleggSok.length >= 2 && (
+                  <select
+                    value={formData.anlegg_id}
+                    onChange={(e) => {
+                      const valgtAnlegg = alleAnlegg.find(a => a.id === e.target.value)
+                      if (valgtAnlegg) {
+                        setFormData({ 
+                          ...formData, 
+                          anlegg_id: e.target.value,
+                          kundenr: valgtAnlegg.kundenr 
+                        })
+                      }
+                    }}
+                    className="input"
+                    required
+                    size={Math.min(alleAnlegg.filter(a => 
+                      a.anleggsnavn.toLowerCase().includes(globalAnleggSok.toLowerCase()) ||
+                      (a.adresse && a.adresse.toLowerCase().includes(globalAnleggSok.toLowerCase()))
+                    ).length + 1, 10)}
+                  >
+                    <option value="">Velg anlegg</option>
+                    {alleAnlegg
+                      .filter(a => 
+                        a.anleggsnavn.toLowerCase().includes(globalAnleggSok.toLowerCase()) ||
+                        (a.adresse && a.adresse.toLowerCase().includes(globalAnleggSok.toLowerCase()))
+                      )
+                      .slice(0, 50)
+                      .map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.anleggsnavn} - {a.kundenavn}
+                        </option>
+                      ))}
+                  </select>
+                )}
+                {formData.anlegg_id && (
+                  <p className="text-sm text-green-500">
+                    Kunde settes automatisk: {alleAnlegg.find(a => a.id === formData.anlegg_id)?.kundenavn}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Kunde - kun vis hvis kunde-modus eller eksisterende ordre */}
+          {(sokModus === 'kunde' || ordre) && (
+            <div className="md:col-span-2">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-500 dark:text-gray-300">
+                  Kunde <span className="text-red-500">*</span>
+                </label>
+                {ordre && (
+                  <div className="flex items-center gap-3">
+                    {formData.anlegg_id && (
+                      <button
+                        type="button"
+                        onClick={() => navigate('/anlegg', { state: { viewAnleggId: formData.anlegg_id } })}
+                        className="text-xs text-primary hover:text-primary-400 flex items-center gap-1"
+                      >
+                        <Building2 className="w-3 h-3" />
+                        Gå til anlegg
+                      </button>
+                    )}
+                    {!kanRedigereKundeAnlegg && (
+                      <button
+                        type="button"
+                        onClick={() => setKanRedigereKundeAnlegg(true)}
+                        className="text-xs text-primary hover:text-primary-400 flex items-center gap-1"
+                      >
+                        <Edit className="w-3 h-3" />
+                        Rediger kunde/anlegg
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {ordre && !kanRedigereKundeAnlegg ? (
+                <div className="input bg-dark-100 text-gray-900 dark:text-white">
+                  {kundeNavn}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Søk etter kunde..."
+                    value={kundeSok}
+                    onChange={(e) => setKundeSok(e.target.value)}
+                    className="input"
+                  />
+                  <select
+                    value={formData.kundenr}
+                    onChange={(e) => {
+                      setFormData({ ...formData, kundenr: e.target.value, anlegg_id: '' })
+                      setAnlegg([])
+                      loadAnlegg(e.target.value)
+                    }}
+                    className="input"
+                    required
+                    size={Math.min(kunder.filter(k => 
+                      k.navn.toLowerCase().includes(kundeSok.toLowerCase())
+                    ).length + 1, 8)}
+                  >
+                    <option value="">Velg kunde</option>
+                    {kunder
+                      .filter(k => k.navn.toLowerCase().includes(kundeSok.toLowerCase()))
+                      .map((kunde) => (
+                        <option key={kunde.id} value={kunde.id}>{kunde.navn}</option>
+                      ))}
+                  </select>
                 </div>
               )}
             </div>
-            {ordre && !kanRedigereKundeAnlegg ? (
-              <div className="input bg-dark-100 text-gray-900 dark:text-white">
-                {kundeNavn}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="Søk etter kunde..."
-                  value={kundeSok}
-                  onChange={(e) => setKundeSok(e.target.value)}
-                  className="input"
-                />
-                <select
-                  value={formData.kundenr}
-                  onChange={(e) => {
-                    setFormData({ ...formData, kundenr: e.target.value, anlegg_id: '' })
-                    setAnlegg([])
-                    loadAnlegg(e.target.value)
-                  }}
-                  className="input"
-                  required
-                  size={Math.min(kunder.filter(k => 
-                    k.navn.toLowerCase().includes(kundeSok.toLowerCase())
-                  ).length + 1, 8)}
-                >
-                  <option value="">Velg kunde</option>
-                  {kunder
-                    .filter(k => k.navn.toLowerCase().includes(kundeSok.toLowerCase()))
-                    .map((kunde) => (
-                      <option key={kunde.id} value={kunde.id}>{kunde.navn}</option>
-                    ))}
-                </select>
-              </div>
-            )}
-          </div>
+          )}
 
-          {/* Anlegg */}
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
-              Anlegg <span className="text-red-500">*</span>
-            </label>
-            {ordre && !kanRedigereKundeAnlegg ? (
-              <div className="input bg-dark-100 text-gray-900 dark:text-white">
-                {anleggNavn}
-              </div>
-            ) : !formData.kundenr ? (
-              <div className="input bg-dark-100 text-gray-400 dark:text-gray-500 cursor-not-allowed">
-                Velg kunde først
-              </div>
-            ) : anlegg.length === 0 ? (
-              <div className="input bg-dark-100 text-gray-400 dark:text-gray-500">
-                Ingen anlegg funnet for denne kunden
-              </div>
-            ) : anlegg.length === 1 ? (
-              <div className="input bg-dark-100 text-gray-900 dark:text-white">
-                {anlegg[0].anleggsnavn} (automatisk valgt)
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="Søk etter anlegg..."
-                  value={anleggSok}
-                  onChange={(e) => setAnleggSok(e.target.value)}
-                  className="input"
-                />
-                <select
-                  value={formData.anlegg_id}
-                  onChange={(e) => setFormData({ ...formData, anlegg_id: e.target.value })}
-                  className="input"
-                  required
-                  size={Math.min(anlegg.filter(a => 
-                    a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase())
-                  ).length + 1, 8)}
-                >
-                  <option value="">Velg anlegg</option>
-                  {anlegg
-                    .filter(a => a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase()))
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>{a.anleggsnavn}</option>
-                    ))}
-                </select>
-              </div>
-            )}
-          </div>
+          {/* Anlegg - kun vis hvis kunde-modus eller eksisterende ordre */}
+          {(sokModus === 'kunde' || ordre) && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+                Anlegg <span className="text-red-500">*</span>
+              </label>
+              {ordre && !kanRedigereKundeAnlegg ? (
+                <div className="input bg-dark-100 text-gray-900 dark:text-white">
+                  {anleggNavn}
+                </div>
+              ) : !formData.kundenr ? (
+                <div className="input bg-dark-100 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                  Velg kunde først
+                </div>
+              ) : anlegg.length === 0 ? (
+                <div className="input bg-dark-100 text-gray-400 dark:text-gray-500">
+                  Ingen anlegg funnet for denne kunden
+                </div>
+              ) : anlegg.length === 1 ? (
+                <div className="input bg-dark-100 text-gray-900 dark:text-white">
+                  {anlegg[0].anleggsnavn} (automatisk valgt)
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Søk etter anlegg..."
+                    value={anleggSok}
+                    onChange={(e) => setAnleggSok(e.target.value)}
+                    className="input"
+                  />
+                  <select
+                    value={formData.anlegg_id}
+                    onChange={(e) => setFormData({ ...formData, anlegg_id: e.target.value })}
+                    className="input"
+                    required
+                    size={Math.min(anlegg.filter(a => 
+                      a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase())
+                    ).length + 1, 8)}
+                  >
+                    <option value="">Velg anlegg</option>
+                    {anlegg
+                      .filter(a => a.anleggsnavn.toLowerCase().includes(anleggSok.toLowerCase()))
+                      .map((a) => (
+                        <option key={a.id} value={a.id}>{a.anleggsnavn}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Kontrolltyper */}
           {tilgjengeligeKontrolltyper.length > 0 && (

@@ -404,7 +404,7 @@ export function Anlegg() {
             <div>
               <h3 className="text-lg font-semibold text-red-400 mb-2">Kunne ikke laste anlegg</h3>
               <p className="text-red-300 text-sm mb-4">{error}</p>
-              <button onClick={loadData} className="btn-primary text-sm">
+              <button onClick={() => loadData()} className="btn-primary text-sm">
                 Prøv igjen
               </button>
             </div>

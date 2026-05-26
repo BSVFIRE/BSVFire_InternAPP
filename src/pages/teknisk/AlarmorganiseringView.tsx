@@ -7,6 +7,7 @@ interface AlarmorganiseringViewProps {
   onBack: () => void
   initialAnleggId?: string
   initialKundeId?: string
+  initialProsjektId?: string
 }
 
 interface Alarmorganisering {
@@ -22,9 +23,7 @@ interface Alarmorganisering {
   anlegg?: { anleggsnavn: string; adresse: string }
 }
 
-export function AlarmorganiseringView({ onBack, initialAnleggId, initialKundeId }: AlarmorganiseringViewProps) {
-  void initialAnleggId
-  void initialKundeId
+export function AlarmorganiseringView({ onBack, initialAnleggId, initialKundeId, initialProsjektId }: AlarmorganiseringViewProps) {
   const [alarmorganiseringer, setAlarmorganiseringer] = useState<Alarmorganisering[]>([])
   const [filteredData, setFilteredData] = useState<Alarmorganisering[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,9 +31,16 @@ export function AlarmorganiseringView({ onBack, initialAnleggId, initialKundeId 
   const [selectedStatus, setSelectedStatus] = useState<string>('Alle')
   const [showEditor, setShowEditor] = useState(false)
   const [editingItem, setEditingItem] = useState<Alarmorganisering | null>(null)
+  const [preselectedAnleggId] = useState<string | undefined>(initialAnleggId)
+  const [preselectedKundeId] = useState<string | undefined>(initialKundeId)
+  const [preselectedProsjektId] = useState<string | undefined>(initialProsjektId)
 
   useEffect(() => {
     loadAlarmorganiseringer()
+    // Hvis vi kommer fra prosjekt, åpne editor direkte
+    if (initialAnleggId && initialProsjektId) {
+      setShowEditor(true)
+    }
   }, [])
 
   useEffect(() => {
@@ -186,6 +192,9 @@ export function AlarmorganiseringView({ onBack, initialAnleggId, initialKundeId 
       <AlarmorganiseringEditor
         existingData={editingItem}
         onClose={handleEditorClose}
+        initialAnleggId={preselectedAnleggId}
+        initialKundeId={preselectedKundeId}
+        initialProsjektId={preselectedProsjektId}
       />
     )
   }

@@ -31,14 +31,17 @@ CREATE INDEX IF NOT EXISTS idx_opplaering_dato ON opplaering(dato);
 -- RLS policies for opplaering
 ALTER TABLE opplaering ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Alle kan lese opplaering" ON opplaering
-  FOR SELECT USING (true);
-
-CREATE POLICY "Alle kan opprette opplaering" ON opplaering
-  FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Alle kan oppdatere opplaering" ON opplaering
-  FOR UPDATE USING (true);
-
-CREATE POLICY "Alle kan slette opplaering" ON opplaering
-  FOR DELETE USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'opplaering' AND policyname = 'Alle kan lese opplaering') THEN
+    CREATE POLICY "Alle kan lese opplaering" ON opplaering FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'opplaering' AND policyname = 'Alle kan opprette opplaering') THEN
+    CREATE POLICY "Alle kan opprette opplaering" ON opplaering FOR INSERT WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'opplaering' AND policyname = 'Alle kan oppdatere opplaering') THEN
+    CREATE POLICY "Alle kan oppdatere opplaering" ON opplaering FOR UPDATE USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'opplaering' AND policyname = 'Alle kan slette opplaering') THEN
+    CREATE POLICY "Alle kan slette opplaering" ON opplaering FOR DELETE USING (true);
+  END IF;
+END $$;

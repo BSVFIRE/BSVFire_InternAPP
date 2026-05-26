@@ -29,14 +29,17 @@ CREATE INDEX IF NOT EXISTS idx_avvik_dato ON avvik(dato);
 -- RLS policies
 ALTER TABLE avvik ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Alle kan lese avvik" ON avvik
-  FOR SELECT USING (true);
-
-CREATE POLICY "Alle kan opprette avvik" ON avvik
-  FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Alle kan oppdatere avvik" ON avvik
-  FOR UPDATE USING (true);
-
-CREATE POLICY "Alle kan slette avvik" ON avvik
-  FOR DELETE USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'avvik' AND policyname = 'Alle kan lese avvik') THEN
+    CREATE POLICY "Alle kan lese avvik" ON avvik FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'avvik' AND policyname = 'Alle kan opprette avvik') THEN
+    CREATE POLICY "Alle kan opprette avvik" ON avvik FOR INSERT WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'avvik' AND policyname = 'Alle kan oppdatere avvik') THEN
+    CREATE POLICY "Alle kan oppdatere avvik" ON avvik FOR UPDATE USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'avvik' AND policyname = 'Alle kan slette avvik') THEN
+    CREATE POLICY "Alle kan slette avvik" ON avvik FOR DELETE USING (true);
+  END IF;
+END $$;

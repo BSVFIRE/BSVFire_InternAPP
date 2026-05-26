@@ -8,6 +8,7 @@ interface DetektorlisteViewProps {
   onBack: () => void
   initialAnleggId?: string
   initialKundeId?: string
+  initialProsjektId?: string
 }
 
 interface Kunde {
@@ -39,7 +40,7 @@ interface Detektorliste {
   opprettet_dato: string
 }
 
-export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId }: DetektorlisteViewProps) {
+export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId, initialProsjektId }: DetektorlisteViewProps) {
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
   const [detektorlister, setDetektorlister] = useState<Detektorliste[]>([])
@@ -52,7 +53,32 @@ export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId }: D
 
   useEffect(() => {
     loadKunder()
+    // Hvis vi har anleggId men ikke kundeId, hent kundeId fra anlegget
+    if (initialAnleggId && !initialKundeId) {
+      loadKundeFromAnlegg(initialAnleggId)
+    }
   }, [])
+
+  async function loadKundeFromAnlegg(anleggId: string) {
+    const { data } = await supabase
+      .from('anlegg')
+      .select('kundenr')
+      .eq('id', anleggId)
+      .single()
+    
+    if (data?.kundenr) {
+      // Finn kunde-ID fra kundenr
+      const { data: kundeData } = await supabase
+        .from('customer')
+        .select('id')
+        .eq('kundenummer', data.kundenr)
+        .single()
+      
+      if (kundeData?.id) {
+        setSelectedKunde(kundeData.id)
+      }
+    }
+  }
 
   // Sett initial kunde og anlegg hvis vi kommer fra anlegg-snarveier
   useEffect(() => {
@@ -64,8 +90,12 @@ export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId }: D
   useEffect(() => {
     if (initialAnleggId && anlegg.length > 0) {
       setSelectedAnlegg(initialAnleggId)
+      // Hvis vi kommer fra prosjekt, start direkte i opprett-modus
+      if (initialProsjektId) {
+        setIsCreatingNew(true)
+      }
     }
-  }, [initialAnleggId, anlegg])
+  }, [initialAnleggId, anlegg, initialProsjektId])
 
   useEffect(() => {
     if (selectedKunde) {
@@ -196,6 +226,7 @@ export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId }: D
         anleggId={selectedAnlegg}
         kundeNavn={selectedKundeData?.navn || ''}
         anleggNavn={selectedAnleggData?.anleggsnavn || ''}
+        prosjektId={isCreatingNew ? initialProsjektId : undefined}
         onBack={handleCloseEditor}
       />
     )
