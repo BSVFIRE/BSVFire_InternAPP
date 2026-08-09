@@ -1,14 +1,15 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send, Cloud, Zap, List, Layout, FileCheck, Shield, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send, Cloud, Zap, List, Layout, FileCheck, Shield, ChevronDown, ChevronUp, Upload } from 'lucide-react'
+import { AnleggImport } from '@/components/AnleggImport'
 import { checkDropboxStatus, createDropboxFolder, renameDropboxFolder } from '@/services/dropboxServiceV2'
 import { DropboxFileBrowser } from '@/components/DropboxFileBrowser'
 import { KUNDE_FOLDERS, ANLEGG_FOLDERS } from '@/services/dropboxFolderStructure'
 import { GoogleMapsAddressAutocomplete } from '@/components/GoogleMapsAddressAutocomplete'
 import { AnleggTodoList } from '@/components/AnleggTodoList'
 import { formatDate } from '@/lib/utils'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { ANLEGG_STATUSER, ANLEGG_STATUS_COLORS, KONTROLLTYPER, MAANEDER } from '@/lib/constants'
 import { syncAnleggToKontrollportal } from '@/lib/kontrollportal-sync'
 import { searchCompaniesByName, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
@@ -57,6 +58,7 @@ interface Kunde {
   id: string
   navn: string
   kunde_nummer: string | null
+  organisasjonsnummer: string | null
 }
 
 interface Kontaktperson {
@@ -121,6 +123,7 @@ type SortOption = 'navn_asc' | 'navn_desc' | 'kunde' | 'poststed' | 'status' | '
 export function Anlegg() {
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const state = location.state as { 
     editAnleggId?: string; 
     viewAnleggId?: string;
@@ -131,16 +134,36 @@ export function Anlegg() {
     kontrollplanState?: any;
   } | null
   
-  const [anlegg, setAnlegg] = useState<Anlegg[]>([])
+  const [anleggList, setAnleggList] = useState<Anlegg[]>([])
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState(() => {
+  const [internalSearchTerm, setInternalSearchTerm] = useState(() => {
     // Last inn lagret søketerm fra localStorage
     return localStorage.getItem('anlegg_search') || ''
   })
   const [selectedAnlegg, setSelectedAnlegg] = useState<Anlegg | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'view'>('list')
+  
+  // Synkroniser søketerm med URL
+  const searchTerm = searchParams.get('search') || internalSearchTerm
+  
+  // Wrapper for setSearchTerm som oppdaterer både URL og localStorage
+  const setSearchTerm = (term: string) => {
+    setInternalSearchTerm(term)
+    localStorage.setItem('anlegg_search', term)
+    const newParams = new URLSearchParams(searchParams)
+    if (term) {
+      newParams.set('search', term)
+    } else {
+      newParams.delete('search')
+    }
+    setSearchParams(newParams, { replace: true })
+  }
+  
+  // Alias for anlegg-listen (for bakoverkompatibilitet)
+  const anlegg = anleggList
+  const setAnlegg = setAnleggList
   const [sortBy, setSortBy] = useState<SortOption>(() => {
     // Last inn lagret sortering fra localStorage
     const saved = localStorage.getItem('anlegg_sort')
@@ -153,6 +176,7 @@ export function Anlegg() {
   })
   const [todoCountsMap, setTodoCountsMap] = useState<Record<string, number>>({})
   const [preselectedKundeId, setPreselectedKundeId] = useState<string | null>(null)
+  const [showImportModal, setShowImportModal] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -185,18 +209,23 @@ export function Anlegg() {
     }
   }, [state?.editAnleggId, anlegg])
 
-  // Åpne anlegg i visningsmodus hvis sendt via state (fra ordre)
+  // Åpne anlegg i visningsmodus hvis sendt via state (fra ordre) eller URL-parameter
   useEffect(() => {
-    if (state?.viewAnleggId && anlegg.length > 0) {
-      const anleggToView = anlegg.find(a => a.id === state.viewAnleggId)
+    const viewIdFromUrl = searchParams.get('view')
+    const viewId = viewIdFromUrl || state?.viewAnleggId
+    
+    if (viewId && anlegg.length > 0) {
+      const anleggToView = anlegg.find(a => a.id === viewId)
       if (anleggToView) {
         setSelectedAnlegg(anleggToView)
         setViewMode('view')
-        // Nullstill state for å unngå at det trigges på nytt
-        window.history.replaceState({}, document.title)
+        // Nullstill state for å unngå at det trigges på nytt (kun for state)
+        if (state?.viewAnleggId) {
+          window.history.replaceState({}, document.title)
+        }
       }
     }
-  }, [state?.viewAnleggId, anlegg])
+  }, [state?.viewAnleggId, anlegg, searchParams])
 
   // Håndter scroll-posisjon basert på viewMode
   useEffect(() => {
@@ -233,7 +262,7 @@ export function Anlegg() {
       // Hent anlegg og kunder parallelt
       const [anleggResponse, kunderResponse] = await Promise.all([
         supabase.from('anlegg').select('*, ansvarlig_tekniker:ansvarlig_tekniker_id(navn)').order('anleggsnavn', { ascending: true }),
-        supabase.from('customer').select('id, navn, kunde_nummer').or('skjult.is.null,skjult.eq.false')
+        supabase.from('customer').select('id, navn, kunde_nummer, organisasjonsnummer').or('skjult.is.null,skjult.eq.false')
       ])
 
       if (anleggResponse.error) throw new Error(anleggResponse.error.message)
@@ -573,19 +602,29 @@ export function Anlegg() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">Anlegg</h1>
           <p className="text-sm sm:text-base text-gray-400 dark:text-gray-400">Administrer anlegg og installasjoner</p>
         </div>
-        <button
-          onClick={() => {
-            // Lagre scroll-posisjon før vi går til opprettelse
-            saveScrollPosition()
-            setSelectedAnlegg(null)
-            setViewMode('create')
-          }}
-          className="btn-primary flex items-center gap-2 self-start sm:self-auto"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="hidden xs:inline">Nytt anlegg</span>
-          <span className="xs:hidden">Nytt</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="btn-secondary flex items-center gap-2"
+            title="Importer fra Excel"
+          >
+            <Upload className="w-5 h-5" />
+            <span className="hidden sm:inline">Importer</span>
+          </button>
+          <button
+            onClick={() => {
+              // Lagre scroll-posisjon før vi går til opprettelse
+              saveScrollPosition()
+              setSelectedAnlegg(null)
+              setViewMode('create')
+            }}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span className="hidden xs:inline">Nytt anlegg</span>
+            <span className="xs:hidden">Nytt</span>
+          </button>
+        </div>
       </div>
 
       {/* Search and Sort */}
@@ -1017,6 +1056,15 @@ export function Anlegg() {
           </>
         )}
       </div>
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <AnleggImport
+          kunder={kunder}
+          onClose={() => setShowImportModal(false)}
+          onImportComplete={() => loadData()}
+        />
+      )}
     </div>
   )
 }

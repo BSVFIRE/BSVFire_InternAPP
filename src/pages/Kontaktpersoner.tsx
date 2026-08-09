@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Search, User, Mail, Phone, Building2, Trash2, Eye, Star, Pencil, Save, X as XIcon, LayoutGrid, Table, Plus, Link } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
 interface Kontaktperson {
   id: string
@@ -33,31 +33,58 @@ type SortOption = 'navn_asc' | 'navn_desc' | 'rolle' | 'antall_anlegg'
 export function Kontaktpersoner() {
   const location = useLocation()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const state = location.state as { selectedKontaktId?: string; fromAnlegg?: boolean; anleggId?: string } | null
   
   const [kontaktpersoner, setKontaktpersoner] = useState<KontaktpersonMedAnlegg[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedKontakt, setSelectedKontakt] = useState<KontaktpersonMedAnlegg | null>(null)
-  const [viewMode, setViewMode] = useState<'list' | 'view'>('list')
   const [sortBy, setSortBy] = useState<SortOption>('navn_asc')
   const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
     return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
   })
 
+  // Hent søketerm og valgt kontakt fra URL-parametere
+  const searchTerm = searchParams.get('search') || ''
+  const selectedKontaktId = searchParams.get('view')
+  const selectedKontakt = selectedKontaktId 
+    ? kontaktpersoner.find(k => k.id === selectedKontaktId) || null 
+    : null
+  const viewMode = selectedKontaktId ? 'view' : 'list'
+
+  // Funksjon for å oppdatere søketerm i URL
+  const setSearchTerm = (term: string) => {
+    const newParams = new URLSearchParams(searchParams)
+    if (term) {
+      newParams.set('search', term)
+    } else {
+      newParams.delete('search')
+    }
+    setSearchParams(newParams, { replace: true })
+  }
+
+  // Funksjon for å velge kontaktperson (legger til i historikken)
+  const selectKontakt = (kontakt: KontaktpersonMedAnlegg) => {
+    const newParams = new URLSearchParams(searchParams)
+    newParams.set('view', kontakt.id)
+    setSearchParams(newParams)
+  }
+
+  // Funksjon for å lukke kontaktperson-visning
+  const closeKontakt = () => {
+    navigate(-1)
+  }
+
   useEffect(() => {
     loadKontaktpersoner()
   }, [])
 
-  // Åpne kontaktperson hvis sendt via state
+  // Åpne kontaktperson hvis sendt via state (fra andre sider)
   useEffect(() => {
-    if (state?.selectedKontaktId && kontaktpersoner.length > 0) {
-      const kontakt = kontaktpersoner.find(k => k.id === state.selectedKontaktId)
-      if (kontakt) {
-        setSelectedKontakt(kontakt)
-        setViewMode('view')
-      }
+    if (state?.selectedKontaktId && kontaktpersoner.length > 0 && !selectedKontaktId) {
+      const newParams = new URLSearchParams(searchParams)
+      newParams.set('view', state.selectedKontaktId)
+      setSearchParams(newParams, { replace: true })
     }
   }, [state?.selectedKontaktId, kontaktpersoner])
 
@@ -182,19 +209,7 @@ export function Kontaktpersoner() {
     return (
       <KontaktpersonDetails
         kontakt={selectedKontakt}
-        onClose={() => {
-          // Hvis vi kom fra anlegg, naviger tilbake til anlegget i redigeringsmodus
-          if (state?.fromAnlegg && state?.anleggId) {
-            navigate('/anlegg', { 
-              state: { 
-                editAnleggId: state.anleggId 
-              } 
-            })
-          } else {
-            setViewMode('list')
-            setSelectedKontakt(null)
-          }
-        }}
+        onClose={closeKontakt}
       />
     )
   }
@@ -325,10 +340,7 @@ export function Kontaktpersoner() {
             {sortedKontakter.map((kontakt) => (
               <div
                 key={kontakt.id}
-                onClick={() => {
-                  setSelectedKontakt(kontakt)
-                  setViewMode('view')
-                }}
+                onClick={() => selectKontakt(kontakt)}
                 className="bg-gray-50 dark:bg-dark-100 rounded-lg p-4 border border-gray-200 dark:border-gray-800 hover:border-primary/50 transition-colors cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-3">
@@ -347,8 +359,7 @@ export function Kontaktpersoner() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        setSelectedKontakt(kontakt)
-                        setViewMode('view')
+                        selectKontakt(kontakt)
                       }}
                       className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-colors touch-target"
                       title="Vis detaljer"
@@ -418,10 +429,7 @@ export function Kontaktpersoner() {
                 {sortedKontakter.map((kontakt) => (
                   <tr
                     key={kontakt.id}
-                    onClick={() => {
-                      setSelectedKontakt(kontakt)
-                      setViewMode('view')
-                    }}
+                    onClick={() => selectKontakt(kontakt)}
                     className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer"
                   >
                     <td className="py-3 px-4">
@@ -487,8 +495,7 @@ export function Kontaktpersoner() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            setSelectedKontakt(kontakt)
-                            setViewMode('view')
+                            selectKontakt(kontakt)
                           }}
                           className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                           title="Vis detaljer"
@@ -529,6 +536,11 @@ interface Anlegg {
   anleggsnavn: string
 }
 
+interface TilknyttetKunde {
+  id: string
+  navn: string
+}
+
 function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
   const navigate = useNavigate()
   const [isEditing, setIsEditing] = useState(false)
@@ -546,6 +558,30 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
   const [anleggSok, setAnleggSok] = useState('')
   const [knytterTil, setKnytterTil] = useState(false)
   const [tilknyttedeAnlegg, setTilknyttedeAnlegg] = useState(kontakt.anlegg)
+  
+  // State for tilknyttede kunder
+  const [tilknyttedeKunder, setTilknyttedeKunder] = useState<TilknyttetKunde[]>([])
+
+  // Last tilknyttede kunder ved oppstart
+  useEffect(() => {
+    loadTilknyttedeKunder()
+  }, [kontakt.id])
+
+  async function loadTilknyttedeKunder() {
+    try {
+      // Hent kunder som har denne kontaktpersonen som kontaktperson_id
+      const { data, error } = await supabase
+        .from('customer')
+        .select('id, navn')
+        .eq('kontaktperson_id', kontakt.id)
+        .order('navn')
+
+      if (error) throw error
+      setTilknyttedeKunder(data || [])
+    } catch (error) {
+      console.error('Feil ved lasting av tilknyttede kunder:', error)
+    }
+  }
 
   async function loadAlleAnlegg() {
     try {
@@ -819,11 +855,7 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
                     <div 
                       className="flex items-center gap-3 flex-1 cursor-pointer"
                       onClick={() => {
-                        navigate('/anlegg', {
-                          state: {
-                            viewAnleggId: anlegg.anlegg_id
-                          }
-                        })
+                        navigate(`/anlegg?view=${anlegg.anlegg_id}`)
                       }}
                     >
                       <Building2 className="w-5 h-5 text-primary" />
@@ -854,6 +886,37 @@ function KontaktpersonDetails({ kontakt, onClose }: KontaktpersonDetailsProps) {
                 <Link className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                 <p className="text-gray-400 dark:text-gray-400">Ingen tilknyttede anlegg</p>
                 <p className="text-sm text-gray-500 mt-1">Klikk "Knytt til anlegg" for å legge til</p>
+              </div>
+            )}
+          </div>
+
+          {/* Tilknyttede kunder */}
+          <div className="card">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
+              Tilknyttede kunder ({tilknyttedeKunder.length})
+            </h2>
+            {tilknyttedeKunder.length > 0 ? (
+              <div className="space-y-3">
+                {tilknyttedeKunder.map((kunde) => (
+                  <div
+                    key={kunde.id}
+                    onClick={() => {
+                      navigate('/kunder', {
+                        state: { viewKundeId: kunde.id }
+                      })
+                    }}
+                    className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                  >
+                    <User className="w-5 h-5 text-primary" />
+                    <p className="text-gray-900 dark:text-white font-medium">{kunde.navn}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <User className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-400 dark:text-gray-400">Ingen tilknyttede kunder</p>
+                <p className="text-sm text-gray-500 mt-1">Knytt kontaktpersonen til en kunde via kundesiden</p>
               </div>
             )}
           </div>

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Calendar, ChevronLeft, ChevronRight, CheckCircle, Clock, XCircle, Building2, Search, Eye, Ban, User } from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, CheckCircle, Clock, XCircle, Building2, Search, Eye, Ban, User, CalendarDays } from 'lucide-react'
+import { UkesplanEditor } from '@/components/Ukesplan'
 import { MAANEDER, KONTROLLTYPER, ANLEGG_STATUSER } from '@/lib/constants'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -53,12 +54,15 @@ export function Kontrollplan() {
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonth())
   const [selectedKontrolltype, setSelectedKontrolltype] = useState<string>('Alle')
   const [searchTerm, setSearchTerm] = useState('')
+  const [showUkesplan, setShowUkesplan] = useState(false)
+  const [ukesplanKundeId, setUkesplanKundeId] = useState<string | undefined>(undefined)
+  const [ukesplanEditId, setUkesplanEditId] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     loadData()
   }, [])
 
-  // Gjenopprett state hvis vi kommer tilbake fra Anlegg
+  // Gjenopprett state hvis vi kommer tilbake fra Anlegg eller åpne ukesplan
   useEffect(() => {
     const state = location.state as any
     if (state?.fromAnlegg && state?.kontrollplanState) {
@@ -73,6 +77,15 @@ export function Kontrollplan() {
       }, 100)
       
       // Rens state for å unngå at det trigges på nytt
+      window.history.replaceState({}, document.title)
+    }
+    
+    // Åpne ukesplan fra kundedetaljer
+    if (state?.openUkesplan) {
+      setUkesplanKundeId(state.kundeId)
+      setUkesplanEditId(state.editPlanId)
+      setShowUkesplan(true)
+      // Rens state
       window.history.replaceState({}, document.title)
     }
   }, [location.state])
@@ -276,7 +289,33 @@ export function Kontrollplan() {
             Planlegg og følg opp kontroller måned for måned
           </p>
         </div>
+        <button
+          onClick={() => setShowUkesplan(true)}
+          className="btn-primary flex items-center gap-2 self-start sm:self-auto"
+        >
+          <CalendarDays className="w-5 h-5" />
+          <span className="hidden sm:inline">Ny ukesplan</span>
+          <span className="sm:hidden">Ukesplan</span>
+        </button>
       </div>
+      
+      {/* Ukesplan Modal */}
+      {showUkesplan && (
+        <UkesplanEditor
+          kundeId={ukesplanKundeId}
+          editPlanId={ukesplanEditId}
+          onClose={() => {
+            setShowUkesplan(false)
+            setUkesplanKundeId(undefined)
+            setUkesplanEditId(undefined)
+          }}
+          onSave={() => {
+            setShowUkesplan(false)
+            setUkesplanKundeId(undefined)
+            setUkesplanEditId(undefined)
+          }}
+        />
+      )}
 
       {/* Månedsvelger */}
       <div className="bg-white dark:bg-dark-50 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 sm:p-6">

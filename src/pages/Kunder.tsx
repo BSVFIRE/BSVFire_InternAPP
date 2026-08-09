@@ -1,12 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Plus, Search, Building, Mail, Phone, Edit, Trash2, Eye, ExternalLink, Loader2, DollarSign, Building2, MapPin, ChevronRight, AlertTriangle, X, Package, ClipboardList, FileText } from 'lucide-react'
+import { Plus, Search, Building, Mail, Phone, Edit, Trash2, Eye, ExternalLink, Loader2, DollarSign, Building2, MapPin, ChevronRight, AlertTriangle, X, Package, ClipboardList, FileText, Calendar, Printer } from 'lucide-react'
 import { checkDropboxStatus, createDropboxFolder } from '@/services/dropboxServiceV2'
 import { KUNDE_FOLDERS } from '@/services/dropboxFolderStructure'
 import { formatDate } from '@/lib/utils'
 import { searchCompaniesByName, getCompanyByOrgNumber, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 
 const log = createLogger('Kunder')
 
@@ -59,34 +59,107 @@ interface RelatedData {
 
 export function Kunder() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const state = location.state as { viewKundeId?: string } | null
   
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedKunde, setSelectedKunde] = useState<Kunde | null>(null)
-  const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'view'>('list')
   const [sortBy, setSortBy] = useState<SortOption>('navn_asc')
   const scrollPositionRef = useRef<number>(0)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [kundeToDelete, setKundeToDelete] = useState<Kunde | null>(null)
   const [showSkjulteKunder, setShowSkjulteKunder] = useState(false)
 
+  // Hent søketerm og valgt kunde fra URL-parametere
+  const searchTerm = searchParams.get('search') || ''
+  const selectedKundeId = searchParams.get('view')
+  const editKundeId = searchParams.get('edit')
+  const isCreating = searchParams.get('new') === 'true'
+  
+  const selectedKunde = selectedKundeId 
+    ? kunder.find(k => k.id === selectedKundeId) || null 
+    : editKundeId 
+      ? kunder.find(k => k.id === editKundeId) || null
+      : null
+  
+  const viewMode: 'list' | 'create' | 'edit' | 'view' = isCreating 
+    ? 'create' 
+    : editKundeId 
+      ? 'edit' 
+      : selectedKundeId 
+        ? 'view' 
+        : 'list'
+
+  // Funksjon for å oppdatere søketerm i URL
+  const setSearchTerm = (term: string) => {
+    const newParams = new URLSearchParams(searchParams)
+    if (term) {
+      newParams.set('search', term)
+    } else {
+      newParams.delete('search')
+    }
+    setSearchParams(newParams, { replace: true })
+  }
+
+  // Funksjon for å velge kunde (legger til i historikken)
+  const selectKunde = (kunde: Kunde) => {
+    const newParams = new URLSearchParams(searchParams)
+    newParams.set('view', kunde.id)
+    newParams.delete('edit')
+    newParams.delete('new')
+    setSearchParams(newParams)
+  }
+
+  // Funksjon for å redigere kunde
+  const editKunde = (kunde: Kunde | null) => {
+    const newParams = new URLSearchParams(searchParams)
+    if (kunde) {
+      newParams.set('edit', kunde.id)
+      newParams.delete('view')
+    } else {
+      newParams.delete('edit')
+    }
+    newParams.delete('new')
+    setSearchParams(newParams)
+  }
+
+  // Funksjon for å opprette ny kunde
+  const createKunde = () => {
+    const newParams = new URLSearchParams(searchParams)
+    newParams.set('new', 'true')
+    newParams.delete('view')
+    newParams.delete('edit')
+    setSearchParams(newParams)
+  }
+
+  // Funksjon for å lukke visning/redigering
+  const closeKunde = () => {
+    navigate(-1)
+  }
+
+  // Funksjon for å gå tilbake til liste etter lagring
+  const backToList = () => {
+    const newParams = new URLSearchParams(searchParams)
+    newParams.delete('view')
+    newParams.delete('edit')
+    newParams.delete('new')
+    setSearchParams(newParams, { replace: true })
+  }
+
   useEffect(() => {
     loadKunder()
   }, [showSkjulteKunder])
 
-  // Åpne kunde i visningsmodus hvis sendt via state (fra anlegg)
+  // Åpne kunde i visningsmodus hvis sendt via state (fra andre sider)
   useEffect(() => {
-    if (state?.viewKundeId && kunder.length > 0) {
-      const kundeToView = kunder.find(k => k.id === state.viewKundeId)
-      if (kundeToView) {
-        setSelectedKunde(kundeToView)
-        setViewMode('view')
-        // Nullstill state for å unngå at det trigges på nytt
-        window.history.replaceState({}, document.title)
-      }
+    if (state?.viewKundeId && kunder.length > 0 && !selectedKundeId) {
+      const newParams = new URLSearchParams(searchParams)
+      newParams.set('view', state.viewKundeId)
+      setSearchParams(newParams, { replace: true })
+      // Nullstill state for å unngå at det trigges på nytt
+      window.history.replaceState({}, document.title)
     }
   }, [state?.viewKundeId, kunder])
 
@@ -225,18 +298,14 @@ export function Kunder() {
         kunde={selectedKunde}
         onSave={async (createdKundeNavn) => {
           await loadKunder()
-          setViewMode('list')
-          setSelectedKunde(null)
+          backToList()
           // Hvis en ny kunde ble opprettet, sett søkefeltet til kundenavnet
           if (createdKundeNavn) {
             setSearchTerm(createdKundeNavn)
             scrollPositionRef.current = 0 // Reset scroll for new customer
           }
         }}
-        onCancel={() => {
-          setViewMode('list')
-          setSelectedKunde(null)
-        }}
+        onCancel={closeKunde}
       />
     )
   }
@@ -245,22 +314,16 @@ export function Kunder() {
     return (
       <KundeDetails
         kunde={selectedKunde}
-        onEdit={() => setViewMode('edit')}
-        onClose={() => {
-          setViewMode('list')
-          setSelectedKunde(null)
-        }}
+        onEdit={() => editKunde(selectedKunde)}
+        onClose={closeKunde}
       />
     )
   }
 
   // Function to save scroll position before changing view
-  const handleViewChange = (mode: 'create' | 'edit' | 'view', kunde?: Kunde | null) => {
+  const handleViewChange = (kunde: Kunde) => {
     scrollPositionRef.current = window.scrollY
-    setViewMode(mode)
-    if (kunde !== undefined) {
-      setSelectedKunde(kunde)
-    }
+    selectKunde(kunde)
   }
 
   return (
@@ -274,8 +337,7 @@ export function Kunder() {
         <button
           onClick={() => {
             scrollPositionRef.current = 0 // Reset scroll for new customer
-            setSelectedKunde(null)
-            setViewMode('create')
+            createKunde()
           }}
           className="btn-primary flex items-center gap-2 self-start sm:self-auto"
         >
@@ -394,7 +456,7 @@ export function Kunder() {
               {sortedKunder.map((kunde) => (
                 <div
                   key={kunde.id}
-                  onClick={() => handleViewChange('view', kunde)}
+                  onClick={() => handleViewChange(kunde)}
                   className="p-4 bg-gray-50 dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-primary transition-colors cursor-pointer"
                 >
                   <div className="flex items-start gap-3 mb-3">
@@ -455,7 +517,7 @@ export function Kunder() {
                   {sortedKunder.map((kunde) => (
                   <tr
                     key={kunde.id}
-                    onClick={() => handleViewChange('view', kunde)}
+                    onClick={() => handleViewChange(kunde)}
                     className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer"
                   >
                     <td className="py-3 px-4">
@@ -498,14 +560,14 @@ export function Kunder() {
                     <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => handleViewChange('view', kunde)}
+                          onClick={() => handleViewChange(kunde)}
                           className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                           title="Vis detaljer"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleViewChange('edit', kunde)}
+                          onClick={() => editKunde(kunde)}
                           className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
                           title="Rediger"
                         >
@@ -1479,11 +1541,33 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
   const [anlegg, setAnlegg] = useState<any[]>([])
   const [loadingPriser, setLoadingPriser] = useState(true)
   const [kontaktperson, setKontaktperson] = useState<any>(null)
+  const [ukesplaner, setUkesplaner] = useState<any[]>([])
+  const [loadingUkesplaner, setLoadingUkesplaner] = useState(true)
 
   useEffect(() => {
     loadServiceavtaler()
     loadKontaktperson()
+    loadUkesplaner()
   }, [kunde.id])
+
+  async function loadUkesplaner() {
+    try {
+      const { data, error } = await supabase
+        .from('ukesplaner')
+        .select('id, uke_nummer, aar, navn, status, opprettet_dato')
+        .eq('kunde_id', kunde.id)
+        .order('aar', { ascending: false })
+        .order('uke_nummer', { ascending: false })
+        .limit(10)
+
+      if (error) throw error
+      setUkesplaner(data || [])
+    } catch (error) {
+      log.error('Feil ved lasting av ukesplaner', { error, kundeId: kunde.id })
+    } finally {
+      setLoadingUkesplaner(false)
+    }
+  }
 
   async function loadKontaktperson() {
     if (!kunde.kontaktperson_id) return
@@ -1572,24 +1656,28 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Organisasjonsnummer</p>
                 <p className="text-gray-900 dark:text-white">{kunde.organisasjonsnummer || '-'}</p>
               </div>
-              {kontaktperson && (
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Kontaktperson</p>
-                  <p className="text-gray-900 dark:text-white font-medium">{kontaktperson.navn}</p>
-                  {kontaktperson.telefon && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <Phone className="w-4 h-4 text-gray-400" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{kontaktperson.telefon}</p>
-                    </div>
-                  )}
-                  {kontaktperson.epost && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <Mail className="w-4 h-4 text-gray-400" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{kontaktperson.epost}</p>
-                    </div>
-                  )}
-                </div>
-              )}
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Kontaktperson</p>
+                {kontaktperson ? (
+                  <>
+                    <p className="text-gray-900 dark:text-white font-medium">{kontaktperson.navn}</p>
+                    {kontaktperson.telefon && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <Phone className="w-4 h-4 text-gray-400" />
+                        <a href={`tel:${kontaktperson.telefon}`} className="text-sm text-primary hover:underline">{kontaktperson.telefon}</a>
+                      </div>
+                    )}
+                    {kontaktperson.epost && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        <a href={`mailto:${kontaktperson.epost}`} className="text-sm text-primary hover:underline">{kontaktperson.epost}</a>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-gray-400 dark:text-gray-500 italic">Ingen kontaktperson registrert</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1754,6 +1842,83 @@ function KundeDetails({ kunde, onEdit, onClose }: KundeDetailsProps) {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Ukesplaner */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-primary" />
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Ukesplaner</h2>
+              </div>
+              <button
+                onClick={() => navigate('/kontrollplan', { state: { openUkesplan: true, kundeId: kunde.id } })}
+                className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                title="Ny ukesplan"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            {loadingUkesplaner ? (
+              <div className="text-center py-2">
+                <Loader2 className="w-5 h-5 text-primary animate-spin mx-auto" />
+              </div>
+            ) : ukesplaner.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Ingen ukesplaner</p>
+            ) : (
+              <div className="space-y-1.5">
+                {ukesplaner.map((plan) => (
+                  <div
+                    key={plan.id}
+                    className="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-100 rounded-lg group"
+                  >
+                    <button
+                      onClick={() => navigate('/kontrollplan', { state: { openUkesplan: true, kundeId: kunde.id, editPlanId: plan.id } })}
+                      className="flex-1 text-left min-w-0"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          Uke {plan.uke_nummer}
+                        </span>
+                        <span className="text-xs text-gray-500">{plan.aar}</span>
+                        {plan.navn && (
+                          <span className="text-xs text-gray-400 truncate">({plan.navn})</span>
+                        )}
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${
+                        plan.status === 'sendt' ? 'bg-green-500/20 text-green-400' :
+                        plan.status === 'utkast' ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-gray-500/20 text-gray-400'
+                      }`}>
+                        {plan.status === 'sendt' ? 'Sendt' : 'Utkast'}
+                      </span>
+                      <button
+                        onClick={() => navigate('/kontrollplan', { state: { openUkesplan: true, kundeId: kunde.id, editPlanId: plan.id, printMode: true } })}
+                        className="p-1 text-gray-400 hover:text-primary rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Skriv ut"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (confirm('Er du sikker på at du vil slette denne ukesplanen?')) {
+                            await supabase.from('ukesplaner').delete().eq('id', plan.id)
+                            loadUkesplaner()
+                          }
+                        }}
+                        className="p-1 text-gray-400 hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Slett"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
