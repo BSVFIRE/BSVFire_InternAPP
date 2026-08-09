@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send, Cloud, Zap, List, Layout, FileCheck, Shield, ChevronDown, ChevronUp, Upload } from 'lucide-react'
+import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send, Cloud, Zap, List, Layout, FileCheck, Shield, ChevronDown, ChevronUp, Upload, Mic, MicOff, Sparkles } from 'lucide-react'
 import { AnleggImport } from '@/components/AnleggImport'
 import { checkDropboxStatus, createDropboxFolder, renameDropboxFolder } from '@/services/dropboxServiceV2'
 import { DropboxFileBrowser } from '@/components/DropboxFileBrowser'
@@ -3034,6 +3034,11 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
   const [visAlleOppgaver, setVisAlleOppgaver] = useState(false)
   const [showDropboxBrowser, setShowDropboxBrowser] = useState(false)
   
+  // Tale-til-tekst state
+  const [isRecording, setIsRecording] = useState(false)
+  const [isImproving, setIsImproving] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  
   // Kontaktperson modal state
   const [visKontaktModal, setVisKontaktModal] = useState(false)
   const [alleKundeKontakter, setAlleKundeKontakter] = useState<Kontaktperson[]>([])
@@ -3261,6 +3266,93 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
     if (success) {
       setNyttNotat('')
       setMottakerId('')
+    }
+  }
+
+  // Tale-til-tekst funksjonalitet
+  function setupSpeechRecognition() {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    
+    if (SpeechRecognition && !recognitionRef.current) {
+      const recognition = new SpeechRecognition()
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = 'nb-NO'
+
+      recognition.onresult = (event: any) => {
+        let finalTranscript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' '
+          }
+        }
+        if (finalTranscript) {
+          setNyttNotat(prev => prev + finalTranscript)
+        }
+      }
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error)
+        setIsRecording(false)
+      }
+
+      recognition.onend = () => {
+        setIsRecording(false)
+      }
+
+      recognitionRef.current = recognition
+    }
+  }
+
+  function toggleRecording() {
+    if (!recognitionRef.current) {
+      setupSpeechRecognition()
+    }
+
+    if (isRecording) {
+      recognitionRef.current?.stop()
+      setIsRecording(false)
+    } else {
+      try {
+        recognitionRef.current?.start()
+        setIsRecording(true)
+      } catch (err) {
+        console.error('Kunne ikke starte opptak:', err)
+      }
+    }
+  }
+
+  // AI-forbedring av notat
+  async function improveWithAI() {
+    if (!nyttNotat.trim()) return
+    
+    setIsImproving(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-improve-note', {
+        body: { note: nyttNotat, context: 'anleggsnotat' }
+      })
+
+      if (error) {
+        console.error('AI-forbedring feilet:', error)
+        alert('AI-forbedring feilet: ' + (error.message || 'Ukjent feil'))
+        return
+      }
+      
+      if (data?.error) {
+        console.error('AI-feil:', data.error)
+        alert('AI-feil: ' + data.error)
+        return
+      }
+      
+      if (data?.suggestion) {
+        setNyttNotat(data.suggestion)
+      }
+    } catch (err: any) {
+      console.error('AI-forbedring feilet:', err)
+      alert('AI-forbedring feilet: ' + (err.message || 'Ukjent feil'))
+    } finally {
+      setIsImproving(false)
     }
   }
 
@@ -4200,16 +4292,48 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                     ))}
                   </select>
                 </div>
-                <textarea
-                  value={nyttNotat}
-                  onChange={(e) => setNyttNotat(e.target.value)}
-                  placeholder={mottakerId ? "Skriv melding til tekniker..." : "Skriv et internt notat..."}
-                  className="input min-h-[100px] resize-y"
-                  disabled={lagreNotat}
-                />
+                <div className="relative">
+                  <textarea
+                    value={nyttNotat}
+                    onChange={(e) => setNyttNotat(e.target.value)}
+                    placeholder={mottakerId ? "Skriv melding til tekniker..." : "Skriv et internt notat eller bruk mikrofon..."}
+                    className={`input min-h-[100px] resize-y pr-24 ${isRecording ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''}`}
+                    disabled={lagreNotat || isRecording}
+                  />
+                  <div className="absolute right-2 top-2 flex gap-1">
+                    <button
+                      type="button"
+                      onClick={toggleRecording}
+                      disabled={lagreNotat || isImproving}
+                      className={`p-2 rounded-lg transition-colors ${
+                        isRecording 
+                          ? 'bg-red-500 text-white animate-pulse' 
+                          : 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-200'
+                      }`}
+                      title={isRecording ? 'Stopp opptak' : 'Start taleopptak'}
+                    >
+                      {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={improveWithAI}
+                      disabled={!nyttNotat.trim() || lagreNotat || isImproving || isRecording}
+                      className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      title="Forbedre med AI"
+                    >
+                      {isImproving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                {isRecording && (
+                  <p className="text-sm text-red-500 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                    Lytter... Snakk nå
+                  </p>
+                )}
                 <button
                   type="submit"
-                  disabled={!nyttNotat.trim() || lagreNotat}
+                  disabled={!nyttNotat.trim() || lagreNotat || isRecording}
                   className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="w-4 h-4" />

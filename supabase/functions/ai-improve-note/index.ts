@@ -1,10 +1,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
+
+const AZURE_ENDPOINT = Deno.env.get('AZURE_OPENAI_ENDPOINT')
+const AZURE_KEY = Deno.env.get('AZURE_OPENAI_KEY') || Deno.env.get('AZURE_OPENAI_API_KEY')
+const AZURE_GPT_DEPLOYMENT = Deno.env.get('AZURE_GPT_DEPLOYMENT_NAME') || 'gpt-4o'
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -22,37 +25,47 @@ serve(async (req) => {
       )
     }
 
-    // Call OpenAI API to improve the note
-    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4',
-        messages: [
-          {
-            role: 'system',
-            content: `Du er en assistent som hjelper brannvernkontrollører med å forbedre og strukturere notater fra brannalarmkontroller. 
-            Formater notater på en profesjonell måte, korriger grammatikk, og strukturer informasjonen logisk.
-            Behold all viktig teknisk informasjon. Skriv på norsk.`
-          },
-          {
-            role: 'user',
-            content: `Forbedre følgende notat fra en ${context || 'brannalarm kontroll'}:\n\n${note}`
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 500,
-      }),
-    })
+    // Call Azure OpenAI API to improve the note
+    const response = await fetch(
+      `${AZURE_ENDPOINT}/openai/deployments/${AZURE_GPT_DEPLOYMENT}/chat/completions?api-version=2024-02-01`,
+      {
+        method: 'POST',
+        headers: {
+          'api-key': AZURE_KEY!,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'system',
+              content: `Du rydder opp i notater fra brannvernkontrollører. 
+Regler:
+- Rett skrivefeil og grammatikk
+- Gjør setninger lesbare
+- Behold ALL informasjon fra originalen
+- IKKE legg til overskrifter, maler, datoer, signaturer eller annen struktur
+- IKKE legg til informasjon som ikke var i originalen
+- Returner KUN den oppryddede teksten, kort og konsist
+- Skriv på norsk`
+            },
+            {
+              role: 'user',
+              content: note
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 500,
+        }),
+      }
+    )
 
-    if (!openAIResponse.ok) {
-      throw new Error(`OpenAI API error: ${openAIResponse.statusText}`)
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Azure API error:', errorText)
+      throw new Error(`Azure API error: ${response.statusText}`)
     }
 
-    const data = await openAIResponse.json()
+    const data = await response.json()
     const suggestion = data.choices[0]?.message?.content || note
 
     return new Response(
