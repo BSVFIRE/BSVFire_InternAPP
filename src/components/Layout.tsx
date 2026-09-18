@@ -27,7 +27,8 @@ import {
   Inbox,
   Cloud,
   CalendarCheck,
-  TrendingUp
+  TrendingUp,
+  QrCode
 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
@@ -65,6 +66,7 @@ const adminNavigation = [
   { name: 'Prisadministrasjon', href: '/admin/prisadministrasjon', icon: DollarSign, modulKey: 'admin_prisadministrasjon' },
   { name: 'PowerOffice', href: '/admin/poweroffice', icon: Building, modulKey: 'admin_poweroffice' },
   { name: 'Dropbox Mapper', href: '/admin/dropbox-folders', icon: Cloud, modulKey: 'admin_dropbox' },
+  { name: 'QR-koder', href: '/admin/qr-koder', icon: QrCode, modulKey: 'admin_qr_koder' },
   { name: 'System Logger', href: '/admin/logger', icon: Bug, modulKey: 'admin_logger' },
   { name: 'AI Embeddings', href: '/admin/ai-embeddings', icon: Sparkles, modulKey: 'admin_ai_embeddings' },
   { name: 'AI Kunnskapsbase', href: '/admin/ai-knowledge', icon: BookOpen, modulKey: 'admin_ai_knowledge' },

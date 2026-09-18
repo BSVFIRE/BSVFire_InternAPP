@@ -693,6 +693,58 @@ export type Database = {
           },
         ]
       }
+      anlegg_qr_koder: {
+        Row: {
+          anlegg_id: string | null
+          koblet: string | null
+          koblet_av: string | null
+          kode: string
+          merkelapp: string | null
+          opprettet: string
+          opprettet_av: string | null
+        }
+        Insert: {
+          anlegg_id?: string | null
+          koblet?: string | null
+          koblet_av?: string | null
+          kode: string
+          merkelapp?: string | null
+          opprettet?: string
+          opprettet_av?: string | null
+        }
+        Update: {
+          anlegg_id?: string | null
+          koblet?: string | null
+          koblet_av?: string | null
+          kode?: string
+          merkelapp?: string | null
+          opprettet?: string
+          opprettet_av?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anlegg_qr_koder_anlegg_id_fkey"
+            columns: ["anlegg_id"]
+            isOneToOne: false
+            referencedRelation: "anlegg"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anlegg_qr_koder_koblet_av_fkey"
+            columns: ["koblet_av"]
+            isOneToOne: false
+            referencedRelation: "ansatte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anlegg_qr_koder_opprettet_av_fkey"
+            columns: ["opprettet_av"]
+            isOneToOne: false
+            referencedRelation: "ansatte"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       anlegg_todos: {
         Row: {
           anlegg_id: string
@@ -6825,6 +6877,39 @@ export type Database = {
           },
           {
             foreignKeyName: "ukesplan_dager_ukesplan_id_fkey"
+            columns: ["ukesplan_id"]
+            isOneToOne: false
+            referencedRelation: "ukesplaner"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ukesplan_teknikere: {
+        Row: {
+          ansatt_id: string
+          id: string
+          ukesplan_id: string
+        }
+        Insert: {
+          ansatt_id: string
+          id?: string
+          ukesplan_id: string
+        }
+        Update: {
+          ansatt_id?: string
+          id?: string
+          ukesplan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ukesplan_teknikere_ansatt_id_fkey"
+            columns: ["ansatt_id"]
+            isOneToOne: false
+            referencedRelation: "ansatte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ukesplan_teknikere_ukesplan_id_fkey"
             columns: ["ukesplan_id"]
             isOneToOne: false
             referencedRelation: "ukesplaner"

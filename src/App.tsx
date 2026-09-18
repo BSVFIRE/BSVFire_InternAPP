@@ -21,6 +21,8 @@ const Kunder = lazy(() => import('./pages/Kunder').then(m => ({ default: m.Kunde
 const Anlegg = lazy(() => import('./pages/Anlegg').then(m => ({ default: m.Anlegg })))
 const AnleggDetaljer = lazy(() => import('./pages/anlegg/AnleggDetaljer'))
 const AnleggRediger = lazy(() => import('./pages/anlegg/AnleggRediger'))
+const KobleQrKode = lazy(() => import('./pages/anlegg/KobleQrKode'))
+const AdminQrKoder = lazy(() => import('./pages/AdminQrKoder').then(m => ({ default: m.AdminQrKoder })))
 const Kontaktpersoner = lazy(() => import('./pages/Kontaktpersoner').then(m => ({ default: m.Kontaktpersoner })))
 const EksternKontaktpersoner = lazy(() => import('./pages/EksternKontaktpersoner').then(m => ({ default: m.EksternKontaktpersoner })))
 const Ordre = lazy(() => import('./pages/Ordre').then(m => ({ default: m.Ordre })))
@@ -122,6 +124,7 @@ function App() {
                       <Route path="/anlegg" element={<Anlegg />} />
                       <Route path="/anlegg/:id" element={<AnleggDetaljer />} />
                       <Route path="/anlegg/:id/rediger" element={<AnleggRediger />} />
+                      <Route path="/qr/:kode" element={<KobleQrKode />} />
                       <Route path="/kontrollplan" element={<Kontrollplan />} />
                       <Route path="/kontaktpersoner" element={<Kontaktpersoner />} />
                       <Route path="/ekstern-kontaktpersoner" element={<EksternKontaktpersoner />} />
@@ -149,6 +152,7 @@ function App() {
                       <Route path="/admin/aarsavslutning" element={<AdminAarsavslutning />} />
                       <Route path="/admin/modul-oversikt" element={<AdminModulOversikt />} />
                       <Route path="/admin/salg" element={<AdminSalg />} />
+                      <Route path="/admin/qr-koder" element={<AdminQrKoder />} />
                       <Route path="/admin/proff" element={<ProffSok />} />
                       <Route path="/admin/bedrift" element={<Brukerprofil />} />
                       <Route path="/poweroffice-test" element={<PowerOfficeTest />} />

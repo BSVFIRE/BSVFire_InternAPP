@@ -14,7 +14,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle, Building2, Check, CheckSquare, ChevronLeft, ClipboardList, Clock, Cloud,
   DollarSign, Edit, ExternalLink, EyeOff, Eye, FileText, Link2, Loader2, Mail, MapPin,
-  MessageSquare, Mic, MicOff, MoreHorizontal, Navigation, Phone, Plus, QrCode, Search,
+  MessageSquare, Mic, MicOff, MoreHorizontal, Navigation, Phone, Plus, Search,
   Send, Sparkles, Star, Upload, X, Home, Layers, AlertTriangle, ChevronDown, Share2,
 } from 'lucide-react'
 import { supabase, db, type Tables } from '@/lib/supabase'
@@ -27,6 +27,7 @@ import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
 import { AnleggTodoList } from '@/components/AnleggTodoList'
 import { LeilighetsOversikt } from '@/components/LeilighetsOversikt'
 import { DropboxFileBrowser } from '@/components/DropboxFileBrowser'
+import { QrEtikettPanel } from '@/components/QrEtikettPanel'
 import { Button, IconButton, IconButtonGroup } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuLabel, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { hentAvvikForAnlegg, AVVIK_REKKEFOLGE, type Avvik, type AvvikKontrolltype } from '@/lib/anleggAvvik'
@@ -434,6 +435,7 @@ export default function AnleggDetaljer() {
           />
           <aside className="space-y-4">
             <KontaktPanel anleggId={anlegg.id} kontakter={kontakter} onChanged={loadAll} onLeggTil={() => setVisKontaktModal(true)} />
+            <QrEtikettPanel anleggId={anlegg.id} anleggsnavn={anlegg.anleggsnavn ?? ''} />
             <DetaljerPanel anlegg={anlegg} kundeNummer={kundeNummer} adresse={adresse} />
             <PriserPanel priser={priser} onRediger={() => navigate('/priser', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })} />
           </aside>
@@ -597,15 +599,9 @@ function MerMeny({ anlegg, onChanged }: { anlegg: AnleggRow; onChanged: () => vo
     onChanged()
   }
 
-  async function kopierKode() {
-    if (!anlegg.unik_kode) return
-    try { await navigator.clipboard.writeText(anlegg.unik_kode); toast.success('Unik kode kopiert') } catch { toast.error('Kunne ikke kopiere') }
-  }
-
   return (
     <DropdownMenu trigger={open => <IconButton variant="ghost" label="Flere valg" icon={<MoreHorizontal />} aria-haspopup="menu" aria-expanded={open} />}>
       <MenuItem icon={<DollarSign />} onSelect={() => navigate('/priser', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}>Kontrollpriser</MenuItem>
-      {anlegg.unik_kode && <MenuItem icon={<QrCode />} onSelect={kopierKode}>Kopier unik kode ({anlegg.unik_kode})</MenuItem>}
       {anlegg.kontrollportal_url && <MenuItem icon={<ExternalLink />} href={anlegg.kontrollportal_url}>Åpne kontrollportal</MenuItem>}
       <MenuItem icon={<Layers />} onSelect={() => navigate('/teknisk', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}>Teknisk dokumentasjon</MenuItem>
       <MenuSeparator />
@@ -898,8 +894,7 @@ function DetaljerPanel({ anlegg, kundeNummer, adresse }: { anlegg: AnleggRow; ku
         <Rad navn="Adresse">{adresse || '–'}{adresse && <a href={`https://maps.google.com/?q=${encodeURIComponent(adresse)}`} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-primary hover:underline">Kart</a>}</Rad>
         <Rad navn="Org.nr."><span className="tabular-nums">{anlegg.org_nummer ?? anlegg.customer?.organisasjonsnummer ?? '–'}</span></Rad>
         <Rad navn="Kundenummer"><span className="tabular-nums">{kundeNummer ?? '–'}</span></Rad>
-        {anlegg.unik_kode && <Rad navn="Unik kode"><span className="font-mono">{anlegg.unik_kode}</span></Rad>}
-        <Rad navn="Kontrollportal">{anlegg.kontrollportal_url ? <a href={anlegg.kontrollportal_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">Åpne kundeportal <ExternalLink className="w-3 h-3" /></a> : <span className="text-gray-500 dark:text-gray-400">Ikke koblet</span>}</Rad>
+        <Rad navn="Kundeportal">{anlegg.kontrollportal_url ? <a href={anlegg.kontrollportal_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">Åpne loggbok <ExternalLink className="w-3 h-3" /></a> : <span className="text-gray-500 dark:text-gray-400">Ingen etikett koblet</span>}</Rad>
         <Rad navn="Dropbox"><Ok ja={anlegg.dropbox_synced} tekstJa="Synkronisert" tekstNei="Ikke synkronisert" /></Rad>
         <Rad navn="FG-database"><Ok ja={anlegg.fg_database_registrert} tekstJa="Registrert" tekstNei="Ikke registrert" /></Rad>
         {anlegg.ekstern_type && <Rad navn="Ekstern">{anlegg.ekstern_type}{anlegg.ekstern_firma ? ` · ${anlegg.ekstern_firma}` : ''}</Rad>}
