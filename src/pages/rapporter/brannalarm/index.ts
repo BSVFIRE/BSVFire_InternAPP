@@ -1,2 +1,2 @@
-export { StyringerView } from './StyringerView'
+export { StyringerView } from './StyringerViewNew'
 export { NettverkView } from './NettverkView'

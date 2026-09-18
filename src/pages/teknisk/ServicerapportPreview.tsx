@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ArrowLeft, Download, Cloud } from 'lucide-react'
 import { generateServicerapportPDF } from './ServicerapportPDF'
 import { BSV_LOGO } from '@/assets/logoBase64'
-import { isDropboxConfigured } from '@/services/dropboxService'
+import { isDropboxConfigured } from '@/services/dropboxServiceV2'
 
 interface Servicerapport {
   id: string
@@ -28,7 +28,8 @@ export function ServicerapportPreview({ rapport, onBack }: ServicerapportPreview
   const [dropboxAvailable, setDropboxAvailable] = useState(false)
 
   useEffect(() => {
-    setDropboxAvailable(isDropboxConfigured())
+    // V2 sjekker mot Edge Function (delt firmatilkobling), ikke lokale env-variabler
+    isDropboxConfigured().then(setDropboxAvailable).catch(() => setDropboxAvailable(false))
   }, [])
 
   async function handleGeneratePDF() {
