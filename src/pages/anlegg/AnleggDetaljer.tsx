@@ -434,9 +434,9 @@ export default function AnleggDetaljer() {
             onApneDokument={apneDokument}
           />
           <aside className="space-y-4">
+            <DetaljerPanel anlegg={anlegg} kundeNummer={kundeNummer} adresse={adresse} />
             <KontaktPanel anleggId={anlegg.id} kontakter={kontakter} onChanged={loadAll} onLeggTil={() => setVisKontaktModal(true)} />
             <QrEtikettPanel anleggId={anlegg.id} anleggsnavn={anlegg.anleggsnavn ?? ''} />
-            <DetaljerPanel anlegg={anlegg} kundeNummer={kundeNummer} adresse={adresse} />
             <PriserPanel priser={priser} onRediger={() => navigate('/priser', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })} />
           </aside>
         </div>
@@ -906,14 +906,22 @@ function DetaljerPanel({ anlegg, kundeNummer, adresse }: { anlegg: AnleggRow; ku
 }
 
 function PriserPanel({ priser, onRediger }: { priser: Priser | null; onRediger: () => void }) {
+  // Lukket som standard – summen vises i overskriften, detaljene ved klikk
+  const [apen, setApen] = useState(false)
   const rader = priser ? [
     ['Brannalarm', priser.prisbrannalarm], ['Nødlys', priser.prisnodlys], ['Slukkeutstyr', priser.prisslukkeutstyr], ['Røykluker', priser.prisroykluker], ['Ekstern', priser.prisekstern],
   ].filter(([, v]) => v != null && v !== 0) as [string, number][] : []
   const sum = rader.reduce((s, [, v]) => s + v, 0)
   return (
     <section className="card !p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Serviceavtale</h2>
-      {rader.length === 0 ? (
+      <button type="button" onClick={() => setApen(v => !v)} aria-expanded={apen} className="w-full flex items-center justify-between gap-2 text-left">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Serviceavtale</h2>
+        <span className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 tabular-nums">
+          {rader.length > 0 ? `kr ${sum.toLocaleString('nb-NO')}/år` : 'Ingen priser'}
+          <ChevronDown className={cn('w-4 h-4 transition-transform', apen && 'rotate-180')} />
+        </span>
+      </button>
+      {!apen ? null : rader.length === 0 ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">Ingen priser registrert.</p>
       ) : (
         <dl className="grid grid-cols-[108px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm tabular-nums">
@@ -921,7 +929,7 @@ function PriserPanel({ priser, onRediger }: { priser: Priser | null; onRediger: 
           <dt className="text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-800 pt-2">Sum</dt><dd className="text-gray-900 dark:text-white font-semibold border-t border-gray-200 dark:border-gray-800 pt-2">kr {sum.toLocaleString('nb-NO')}</dd>
         </dl>
       )}
-      <button type="button" onClick={onRediger} className="text-sm text-primary hover:underline">Rediger priser</button>
+      {apen && <button type="button" onClick={onRediger} className="text-sm text-primary hover:underline">Rediger priser</button>}
     </section>
   )
 }
