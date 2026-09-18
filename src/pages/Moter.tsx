@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { toast } from '@/lib/toast'
 import { Calendar, Users, Plus, Clock, MapPin } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { nb } from 'date-fns/locale'
@@ -80,7 +81,7 @@ export function Moter() {
       }
     } catch (error) {
       console.error('Feil ved sletting av møte:', error)
-      alert('Kunne ikke slette møte')
+      toast.error('Kunne ikke slette møte', error)
     }
   }
 

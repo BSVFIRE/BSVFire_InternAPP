@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { toast } from '@/lib/toast'
 import { useAuthStore } from '../../store/authStore'
 import { X } from 'lucide-react'
 
@@ -39,7 +40,7 @@ export function ReferatDialog({ moteId, agendapunkter, onClose, onSuccess }: Ref
       onSuccess()
     } catch (error) {
       console.error('Feil ved opprettelse av referat:', error)
-      alert('Kunne ikke opprette referat')
+      toast.error('Kunne ikke opprette referat', error)
     }
   }
 

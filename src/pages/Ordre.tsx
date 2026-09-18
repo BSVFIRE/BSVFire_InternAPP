@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { toast } from '@/lib/toast'
 import { createLogger } from '@/lib/logger'
 import { useAuthStore } from '@/store/authStore'
 import { Plus, Search, ClipboardList, Building2, User, Eye, Trash2, Calendar, Edit, CheckCircle, FileText, LayoutGrid, Table } from 'lucide-react'
@@ -187,10 +188,11 @@ export function Ordre() {
         .eq('id', id)
 
       if (error) throw error
+      toast.success('Ordre slettet')
       await loadOrdre()
     } catch (error) {
       log.error('Feil ved sletting av ordre', { error, ordreId: id })
-      alert('Kunne ikke slette ordre')
+      toast.error('Kunne ikke slette ordre', error)
     }
   }
 
@@ -274,7 +276,7 @@ export function Ordre() {
       await loadOrdre()
     } catch (error) {
       log.error('Feil ved avslutning av ordre', { error, ordreId: avsluttDialog.ordreId })
-      alert('Kunne ikke avslutte ordre')
+      toast.error('Kunne ikke avslutte ordre', error)
     }
   }
 
@@ -1210,10 +1212,11 @@ function OrdreForm({ ordre, prefilledKundeId, prefilledAnleggId, onSave, onCance
         if (oppgaveError) throw oppgaveError
       }
 
+      toast.success(ordre ? 'Ordre oppdatert' : 'Ordre opprettet')
       onSave()
     } catch (error) {
       log.error('Feil ved lagring av ordre', { error, formData })
-      alert('Kunne ikke lagre ordre')
+      toast.error('Kunne ikke lagre ordre', error)
     } finally {
       setSaving(false)
       setPendingSubmit(false)
@@ -1775,7 +1778,7 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
       window.location.reload()
     } catch (error) {
       console.error('Feil ved avslutning:', error)
-      alert('Kunne ikke avslutte ordre')
+      toast.error('Kunne ikke avslutte ordre', error)
     }
   }
 

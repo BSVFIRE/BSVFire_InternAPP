@@ -8,6 +8,7 @@ import { setupErrorTracking } from './lib/errorTracking'
 import { useScrollToInput } from './hooks/useKeyboardHeight'
 import { OfflineIndicator } from './components/OfflineIndicator'
 import { AIAssistant } from './components/AIAssistant'
+import { Toaster } from 'sonner'
 
 // Eager-loaded (trengs med en gang)
 import { Login } from './pages/Login'
@@ -162,6 +163,13 @@ function App() {
         </Routes>
         <OfflineIndicator />
         <AIAssistant />
+        <Toaster
+          theme={theme}
+          position="top-right"
+          richColors
+          closeButton
+          toastOptions={{ classNames: { toast: 'font-sans' } }}
+        />
       </BrowserRouter>
     </ErrorBoundary>
   )

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { toast } from '@/lib/toast'
 import { useAuthStore } from '../../store/authStore'
 import { X } from 'lucide-react'
 
@@ -117,7 +118,7 @@ export function OppgaveDialog({ moteId, agendapunkter, onClose, onSuccess }: Opp
       onSuccess()
     } catch (error) {
       console.error('Feil ved opprettelse av oppgave:', error)
-      alert('Kunne ikke opprette oppgave')
+      toast.error('Kunne ikke opprette oppgave', error)
     }
   }
 

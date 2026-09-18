@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { toast } from '@/lib/toast'
 import { useAuthStore } from '../../store/authStore'
 import { X } from 'lucide-react'
 
@@ -74,7 +75,7 @@ export function MoteDialog({ onClose, onSuccess }: MoteDialogProps) {
       onSuccess()
     } catch (error) {
       console.error('Feil ved opprettelse av møte:', error)
-      alert('Kunne ikke opprette møte')
+      toast.error('Kunne ikke opprette møte', error)
     }
   }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { toast } from '@/lib/toast'
 import { useAuthStore } from '@/store/authStore'
 import { Plus, Search, CheckSquare, Building2, User, Eye, Trash2, Calendar, Edit, LayoutGrid, Table } from 'lucide-react'
 import { formatDate, getDaysAgo } from '@/lib/utils'
@@ -168,7 +169,7 @@ export function Oppgaver() {
       await loadOppgaver()
     } catch (error) {
       console.error('Feil ved sletting:', error)
-      alert('Kunne ikke slette oppgave')
+      toast.error('Kunne ikke slette oppgave', error)
     }
   }
 
@@ -912,7 +913,7 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
 
   async function opprettNyKontaktperson() {
     if (!nyKontaktperson.navn || !formData.anlegg_id) {
-      alert('Navn og anlegg er påkrevd')
+      toast.warning('Navn og anlegg er påkrevd')
       return
     }
 
@@ -954,7 +955,7 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
       setVisNyKontaktperson(false)
     } catch (error) {
       console.error('Feil ved opprettelse av kontaktperson:', error)
-      alert('Kunne ikke opprette kontaktperson')
+      toast.error('Kunne ikke opprette kontaktperson', error)
     }
   }
 
@@ -1064,7 +1065,7 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
       onSave()
     } catch (error) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre oppgave')
+      toast.error('Kunne ikke lagre oppgave', error)
     } finally {
       setSaving(false)
     }

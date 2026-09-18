@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { toast } from '@/lib/toast'
 import { useAuthStore } from '../../store/authStore'
 import { X } from 'lucide-react'
 
@@ -64,7 +65,7 @@ export function AgendaDialog({ moteId, onClose, onSuccess }: AgendaDialogProps) 
       onSuccess()
     } catch (error) {
       console.error('Feil ved opprettelse av agendapunkt:', error)
-      alert('Kunne ikke opprette agendapunkt')
+      toast.error('Kunne ikke opprette agendapunkt', error)
     }
   }
 
