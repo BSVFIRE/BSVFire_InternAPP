@@ -74,7 +74,12 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
 /** Samler ikon-knapper i én pille med skillelinjer. Barn skal være IconButton med variant="ghost". */
 export function IconButtonGroup({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div role="group" className={cn('inline-flex rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden divide-x divide-gray-300 dark:divide-gray-700 [&>*]:rounded-none [&>*]:h-[34px] [&>*]:border-0', className)}>
+    <div role="group" className={cn(
+      'inline-flex rounded-lg border border-gray-300 dark:border-gray-700 divide-x divide-gray-300 dark:divide-gray-700',
+      // Ikke overflow-hidden: nedtrekksmenyer inne i gruppen må kunne stikke ut. Rund derfor første/siste barn eksplisitt.
+      '[&>*]:rounded-none [&>*]:h-[34px] [&>*]:border-0 [&>*:first-child]:rounded-l-[7px] [&>*:last-child]:rounded-r-[7px]',
+      '[&>*:first-child>button]:rounded-l-[7px] [&>*:last-child>button]:rounded-r-[7px]',
+      className)}>
       {children}
     </div>
   )
