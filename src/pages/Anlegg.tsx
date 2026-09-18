@@ -135,6 +135,8 @@ export function Anlegg() {
     returnTo?: string;
     returnKundeId?: string;
     kontrollplanState?: any;
+    legacyView?: boolean;
+    returnToDetaljer?: boolean;
   } | null
   
   const [anleggList, setAnleggList] = useState<Anlegg[]>([])
@@ -216,6 +218,12 @@ export function Anlegg() {
   useEffect(() => {
     const viewIdFromUrl = searchParams.get('view')
     const viewId = viewIdFromUrl || state?.viewAnleggId
+
+    // Ny detaljside (/anlegg/:id) er standard. Den gamle visningen nås kun med legacyView.
+    if (viewId && !state?.legacyView) {
+      navigate(`/anlegg/${viewId}`, { replace: true, state: { returnTo: state?.returnTo, returnKundeId: state?.returnKundeId, kontrollplanState: state?.kontrollplanState } })
+      return
+    }
     
     if (viewId && anlegg.length > 0) {
       const anleggToView = anlegg.find(a => a.id === viewId)
@@ -460,6 +468,10 @@ export function Anlegg() {
               .eq('id', selectedAnlegg.id)
               .single()
             
+            if (state?.returnToDetaljer) {
+              navigate(`/anlegg/${selectedAnlegg.id}`, { replace: true })
+              return
+            }
             if (updatedAnlegg) {
               setSelectedAnlegg(updatedAnlegg)
               // Oppdater også anlegget i listen i bakgrunnen (uten å trigge re-render av hele listen)
@@ -487,6 +499,10 @@ export function Anlegg() {
         }}
         onCancel={() => {
           setPreselectedKundeId(null) // Nullstill forhåndsvalgt kunde ved avbryt
+          if (selectedAnlegg && state?.returnToDetaljer) {
+            navigate(`/anlegg/${selectedAnlegg.id}`, { replace: true })
+            return
+          }
           // Hvis vi redigerer et eksisterende anlegg, gå tilbake til visning
           if (selectedAnlegg) {
             setViewMode('view')
@@ -781,9 +797,7 @@ export function Anlegg() {
                   key={anlegg.id}
                   onClick={() => {
                     saveScrollPosition()
-                    setSelectedAnlegg(anlegg)
-                    setViewMode('view')
-                    setTimeout(() => window.scrollTo({ top: 0, behavior: 'instant' }), 0)
+                    navigate(`/anlegg/${anlegg.id}`)
                   }}
                   className={`p-4 bg-gray-50 dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-primary transition-colors cursor-pointer ${
                     anlegg.skjult ? 'opacity-50' : ''
@@ -878,10 +892,7 @@ export function Anlegg() {
                     onClick={() => {
                       // Lagre scroll-posisjon før vi går til visning
                       saveScrollPosition()
-                      setSelectedAnlegg(anlegg)
-                      setViewMode('view')
-                      // Scroll til toppen når vi åpner anlegg fra listen
-                      setTimeout(() => window.scrollTo({ top: 0, behavior: 'instant' }), 0)
+                      navigate(`/anlegg/${anlegg.id}`)
                     }}
                     className={`border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors cursor-pointer ${
                       anlegg.skjult ? 'opacity-50' : ''
@@ -995,10 +1006,7 @@ export function Anlegg() {
                             e.stopPropagation()
                             // Lagre scroll-posisjon før vi går til visning
                             saveScrollPosition()
-                            setSelectedAnlegg(anlegg)
-                            setViewMode('view')
-                            // Scroll til toppen når vi åpner anlegg
-                            setTimeout(() => window.scrollTo({ top: 0, behavior: 'instant' }), 0)
+                            navigate(`/anlegg/${anlegg.id}`)
                           }}
                           className="p-2 text-gray-400 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                           title="Vis detaljer"

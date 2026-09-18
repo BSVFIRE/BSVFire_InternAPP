@@ -19,6 +19,7 @@ import { ResetPassword } from './pages/ResetPassword'
 // Lazy-loaded sider (lastes når de trengs)
 const Kunder = lazy(() => import('./pages/Kunder').then(m => ({ default: m.Kunder })))
 const Anlegg = lazy(() => import('./pages/Anlegg').then(m => ({ default: m.Anlegg })))
+const AnleggDetaljer = lazy(() => import('./pages/anlegg/AnleggDetaljer'))
 const Kontaktpersoner = lazy(() => import('./pages/Kontaktpersoner').then(m => ({ default: m.Kontaktpersoner })))
 const EksternKontaktpersoner = lazy(() => import('./pages/EksternKontaktpersoner').then(m => ({ default: m.EksternKontaktpersoner })))
 const Ordre = lazy(() => import('./pages/Ordre').then(m => ({ default: m.Ordre })))
@@ -118,6 +119,7 @@ function App() {
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/kunder" element={<Kunder />} />
                       <Route path="/anlegg" element={<Anlegg />} />
+                      <Route path="/anlegg/:id" element={<AnleggDetaljer />} />
                       <Route path="/kontrollplan" element={<Kontrollplan />} />
                       <Route path="/kontaktpersoner" element={<Kontaktpersoner />} />
                       <Route path="/ekstern-kontaktpersoner" element={<EksternKontaktpersoner />} />
