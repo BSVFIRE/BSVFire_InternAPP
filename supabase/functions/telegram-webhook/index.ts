@@ -45,6 +45,19 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Verifiser at kallet faktisk kommer fra Telegram.
+  // Secret settes med: supabase secrets set TELEGRAM_WEBHOOK_SECRET=<tilfeldig streng>
+  // og registreres hos Telegram via setWebhook(..., secret_token=<samme streng>).
+  const expectedSecret = Deno.env.get('TELEGRAM_WEBHOOK_SECRET')
+  const providedSecret = req.headers.get('X-Telegram-Bot-Api-Secret-Token')
+  if (!expectedSecret || providedSecret !== expectedSecret) {
+    console.error('Telegram webhook: ugyldig eller manglende secret token')
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+
   try {
     const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')
     if (!TELEGRAM_BOT_TOKEN) {

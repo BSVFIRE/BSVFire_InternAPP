@@ -2,6 +2,7 @@
 // Håndterer CORS og sikker kommunikasjon med PowerOffice API
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { requireUser } from '../_shared/auth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -90,6 +91,10 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  // Krev innlogget ansatt (gatewayen godtar anon-nøkkelen som gyldig JWT)
+  const auth = await requireUser(req)
+  if (auth instanceof Response) return auth
 
   try {
     // Hent PowerOffice credentials fra environment

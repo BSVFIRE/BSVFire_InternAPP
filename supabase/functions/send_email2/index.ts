@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { requireUser } from '../_shared/auth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,8 +12,28 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Krev innlogget ansatt (gatewayen godtar anon-nøkkelen som gyldig JWT)
+  const auth = await requireUser(req)
+  if (auth instanceof Response) return auth
+
   try {
     const { to, subject, body, attachment, attachments, reply_to } = await req.json();
+
+  // Valider mottakere – funksjonen skal ikke kunne brukes som åpen e-postrelé
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const recipients: string[] = Array.isArray(to) ? to : [to]
+  if (recipients.length === 0 || recipients.some((r) => typeof r !== 'string' || !emailRegex.test(r))) {
+    return new Response(JSON.stringify({ error: 'Ugyldig mottakeradresse' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+  if (!subject || typeof subject !== 'string') {
+    return new Response(JSON.stringify({ error: 'Emne mangler' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
 
   const apiKey = Deno.env.get('RESEND2_API_KEY');
   const currentYear = new Date().getFullYear();

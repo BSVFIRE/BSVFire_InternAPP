@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getFunctionAuthHeaders } from '@/lib/supabase'
 import {
   Search,
   Building2,
@@ -101,7 +102,6 @@ export function ProffSok({ onAddLead }: ProffSokProps = {}) {
   const [activeSection, setActiveSection] = useState<string>('info')
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
   async function searchProff() {
     if (!searchQuery && !municipalityFilter) {
@@ -122,7 +122,7 @@ export function ProffSok({ onAddLead }: ProffSokProps = {}) {
 
       const response = await fetch(`${supabaseUrl}/functions/v1/proff-proxy?${params.toString()}`, {
         headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
+          ...(await getFunctionAuthHeaders()),
           'Content-Type': 'application/json',
         },
       })
@@ -149,7 +149,7 @@ export function ProffSok({ onAddLead }: ProffSokProps = {}) {
 
       const response = await fetch(`${supabaseUrl}/functions/v1/proff-proxy?${params.toString()}`, {
         headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
+          ...(await getFunctionAuthHeaders()),
           'Content-Type': 'application/json',
         },
       })

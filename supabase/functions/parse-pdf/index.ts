@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // @deno-types="npm:@types/pdf-parse"
 import pdfParse from 'npm:pdf-parse@1.1.1'
+import { requireUser } from '../_shared/auth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -62,6 +63,10 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  // Krev innlogget ansatt (gatewayen godtar anon-nøkkelen som gyldig JWT)
+  const auth = await requireUser(req)
+  if (auth instanceof Response) return auth
 
   try {
     console.log('=== Parse PDF Request Started ===')

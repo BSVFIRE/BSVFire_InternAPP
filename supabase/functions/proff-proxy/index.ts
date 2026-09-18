@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { requireUser } from '../_shared/auth.ts'
 
 const PROFF_API_URL = 'https://api.proff.no/api'
 
@@ -13,6 +14,10 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  // Krev innlogget ansatt (gatewayen godtar anon-nøkkelen som gyldig JWT)
+  const auth = await requireUser(req)
+  if (auth instanceof Response) return auth
 
   try {
     // Les token på nytt for hver request (i tilfelle det ble satt etter deploy)

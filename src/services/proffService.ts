@@ -1,6 +1,8 @@
 // Service for å hente data fra Proff API via Supabase Edge Function
 // API dokumentasjon: https://apidocs.proff.no/
 
+import { getFunctionAuthHeaders } from '@/lib/supabase'
+
 interface ProffAddress {
   addressLine?: string
   zipCode?: string
@@ -80,11 +82,10 @@ async function proffFetch<T>(endpoint: string, orgnr?: string, searchParams?: Re
 
   // Bruk GET med query params via fetch direkte til Edge Function
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  
+
   const response = await fetch(`${supabaseUrl}/functions/v1/proff-proxy?${params.toString()}`, {
     headers: {
-      'Authorization': `Bearer ${supabaseKey}`,
+      ...(await getFunctionAuthHeaders()),
       'Content-Type': 'application/json',
     },
   })

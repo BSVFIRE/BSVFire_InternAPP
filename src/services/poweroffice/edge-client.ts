@@ -3,6 +3,8 @@
  * Kaller PowerOffice API via Supabase Edge Function (løser CORS-problem)
  */
 
+import { getFunctionAuthHeaders } from '@/lib/supabase'
+
 export class PowerOfficeEdgeClient {
   private baseUrl: string
 
@@ -16,6 +18,7 @@ export class PowerOfficeEdgeClient {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
       headers: {
+        ...(await getFunctionAuthHeaders()),
         'Content-Type': 'application/json',
         ...options.headers
       }

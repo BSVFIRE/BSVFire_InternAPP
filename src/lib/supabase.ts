@@ -19,6 +19,22 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
+/**
+ * Headers for direkte fetch-kall mot Edge Functions.
+ * Edge Functions krever nå innlogget bruker (sesjonstoken), ikke anon-nøkkelen.
+ * supabase.functions.invoke() gjør dette automatisk; bruk denne for rå fetch.
+ */
+export async function getFunctionAuthHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    throw new Error('Ikke innlogget')
+  }
+  return {
+    'Authorization': `Bearer ${session.access_token}`,
+    'apikey': supabaseAnonKey,
+  }
+}
+
 // Database types
 export type Database = {
   public: {
