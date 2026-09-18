@@ -15,6 +15,7 @@ import { syncAnleggToKontrollportal } from '@/lib/kontrollportal-sync'
 import { searchCompaniesByName, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
 import { notifyNewMelding } from '@/lib/telegramService'
 import { LeilighetsOversikt } from '@/components/LeilighetsOversikt'
+import { NyttAnleggDialog } from './anlegg/NyttAnleggDialog'
 
 const log = createLogger('Anlegg')
 
@@ -182,6 +183,8 @@ export function Anlegg() {
   const [todoCountsMap, setTodoCountsMap] = useState<Record<string, number>>({})
   const [preselectedKundeId, setPreselectedKundeId] = useState<string | null>(null)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showNyttAnlegg, setShowNyttAnlegg] = useState(false)
+  const [nyttAnleggKundeId, setNyttAnleggKundeId] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -189,13 +192,13 @@ export function Anlegg() {
 
   // Åpne opprettelsesmodus med forhåndsvalgt kunde hvis sendt via state
   useEffect(() => {
-    if (state?.createForKundeId && kunder.length > 0) {
-      setPreselectedKundeId(state.createForKundeId)
-      setViewMode('create')
+    if (state?.createForKundeId) {
+      setNyttAnleggKundeId(state.createForKundeId)
+      setShowNyttAnlegg(true)
       // Nullstill state for å unngå at det trigges på nytt
       window.history.replaceState({}, document.title)
     }
-  }, [state?.createForKundeId, kunder])
+  }, [state?.createForKundeId])
 
   // Helper-funksjon for å lagre scroll-posisjon
   const saveScrollPosition = () => {
@@ -205,6 +208,11 @@ export function Anlegg() {
 
   // Åpne anlegg i redigeringsmodus hvis sendt via state
   useEffect(() => {
+    // Ny redigeringsside er standard; det gamle skjemaet nås kun via legacyView
+    if (state?.editAnleggId && !state?.legacyView) {
+      navigate(`/anlegg/${state.editAnleggId}/rediger`, { replace: true })
+      return
+    }
     if (state?.editAnleggId && anlegg.length > 0) {
       const anleggToEdit = anlegg.find(a => a.id === state.editAnleggId)
       if (anleggToEdit) {
@@ -626,12 +634,7 @@ export function Anlegg() {
             <span className="hidden sm:inline">Importer</span>
           </button>
           <button
-            onClick={() => {
-              // Lagre scroll-posisjon før vi går til opprettelse
-              saveScrollPosition()
-              setSelectedAnlegg(null)
-              setViewMode('create')
-            }}
+            onClick={() => { setNyttAnleggKundeId(null); setShowNyttAnlegg(true) }}
             className="btn-primary flex items-center gap-2"
           >
             <Plus className="w-5 h-5" />
@@ -1069,6 +1072,14 @@ export function Anlegg() {
           kunder={kunder}
           onClose={() => setShowImportModal(false)}
           onImportComplete={() => loadData()}
+        />
+      )}
+
+      {/* Nytt anlegg */}
+      {showNyttAnlegg && (
+        <NyttAnleggDialog
+          kundeId={nyttAnleggKundeId}
+          onClose={() => { setShowNyttAnlegg(false); setNyttAnleggKundeId(null) }}
         />
       )}
     </div>

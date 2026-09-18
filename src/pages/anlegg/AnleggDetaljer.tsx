@@ -296,7 +296,7 @@ export default function AnleggDetaljer() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => navigate('/anlegg', { state: { editAnleggId: anlegg.id, returnToDetaljer: true } })} className="btn-secondary gap-2" title="Rediger">
+          <button onClick={() => navigate(`/anlegg/${anlegg.id}/rediger`)} className="btn-secondary gap-2" title="Rediger">
             <Edit className="w-4 h-4" /><span className="hidden sm:inline">Rediger</span>
           </button>
           <button onClick={() => navigate('/ordre', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id } })} className="btn-primary gap-2" title="Ny ordre">
@@ -314,7 +314,7 @@ export default function AnleggDetaljer() {
       {/* 2. Statusrad */}
       <section aria-label="Kontrollstatus" className="space-y-2.5">
         {kontrolltyper.length === 0 && !leiligheter ? (
-          <div className="card text-sm text-gray-500 dark:text-gray-400">Ingen kontrolltyper registrert. <button onClick={() => navigate('/anlegg', { state: { editAnleggId: anlegg.id, returnToDetaljer: true } })} className="text-primary hover:underline">Legg til i redigering</button></div>
+          <div className="card text-sm text-gray-500 dark:text-gray-400">Ingen kontrolltyper registrert. <button onClick={() => navigate(`/anlegg/${anlegg.id}/rediger`)} className="text-primary hover:underline">Legg til i redigering</button></div>
         ) : (
           <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 xl:grid-cols-4 snap-x">
             {kontrolltyper.map(k => {
