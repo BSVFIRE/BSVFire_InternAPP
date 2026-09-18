@@ -15,7 +15,7 @@ import {
   AlertCircle, Building2, Check, CheckSquare, ChevronLeft, ClipboardList, Clock, Cloud,
   DollarSign, Edit, ExternalLink, EyeOff, Eye, FileText, Link2, Loader2, Mail, MapPin,
   MessageSquare, Mic, MicOff, MoreHorizontal, Navigation, Phone, Plus, QrCode, Search,
-  Send, Sparkles, Star, Upload, X, Home, Layers,
+  Send, Sparkles, Star, Upload, X, Home, Layers, AlertTriangle,
 } from 'lucide-react'
 import { supabase, db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -27,6 +27,7 @@ import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
 import { AnleggTodoList } from '@/components/AnleggTodoList'
 import { LeilighetsOversikt } from '@/components/LeilighetsOversikt'
 import { DropboxFileBrowser } from '@/components/DropboxFileBrowser'
+import { hentAvvikForAnlegg, AVVIK_REKKEFOLGE, type Avvik, type AvvikKontrolltype } from '@/lib/anleggAvvik'
 
 const log = createLogger('AnleggDetaljer')
 
@@ -67,7 +68,7 @@ type Aktivitet =
   | { kind: 'dokument'; id: string; dato: string; dokument: Dokument }
 
 type Filter = 'alle' | 'notat' | 'ordre' | 'oppgave' | 'dokument'
-type Tab = 'oversikt' | 'dokumenter'
+type Tab = 'oversikt' | 'avvik' | 'dokumenter'
 
 // ---------- Kontrolltyper ----------
 
@@ -124,7 +125,8 @@ export default function AnleggDetaljer() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const tab: Tab = searchParams.get('tab') === 'dokumenter' ? 'dokumenter' : 'oversikt'
+  const tabParam = searchParams.get('tab')
+  const tab: Tab = tabParam === 'dokumenter' ? 'dokumenter' : tabParam === 'avvik' ? 'avvik' : 'oversikt'
 
   const [anlegg, setAnlegg] = useState<AnleggRow | null>(null)
   const [kontakter, setKontakter] = useState<Kontakt[]>([])
@@ -134,6 +136,7 @@ export default function AnleggDetaljer() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [dokumenter, setDokumenter] = useState<Dokument[]>([])
   const [priser, setPriser] = useState<Priser | null>(null)
+  const [avvik, setAvvik] = useState<Avvik[]>([])
   const [leiligheter, setLeiligheter] = useState<{ totalt: number; kontrollert: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
@@ -169,6 +172,9 @@ export default function AnleggDetaljer() {
       if (anleggRes.error) throw anleggRes.error
       const a = anleggRes.data as AnleggRow
       setAnlegg(a)
+
+      // Avvik på tvers av kontrolltypene (egen runde – feil her skal ikke velte siden)
+      hentAvvikForAnlegg(id).then(setAvvik).catch(err => log.error('Kunne ikke hente avvik', { error: err, anleggId: id }))
 
       setKontakter((kontRes.data ?? []).map(k => ({
         id: k.id, navn: k.navn, epost: k.epost, telefon: k.telefon, rolle: k.rolle,
@@ -229,6 +235,11 @@ export default function AnleggDetaljer() {
     return liste.sort((a, b) => b.dato.localeCompare(a.dato))
   }, [notater, ordre, oppgaver, dokumenter])
 
+  const avvikPerType = useMemo(() => {
+    const m = new Map<AvvikKontrolltype, number>()
+    for (const a of avvik) m.set(a.kontrolltype, (m.get(a.kontrolltype) ?? 0) + 1)
+    return m
+  }, [avvik])
   const apneTodos = todos.filter(t => !t.fullfort)
   const aktiveOrdre = ordre.filter(o => o.status !== 'Fullført' && o.status !== 'Fakturert')
   const apneOppgaver = oppgaver.filter(o => o.status !== 'Fullført')
@@ -325,6 +336,8 @@ export default function AnleggDetaljer() {
                   tittel={k.navn}
                   tone={st.tone}
                   verdi={st.tekst}
+                  avvik={avvikPerType.get(k.navn as AvvikKontrolltype) ?? 0}
+                  onAvvikClick={() => setTab('avvik')}
                   under={st.tone === 'ok'
                     ? [anlegg.sist_oppdatert ? formatDate(anlegg.sist_oppdatert) : null, anlegg.status_oppdatert_av_navn ? initialer(anlegg.status_oppdatert_av_navn) : null].filter(Boolean).join(' · ') || 'Kontroll fullført'
                     : anlegg.kontroll_maaned ? `Kontrollmåned ${anlegg.kontroll_maaned}` : 'Kontrollmåned ikke satt'}
@@ -349,6 +362,7 @@ export default function AnleggDetaljer() {
         <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-sm text-gray-500 dark:text-gray-400 px-0.5">
           <span><b className="font-semibold text-gray-900 dark:text-white">Kontrollmåned:</b> {anlegg.kontroll_maaned ?? '–'}</span>
           <span><b className="font-semibold text-gray-900 dark:text-white">Ansvarlig:</b> {anlegg.ansvarlig_tekniker?.navn ?? 'Ikke satt'}</span>
+          <button onClick={() => setTab('avvik')} className="hover:text-gray-900 dark:hover:text-white"><span className={cn('font-semibold', avvik.length > 0 ? 'text-red-600 dark:text-red-400' : 'text-primary')}>{avvik.length}</span> avvik</button>
           <button onClick={() => { setTab('oversikt'); setVisTodoAdmin(true) }} className="hover:text-gray-900 dark:hover:text-white"><span className="text-primary font-semibold">{apneTodos.length}</span> åpne todo</button>
           <button onClick={() => navigate('/ordre', { state: { anleggId: anlegg.id } })} className="hover:text-gray-900 dark:hover:text-white"><span className="text-primary font-semibold">{aktiveOrdre.length}</span> {aktiveOrdre.length === 1 ? 'aktiv ordre' : 'aktive ordre'}</button>
           <button onClick={() => navigate('/oppgaver', { state: { anleggId: anlegg.id } })} className="hover:text-gray-900 dark:hover:text-white"><span className="text-primary font-semibold">{apneOppgaver.length}</span> {apneOppgaver.length === 1 ? 'åpen oppgave' : 'åpne oppgaver'}</button>
@@ -367,6 +381,9 @@ export default function AnleggDetaljer() {
       {/* Faner */}
       <nav className="flex gap-1 border-b border-gray-200 dark:border-gray-800" aria-label="Faner">
         <FaneKnapp aktiv={tab === 'oversikt'} onClick={() => setTab('oversikt')}>Oversikt</FaneKnapp>
+        <FaneKnapp aktiv={tab === 'avvik'} onClick={() => setTab('avvik')}>
+          Avvik <span className={cn('px-1.5 py-0.5 rounded-full text-xs', avvik.length > 0 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-gray-100 dark:bg-dark-100')}>{avvik.length}</span>
+        </FaneKnapp>
         <FaneKnapp aktiv={tab === 'dokumenter'} onClick={() => setTab('dokumenter')}>
           Dokumenter <span className="px-1.5 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-dark-100">{dokumenter.length}</span>
         </FaneKnapp>
@@ -392,6 +409,8 @@ export default function AnleggDetaljer() {
             <PriserPanel priser={priser} onRediger={() => navigate('/priser', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })} />
           </aside>
         </div>
+      ) : tab === 'avvik' ? (
+        <AvvikFane anlegg={anlegg} avvik={avvik} />
       ) : (
         <DokumenterFane
           anlegg={anlegg}
@@ -445,7 +464,7 @@ export default function AnleggDetaljer() {
 
 // ---------- Små byggeklosser ----------
 
-function StatusKort({ tittel, tone, verdi, under, ikon, onClick }: { tittel: string; tone: Tone; verdi: string; under: string; ikon?: React.ReactNode; onClick?: () => void }) {
+function StatusKort({ tittel, tone, verdi, under, ikon, onClick, avvik = 0, onAvvikClick }: { tittel: string; tone: Tone; verdi: string; under: string; ikon?: React.ReactNode; onClick?: () => void; avvik?: number; onAvvikClick?: () => void }) {
   const t = TONE[tone]
   const Ikon = ikon ?? (tone === 'ok' ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : tone === 'warn' ? <Clock className="w-3.5 h-3.5" /> : tone === 'bad' ? <X className="w-3.5 h-3.5" strokeWidth={3} /> : <EyeOff className="w-3.5 h-3.5" />)
   const inner = (
@@ -456,6 +475,12 @@ function StatusKort({ tittel, tone, verdi, under, ikon, onClick }: { tittel: str
       </div>
       <div className="text-lg font-semibold text-gray-900 dark:text-white">{verdi}</div>
       <div className="text-sm text-gray-500 dark:text-gray-400 truncate">{under}</div>
+      {avvik > 0 && (
+        <span role="button" tabIndex={0} onClick={e => { e.stopPropagation(); onAvvikClick?.() }} onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); onAvvikClick?.() } }}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:underline w-fit">
+          <AlertTriangle className="w-3 h-3" />{avvik} avvik
+        </span>
+      )}
     </>
   )
   const klasser = cn('flex-shrink-0 w-44 sm:w-auto snap-start flex flex-col gap-2 p-4 rounded-xl bg-white dark:bg-dark-50 border border-gray-200 dark:border-gray-800 border-l-[3px] text-left', t.kant, onClick && 'hover:border-primary/60 dark:hover:border-primary/60 transition-colors')
@@ -902,6 +927,71 @@ function PriserPanel({ priser, onRediger }: { priser: Priser | null; onRediger: 
         </dl>
       )}
       <button type="button" onClick={onRediger} className="text-sm text-primary hover:underline">Rediger priser</button>
+    </section>
+  )
+}
+
+// ---------- Avvik-fane ----------
+
+function AvvikFane({ anlegg, avvik }: { anlegg: AnleggRow; avvik: Avvik[] }) {
+  const navigate = useNavigate()
+  const [filter, setFilter] = useState<AvvikKontrolltype | 'alle'>('alle')
+  const typerMedAvvik = AVVIK_REKKEFOLGE.filter(t => avvik.some(a => a.kontrolltype === t))
+  const grupper = (filter === 'alle' ? typerMedAvvik : typerMedAvvik.filter(t => t === filter))
+    .map(t => ({ type: t, rader: avvik.filter(a => a.kontrolltype === t) }))
+
+  function tilRapport(a: Avvik) {
+    navigate('/rapporter', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id, rapportType: a.rapportType } })
+  }
+
+  if (avvik.length === 0) {
+    return (
+      <div className="card text-center py-10">
+        <span className="inline-flex w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 items-center justify-center mb-3"><Check className="w-6 h-6" strokeWidth={3} /></span>
+        <p className="text-gray-900 dark:text-white font-semibold">Ingen registrerte avvik</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Avvik hentes fra siste kontroll for hver kontrolltype.</p>
+      </div>
+    )
+  }
+
+  return (
+    <section className="space-y-3" aria-label="Avvik">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm text-gray-500 dark:text-gray-400">{avvik.length} avvik fra siste kontroll per type. Klikk på et avvik for å åpne rapporten.</p>
+        <div className="flex gap-1.5 flex-wrap" role="group" aria-label="Filtrer på kontrolltype">
+          {(['alle', ...typerMedAvvik] as const).map(t => (
+            <button key={t} type="button" onClick={() => setFilter(t)} aria-pressed={filter === t}
+              className={cn('px-3 py-1 rounded-full border text-xs font-medium min-h-[32px] transition-colors',
+                filter === t ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white')}>
+              {t === 'alle' ? `Alle (${avvik.length})` : `${t} (${avvik.filter(a => a.kontrolltype === t).length})`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {grupper.map(g => (
+        <div key={g.type} className="card !p-0 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-dark-100 border-b border-gray-200 dark:border-gray-800">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">{g.type} · {g.rader.length}</h3>
+            <button type="button" onClick={() => tilRapport(g.rader[0])} className="text-xs text-primary hover:underline">Åpne rapport</button>
+          </div>
+          <ul className="divide-y divide-gray-200 dark:divide-gray-800">
+            {g.rader.map(a => (
+              <li key={a.key}>
+                <button type="button" onClick={() => tilRapport(a)} className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors">
+                  <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                  <span className="flex-1 min-w-0 grid sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 items-baseline">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{a.avvik}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{a.hvor ?? <span className="text-gray-400">Sted ikke angitt</span>}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400 truncate">{a.detalj}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 sm:text-right tabular-nums">{a.dato ? formatDate(a.dato) : ''}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </section>
   )
 }
