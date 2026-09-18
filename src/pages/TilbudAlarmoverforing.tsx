@@ -1215,13 +1215,13 @@ function AlarmoverforingDetails({ tilbud, onEdit, onClose, onStatusChange }: Ala
         
         if (anleggData?.kundenr) {
           const { data: customerData } = await supabase
-            .from('customers')
-            .select('kundenummer')
+            .from('customer')
+            .select('kunde_nummer')
             .eq('id', anleggData.kundenr)
             .single()
-          
-          if (customerData?.kundenummer) {
-            setKundenummer(customerData.kundenummer)
+
+          if (customerData?.kunde_nummer) {
+            setKundenummer(customerData.kunde_nummer)
           }
         }
       }

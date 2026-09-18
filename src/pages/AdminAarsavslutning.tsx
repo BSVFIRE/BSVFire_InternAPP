@@ -580,7 +580,8 @@ export function AdminAarsavslutning() {
           supabase.from('anleggsdata_brannslukkere').select('anlegg_id'),
           supabase.from('anleggsdata_brannslanger').select('anlegg_id'),
           supabase.from('anleggsdata_nodlys').select('anlegg_id'),
-          supabase.from('brannalarm_styringer').select('anlegg_id, rd_antall, mm_antall')
+          // Tabellen brannalarm_styringer finnes ikke – detektortallene ligger i anleggsdata_brannalarm
+          supabase.from('anleggsdata_brannalarm').select('anlegg_id, rd_antall, mm_antall')
         ])
 
         // Filtrer lokalt

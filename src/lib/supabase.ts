@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from './database.types'
 
 const supabaseUrl = 'https://snyzduzqyjsllzvwuahh.supabase.co'
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNueXpkdXpxeWpzbGx6dnd1YWhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3ODk0NzEsImV4cCI6MjA2MDM2NTQ3MX0.WLOcnCSiNHTsFIf0S_2hM-y3QyEnM6lzGn4vcIXMLuc'
@@ -35,120 +36,20 @@ export async function getFunctionAuthHeaders(): Promise<Record<string, string>> 
   }
 }
 
-// Database types
-export type Database = {
-  public: {
-    Tables: {
-      customer: {
-        Row: {
-          id: string
-          navn: string
-          organisasjonsnummer: string | null
-          adresse: string | null
-          postnummer: string | null
-          poststed: string | null
-          telefon: string | null
-          epost: string | null
-          opprettet_dato: string
-          sist_oppdatert: string | null
-        }
-      }
-      anlegg: {
-        Row: {
-          id: string
-          kundenr: string
-          anleggsnavn: string
-          org_nummer: string | null
-          kunde_nummer: string | null
-          adresse: string | null
-          postnummer: string | null
-          poststed: string | null
-          kontroll_maaned: string | null
-          kontroll_status: string | null
-          kontroll_type: string[] | null
-          unik_kode: string | null
-          kontrollportal_url: string | null
-          created_at: string
-          sist_oppdatert: string | null
-        }
-      }
-      ordre: {
-        Row: {
-          id: string
-          ordre_nummer: string
-          type: string
-          kundenr: string
-          anlegg_id: string
-          kommentar: string | null
-          status: string
-          opprettet_dato: string
-          sist_oppdatert: string | null
-          tekniker_id: string | null
-          kontrolltype: string[] | null
-        }
-      }
-      oppgaver: {
-        Row: {
-          id: string
-          oppgave_nummer: string
-          ordre_id: string | null
-          prosjekt_id: string | null
-          tittel: string
-          status: string
-          prioritet: string | null
-          tildelt_til: string | null
-          forfallsdato: string | null
-          opprettet_dato: string
-          sist_oppdatert: string | null
-        }
-      }
-      prosjekter: {
-        Row: {
-          id: string
-          navn: string
-          beskrivelse: string | null
-          type_prosjekt: string
-          kunde_id: string | null
-          prosjektleder_id: string | null
-          status: string
-          oppstart_dato: string | null
-          planlagt_fullfort: string | null
-          faktisk_fullfort: string | null
-          opprettet_dato: string
-          sist_oppdatert: string | null
-        }
-      }
-      kontaktpersoner: {
-        Row: {
-          id: string
-          navn: string
-          epost: string | null
-          telefon: string | null
-          rolle: string | null
-          opprettet_dato: string
-          sist_oppdatert: string | null
-        }
-      }
-      anlegg_kontaktpersoner: {
-        Row: {
-          id: string
-          anlegg_id: string
-          kontaktperson_id: string
-          primar: boolean
-          opprettet_dato: string
-        }
-      }
-      dokumenter: {
-        Row: {
-          id: string
-          anlegg_id: string
-          filnavn: string
-          url: string
-          type: string | null
-          opprettet_dato: string
-          opprettet_av: string | null
-        }
-      }
-    }
-  }
-}
+/**
+ * Typet variant av samme klient (samme instans, samme sesjon).
+ *
+ * `database.types.ts` er generert fra prod-skjemaet med
+ *   supabase gen types typescript --linked --schema public > src/lib/database.types.ts
+ * og gjør at tabell-/kolonnenavn og nullability sjekkes av kompilatoren.
+ *
+ * Bruk `db` i ny kode og når du rydder i en fil. `supabase` (utypet) beholdes
+ * inntil eksisterende filer er migrert – ~290 steder antar i dag at kolonner
+ * ikke kan være null, og det må rettes fil for fil.
+ */
+export const db = supabase as unknown as SupabaseClient<Database>
+
+export type { Database }
+export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
+export type TablesInsert<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']
+export type TablesUpdate<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update']

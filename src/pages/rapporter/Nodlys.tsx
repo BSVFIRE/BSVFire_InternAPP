@@ -488,9 +488,10 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       }
 
       // Hent kunde separat
+      // customer har ikke telefon/epost-kolonner – spørringen feilet stille før
       const { data: kundeData } = await supabase
         .from('customer')
-        .select('navn, telefon, epost')
+        .select('navn')
         .eq('id', anleggData.kundenr)
         .single()
 

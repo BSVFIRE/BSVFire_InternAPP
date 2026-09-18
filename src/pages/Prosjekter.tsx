@@ -1130,14 +1130,14 @@ function ProsjektDokumenter({
     // Hent kundenummer fra kunde-tabellen
     const { data: kundeData } = await supabase
       .from('customer')
-      .select('kundenummer')
+      .select('kunde_nummer')
       .eq('id', prosjekt.kunde_id)
       .single()
 
-    if (!kundeData?.kundenummer) return
+    if (!kundeData?.kunde_nummer) return
 
     const anleggPath = buildAnleggDropboxPath(
-      kundeData.kundenummer,
+      kundeData.kunde_nummer,
       prosjekt.kunde.navn,
       prosjekt.anlegg.anleggsnavn
     )

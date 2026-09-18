@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, db } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import {
   Search,
@@ -488,13 +488,29 @@ export function AdminSalg() {
     
     // Hent eksisterende kunder i samme område (postnummer eller kommune)
     try {
-      const { data: kunder } = await supabase
-        .from('customer')
-        .select('name, city')
-        .or(`postal_code.eq.${lead.forretningsadresse_postnummer},city.ilike.%${lead.forretningsadresse_poststed}%`)
+      // customer har ingen adressekolonner – adressen ligger på anlegg. Slå opp anlegg i området
+      // og hent kundenavnet via relasjonen (spørringen mot name/city/postal_code feilet stille før).
+      const filters: string[] = []
+      if (lead.forretningsadresse_postnummer) filters.push(`postnummer.eq.${lead.forretningsadresse_postnummer}`)
+      if (lead.forretningsadresse_poststed) filters.push(`poststed.ilike.%${lead.forretningsadresse_poststed}%`)
+
+      if (filters.length === 0) {
+        setReferanseKunder([])
+        return
+      }
+
+      const { data: anleggIOmraade } = await db
+        .from('anlegg')
+        .select('poststed, customer:kundenr(navn)')
+        .or(filters.join(','))
         .limit(5)
-      
-      setReferanseKunder(kunder?.map(k => ({ navn: k.name, poststed: k.city })) || [])
+
+      const unike = new Map<string, { navn: string; poststed: string }>()
+      for (const a of anleggIOmraade ?? []) {
+        const navn = a.customer?.navn
+        if (navn && !unike.has(navn)) unike.set(navn, { navn, poststed: a.poststed ?? '' })
+      }
+      setReferanseKunder(Array.from(unike.values()))
     } catch (err) {
       console.error('Kunne ikke hente referansekunder:', err)
       setReferanseKunder([])
