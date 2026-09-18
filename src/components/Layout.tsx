@@ -1,5 +1,4 @@
-import { useState, useEffect, ReactNode } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useState, ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   Home, 
@@ -71,9 +70,6 @@ const adminNavigation = [
   { name: 'AI Kunnskapsbase', href: '/admin/ai-knowledge', icon: BookOpen, modulKey: 'admin_ai_knowledge' },
 ]
 
-// Super admin users (har alltid full tilgang)
-const SUPER_ADMIN_EMAILS = ['erik.skille@bsvfire.no']
-
 // BSV company_id - kun dette firmaet skal se admin-tjenestene
 // TODO: Aktiver når company_id er implementert i databasen
 // const BSV_COMPANY_ID = 'dd400027-8d88-4108-ae87-a1cf2de10dc3'
@@ -84,55 +80,18 @@ export function Layout({ children }: LayoutProps) {
   const { user, signOut } = useAuthStore()
   const [showOfflineInfo, setShowOfflineInfo] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [isBsvAdmin, setIsBsvAdmin] = useState(false)
   
   // Deaktiverte tellere (brukes i UI men hentes ikke fra DB ennå)
   const ulestemeldinger = 0
   const aktiveOrdre = 0
   const aktiveOppgaver = 0
   
-  // Bruk modul-tilgang hook
-  const { harTilgang } = useModulTilgang()
+  // Modul-tilgang og admin-status (is_admin() i databasen, basert på ansatte.rolle)
+  const { harTilgang, isSuperAdmin } = useModulTilgang()
   
-  // Sjekk om bruker er BSV admin
-  // TODO: Aktiver company_id sjekk når kolonnen er opprettet i databasen
-  useEffect(() => {
-    async function checkBsvAdmin() {
-      if (!user?.email) {
-        setIsBsvAdmin(false)
-        return
-      }
-      
-      try {
-        // Midlertidig: Sjekk kun rolle, ikke company_id (kolonnen eksisterer ikke ennå)
-        const { data, error } = await supabase
-          .from('ansatte')
-          .select('rolle')
-          .eq('epost', user.email.toLowerCase())
-          .single()
-        
-        if (error) {
-          // Ignorer feil stille - bruker er kanskje ikke i ansatte-tabellen
-          setIsBsvAdmin(false)
-          return
-        }
-        
-        // Midlertidig: Alle admins får BSV admin tilgang inntil company_id er implementert
-        const isAdmin = data?.rolle === 'admin' || data?.rolle === 'administrator'
-        setIsBsvAdmin(isAdmin)
-      } catch (err) {
-        console.error('[Layout] Exception ved BSV admin sjekk:', err)
-        setIsBsvAdmin(false)
-      }
-    }
-    checkBsvAdmin()
-  }, [user])
-  
-  // Sjekk om bruker har tilgang til admin-seksjonen
-  const isSuperAdminUser = user?.email && SUPER_ADMIN_EMAILS.includes(user.email)
-  // Vis admin-seksjonen hvis bruker er super admin, BSV admin, eller har tilgang til minst én admin-modul
+  // Vis admin-seksjonen hvis bruker er admin eller har tilgang til minst én admin-modul
   const hasAnyAdminModuleAccess = adminNavigation.some(item => harTilgang(item.modulKey, 'se'))
-  const showAdminSection = isSuperAdminUser || isBsvAdmin || hasAnyAdminModuleAccess
+  const showAdminSection = isSuperAdmin || hasAnyAdminModuleAccess
 
   // Meldingssystem deaktivert midlertidig - tabeller mangler
   // useEffect(() => {

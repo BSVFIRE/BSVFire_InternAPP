@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, db } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
-
-// Admin-brukere som alltid har full tilgang
-const SUPER_ADMIN_EMAILS = ['erik.skille@bsvfire.no']
 
 export interface Modul {
   id: string
@@ -39,17 +36,7 @@ export function useModulTilgang() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
 
   useEffect(() => {
-    if (!user?.email) {
-      setLoading(false)
-      return
-    }
-
-    // Sjekk om bruker er super admin
-    const superAdmin = SUPER_ADMIN_EMAILS.includes(user.email)
-    setIsSuperAdmin(superAdmin)
-
-    if (superAdmin) {
-      // Super admin har alltid full tilgang
+    if (!user) {
       setLoading(false)
       return
     }
@@ -57,10 +44,21 @@ export function useModulTilgang() {
     // Hent tilganger fra database
     async function loadTilganger() {
       try {
+        // Admin avgjøres av ansatte.rolle via is_admin() i databasen (samme sjekk som RLS bruker),
+        // ikke av en hardkodet e-postliste i klienten.
+        const { data: adminData } = await db.rpc('is_admin')
+        const admin = adminData === true
+        setIsSuperAdmin(admin)
+
+        if (admin) {
+          // Admin har alltid full tilgang
+          return
+        }
+
         const { data: ansatt } = await supabase
           .from('ansatte')
           .select('id')
-          .eq('epost', user!.email)
+          .eq('auth_user_id', user!.id)
           .single()
 
         if (!ansatt) {

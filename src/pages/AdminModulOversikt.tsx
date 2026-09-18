@@ -184,7 +184,7 @@ export function AdminModulOversikt() {
           <Shield className="w-5 h-5 text-blue-500 mt-0.5" />
           <div className="text-sm">
             <p className="text-blue-700 dark:text-blue-300 font-medium">
-              Super-administratorer (erik.skille@bsvfire.no) har alltid full tilgang til alle moduler.
+              Ansatte med rolle «admin» har alltid full tilgang til alle moduler.
             </p>
             <p className="text-blue-600 dark:text-blue-400 mt-1">
               <Eye className="w-4 h-4 inline mr-1" /> = Kan se modulen | 
