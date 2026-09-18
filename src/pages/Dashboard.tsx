@@ -1,1199 +1,359 @@
-import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
+/**
+ * Dashboard – «hva skjer i dag, hva har jeg glemt, hva brenner».
+ *
+ * Handlingstall (månedens kontroller, avvik, mine oppgaver, meldinger), «Neste opp»
+ * (ukesplan + oppgaver gruppert på dag), «Ikke planlagt ennå» (månedens anlegg uten
+ * ordre/ukesplan), «Trenger oppmerksomhet» (avvik, etterslep) og siste aktivitet.
+ * Totaltallene ligger som én linje nederst.
+ */
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { AlertTriangle, Building2, Calendar, CheckSquare, ClipboardList, Clock, MessageSquare, Plus } from 'lucide-react'
+import { db, type Tables } from '@/lib/supabase'
+import { toast } from '@/lib/toast'
+import { cn, formatDate, isoUke, isoUkeAar, ukeDatoer, UKEDAGER } from '@/lib/utils'
 import { createLogger } from '@/lib/logger'
-import { useAuthStore } from '@/store/authStore'
+import { ANLEGG_STATUSER, MAANEDER, OPPGAVE_STATUSER, ORDRE_STATUSER } from '@/lib/constants'
+import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
+import { Button } from '@/components/ui/Button'
 
 const log = createLogger('Dashboard')
-import { 
-  ClipboardList, 
-  CheckSquare, 
-  FolderKanban, 
-  Building2,
-  AlertCircle,
-  Users,
-  User,
-  Calendar,
-  Inbox,
-  Check,
-  Building,
-  X,
-  Bell
-} from 'lucide-react'
-import { ORDRE_STATUSER, OPPGAVE_STATUSER, MAANEDER } from '@/lib/constants'
 
-interface Stats {
-  ordre: { total: number; aktive: number; fullfort: number; fakturert: number }
-  oppgaver: { total: number; aktive: number; fullfort: number }
-  prosjekter: { total: number; pagaar: number; planlagt: number }
-  anlegg: number
-  kunder: number
-  nyeKunderSisteManed: number
-  nyeAnleggSisteManed: number
+type AnleggKort = Pick<Tables<'anlegg'>, 'id' | 'anleggsnavn' | 'poststed' | 'kontroll_status' | 'kontroll_maaned' | 'kontroll_type' | 'ansvarlig_tekniker_id' | 'skjult'> & { customer: { navn: string | null } | null }
+type Oppgave = Pick<Tables<'oppgaver'>, 'id' | 'tittel' | 'type' | 'status' | 'forfallsdato' | 'tekniker_id' | 'anlegg_id' | 'sist_oppdatert'> & { anlegg: { anleggsnavn: string | null } | null; tekniker: { navn: string | null } | null }
+type Ordre = Pick<Tables<'ordre'>, 'id' | 'ordre_nummer' | 'type' | 'status' | 'tekniker_id' | 'anlegg_id' | 'sist_oppdatert' | 'opprettet_dato'> & { anlegg: { anleggsnavn: string | null } | null; tekniker: { navn: string | null } | null }
+type PlanDag = { id: string; dag: number; estimert_oppstart: string | null; anlegg_id: string; ukesplan: { id: string; aar: number; uke_nummer: number; kunde_id: string; ukesplan_teknikere: { ansatt_id: string }[] } | null; anlegg: { anleggsnavn: string | null; poststed: string | null } | null }
+type Melding = Pick<Tables<'intern_kommentar'>, 'id' | 'intern_kommentar' | 'created_at' | 'anlegg_id'>
+
+type NesteRad =
+  | { kind: 'plan'; dato: Date; id: string; anleggId: string; tittel: string; under: string }
+  | { kind: 'oppgave'; dato: Date | null; id: string; oppgave: Oppgave }
+
+const PILL: Record<string, string> = {
+  [ORDRE_STATUSER.NY]: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
+  [ORDRE_STATUSER.VENTENDE]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  [ORDRE_STATUSER.PAGAENDE]: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  [OPPGAVE_STATUSER.IKKE_PABEGYNT]: 'bg-gray-100 text-gray-700 dark:bg-dark-100 dark:text-gray-400',
 }
 
-interface Melding {
-  id: string
-  anlegg_id: string
-  intern_kommentar: string
-  created_at: string
-  lest: boolean
-  anleggsnavn: string | null
-  kunde_navn: string | null
+function hilsen(navn: string | null | undefined) {
+  const t = new Date().getHours()
+  const h = t < 10 ? 'God morgen' : t < 17 ? 'Hei' : 'God kveld'
+  return navn ? `${h}, ${navn.split(' ')[0]}` : h
 }
-
-interface Aktivitet {
-  id: string
-  type: 'ordre' | 'oppgave'
-  tittel: string
-  beskrivelse: string
-  tidspunkt: string
-  status: string
-  ikon: 'ny' | 'fullfort' | 'endret'
-}
-
-interface KommendeOppgave {
-  id: string
-  tittel: string
-  forfallsdato: string
-  prioritet: 'hoy' | 'medium' | 'lav'
-  dagerIgjen: number
-}
-
-interface KommendeOrdre {
-  id: string
-  ordrenummer: string
-  anleggsnavn: string | null
-  kundenavn: string | null
-  status: string
-  opprettet: string
-  dagerSiden: number
-}
-
-type TidsFilter = 'dag' | 'uke' | 'maned' | 'ar'
-
-interface MineKontroller {
-  id: string
-  anleggsnavn: string
-  adresse: string | null
-  kundenavn: string | null
-  kontroll_status: string | null
-  kontroll_type: string[] | null
-  kontroll_maaned: string | null
-}
+function sammeDag(a: Date, b: Date) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate() }
+function startAvDag(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 
 export function Dashboard() {
-  const { user } = useAuthStore()
   const navigate = useNavigate()
-  const [visAlle, setVisAlle] = useState(false)
-  const [ansattId, setAnsattId] = useState<string | null>(null)
-  const [stats, setStats] = useState<Stats>({
-    ordre: { total: 0, aktive: 0, fullfort: 0, fakturert: 0 },
-    oppgaver: { total: 0, aktive: 0, fullfort: 0 },
-    prosjekter: { total: 0, pagaar: 0, planlagt: 0 },
-    anlegg: 0,
-    kunder: 0,
-    nyeKunderSisteManed: 0,
-    nyeAnleggSisteManed: 0
-  })
-  const [loading, setLoading] = useState(true)
-  const [tidsFilter, setTidsFilter] = useState<TidsFilter>('uke')
-  const [aktiviteter, setAktiviteter] = useState<Aktivitet[]>([])
-  const [kommendeOppgaver, setKommendeOppgaver] = useState<KommendeOppgave[]>([])
-  const [kommendeOrdre, setKommendeOrdre] = useState<KommendeOrdre[]>([])
+  const { ansatt } = useCurrentAnsatt()
+  const [mine, setMine] = useState(() => { try { return localStorage.getItem('dashboard_mine') !== 'alle' } catch { return true } })
+  const [anlegg, setAnlegg] = useState<AnleggKort[]>([])
+  const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
+  const [ordre, setOrdre] = useState<Ordre[]>([])
+  const [planDager, setPlanDager] = useState<PlanDag[]>([])
   const [meldinger, setMeldinger] = useState<Melding[]>([])
-  const [nyeKunderPopup, setNyeKunderPopup] = useState(false)
-  const [nyeAnleggPopup, setNyeAnleggPopup] = useState(false)
-  const [nyeKunderListe, setNyeKunderListe] = useState<{ id: string; navn: string; opprettet: string }[]>([])
-  const [nyeAnleggListe, setNyeAnleggListe] = useState<{ id: string; anleggsnavn: string; kundenavn: string; opprettet: string }[]>([])
-  const [lasterNyeData, setLasterNyeData] = useState(false)
-  const [mineKontroller, setMineKontroller] = useState<MineKontroller[]>([])
-  const [currentMonth] = useState(() => MAANEDER[new Date().getMonth()])
-  const [visAlleKontroller, setVisAlleKontroller] = useState(false)
+  const [avvik, setAvvik] = useState<Map<string, number>>(new Map())
+  const [anleggMedOrdreIAar, setAnleggMedOrdreIAar] = useState<Set<string>>(new Set())
+  const [antallKunder, setAntallKunder] = useState(0)
+  const [kunderUtenNr, setKunderUtenNr] = useState(0)
+  const [antallProsjekter, setAntallProsjekter] = useState(0)
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadAnsattId()
-  }, [user])
+  const iDag = useMemo(() => startAvDag(new Date()), [])
+  const aar = iDag.getFullYear()
+  const mndNavn = MAANEDER[iDag.getMonth()]
+  const forrigeMndNavn = MAANEDER[(iDag.getMonth() + 11) % 12]
+  const ukeAar = isoUkeAar(iDag), uke = isoUke(iDag)
+  const nesteUkeDato = new Date(iDag); nesteUkeDato.setDate(iDag.getDate() + 7)
+  const nesteUke = isoUke(nesteUkeDato), nesteUkeAar = isoUkeAar(nesteUkeDato)
 
-  async function loadAnsattId() {
-    if (!user?.email) {
-      setAnsattId(null)
-      return
-    }
-    
+  const last = useCallback(async () => {
     try {
-      const { data } = await supabase
-        .from('ansatte')
-        .select('id')
-        .eq('epost', user.email)
-        .single()
-      
-      setAnsattId(data?.id || null)
-      
-      // Last mine kontroller hvis vi har ansatt-ID
-      if (data?.id) {
-        loadMineKontroller(data.id)
-      }
-    } catch (error) {
-      log.error('Feil ved henting av ansatt-ID', { error })
-      setAnsattId(null)
-    }
-  }
-
-  async function loadMineKontroller(teknikerId: string) {
-    try {
-      // Hent alle anlegg hvor brukeren er ansvarlig tekniker
-      const { data, error } = await supabase
-        .from('anlegg')
-        .select(`
-          id,
-          anleggsnavn,
-          adresse,
-          kontroll_status,
-          kontroll_type,
-          kontroll_maaned,
-          kundenr,
-          customer:kundenr (navn)
-        `)
-        .eq('ansvarlig_tekniker_id', teknikerId)
-        .order('anleggsnavn')
-
-      if (error) throw error
-
-      log.info('Mine kontroller lastet', { 
-        teknikerId, 
-        currentMonth,
-        antall: data?.length || 0,
-        data: data?.map(a => ({ navn: a.anleggsnavn, maaned: a.kontroll_maaned, status: a.kontroll_status }))
-      })
-
-      // Vis anlegg med status "Planlagt" eller "Utsatt" - unngår at alle "Ikke utført" hoper seg opp
-      const kontroller = (data || [])
-        .filter(a => a.kontroll_status === 'Planlagt' || a.kontroll_status === 'Utsatt')
-        .map((a: any) => ({
-          id: a.id,
-          anleggsnavn: a.anleggsnavn,
-          adresse: a.adresse,
-          kundenavn: a.customer?.navn || null,
-          kontroll_status: a.kontroll_status,
-          kontroll_type: a.kontroll_type,
-          kontroll_maaned: a.kontroll_maaned
-        }))
-        .sort((a, b) => {
-          // Sorter etter måned (inneværende måned først)
-          const maanedIndex = (m: string | null) => m ? MAANEDER.indexOf(m as typeof MAANEDER[number]) : 99
-          const aIndex = maanedIndex(a.kontroll_maaned)
-          const bIndex = maanedIndex(b.kontroll_maaned)
-          const currentIndex = MAANEDER.indexOf(currentMonth as typeof MAANEDER[number])
-          
-          // Beregn avstand fra inneværende måned
-          const aDist = (aIndex - currentIndex + 12) % 12
-          const bDist = (bIndex - currentIndex + 12) % 12
-          return aDist - bDist
-        })
-
-      setMineKontroller(kontroller)
-    } catch (error) {
-      log.error('Feil ved henting av mine kontroller', { error })
-    }
-  }
-
-  async function loadStats() {
-    try {
-      const enMndSiden = new Date()
-      enMndSiden.setMonth(enMndSiden.getMonth() - 1)
-
-      // Bygg queries basert på filter
-      const ordreQuery = !visAlle && ansattId 
-        ? supabase.from('ordre').select('status, tekniker_id').eq('tekniker_id', ansattId)
-        : supabase.from('ordre').select('status, tekniker_id')
-      
-      const oppgaverQuery = !visAlle && ansattId
-        ? supabase.from('oppgaver').select('status, tekniker_id').eq('tekniker_id', ansattId)
-        : supabase.from('oppgaver').select('status, tekniker_id')
-      
-      const prosjekterQuery = !visAlle && ansattId
-        ? supabase.from('prosjekter').select('status, prosjektleder_id').eq('prosjektleder_id', ansattId)
-        : supabase.from('prosjekter').select('status, prosjektleder_id')
-
-      // Kjør ALLE queries parallelt for mye raskere lasting
-      const [
-        ordreResult,
-        oppgaverResult,
-        prosjekterResult,
-        anleggResult,
-        kunderResult,
-        nyeKunderResult,
-        nyeAnleggResult
-      ] = await Promise.all([
-        ordreQuery,
-        oppgaverQuery,
-        prosjekterQuery,
-        supabase.from('anlegg').select('*', { count: 'exact', head: true }),
-        supabase.from('customer').select('*', { count: 'exact', head: true }).or('skjult.is.null,skjult.eq.false'),
-        supabase.from('customer').select('*', { count: 'exact', head: true }).gte('opprettet', enMndSiden.toISOString()).or('skjult.is.null,skjult.eq.false'),
-        supabase.from('anlegg').select('*', { count: 'exact', head: true }).gte('opprettet_dato', enMndSiden.toISOString())
+      const aarStart = `${aar}-01-01`
+      const [a, o, ord, p, m, av, ordreIAar, k, kUten, pr] = await Promise.all([
+        db.from('anlegg').select('id, anleggsnavn, poststed, kontroll_status, kontroll_maaned, kontroll_type, ansvarlig_tekniker_id, skjult, customer:kundenr(navn)').or('skjult.is.null,skjult.eq.false'),
+        db.from('oppgaver').select('id, tittel, type, status, forfallsdato, tekniker_id, anlegg_id, sist_oppdatert, anlegg:anlegg_id(anleggsnavn), tekniker:tekniker_id(navn)').neq('status', OPPGAVE_STATUSER.FULLFORT).order('forfallsdato', { ascending: true, nullsFirst: false }).limit(200),
+        db.from('ordre').select('id, ordre_nummer, type, status, tekniker_id, anlegg_id, sist_oppdatert, opprettet_dato, anlegg:anlegg_id(anleggsnavn), tekniker:tekniker_id(navn)').not('status', 'in', `("${ORDRE_STATUSER.FULLFORT}","${ORDRE_STATUSER.FAKTURERT}")`).order('sist_oppdatert', { ascending: false }).limit(100),
+        db.from('ukesplan_dager').select('id, dag, estimert_oppstart, anlegg_id, ukesplan:ukesplan_id!inner(id, aar, uke_nummer, kunde_id, ukesplan_teknikere(ansatt_id)), anlegg:anlegg_id(anleggsnavn, poststed)')
+          .or(`and(aar.eq.${ukeAar},uke_nummer.eq.${uke}),and(aar.eq.${nesteUkeAar},uke_nummer.eq.${nesteUke})`, { referencedTable: 'ukesplan' }),
+        ansatt ? db.from('intern_kommentar').select('id, intern_kommentar, created_at, anlegg_id').eq('mottaker_id', ansatt.id).eq('lest', false).order('created_at', { ascending: false }).limit(5) : Promise.resolve({ data: [] as Melding[], error: null }),
+        db.rpc('avvik_per_anlegg'),
+        db.from('ordre').select('anlegg_id').gte('opprettet_dato', aarStart),
+        db.from('customer').select('id', { count: 'exact', head: true }).or('skjult.is.null,skjult.eq.false'),
+        db.from('customer').select('id', { count: 'exact', head: true }).or('skjult.is.null,skjult.eq.false').is('kunde_nummer', null),
+        db.from('prosjekter').select('id', { count: 'exact', head: true }).neq('status', 'Fullført'),
       ])
-
-      // Prosesser ordre-data
-      const ordreData = ordreResult.data || []
-      const fullfort = ordreData.filter(o => o.status === ORDRE_STATUSER.FULLFORT).length
-      const fakturert = ordreData.filter(o => o.status === ORDRE_STATUSER.FAKTURERT).length
-      const aktive = ordreData.filter(o => o.status !== ORDRE_STATUSER.FULLFORT && o.status !== ORDRE_STATUSER.FAKTURERT).length
-
-      // Prosesser oppgaver-data
-      const oppgaverData = oppgaverResult.data || []
-
-      // Prosesser prosjekter-data
-      const prosjekterData = prosjekterResult.data || []
-
-      setStats({
-        ordre: {
-          total: ordreData.length,
-          aktive,
-          fullfort,
-          fakturert
-        },
-        oppgaver: {
-          total: oppgaverData.length,
-          aktive: oppgaverData.filter(o => o.status === 'Aktiv' || o.status === 'Pågår').length,
-          fullfort: oppgaverData.filter(o => o.status === OPPGAVE_STATUSER.FULLFORT).length
-        },
-        prosjekter: {
-          total: prosjekterData.length,
-          pagaar: prosjekterData.filter(p => p.status === 'Pågår').length,
-          planlagt: prosjekterData.filter(p => p.status === 'Planlagt').length
-        },
-        anlegg: anleggResult.count || 0,
-        kunder: kunderResult.count || 0,
-        nyeKunderSisteManed: nyeKunderResult.count || 0,
-        nyeAnleggSisteManed: nyeAnleggResult.count || 0
-      })
-    } catch (error) {
-      log.error('Feil ved lasting av statistikk', { error })
+      setAnlegg((a.data ?? []) as AnleggKort[])
+      setOppgaver((o.data ?? []) as Oppgave[])
+      setOrdre((ord.data ?? []) as Ordre[])
+      setPlanDager(((p.data ?? []) as unknown as PlanDag[]).filter(d => d.ukesplan))
+      setMeldinger(m.data ?? [])
+      setAvvik(new Map((av.data ?? []).map(r => [r.anlegg_id, Number(r.antall)])))
+      setAnleggMedOrdreIAar(new Set((ordreIAar.data ?? []).map(r => r.anlegg_id).filter((x): x is string => Boolean(x))))
+      setAntallKunder(k.count ?? 0); setKunderUtenNr(kUten.count ?? 0); setAntallProsjekter(pr.count ?? 0)
+    } catch (err) {
+      log.error('Kunne ikke laste dashboard', { error: err })
     } finally {
       setLoading(false)
     }
+  }, [aar, ukeAar, uke, nesteUkeAar, nesteUke, ansatt])
+  useEffect(() => { last() }, [last])
+
+  function velgOmfang(v: boolean) { setMine(v); try { localStorage.setItem('dashboard_mine', v ? 'mine' : 'alle') } catch { /* ignorer */ } }
+
+  // ---- Utvalg («Mine» = tildelt meg / ansvarlig = meg) ----
+  const mineAnlegg = useMemo(() => mine && ansatt ? anlegg.filter(a => a.ansvarlig_tekniker_id === ansatt.id) : anlegg, [anlegg, mine, ansatt])
+  const mineOppgaver = useMemo(() => mine && ansatt ? oppgaver.filter(o => o.tekniker_id === ansatt.id) : oppgaver, [oppgaver, mine, ansatt])
+  const mineOrdre = useMemo(() => mine && ansatt ? ordre.filter(o => o.tekniker_id === ansatt.id) : ordre, [ordre, mine, ansatt])
+  const minePlanDager = useMemo(() => mine && ansatt ? planDager.filter(d => d.ukesplan?.ukesplan_teknikere.some(t => t.ansatt_id === ansatt.id)) : planDager, [planDager, mine, ansatt])
+
+  // ---- Handlingstall ----
+  const mndAnlegg = mineAnlegg.filter(a => a.kontroll_maaned === mndNavn)
+  const mndUtfort = mndAnlegg.filter(a => a.kontroll_status === ANLEGG_STATUSER.UTFORT).length
+  const avvikSum = mineAnlegg.reduce((s, a) => s + (avvik.get(a.id) ?? 0), 0)
+  const avvikAnlegg = mineAnlegg.filter(a => (avvik.get(a.id) ?? 0) > 0).length
+  const forfalt = mineOppgaver.filter(o => o.forfallsdato && startAvDag(new Date(o.forfallsdato)) < iDag).length
+  const denneUke = mineOppgaver.filter(o => { if (!o.forfallsdato) return false; const d = startAvDag(new Date(o.forfallsdato)); return d >= iDag && d <= nesteUkeDato }).length
+  const virkedagerIgjen = useMemo(() => { let n = 0; const d = new Date(iDag); const sisteDag = new Date(aar, iDag.getMonth() + 1, 0); while (d <= sisteDag) { if (d.getDay() !== 0 && d.getDay() !== 6) n++; d.setDate(d.getDate() + 1) } return n }, [iDag, aar])
+
+  // ---- Neste opp ----
+  const nesteOpp = useMemo<NesteRad[]>(() => {
+    const rader: NesteRad[] = []
+    for (const d of minePlanDager) {
+      if (!d.ukesplan) continue
+      const dato = ukeDatoer(d.ukesplan.aar, d.ukesplan.uke_nummer)[d.dag - 1]
+      if (!dato || startAvDag(dato) < iDag) continue
+      rader.push({ kind: 'plan', dato, id: d.id, anleggId: d.anlegg_id, tittel: d.anlegg?.anleggsnavn ?? 'Anlegg', under: [`Ukesplan uke ${d.ukesplan.uke_nummer}`, d.estimert_oppstart ? `kl. ${d.estimert_oppstart.slice(0, 5)}` : null, d.anlegg?.poststed].filter(Boolean).join(' · ') })
+    }
+    const grense = new Date(iDag); grense.setDate(iDag.getDate() + 14)
+    for (const o of mineOppgaver) {
+      const dato = o.forfallsdato ? startAvDag(new Date(o.forfallsdato)) : null
+      if (dato && dato > grense) continue
+      if (!dato) continue
+      rader.push({ kind: 'oppgave', dato, id: o.id, oppgave: o })
+    }
+    return rader.sort((x, y) => (x.dato?.getTime() ?? Infinity) - (y.dato?.getTime() ?? Infinity)).slice(0, 12)
+  }, [minePlanDager, mineOppgaver, iDag])
+
+  // ---- Ikke planlagt ennå: månedens anlegg uten ordre i år og uten ukesplan denne/neste uke ----
+  const planlagteAnleggIder = useMemo(() => new Set(planDager.map(d => d.anlegg_id)), [planDager])
+  const ikkePlanlagt = useMemo(() => mineAnlegg.filter(a => a.kontroll_maaned === mndNavn && a.kontroll_status !== ANLEGG_STATUSER.UTFORT && a.kontroll_status !== ANLEGG_STATUSER.OPPSAGT && !anleggMedOrdreIAar.has(a.id) && !planlagteAnleggIder.has(a.id)), [mineAnlegg, mndNavn, anleggMedOrdreIAar, planlagteAnleggIder])
+
+  // ---- Trenger oppmerksomhet ----
+  const verstAvvik = useMemo(() => mineAnlegg.filter(a => (avvik.get(a.id) ?? 0) > 0).sort((x, y) => (avvik.get(y.id) ?? 0) - (avvik.get(x.id) ?? 0)).slice(0, 4), [mineAnlegg, avvik])
+  const etterslep = useMemo(() => mineAnlegg.filter(a => a.kontroll_maaned === forrigeMndNavn && (a.kontroll_status === ANLEGG_STATUSER.IKKE_UTFORT || !a.kontroll_status)).length, [mineAnlegg, forrigeMndNavn])
+
+  // ---- Siste aktivitet (ordre + oppgaver etter sist_oppdatert) ----
+  const aktivitet = useMemo(() => {
+    const liste = [
+      ...ordre.map(o => ({ id: `o${o.id}`, tid: o.sist_oppdatert ?? o.opprettet_dato ?? '', hvem: o.tekniker?.navn?.split(' ')[0] ?? 'Ukjent', hva: `${o.status === ORDRE_STATUSER.NY ? 'opprettet' : 'oppdaterte'} ordre ${o.ordre_nummer}`, hvor: o.anlegg?.anleggsnavn ?? '', til: () => navigate('/ordre', { state: { selectedOrdreId: o.id } }) })),
+      ...oppgaver.map(o => ({ id: `t${o.id}`, tid: o.sist_oppdatert ?? '', hvem: o.tekniker?.navn?.split(' ')[0] ?? 'Ukjent', hva: `oppgave: ${o.tittel ?? o.type}`, hvor: o.anlegg?.anleggsnavn ?? '', til: () => navigate('/oppgaver', { state: { selectedOppgaveId: o.id } }) })),
+    ].filter(x => x.tid)
+    return liste.sort((x, y) => y.tid.localeCompare(x.tid)).slice(0, 6)
+  }, [ordre, oppgaver, navigate])
+
+  async function fullforOppgave(o: Oppgave) {
+    const { error } = await db.from('oppgaver').update({ status: OPPGAVE_STATUSER.FULLFORT, sist_oppdatert: new Date().toISOString() }).eq('id', o.id)
+    if (error) { toast.error('Kunne ikke fullføre oppgave', error); return }
+    toast.success(`«${o.tittel ?? o.type}» fullført`)
+    setOppgaver(prev => prev.filter(x => x.id !== o.id))
   }
 
-  async function loadMeldinger() {
-    if (!ansattId) return
-    
-    try {
-      const { data, error } = await supabase
-        .from('intern_kommentar')
-        .select(`
-          id,
-          anlegg_id,
-          intern_kommentar,
-          created_at,
-          lest,
-          anlegg:anlegg_id (
-            anleggsnavn,
-            customer:kundenr (
-              navn
-            )
-          )
-        `)
-        .eq('mottaker_id', ansattId)
-        .eq('lest', false)
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-      if (error) {
-        if (error.code === '42703') {
-          log.info('Meldingssystem-kolonner finnes ikke ennå')
-          return
-        }
-        throw error
-      }
-
-      const transformedData: Melding[] = (data || []).map((m: any) => ({
-        id: m.id,
-        anlegg_id: m.anlegg_id,
-        intern_kommentar: m.intern_kommentar,
-        created_at: m.created_at,
-        lest: m.lest,
-        anleggsnavn: m.anlegg?.anleggsnavn || null,
-        kunde_navn: m.anlegg?.customer?.navn || null
-      }))
-
-      setMeldinger(transformedData)
-    } catch (error) {
-      log.error('Feil ved lasting av meldinger', { error })
-    }
-  }
-
-  async function markerSomLest(meldingId: string) {
-    try {
-      const { error } = await supabase
-        .from('intern_kommentar')
-        .update({ lest: true, lest_dato: new Date().toISOString() })
-        .eq('id', meldingId)
-
-      if (error) throw error
-      
-      setMeldinger(meldinger.filter(m => m.id !== meldingId))
-    } catch (error) {
-      log.error('Feil ved markering som lest', { error })
-    }
-  }
-
-  async function loadNyeKunder() {
-    setLasterNyeData(true)
-    try {
-      const enMndSiden = new Date()
-      enMndSiden.setMonth(enMndSiden.getMonth() - 1)
-      
-      const { data } = await supabase
-        .from('customer')
-        .select('id, navn, opprettet')
-        .gte('opprettet', enMndSiden.toISOString())
-        .or('skjult.is.null,skjult.eq.false')
-        .order('opprettet', { ascending: false })
-
-      setNyeKunderListe(data || [])
-      setNyeKunderPopup(true)
-    } catch (error) {
-      log.error('Feil ved lasting av nye kunder', { error })
-    } finally {
-      setLasterNyeData(false)
-    }
-  }
-
-  async function loadNyeAnlegg() {
-    setLasterNyeData(true)
-    try {
-      const enMndSiden = new Date()
-      enMndSiden.setMonth(enMndSiden.getMonth() - 1)
-      
-      const { data } = await supabase
-        .from('anlegg')
-        .select('id, anleggsnavn, opprettet_dato, customer:kundenr(navn)')
-        .gte('opprettet_dato', enMndSiden.toISOString())
-        .order('opprettet_dato', { ascending: false })
-
-      const transformedData = (data || []).map((a: any) => ({
-        id: a.id,
-        anleggsnavn: a.anleggsnavn,
-        kundenavn: a.customer?.navn || 'Ukjent kunde',
-        opprettet: a.opprettet_dato
-      }))
-
-      setNyeAnleggListe(transformedData)
-      setNyeAnleggPopup(true)
-    } catch (error) {
-      log.error('Feil ved lasting av nye anlegg', { error })
-    } finally {
-      setLasterNyeData(false)
-    }
-  }
-
-  const getTidsFilterDato = useCallback((): string => {
-    const now = new Date()
-    switch (tidsFilter) {
-      case 'dag':
-        now.setDate(now.getDate() - 1)
-        break
-      case 'uke':
-        now.setDate(now.getDate() - 7)
-        break
-      case 'maned':
-        now.setMonth(now.getMonth() - 1)
-        break
-      case 'ar':
-        now.setFullYear(now.getFullYear() - 1)
-        break
-    }
-    return now.toISOString()
-  }, [tidsFilter])
-
-  function formaterTidSiden(dato: string): string {
-    const now = new Date()
-    const then = new Date(dato)
-    const diffMs = now.getTime() - then.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-
-    if (diffMins < 60) return `For ${diffMins} ${diffMins === 1 ? 'minutt' : 'minutter'} siden`
-    if (diffHours < 24) return `For ${diffHours} ${diffHours === 1 ? 'time' : 'timer'} siden`
-    if (diffDays === 0) return 'I dag'
-    if (diffDays === 1) return 'I går'
-    return `For ${diffDays} dager siden`
-  }
-
-  const loadAktiviteter = useCallback(async () => {
-    try {
-      const filterDato = getTidsFilterDato()
-      const aktivitetsListe: Aktivitet[] = []
-
-      // Hent ordre
-      let ordreQuery = supabase
-        .from('ordre')
-        .select('id, ordre_nummer, status, sist_oppdatert, opprettet_dato')
-        .gte('sist_oppdatert', filterDato)
-        .order('sist_oppdatert', { ascending: false })
-        .limit(10)
-
-      if (!visAlle && ansattId) {
-        ordreQuery = ordreQuery.eq('tekniker_id', ansattId)
-      }
-
-      const { data: ordreData } = await ordreQuery
-
-      ordreData?.forEach(ordre => {
-        const erNy = new Date(ordre.opprettet_dato).getTime() === new Date(ordre.sist_oppdatert).getTime()
-        aktivitetsListe.push({
-          id: ordre.id,
-          type: 'ordre',
-          tittel: erNy ? 'Ny ordre opprettet' : 'Ordre oppdatert',
-          beskrivelse: `Ordre #${ordre.ordre_nummer}`,
-          tidspunkt: ordre.sist_oppdatert,
-          status: ordre.status,
-          ikon: erNy ? 'ny' : ordre.status === ORDRE_STATUSER.FULLFORT ? 'fullfort' : 'endret'
-        })
-      })
-
-      // Hent oppgaver
-      let oppgaverQuery = supabase
-        .from('oppgaver')
-        .select('id, tittel, status, sist_oppdatert, opprettet_dato')
-        .gte('sist_oppdatert', filterDato)
-        .order('sist_oppdatert', { ascending: false })
-        .limit(10)
-
-      if (!visAlle && ansattId) {
-        oppgaverQuery = oppgaverQuery.eq('tekniker_id', ansattId)
-      }
-
-      const { data: oppgaverData } = await oppgaverQuery
-
-      oppgaverData?.forEach(oppgave => {
-        const erNy = new Date(oppgave.opprettet_dato).getTime() === new Date(oppgave.sist_oppdatert).getTime()
-        aktivitetsListe.push({
-          id: oppgave.id,
-          type: 'oppgave',
-          tittel: erNy ? 'Ny oppgave opprettet' : 'Oppgave oppdatert',
-          beskrivelse: oppgave.tittel,
-          tidspunkt: oppgave.sist_oppdatert,
-          status: oppgave.status,
-          ikon: erNy ? 'ny' : oppgave.status === OPPGAVE_STATUSER.FULLFORT ? 'fullfort' : 'endret'
-        })
-      })
-
-      // Sorter etter tidspunkt
-      aktivitetsListe.sort((a, b) => new Date(b.tidspunkt).getTime() - new Date(a.tidspunkt).getTime())
-      
-      setAktiviteter(aktivitetsListe.slice(0, 5))
-    } catch (error) {
-      log.error('Feil ved lasting av aktiviteter', { error })
-    }
-  }, [visAlle, ansattId, getTidsFilterDato])
-
-  const loadKommendeOppgaver = useCallback(async () => {
-    try {
-      const now = new Date()
-      const tredveDagerFrem = new Date()
-      tredveDagerFrem.setDate(now.getDate() + 30)
-
-      let query = supabase
-        .from('oppgaver')
-        .select('id, tittel, forfallsdato')
-        .gte('forfallsdato', now.toISOString())
-        .lte('forfallsdato', tredveDagerFrem.toISOString())
-        .neq('status', OPPGAVE_STATUSER.FULLFORT)
-        .order('forfallsdato', { ascending: true })
-        .limit(5)
-
-      if (!visAlle && ansattId) {
-        query = query.eq('tekniker_id', ansattId)
-      }
-
-      const { data } = await query
-
-      const oppgaver: KommendeOppgave[] = data?.map(oppgave => {
-        const forfallDato = new Date(oppgave.forfallsdato)
-        const dagerIgjen = Math.ceil((forfallDato.getTime() - now.getTime()) / 86400000)
-        
-        let prioritet: 'hoy' | 'medium' | 'lav' = 'lav'
-        if (dagerIgjen <= 1) prioritet = 'hoy'
-        else if (dagerIgjen <= 3) prioritet = 'medium'
-
-        return {
-          id: oppgave.id,
-          tittel: oppgave.tittel,
-          forfallsdato: oppgave.forfallsdato,
-          prioritet,
-          dagerIgjen
-        }
-      }) || []
-
-      setKommendeOppgaver(oppgaver)
-    } catch (error) {
-      log.error('Feil ved lasting av kommende oppgaver', { error })
-    }
-  }, [visAlle, ansattId])
-
-  const loadKommendeOrdre = useCallback(async () => {
-    try {
-      let query = supabase
-        .from('ordre')
-        .select(`
-          id,
-          ordre_nummer,
-          status,
-          opprettet_dato,
-          anlegg:anlegg_id(anleggsnavn),
-          customer:kundenr(navn)
-        `)
-        .neq('status', ORDRE_STATUSER.FULLFORT)
-        .neq('status', ORDRE_STATUSER.FAKTURERT)
-        .order('opprettet_dato', { ascending: false })
-        .limit(5)
-
-      if (!visAlle && ansattId) {
-        query = query.eq('tekniker_id', ansattId)
-      }
-
-      const { data, error } = await query
-      
-      if (error) {
-        log.error('Feil ved lasting av kommende ordre', { error })
-        throw error
-      }
-      
-      console.log('✅ Kommende ordre lastet:', data?.length || 0, 'ordre')
-
-      const ordre: KommendeOrdre[] = data?.map((ordre: any) => {
-        const opprettetDato = new Date(ordre.opprettet_dato)
-        const now = new Date()
-        const dagerSiden = Math.floor((now.getTime() - opprettetDato.getTime()) / 86400000)
-
-        return {
-          id: ordre.id,
-          ordrenummer: ordre.ordre_nummer,
-          anleggsnavn: ordre.anlegg?.anleggsnavn || null,
-          kundenavn: ordre.customer?.navn || null,
-          status: ordre.status,
-          opprettet: ordre.opprettet_dato,
-          dagerSiden
-        }
-      }) || []
-
-      setKommendeOrdre(ordre)
-    } catch (error) {
-      log.error('Feil ved lasting av kommende ordre (catch)', { error })
-    }
-  }, [visAlle, ansattId])
-
-  useEffect(() => {
-    if (ansattId !== null || visAlle) {
-      loadStats()
-      loadAktiviteter()
-      loadKommendeOppgaver()
-      loadKommendeOrdre()
-      loadMeldinger()
-    }
-  }, [visAlle, ansattId, loadAktiviteter, loadKommendeOppgaver, loadKommendeOrdre])
-
-  const statCards = [
-    {
-      title: 'Kunder',
-      icon: Building,
-      total: stats.kunder,
-      subText: stats.nyeKunderSisteManed > 0 ? `+${stats.nyeKunderSisteManed} siste mnd` : null,
-      color: 'from-emerald-500 to-emerald-600',
-      href: '/kunder'
-    },
-    {
-      title: 'Anlegg',
-      icon: Building2,
-      total: stats.anlegg,
-      subText: stats.nyeAnleggSisteManed > 0 ? `+${stats.nyeAnleggSisteManed} siste mnd` : null,
-      color: 'from-orange-500 to-orange-600',
-      href: '/anlegg'
-    },
-    {
-      title: 'Aktive ordre',
-      icon: ClipboardList,
-      total: stats.ordre.aktive,
-      fullfort: stats.ordre.fullfort,
-      fakturert: stats.ordre.fakturert,
-      color: 'from-blue-500 to-blue-600',
-      showSubStats: true,
-      href: '/ordre'
-    },
-    {
-      title: 'Oppgaver',
-      icon: CheckSquare,
-      total: stats.oppgaver.total,
-      active: stats.oppgaver.aktive,
-      completed: stats.oppgaver.fullfort,
-      color: 'from-primary to-primary-600',
-      href: '/oppgaver'
-    },
-    {
-      title: 'Prosjekter',
-      icon: FolderKanban,
-      total: stats.prosjekter.total,
-      active: stats.prosjekter.pagaar,
-      completed: stats.prosjekter.planlagt,
-      color: 'from-purple-500 to-purple-600',
-      href: '/prosjekter'
-    },
-    {
-      title: 'Meldinger',
-      icon: Inbox,
-      total: meldinger.length,
-      subText: meldinger.length > 0 ? 'uleste' : 'Ingen uleste',
-      color: 'from-red-500 to-red-600',
-      href: '/meldinger'
-    }
-  ]
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
+  const datoTekst = iDag.toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
-    <>
-      {/* Popup for nye kunder siste måned */}
-      {nyeKunderPopup && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-200 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-500/10 rounded-lg">
-                  <Building className="w-5 h-5 text-emerald-500" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Nye kunder siste måned</h2>
-                  <p className="text-sm text-gray-500">{nyeKunderListe.length} kunder</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setNyeKunderPopup(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {lasterNyeData ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : nyeKunderListe.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">Ingen nye kunder siste måned</div>
-              ) : (
-                <div className="space-y-2">
-                  {nyeKunderListe.map((kunde) => (
-                    <div
-                      key={kunde.id}
-                      onClick={() => {
-                        setNyeKunderPopup(false)
-                        navigate('/kunder', { state: { viewKundeId: kunde.id } })
-                      }}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-300 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-emerald-500/10 rounded-full flex items-center justify-center">
-                          <Building className="w-4 h-4 text-emerald-500" />
-                        </div>
-                        <span className="font-medium text-gray-900 dark:text-white">{kunde.navn}</span>
-                      </div>
-                      <span className="text-xs text-gray-500">
-                        {new Date(kunde.opprettet).toLocaleDateString('nb-NO')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Popup for nye anlegg siste måned */}
-      {nyeAnleggPopup && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-200 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-500/10 rounded-lg">
-                  <Building2 className="w-5 h-5 text-orange-500" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Nye anlegg siste måned</h2>
-                  <p className="text-sm text-gray-500">{nyeAnleggListe.length} anlegg</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setNyeAnleggPopup(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {lasterNyeData ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : nyeAnleggListe.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">Ingen nye anlegg siste måned</div>
-              ) : (
-                <div className="space-y-2">
-                  {nyeAnleggListe.map((anlegg) => (
-                    <div
-                      key={anlegg.id}
-                      onClick={() => {
-                        setNyeAnleggPopup(false)
-                        navigate('/anlegg', { state: { viewAnleggId: anlegg.id } })
-                      }}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-300 cursor-pointer transition-colors"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-orange-500/10 rounded-full flex items-center justify-center flex-shrink-0">
-                            <Building2 className="w-4 h-4 text-orange-500" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-gray-900 dark:text-white truncate">{anlegg.anleggsnavn}</p>
-                            <p className="text-xs text-gray-500 truncate">{anlegg.kundenavn}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
-                        {new Date(anlegg.opprettet).toLocaleDateString('nb-NO')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-5">
+      <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">Dashboard</h1>
-          <p className="text-sm sm:text-base text-gray-400 dark:text-gray-400">Oversikt over aktiviteter og statistikk</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{hilsen(ansatt?.navn)}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{datoTekst.charAt(0).toUpperCase() + datoTekst.slice(1)} · uke {uke}</p>
         </div>
-        
-        {/* Toggle for egne vs alle */}
-        <div className="flex items-center gap-2 bg-gray-100 dark:bg-dark-200 rounded-lg p-1">
-          <button
-            onClick={() => setVisAlle(false)}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-md transition-all min-h-[44px] text-sm ${
-              !visAlle 
-                ? 'bg-primary text-gray-900 dark:text-white shadow-lg' 
-                : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:text-white'
-            }`}
-          >
-            <User className="w-4 h-4" />
-            <span className="hidden sm:inline">Mine</span>
-          </button>
-          <button
-            onClick={() => setVisAlle(true)}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-md transition-all min-h-[44px] text-sm ${
-              visAlle 
-                ? 'bg-primary text-gray-900 dark:text-white shadow-lg' 
-                : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:text-white'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span className="hidden sm:inline">Alle</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-        {statCards.map((card) => (
-          <div 
-            key={card.title} 
-            onClick={() => card.href && navigate(card.href)}
-            className="card hover:shadow-xl transition-shadow cursor-pointer"
-          >
-            <div className="flex items-start justify-between mb-2 sm:mb-4">
-              <div className={`p-2 sm:p-3 bg-gradient-to-br ${card.color} rounded-lg flex-shrink-0`}>
-                <card.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              </div>
-              {card.subText && (
-                <span 
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (card.title === 'Kunder' && stats.nyeKunderSisteManed > 0) {
-                      loadNyeKunder()
-                    } else if (card.title === 'Anlegg' && stats.nyeAnleggSisteManed > 0) {
-                      loadNyeAnlegg()
-                    }
-                  }}
-                  className={`text-xs text-green-500 font-medium ${
-                    (card.title === 'Kunder' && stats.nyeKunderSisteManed > 0) || 
-                    (card.title === 'Anlegg' && stats.nyeAnleggSisteManed > 0) 
-                      ? 'cursor-pointer hover:text-green-400 hover:underline' 
-                      : ''
-                  }`}
-                >
-                  {card.subText}
-                </span>
-              )}
-            </div>
-            
-            <h3 className="text-gray-400 dark:text-gray-400 text-xs sm:text-sm font-medium mb-1 truncate">{card.title}</h3>
-            <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-2 sm:mb-3">{card.total}</p>
-            
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm">
-              {card.showSubStats ? (
-                <>
-                  {card.fullfort !== undefined && card.fullfort > 0 && (
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                      <span className="text-gray-400 dark:text-gray-400 truncate">
-                        {card.fullfort} fullført
-                      </span>
-                    </div>
-                  )}
-                  {card.fakturert !== undefined && card.fakturert > 0 && (
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                      <span className="text-gray-400 dark:text-gray-400 truncate">
-                        {card.fakturert} fakturert
-                      </span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  {card.active !== undefined && card.active > 0 && (
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
-                      <span className="text-gray-400 dark:text-gray-400 truncate">
-                        {card.active} aktive
-                      </span>
-                    </div>
-                  )}
-                  {card.completed !== undefined && card.completed > 0 && (
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                      <span className="text-gray-400 dark:text-gray-400 truncate">
-                        {card.completed} fullført
-                      </span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Meldinger */}
-      {meldinger.length > 0 && (
-        <div className="card border-l-4 border-red-500">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-500/10 rounded-lg">
-                <Inbox className="w-5 h-5 text-red-500" />
-              </div>
-              <div>
-                <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Uleste meldinger</h2>
-                <p className="text-xs text-gray-500">{meldinger.length} ulest{meldinger.length > 1 ? 'e' : ''}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => navigate('/meldinger')}
-              className="text-sm text-primary hover:underline"
-            >
-              Se alle
+        <div className="inline-flex bg-gray-100 dark:bg-dark-100 rounded-lg p-0.5" role="group" aria-label="Omfang">
+          {[true, false].map(v => (
+            <button key={String(v)} type="button" onClick={() => velgOmfang(v)} aria-pressed={mine === v}
+              className={cn('px-3.5 h-8 rounded-md text-sm font-medium transition-colors', mine === v ? 'bg-white dark:bg-dark-50 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400')}>
+              {v ? 'Mine' : 'Alle'}
             </button>
-          </div>
-          <div className="space-y-2">
-            {meldinger.map((melding) => (
-              <div
-                key={melding.id}
-                className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors"
-                onClick={() => navigate('/anlegg', { state: { viewAnleggId: melding.anlegg_id } })}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {melding.anleggsnavn || 'Ukjent anlegg'}
-                  </p>
-                  {melding.kunde_navn && (
-                    <p className="text-xs text-gray-500 truncate">{melding.kunde_navn}</p>
-                  )}
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                    {melding.intern_kommentar}
-                  </p>
+          ))}
+        </div>
+      </header>
+
+      {/* Handlingstall */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi tittel={mndNavn} ikon={<Calendar className="w-3.5 h-3.5" />} tone="p" onClick={() => navigate(`/anlegg?f=denne_mnd${mine ? '&mine=1' : ''}`)}>
+          <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums leading-none">{mndUtfort} <span className="text-sm font-medium text-gray-500 dark:text-gray-400">av {mndAnlegg.length} kontroller</span></div>
+          <div className="h-1.5 rounded-full bg-gray-100 dark:bg-dark-100 overflow-hidden"><div className="h-full bg-primary rounded-full transition-all" style={{ width: `${mndAnlegg.length ? Math.round(mndUtfort / mndAnlegg.length * 100) : 0}%` }} /></div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{mndAnlegg.length - mndUtfort} igjen · {virkedagerIgjen} virkedager</div>
+        </Kpi>
+        <Kpi tittel="Åpne avvik" ikon={<AlertTriangle className="w-3.5 h-3.5" />} tone={avvikSum > 0 ? 'r' : 'g'} onClick={() => navigate(`/anlegg?f=avvik${mine ? '&mine=1' : ''}`)}>
+          <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums leading-none">{avvikSum} <span className="text-sm font-medium text-gray-500 dark:text-gray-400">på {avvikAnlegg} anlegg</span></div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{avvikSum === 0 ? 'Ingen registrerte avvik' : 'Fra siste kontroll per type'}</div>
+        </Kpi>
+        <Kpi tittel={mine ? 'Mine oppgaver' : 'Åpne oppgaver'} ikon={<CheckSquare className="w-3.5 h-3.5" />} tone={forfalt > 0 ? 'r' : 'b'} onClick={() => navigate('/oppgaver')}>
+          <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums leading-none">{mineOppgaver.length} <span className="text-sm font-medium text-gray-500 dark:text-gray-400">åpne</span></div>
+          <div className={cn('text-xs', forfalt > 0 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-500 dark:text-gray-400')}>{forfalt > 0 ? `${forfalt} forfalt · ` : ''}{denneUke} forfaller neste 7 dager</div>
+        </Kpi>
+        <Kpi tittel="Meldinger" ikon={<MessageSquare className="w-3.5 h-3.5" />} tone={meldinger.length > 0 ? 'y' : 'p'} onClick={() => navigate('/meldinger')}>
+          <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums leading-none">{meldinger.length} <span className="text-sm font-medium text-gray-500 dark:text-gray-400">uleste</span></div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{meldinger[0] ? `«${meldinger[0].intern_kommentar?.slice(0, 40) ?? ''}…»` : 'Ingen uleste'}</div>
+        </Kpi>
+      </div>
+
+      {loading ? <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div> : (
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-5 items-start">
+          {/* Venstre */}
+          <div className="space-y-4">
+            <Boks tittel="Neste opp" lenke={{ til: '/kontrollplan', tekst: 'Kontrollplan' }}>
+              {nesteOpp.length === 0 ? <Tom>Ingenting planlagt de neste to ukene{mine ? ' for deg' : ''}.</Tom> : (() => {
+                let forrige = ''
+                return nesteOpp.map(r => {
+                  const key = r.dato ? (sammeDag(r.dato, iDag) ? 'I dag' : r.dato < iDag ? 'Forfalt' : `${UKEDAGER[(r.dato.getDay() + 6) % 7]} ${formatDate(r.dato)}`) : 'Uten dato'
+                  const visHeader = key !== forrige; forrige = key
+                  return (
+                    <div key={r.id}>
+                      {visHeader && <div className={cn('px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide bg-gray-50 dark:bg-dark-100', key === 'Forfalt' ? 'text-red-600 dark:text-red-400' : key === 'I dag' ? 'text-primary' : 'text-gray-500 dark:text-gray-400')}>{key}</div>}
+                      {r.kind === 'plan' ? (
+                        <button type="button" onClick={() => navigate(`/anlegg/${r.anleggId}`)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60">
+                          <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0"><Building2 className="w-4 h-4" /></span>
+                          <span className="flex-1 min-w-0"><span className="block font-semibold text-gray-900 dark:text-white truncate">{r.tittel}</span><span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{r.under}</span></span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800/60">
+                          <input type="checkbox" checked={false} onChange={() => fullforOppgave(r.oppgave)} aria-label={`Fullfør ${r.oppgave.tittel ?? ''}`} className="w-4.5 h-4.5 w-[18px] h-[18px] rounded text-primary focus:ring-primary flex-shrink-0" />
+                          <button type="button" onClick={() => navigate('/oppgaver', { state: { selectedOppgaveId: r.oppgave.id } })} className="flex-1 min-w-0 text-left">
+                            <span className="block font-semibold text-gray-900 dark:text-white truncate">{r.oppgave.tittel ?? r.oppgave.type}</span>
+                            <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">Oppgave{r.oppgave.anlegg?.anleggsnavn ? ` · ${r.oppgave.anlegg.anleggsnavn}` : ''}{!mine && r.oppgave.tekniker?.navn ? ` · ${r.oppgave.tekniker.navn}` : ''}</span>
+                          </button>
+                          <span className={cn('px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap', r.dato && r.dato < iDag ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : PILL[r.oppgave.status ?? ''] ?? 'bg-gray-100 text-gray-700 dark:bg-dark-100 dark:text-gray-400')}>{r.dato && r.dato < iDag ? 'Forfalt' : r.oppgave.status}</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              })()}
+            </Boks>
+
+            {mineOrdre.length > 0 && (
+              <Boks tittel={`Aktive ordre · ${mineOrdre.length}`} lenke={{ til: '/ordre', tekst: 'Alle ordre' }}>
+                {mineOrdre.slice(0, 6).map(o => (
+                  <button key={o.id} type="button" onClick={() => navigate('/ordre', { state: { selectedOrdreId: o.id } })} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60 last:border-0">
+                    <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-100 text-gray-500 dark:text-gray-400 flex items-center justify-center flex-shrink-0"><ClipboardList className="w-4 h-4" /></span>
+                    <span className="flex-1 min-w-0"><span className="block font-semibold text-gray-900 dark:text-white truncate">{o.anlegg?.anleggsnavn ?? 'Uten anlegg'}</span><span className="block text-xs text-gray-500 dark:text-gray-400 truncate">Ordre {o.ordre_nummer} · {o.type}{!mine && o.tekniker?.navn ? ` · ${o.tekniker.navn}` : ''}</span></span>
+                    <span className={cn('px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap', PILL[o.status ?? ''] ?? 'bg-gray-100 text-gray-700 dark:bg-dark-100 dark:text-gray-400')}>{o.status}</span>
+                  </button>
+                ))}
+              </Boks>
+            )}
+
+            <Boks tittel={`Ikke planlagt ennå · ${mndNavn.toLowerCase()}`} lenke={{ til: `/anlegg?f=denne_mnd${mine ? '&mine=1' : ''}`, tekst: `Vis alle ${mndAnlegg.length}` }}>
+              {ikkePlanlagt.length === 0 ? <Tom>Alle månedens kontroller har ordre eller ukesplan.</Tom> : ikkePlanlagt.slice(0, 6).map(a => (
+                <div key={a.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800/60 last:border-0">
+                  <span className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 flex items-center justify-center flex-shrink-0"><Clock className="w-4 h-4" /></span>
+                  <button type="button" onClick={() => navigate(`/anlegg/${a.id}`)} className="flex-1 min-w-0 text-left">
+                    <span className="block font-semibold text-gray-900 dark:text-white truncate">{a.anleggsnavn}</span>
+                    <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[a.kontroll_type?.join(', '), a.customer?.navn, a.poststed].filter(Boolean).join(' · ')}</span>
+                  </button>
+                  <Button variant="outline" icon={<Plus />} onClick={() => navigate('/ordre', { state: { anleggId: a.id } })} className="!h-8 text-xs">Ordre</Button>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    markerSomLest(melding.id)
-                  }}
-                  className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0"
-                  title="Marker som lest"
-                >
-                  <Check className="w-4 h-4" />
+              ))}
+              {ikkePlanlagt.length > 6 && <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">+ {ikkePlanlagt.length - 6} til</div>}
+            </Boks>
+          </div>
+
+          {/* Høyre */}
+          <div className="space-y-4">
+            <Boks tittel="Trenger oppmerksomhet" lenke={{ til: `/anlegg?f=avvik${mine ? '&mine=1' : ''}`, tekst: 'Avvik' }}>
+              {verstAvvik.length === 0 && etterslep === 0 && kunderUtenNr === 0 && <Tom>Ingenting som haster.</Tom>}
+              {verstAvvik.map(a => (
+                <button key={a.id} type="button" onClick={() => navigate(`/anlegg/${a.id}?tab=avvik`)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60">
+                  <span className="w-7 h-7 rounded-md bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 flex items-center justify-center flex-shrink-0"><AlertTriangle className="w-3.5 h-3.5" /></span>
+                  <span className="flex-1 min-w-0"><span className="block text-sm font-semibold text-gray-900 dark:text-white truncate">{a.anleggsnavn}</span><span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{a.customer?.navn ?? ''}</span></span>
+                  <span className="text-sm font-bold text-red-600 dark:text-red-400 tabular-nums whitespace-nowrap">{avvik.get(a.id)} avvik</span>
                 </button>
-              </div>
-            ))}
+              ))}
+              {etterslep > 0 && (
+                <button type="button" onClick={() => navigate(`/anlegg?f=ikke_utfort&mnd=${forrigeMndNavn}${mine ? '&mine=1' : ''}`)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60">
+                  <span className="w-7 h-7 rounded-md bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 flex items-center justify-center flex-shrink-0"><Clock className="w-3.5 h-3.5" /></span>
+                  <span className="flex-1 min-w-0"><span className="block text-sm font-semibold text-gray-900 dark:text-white">Etterslep fra {forrigeMndNavn.toLowerCase()}</span><span className="block text-xs text-gray-500 dark:text-gray-400">{etterslep} anlegg ikke utført</span></span>
+                  <span className="text-sm text-primary">Vis</span>
+                </button>
+              )}
+              {!mine && kunderUtenNr > 0 && (
+                <button type="button" onClick={() => navigate('/kunder?f=uten_kundenr')} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60 last:border-0">
+                  <span className="w-7 h-7 rounded-md bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 flex items-center justify-center flex-shrink-0"><Building2 className="w-3.5 h-3.5" /></span>
+                  <span className="flex-1 min-w-0"><span className="block text-sm font-semibold text-gray-900 dark:text-white">{kunderUtenNr} kunder mangler kundenummer</span><span className="block text-xs text-gray-500 dark:text-gray-400">Dropbox-mapper opprettes ikke</span></span>
+                  <span className="text-sm text-primary">Vis</span>
+                </button>
+              )}
+            </Boks>
+
+            {meldinger.length > 0 && (
+              <Boks tittel="Uleste meldinger" lenke={{ til: '/meldinger', tekst: 'Alle' }}>
+                {meldinger.map(m => (
+                  <button key={m.id} type="button" onClick={() => m.anlegg_id ? navigate(`/anlegg/${m.anlegg_id}`) : navigate('/meldinger')} className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60 last:border-0">
+                    <span className="w-7 h-7 rounded-md bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 mt-0.5"><MessageSquare className="w-3.5 h-3.5" /></span>
+                    <span className="flex-1 min-w-0"><span className="block text-sm text-gray-900 dark:text-white line-clamp-2">{m.intern_kommentar}</span><span className="block text-xs text-gray-500 dark:text-gray-400">{formatDate(m.created_at)}</span></span>
+                  </button>
+                ))}
+              </Boks>
+            )}
+
+            <Boks tittel="Siste aktivitet" lenke={{ til: '/ordre', tekst: 'Ordre' }}>
+              {aktivitet.length === 0 ? <Tom>Ingen aktivitet ennå.</Tom> : aktivitet.map(x => (
+                <button key={x.id} type="button" onClick={x.til} className="w-full flex items-baseline gap-2 px-4 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60 last:border-0">
+                  <span className="min-w-0 flex-1 truncate"><b className="font-semibold text-gray-900 dark:text-white">{x.hvem}</b> <span className="text-gray-700 dark:text-gray-300">{x.hva}</span>{x.hvor && <span className="text-gray-500 dark:text-gray-400"> · {x.hvor}</span>}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{relativ(x.tid)}</span>
+                </button>
+              ))}
+            </Boks>
           </div>
         </div>
       )}
 
-      {/* Mine oppfølginger */}
-      {mineKontroller.length > 0 && (
-        <div className="card border-l-4 border-orange-500">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-500/10 rounded-lg">
-                <Bell className="w-5 h-5 text-orange-500" />
-              </div>
-              <div>
-                <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Mine oppfølginger</h2>
-                <p className="text-xs text-gray-500">{mineKontroller.length} anlegg venter på oppfølging</p>
-              </div>
-            </div>
-            {mineKontroller.length > 3 && (
-              <button
-                onClick={() => setVisAlleKontroller(!visAlleKontroller)}
-                className="text-sm text-primary hover:underline"
-              >
-                {visAlleKontroller ? 'Vis færre' : 'Se alle'}
-              </button>
-            )}
-          </div>
-          <div className={`space-y-2 ${visAlleKontroller ? 'max-h-[600px]' : 'max-h-64'} overflow-y-auto transition-all`}>
-            {(visAlleKontroller ? mineKontroller : mineKontroller.slice(0, 3)).map((kontroll) => (
-              <div
-                key={kontroll.id}
-                className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors"
-                onClick={() => navigate('/anlegg', { state: { viewAnleggId: kontroll.id } })}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {kontroll.anleggsnavn}
-                    </p>
-                    {kontroll.kontroll_maaned && (
-                      <span className={`px-1.5 py-0.5 text-xs rounded ${
-                        kontroll.kontroll_maaned === currentMonth 
-                          ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                          : 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-gray-400'
-                      }`}>
-                        {kontroll.kontroll_maaned}
-                      </span>
-                    )}
-                  </div>
-                  {kontroll.kundenavn && (
-                    <p className="text-xs text-gray-500 truncate">{kontroll.kundenavn}</p>
-                  )}
-                  {kontroll.adresse && (
-                    <p className="text-xs text-gray-400 truncate">{kontroll.adresse}</p>
-                  )}
-                  {kontroll.kontroll_type && kontroll.kontroll_type.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {kontroll.kontroll_type.map(type => (
-                        <span key={type} className="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-dark-200 text-gray-600 dark:text-gray-400 rounded">
-                          {type}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <span className={`px-2 py-1 text-xs rounded-full flex-shrink-0 ${
-                  kontroll.kontroll_status === 'Ikke utført' 
-                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                    : kontroll.kontroll_status === 'Planlagt'
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                    : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                }`}>
-                  {kontroll.kontroll_status || 'Ikke utført'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Ordre og Oppgaver */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="card">
-          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">Kommende ordre</h2>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {kommendeOrdre.length === 0 ? (
-              <div className="text-center py-8 text-gray-400 dark:text-gray-500">
-                Ingen aktive ordre
-              </div>
-            ) : (
-              kommendeOrdre.map((ordre) => {
-                const statusFarge = ordre.status === 'Ikke påbegynt' ? 'bg-yellow-500' : 
-                                   ordre.status === 'Pågår' ? 'bg-blue-500' : 
-                                   'bg-gray-500'
-                
-                const tidTekst = ordre.dagerSiden === 0 ? 'Opprettet i dag' :
-                                ordre.dagerSiden === 1 ? 'Opprettet i går' :
-                                `Opprettet for ${ordre.dagerSiden} dager siden`
-                
-                return (
-                  <div 
-                    key={ordre.id} 
-                    onClick={() => navigate('/ordre', { state: { selectedOrdreId: ordre.id } })}
-                    className="flex items-center gap-2 sm:gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors touch-target"
-                  >
-                    <div className={`w-2 h-2 ${statusFarge} rounded-full flex-shrink-0`}></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm text-gray-200 font-medium">Ordre #{ordre.ordrenummer}</p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                        {ordre.kundenavn || ordre.anleggsnavn || 'Ingen kunde/anlegg'}
-                      </p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{tidTekst}</p>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">Kommende oppgaver</h2>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-          {kommendeOppgaver.length === 0 ? (
-            <div className="col-span-full text-center py-8 text-gray-400 dark:text-gray-500">
-              Ingen kommende oppgaver
-            </div>
-          ) : (
-            kommendeOppgaver.map((oppgave) => {
-              const prikkeFarge = oppgave.prioritet === 'hoy' ? 'bg-red-500' : 
-                                 oppgave.prioritet === 'medium' ? 'bg-yellow-500' : 
-                                 'bg-green-500'
-              
-              const forfallTekst = oppgave.dagerIgjen === 0 ? 'Forfaller i dag' :
-                                  oppgave.dagerIgjen === 1 ? 'Forfaller i morgen' :
-                                  `Forfaller om ${oppgave.dagerIgjen} dager`
-              
-              return (
-                <div 
-                  key={oppgave.id} 
-                  onClick={() => navigate('/oppgaver', { state: { selectedOppgaveId: oppgave.id } })}
-                  className="flex items-center gap-2 sm:gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors touch-target"
-                >
-                  <div className={`w-2 h-2 ${prikkeFarge} rounded-full flex-shrink-0`}></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm text-gray-200 truncate">{oppgave.tittel}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">{forfallTekst}</p>
-                  </div>
-                </div>
-              )
-            })
-          )}
-          </div>
-        </div>
-      </div>
-
-      {/* Siste aktivitet - full bredde */}
-      <div className="card">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
-          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 dark:text-white">Siste aktivitet</h2>
-          
-          {/* Tidsfilter */}
-          <div className="flex items-center gap-1 sm:gap-2 bg-gray-100 dark:bg-dark-200 rounded-lg p-1 flex-shrink-0 overflow-x-auto">
-            <button
-              onClick={() => setTidsFilter('dag')}
-              className={`px-3 py-2 text-xs rounded-md transition-all whitespace-nowrap min-h-[36px] ${
-                tidsFilter === 'dag' 
-                  ? 'bg-primary text-gray-900 dark:text-white' 
-                  : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              Dag
-            </button>
-            <button
-              onClick={() => setTidsFilter('uke')}
-              className={`px-3 py-2 text-xs rounded-md transition-all whitespace-nowrap min-h-[36px] ${
-                tidsFilter === 'uke' 
-                  ? 'bg-primary text-gray-900 dark:text-white' 
-                  : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              Uke
-            </button>
-            <button
-              onClick={() => setTidsFilter('maned')}
-              className={`px-3 py-2 text-xs rounded-md transition-all whitespace-nowrap min-h-[36px] ${
-                tidsFilter === 'maned' 
-                  ? 'bg-primary text-gray-900 dark:text-white' 
-                  : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              Måned
-            </button>
-            <button
-              onClick={() => setTidsFilter('ar')}
-              className={`px-3 py-2 text-xs rounded-md transition-all whitespace-nowrap min-h-[36px] ${
-                tidsFilter === 'ar' 
-                  ? 'bg-primary text-gray-900 dark:text-white' 
-                  : 'text-gray-400 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              År
-            </button>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-          {aktiviteter.length === 0 ? (
-            <div className="col-span-full text-center py-8 text-gray-400 dark:text-gray-500">
-              Ingen aktiviteter i valgt periode
-            </div>
-          ) : (
-            aktiviteter.map((aktivitet) => {
-              const Ikon = aktivitet.ikon === 'fullfort' ? CheckSquare : 
-                          aktivitet.ikon === 'ny' ? AlertCircle : 
-                          Calendar
-              const ikonFarge = aktivitet.ikon === 'fullfort' ? 'text-green-500' : 
-                               aktivitet.ikon === 'ny' ? 'text-yellow-500' : 
-                               'text-blue-500'
-              
-              return (
-                <div 
-                  key={aktivitet.id} 
-                  onClick={() => {
-                    if (aktivitet.type === 'ordre') {
-                      navigate('/ordre', { state: { selectedOrdreId: aktivitet.id } })
-                    } else {
-                      navigate('/oppgaver', { state: { selectedOppgaveId: aktivitet.id } })
-                    }
-                  }}
-                  className="flex items-center gap-2 sm:gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 cursor-pointer transition-colors touch-target"
-                >
-                  <Ikon className={`w-4 h-4 sm:w-5 sm:h-5 ${ikonFarge} flex-shrink-0`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm text-gray-200 truncate">{aktivitet.tittel}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{aktivitet.beskrivelse}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                      {formaterTidSiden(aktivitet.tidspunkt)}
-                    </p>
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500 dark:text-gray-400 px-0.5">
+        <Link to="/anlegg" className="hover:text-primary"><b className="text-gray-900 dark:text-white tabular-nums">{anlegg.length}</b> anlegg</Link>
+        <Link to="/kunder" className="hover:text-primary"><b className="text-gray-900 dark:text-white tabular-nums">{antallKunder}</b> kunder</Link>
+        <Link to="/ordre" className="hover:text-primary"><b className="text-gray-900 dark:text-white tabular-nums">{ordre.length}</b> aktive ordre</Link>
+        <Link to="/prosjekter" className="hover:text-primary"><b className="text-gray-900 dark:text-white tabular-nums">{antallProsjekter}</b> prosjekter</Link>
       </div>
     </div>
-    </>
   )
+}
+
+function relativ(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const t = Math.floor(diff / 3_600_000)
+  if (t < 1) return 'nå'
+  if (t < 24) return `${t} t`
+  const d = Math.floor(t / 24)
+  if (d === 1) return 'i går'
+  if (d < 7) return `${d} d`
+  return formatDate(iso)
+}
+
+function Kpi({ tittel, ikon, tone, onClick, children }: { tittel: string; ikon: React.ReactNode; tone: 'p' | 'r' | 'g' | 'y' | 'b'; onClick: () => void; children: React.ReactNode }) {
+  const t = { p: 'bg-primary/10 text-primary', r: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400', g: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', y: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400', b: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' }[tone]
+  return (
+    <button type="button" onClick={onClick} className="card !p-4 flex flex-col gap-2 text-left hover:border-primary/60 transition-colors">
+      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{tittel}<span className={cn('w-6 h-6 rounded-md flex items-center justify-center', t)}>{ikon}</span></div>
+      {children}
+    </button>
+  )
+}
+
+function Boks({ tittel, lenke, children }: { tittel: string; lenke?: { til: string; tekst: string }; children: React.ReactNode }) {
+  return (
+    <section className="card !p-0 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-gray-800">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{tittel}</h2>
+        {lenke && <Link to={lenke.til} className="text-xs text-primary hover:underline">{lenke.tekst} →</Link>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function Tom({ children }: { children: React.ReactNode }) {
+  return <p className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">{children}</p>
 }

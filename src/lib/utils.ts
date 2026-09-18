@@ -41,3 +41,32 @@ export function formatDaysAgo(date: string | Date | null): string {
   if (days === 1) return '1 dag'
   return `${days} dager`
 }
+
+/** ISO-ukenummer for en dato */
+export function isoUke(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
+
+/** ISO-ukeår (kan avvike fra kalenderår rundt nyttår) */
+export function isoUkeAar(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  return d.getUTCFullYear()
+}
+
+/** De sju datoene (man–søn) i en ISO-uke */
+export function ukeDatoer(aar: number, uke: number): Date[] {
+  const enkel = new Date(aar, 0, 1 + (uke - 1) * 7)
+  const dow = enkel.getDay()
+  const start = new Date(enkel)
+  if (dow <= 4) start.setDate(enkel.getDate() - enkel.getDay() + 1)
+  else start.setDate(enkel.getDate() + 8 - enkel.getDay())
+  return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d })
+}
+
+export const UKEDAGER = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag'] as const
