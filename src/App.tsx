@@ -17,7 +17,9 @@ import { DropboxCallback } from './pages/DropboxCallback'
 import { ResetPassword } from './pages/ResetPassword'
 
 // Lazy-loaded sider (lastes når de trengs)
-const Kunder = lazy(() => import('./pages/Kunder').then(m => ({ default: m.Kunder })))
+const Kunder = lazy(() => import('./pages/kunder/KundeListe'))
+const KundeDetaljer = lazy(() => import('./pages/kunder/KundeDetaljer'))
+const KundeRediger = lazy(() => import('./pages/kunder/KundeRediger'))
 const Anlegg = lazy(() => import('./pages/anlegg/AnleggListe'))
 const AnleggDetaljer = lazy(() => import('./pages/anlegg/AnleggDetaljer'))
 const AnleggRediger = lazy(() => import('./pages/anlegg/AnleggRediger'))
@@ -121,6 +123,8 @@ function App() {
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/kunder" element={<Kunder />} />
+                      <Route path="/kunder/:id" element={<KundeDetaljer />} />
+                      <Route path="/kunder/:id/rediger" element={<KundeRediger />} />
                       <Route path="/anlegg" element={<Anlegg />} />
                       <Route path="/anlegg/:id" element={<AnleggDetaljer />} />
                       <Route path="/anlegg/:id/rediger" element={<AnleggRediger />} />

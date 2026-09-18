@@ -78,3 +78,20 @@ export async function omdopDropboxAnleggMappe(params: {
     return { status: 'feil', melding: error instanceof Error ? error.message : 'Ukjent feil' }
   }
 }
+
+/** Oppretter kundemappene (uten anleggsmapper). Brukes når en ny kunde får kundenummer. */
+export async function opprettDropboxMapperForKunde(params: { kundeNummer: string | null | undefined; kundeNavn: string }): Promise<DropboxResultat> {
+  const { kundeNummer, kundeNavn } = params
+  if (!kundeNummer) return { status: 'mangler_kundenummer' }
+  try {
+    const status = await checkDropboxStatus()
+    if (!status.connected) return { status: 'ikke_tilkoblet' }
+    const kunde = kundeSti(kundeNummer, kundeNavn)
+    for (const mappe of KUNDE_FOLDERS) await createDropboxFolder(`${kunde}/${mappe}`)
+    log.info('Dropbox kundemapper opprettet', { kundeNummer })
+    return { status: 'opprettet' }
+  } catch (error) {
+    log.error('Feil ved opprettelse av Dropbox kundemapper', { error, kundeNummer })
+    return { status: 'feil', melding: error instanceof Error ? error.message : 'Ukjent feil' }
+  }
+}
