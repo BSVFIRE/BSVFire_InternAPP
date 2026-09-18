@@ -4697,6 +4697,8 @@ export type Database = {
           opprettet_av: string | null
           opprettet_dato: string | null
           ordre_nummer: string
+          outlook_event_id: string | null
+          planlagt_start: string | null
           sett_av_tekniker: boolean | null
           sett_dato: string | null
           sist_oppdatert: string | null
@@ -4720,6 +4722,8 @@ export type Database = {
           opprettet_av?: string | null
           opprettet_dato?: string | null
           ordre_nummer: string
+          outlook_event_id?: string | null
+          planlagt_start?: string | null
           sett_av_tekniker?: boolean | null
           sett_dato?: string | null
           sist_oppdatert?: string | null
@@ -4743,6 +4747,8 @@ export type Database = {
           opprettet_av?: string | null
           opprettet_dato?: string | null
           ordre_nummer?: string
+          outlook_event_id?: string | null
+          planlagt_start?: string | null
           sett_av_tekniker?: boolean | null
           sett_dato?: string | null
           sist_oppdatert?: string | null

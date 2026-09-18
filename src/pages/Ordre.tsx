@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
+import { LeggIKalenderKnapp } from '@/components/LeggIKalenderKnapp'
 import { createLogger } from '@/lib/logger'
 import { useAuthStore } from '@/store/authStore'
 import { Plus, Search, ClipboardList, Building2, User, Eye, Trash2, Calendar, Edit, CheckCircle, FileText, LayoutGrid, Table } from 'lucide-react'
@@ -25,6 +26,8 @@ interface Ordre {
   kontrolltype: string[] | null
   sett_av_tekniker?: boolean
   opprettet_av?: string | null
+  outlook_event_id?: string | null
+  planlagt_start?: string | null
 }
 
 interface OrdreMedAnleggKunde extends Ordre {
@@ -392,6 +395,11 @@ export function Ordre() {
         onClose={() => {
           setViewMode('list')
           setSelectedOrdre(null)
+        }}
+        onChanged={async () => {
+          const { data } = await supabase.from('ordre').select('*, anlegg(anleggsnavn), customer:kundenr(navn), tekniker:tekniker_id(navn)').eq('id', selectedOrdre.id).single()
+          if (data) setSelectedOrdre(data)
+          loadOrdre()
         }}
       />
     )
@@ -1720,9 +1728,10 @@ interface OrdreDetailsProps {
   ordre: OrdreMedAnleggKunde
   onEdit: () => void
   onClose: () => void
+  onChanged?: () => void
 }
 
-function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
+function OrdreDetails({ ordre, onEdit, onClose, onChanged }: OrdreDetailsProps) {
   const [showAvsluttDialog, setShowAvsluttDialog] = useState(false)
   const [erFakturert, setErFakturert] = useState<boolean | null>(null)
   const [fakturaAnsvarlig, setFakturaAnsvarlig] = useState('')
@@ -1881,6 +1890,12 @@ function OrdreDetails({ ordre, onEdit, onClose }: OrdreDetailsProps) {
                 <span className="xs:hidden">Avslutt</span>
               </button>
             )}
+            <LeggIKalenderKnapp
+              ordreId={ordre.id} ordreNummer={ordre.ordre_nummer} type={ordre.type}
+              anleggId={ordre.anlegg_id} anleggsnavn={ordre.anlegg?.anleggsnavn ?? 'Anlegg'} kundeNavn={ordre.customer?.navn}
+              kommentar={ordre.kommentar} outlookEventId={ordre.outlook_event_id ?? null} planlagtStart={ordre.planlagt_start ?? null}
+              onEndret={() => onChanged?.()}
+            />
             <button onClick={onEdit} className="btn-primary flex items-center gap-2 text-sm sm:text-base">
               <Edit className="w-4 h-4" />
               Rediger

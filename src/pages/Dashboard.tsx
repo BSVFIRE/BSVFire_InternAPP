@@ -8,13 +8,14 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertTriangle, Building2, Calendar, CheckSquare, ClipboardList, Clock, MessageSquare, Plus } from 'lucide-react'
+import { AlertTriangle, Building2, Calendar, CalendarDays, CheckSquare, ClipboardList, Clock, MapPin, MessageSquare, Plus } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn, formatDate, isoUke, isoUkeAar, ukeDatoer, UKEDAGER } from '@/lib/utils'
 import { createLogger } from '@/lib/logger'
 import { ANLEGG_STATUSER, MAANEDER, OPPGAVE_STATUSER, ORDRE_STATUSER } from '@/lib/constants'
 import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
+import { erKobletTilOutlook, hentAvtaler, type Avtale } from '@/lib/microsoft'
 import { Button } from '@/components/ui/Button'
 
 const log = createLogger('Dashboard')
@@ -28,6 +29,7 @@ type Melding = Pick<Tables<'intern_kommentar'>, 'id' | 'intern_kommentar' | 'cre
 type NesteRad =
   | { kind: 'plan'; dato: Date; id: string; anleggId: string; tittel: string; under: string }
   | { kind: 'oppgave'; dato: Date | null; id: string; oppgave: Oppgave }
+  | { kind: 'avtale'; dato: Date; id: string; avtale: Avtale }
 
 const PILL: Record<string, string> = {
   [ORDRE_STATUSER.NY]: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -59,6 +61,8 @@ export function Dashboard() {
   const [kunderUtenNr, setKunderUtenNr] = useState(0)
   const [antallProsjekter, setAntallProsjekter] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [avtaler, setAvtaler] = useState<Avtale[]>([])
+  const [outlook, setOutlook] = useState<'ukjent' | 'ikke_koblet' | 'koblet' | 'feil'>('ukjent')
 
   const iDag = useMemo(() => startAvDag(new Date()), [])
   const aar = iDag.getFullYear()
@@ -100,6 +104,23 @@ export function Dashboard() {
   }, [aar, ukeAar, uke, nesteUkeAar, nesteUke, ansatt])
   useEffect(() => { last() }, [last])
 
+  useEffect(() => {
+    let aktiv = true
+    erKobletTilOutlook().then(async koblet => {
+      if (!aktiv) return
+      if (!koblet) { setOutlook('ikke_koblet'); return }
+      try {
+        const til = new Date(iDag); til.setDate(iDag.getDate() + 14)
+        const a = await hentAvtaler(iDag, til)
+        if (aktiv) { setAvtaler(a.filter(x => x.visesSom !== 'free')); setOutlook('koblet') }
+      } catch (err) {
+        log.warn('Kunne ikke hente Outlook-avtaler', { err })
+        if (aktiv) setOutlook('feil')
+      }
+    })
+    return () => { aktiv = false }
+  }, [iDag])
+
   function velgOmfang(v: boolean) { setMine(v); try { localStorage.setItem('dashboard_mine', v ? 'mine' : 'alle') } catch { /* ignorer */ } }
 
   // ---- Utvalg («Mine» = tildelt meg / ansvarlig = meg) ----
@@ -126,6 +147,12 @@ export function Dashboard() {
       if (!dato || startAvDag(dato) < iDag) continue
       rader.push({ kind: 'plan', dato, id: d.id, anleggId: d.anlegg_id, tittel: d.anlegg?.anleggsnavn ?? 'Anlegg', under: [`Ukesplan uke ${d.ukesplan.uke_nummer}`, d.estimert_oppstart ? `kl. ${d.estimert_oppstart.slice(0, 5)}` : null, d.anlegg?.poststed].filter(Boolean).join(' · ') })
     }
+    if (mine) {
+      for (const a of avtaler) {
+        if (startAvDag(a.start) < iDag && !a.heleDagen) continue
+        rader.push({ kind: 'avtale', dato: a.start, id: `k${a.id}`, avtale: a })
+      }
+    }
     const grense = new Date(iDag); grense.setDate(iDag.getDate() + 14)
     for (const o of mineOppgaver) {
       const dato = o.forfallsdato ? startAvDag(new Date(o.forfallsdato)) : null
@@ -133,8 +160,8 @@ export function Dashboard() {
       if (!dato) continue
       rader.push({ kind: 'oppgave', dato, id: o.id, oppgave: o })
     }
-    return rader.sort((x, y) => (x.dato?.getTime() ?? Infinity) - (y.dato?.getTime() ?? Infinity)).slice(0, 12)
-  }, [minePlanDager, mineOppgaver, iDag])
+    return rader.sort((x, y) => (x.dato?.getTime() ?? Infinity) - (y.dato?.getTime() ?? Infinity)).slice(0, 14)
+  }, [minePlanDager, mineOppgaver, iDag, avtaler, mine])
 
   // ---- Ikke planlagt ennå: månedens anlegg uten ordre i år og uten ukesplan denne/neste uke ----
   const planlagteAnleggIder = useMemo(() => new Set(planDager.map(d => d.anlegg_id)), [planDager])
@@ -205,6 +232,12 @@ export function Dashboard() {
           {/* Venstre */}
           <div className="space-y-4">
             <Boks tittel="Neste opp" lenke={{ til: '/kontrollplan', tekst: 'Kontrollplan' }}>
+              {mine && outlook === 'ikke_koblet' && (
+                <Link to="/admin/bedrift" className="flex items-center gap-2 px-4 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60 hover:text-primary">
+                  <CalendarDays className="w-3.5 h-3.5" />Koble til Outlook for å se kalenderen din her →
+                </Link>
+              )}
+              {mine && outlook === 'feil' && <p className="px-4 py-2 text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border-b border-gray-100 dark:border-gray-800/60">Kunne ikke hente Outlook-kalenderen. Prøv å koble til på nytt i profilen.</p>}
               {nesteOpp.length === 0 ? <Tom>Ingenting planlagt de neste to ukene{mine ? ' for deg' : ''}.</Tom> : (() => {
                 let forrige = ''
                 return nesteOpp.map(r => {
@@ -213,7 +246,19 @@ export function Dashboard() {
                   return (
                     <div key={r.id}>
                       {visHeader && <div className={cn('px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide bg-gray-50 dark:bg-dark-100', key === 'Forfalt' ? 'text-red-600 dark:text-red-400' : key === 'I dag' ? 'text-primary' : 'text-gray-500 dark:text-gray-400')}>{key}</div>}
-                      {r.kind === 'plan' ? (
+                      {r.kind === 'avtale' ? (
+                        <a href={r.avtale.lenke ?? '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60">
+                          <span className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 flex items-center justify-center flex-shrink-0"><CalendarDays className="w-4 h-4" /></span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block font-semibold text-gray-900 dark:text-white truncate">{r.avtale.tittel}</span>
+                            <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">
+                              {r.avtale.heleDagen ? 'Hele dagen' : `kl. ${r.avtale.start.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}–${r.avtale.slutt.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}`}
+                              {r.avtale.sted && <> · <MapPin className="inline w-3 h-3 -mt-0.5" /> {r.avtale.sted}</>}
+                            </span>
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 whitespace-nowrap">Outlook</span>
+                        </a>
+                      ) : r.kind === 'plan' ? (
                         <button type="button" onClick={() => navigate(`/anlegg/${r.anleggId}`)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60">
                           <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0"><Building2 className="w-4 h-4" /></span>
                           <span className="flex-1 min-w-0"><span className="block font-semibold text-gray-900 dark:text-white truncate">{r.tittel}</span><span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{r.under}</span></span>

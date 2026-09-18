@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { User, Mail, Phone, Save, Loader2, Camera, Award, MessageCircle, Shield, Lock, CheckCircle, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
+import { OutlookKobling } from '@/components/OutlookKobling'
 
 interface AnsattProfil {
   id: string
@@ -354,6 +355,9 @@ export function Brukerprofil() {
             </div>
           </div>
         </div>
+
+        {/* Outlook */}
+        <div className="lg:col-span-3"><OutlookKobling /></div>
 
         {/* Endre passord-seksjon */}
         <div className="lg:col-span-3 card">
