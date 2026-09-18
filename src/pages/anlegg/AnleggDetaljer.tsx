@@ -916,8 +916,8 @@ function PriserPanel({ priser, onRediger }: { priser: Priser | null; onRediger: 
     <section className="card !p-4 space-y-3">
       <button type="button" onClick={() => setApen(v => !v)} aria-expanded={apen} className="w-full flex items-center justify-between gap-2 text-left">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Serviceavtale</h2>
-        <span className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 tabular-nums">
-          {rader.length > 0 ? `kr ${sum.toLocaleString('nb-NO')}/år` : 'Ingen priser'}
+        <span className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+          {rader.length === 0 ? 'Ingen priser' : `${rader.length} ${rader.length === 1 ? 'tjeneste' : 'tjenester'}`}
           <ChevronDown className={cn('w-4 h-4 transition-transform', apen && 'rotate-180')} />
         </span>
       </button>
