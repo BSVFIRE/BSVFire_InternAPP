@@ -553,8 +553,8 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
 
       // Kontaktpersoner - To kolonner
       const colWidth = 85
-      let leftCol = 17
-      let rightCol = 104
+      const leftCol = 17
+      const rightCol = 104
       
       if (kontaktData?.navn) {
         doc.setDrawColor(220, 220, 220)
@@ -1132,10 +1132,11 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         return (a.etasje || '').localeCompare(b.etasje || '', 'nb-NO', { numeric: true })
       case 'modell':
         return (a.modell || '').localeCompare(b.modell || '', 'nb-NO')
-      case 'status':
+      case 'status': {
         const aStatus = a.status?.[0] || ''
         const bStatus = b.status?.[0] || ''
         return aStatus.localeCompare(bStatus, 'nb-NO')
+      }
       default:
         return 0
     }

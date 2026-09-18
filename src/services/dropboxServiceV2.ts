@@ -168,8 +168,6 @@ export async function uploadToDropbox(
 ): Promise<DropboxResponse> {
   try {
     // Konverter til base64 - chunk-basert for å unngå stack overflow på store filer
-    let base64Content: string
-    
     const arrayBuffer = fileContent instanceof Blob 
       ? await fileContent.arrayBuffer() 
       : fileContent
@@ -181,7 +179,7 @@ export async function uploadToDropbox(
       const chunk = bytes.subarray(i, i + chunkSize)
       binary += String.fromCharCode.apply(null, chunk as any)
     }
-    base64Content = btoa(binary)
+    const base64Content = btoa(binary)
 
     const data = await callDropboxFunction('upload_file', {
       path: filePath,

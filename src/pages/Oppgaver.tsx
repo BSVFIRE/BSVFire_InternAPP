@@ -225,9 +225,10 @@ export function Oppgaver() {
         return new Date(b.opprettet_dato).getTime() - new Date(a.opprettet_dato).getTime()
       case 'dato_eldste':
         return new Date(a.opprettet_dato).getTime() - new Date(b.opprettet_dato).getTime()
-      case 'prioritet':
+      case 'prioritet': {
         const prioritetOrder: Record<string, number> = { 'Høy': 1, 'Medium': 2, 'Lav': 3 }
         return (prioritetOrder[a.prioritet || 'Lav'] || 4) - (prioritetOrder[b.prioritet || 'Lav'] || 4)
+      }
       case 'status':
         return a.status.localeCompare(b.status, 'nb-NO')
       case 'type':

@@ -317,10 +317,11 @@ export function Ordre() {
         return (a.customer?.navn || '').localeCompare(b.customer?.navn || '', 'nb-NO')
       case 'anlegg':
         return (a.anlegg?.anleggsnavn || '').localeCompare(b.anlegg?.anleggsnavn || '', 'nb-NO')
-      case 'tekniker':
+      case 'tekniker': {
         const aNavn = a.tekniker?.navn || 'Ikke tildelt'
         const bNavn = b.tekniker?.navn || 'Ikke tildelt'
         return aNavn.localeCompare(bNavn, 'nb-NO')
+      }
       default:
         return 0
     }

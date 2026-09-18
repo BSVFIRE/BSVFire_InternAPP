@@ -515,8 +515,8 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
 
       // Kontaktpersoner - To kolonner
       const colWidth = 85
-      let leftCol = 17
-      let rightCol = 104
+      const leftCol = 17
+      const rightCol = 104
       
       if (kontakt?.navn) {
         doc.setDrawColor(220, 220, 220)

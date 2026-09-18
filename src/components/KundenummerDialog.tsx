@@ -44,7 +44,7 @@ export function KundenummerDialog({
       setLoading(true)
       
       // Søk etter kunder med samme org.nr eller lignende navn
-      let query = supabase
+      const query = supabase
         .from('customer')
         .select('id, navn, kunde_nummer, organisasjonsnummer')
         .or('skjult.is.null,skjult.eq.false')

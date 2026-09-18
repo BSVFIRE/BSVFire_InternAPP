@@ -63,7 +63,7 @@ export function DetektorlistePreview({
       .replace(/æ/gi, 'ae')
       .replace(/ø/gi, 'o')
       .replace(/å/gi, 'a')
-      .replace(/[^a-zA-Z0-9_\-\.]/g, '')
+      .replace(/[^a-zA-Z0-9_\-.]/g, '')
   }
   
   const fileName = `Detektorliste_${sanitizeFileName(kundeNavn)}_${sanitizeFileName(anleggNavn)}_Rev${revisjon.replace(/\./g, '_')}.pdf`

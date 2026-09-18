@@ -10,10 +10,11 @@ import { GoogleMapsAddressAutocomplete } from '@/components/GoogleMapsAddressAut
 import { AnleggTodoList } from '@/components/AnleggTodoList'
 import { formatDate } from '@/lib/utils'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { ANLEGG_STATUSER, ANLEGG_STATUS_COLORS, KONTROLLTYPER, MAANEDER } from '@/lib/constants'
+import { ANLEGG_STATUSER, ANLEGG_STATUS_COLORS, KONTROLLTYPER, MAANEDER, MAANED_ORDER } from '@/lib/constants'
 import { syncAnleggToKontrollportal } from '@/lib/kontrollportal-sync'
 import { searchCompaniesByName, formatOrgNumber, extractAddress, type BrregEnhet } from '@/lib/brregApi'
 import { notifyNewMelding } from '@/lib/telegramService'
+import { LeilighetsOversikt } from '@/components/LeilighetsOversikt'
 
 const log = createLogger('Anlegg')
 
@@ -395,17 +396,12 @@ export function Anlegg() {
         return (a.poststed || '').localeCompare(b.poststed || '', 'nb-NO')
       case 'status':
         return (a.kontroll_status || '').localeCompare(b.kontroll_status || '', 'nb-NO')
-      case 'kontroll_maaned':
+      case 'kontroll_maaned': {
         // Sorter etter måned (Januar = 1, Desember = 12, NA sist)
-        const maanedOrder: Record<string, number> = {
-          'Januar': 1, 'Februar': 2, 'Mars': 3, 'April': 4,
-          'Mai': 5, 'Juni': 6, 'Juli': 7, 'August': 8,
-          'September': 9, 'Oktober': 10, 'November': 11, 'Desember': 12,
-          'NA': 99
-        }
-        const aOrder = maanedOrder[a.kontroll_maaned || 'NA'] || 99
-        const bOrder = maanedOrder[b.kontroll_maaned || 'NA'] || 99
+        const aOrder = MAANED_ORDER[a.kontroll_maaned || 'NA'] || 99
+        const bOrder = MAANED_ORDER[b.kontroll_maaned || 'NA'] || 99
         return aOrder - bOrder
+      }
       default:
         return 0
     }

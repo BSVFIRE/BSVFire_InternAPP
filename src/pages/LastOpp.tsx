@@ -195,7 +195,7 @@ export function LastOpp() {
       for (const file of selectedFiles) {
         try {
           // Generate filename based on document type
-          let baseFilename = dokumentType === 'Annet' ? customFilename.trim() : dokumentType
+          const baseFilename = dokumentType === 'Annet' ? customFilename.trim() : dokumentType
           const filename = `${baseFilename}.pdf`
           const storagePath = `anlegg/${selectedAnlegg}/dokumenter/${filename}`
 

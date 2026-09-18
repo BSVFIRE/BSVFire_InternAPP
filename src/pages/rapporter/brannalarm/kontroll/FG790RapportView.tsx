@@ -554,8 +554,8 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
 
       // Kontaktpersoner - To kolonner
       const colWidth = 85
-      let leftCol = 17
-      let rightCol = 104
+      const leftCol = 17
+      const rightCol = 104
       
       if (primaerKontakt?.navn) {
         doc.setDrawColor(220, 220, 220)

@@ -243,7 +243,7 @@ export function Kunder() {
         return new Date(b.opprettet).getTime() - new Date(a.opprettet).getTime()
       case 'opprettet_eldste':
         return new Date(a.opprettet).getTime() - new Date(b.opprettet).getTime()
-      case 'uten_anlegg':
+      case 'uten_anlegg': {
         // Sorter kunder uten anlegg først, deretter alfabetisk
         const aCount = a.anlegg_count || 0
         const bCount = b.anlegg_count || 0

@@ -274,7 +274,7 @@ export async function generateServicerapportPDF(
     const { supabase } = await import('@/lib/supabase')
     
     // Hent bilder fra storage hvis de finnes
-    let imageDataUrls: string[] = []
+    const imageDataUrls: string[] = []
     if (rapport.image_urls && rapport.image_urls.length > 0) {
       
       console.log('🖼️ Laster ned bilder fra storage...')
@@ -403,7 +403,7 @@ export async function generateServicerapportPDF(
       .replace(/\s+/g, '_')
     const fileName = `Servicerapport_${safeHeader}_${year}.pdf`
     
-    let result: { success: boolean; filePath?: string; dropboxPath?: string; dropboxError?: string } = { success: true }
+    const result: { success: boolean; filePath?: string; dropboxPath?: string; dropboxError?: string } = { success: true }
     
     if (saveToStorage && rapport.anlegg_id) {
       // Last opp til storage: anlegg/{anlegg_id}/dokumenter/{filename}

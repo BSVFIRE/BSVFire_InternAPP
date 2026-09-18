@@ -189,7 +189,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
   async function loadKontaktpersoner() {
     try {
       // Try junction table approach first
-      let { data: kontakter, error } = await supabase
+      const { data, error } = await supabase
         .from('kontaktpersoner')
         .select(`
           *,
@@ -199,6 +199,8 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: Tilleggsut
           )
         `)
         .eq('anlegg_kontaktpersoner.anlegg_id', anleggId)
+
+      let kontakter = data
 
       // Fallback to direct approach if junction table fails
       if (error || !kontakter || kontakter.length === 0) {

@@ -172,13 +172,14 @@ export function NodlysImport({ anleggId, onClose, onImportComplete }: NodlysImpo
                   case 'status':
                     (item as any)[header] = strValue
                     break
-                  case 'kontrollert':
+                  case 'kontrollert': {
                     // Håndter boolean verdier
                     const lowerValue = strValue.toLowerCase()
                     item.kontrollert = lowerValue === 'ja' || lowerValue === 'yes' || 
                                       lowerValue === 'true' || lowerValue === '1' || 
                                       lowerValue === 'x'
                     break
+                  }
                 }
               }
             })
@@ -238,12 +239,13 @@ export function NodlysImport({ anleggId, onClose, onImportComplete }: NodlysImpo
                   case 'status':
                     (item as any)[header] = value
                     break
-                  case 'kontrollert':
+                  case 'kontrollert': {
                     const lowerValue = value.toLowerCase()
                     item.kontrollert = lowerValue === 'ja' || lowerValue === 'yes' || 
                                       lowerValue === 'true' || lowerValue === '1' || 
                                       lowerValue === 'x'
                     break
+                  }
                 }
               }
             })
