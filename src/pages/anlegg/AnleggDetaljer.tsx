@@ -15,7 +15,7 @@ import {
   AlertCircle, Building2, Check, CheckSquare, ChevronLeft, ClipboardList, Clock, Cloud,
   DollarSign, Edit, ExternalLink, EyeOff, Eye, FileText, Link2, Loader2, Mail, MapPin,
   MessageSquare, Mic, MicOff, MoreHorizontal, Navigation, Phone, Plus, QrCode, Search,
-  Send, Sparkles, Star, Upload, X, Home, Layers, AlertTriangle,
+  Send, Sparkles, Star, Upload, X, Home, Layers, AlertTriangle, ChevronDown, Share2,
 } from 'lucide-react'
 import { supabase, db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -27,6 +27,8 @@ import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
 import { AnleggTodoList } from '@/components/AnleggTodoList'
 import { LeilighetsOversikt } from '@/components/LeilighetsOversikt'
 import { DropboxFileBrowser } from '@/components/DropboxFileBrowser'
+import { Button, IconButton, IconButtonGroup } from '@/components/ui/Button'
+import { DropdownMenu, MenuItem, MenuLabel, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { hentAvvikForAnlegg, AVVIK_REKKEFOLGE, type Avvik, type AvvikKontrolltype } from '@/lib/anleggAvvik'
 
 const log = createLogger('AnleggDetaljer')
@@ -251,6 +253,22 @@ export default function AnleggDetaljer() {
     setSearchParams(p, { replace: true })
   }
 
+  async function kopierLenke() {
+    try { await navigator.clipboard.writeText(window.location.href); toast.success('Lenke kopiert') } catch { toast.error('Kunne ikke kopiere lenken') }
+  }
+
+  // Tastatursnarvei: E = rediger (ikke når man skriver i et felt)
+  useEffect(() => {
+    function tast(e: KeyboardEvent) {
+      if (e.key !== 'e' || e.metaKey || e.ctrlKey || e.altKey) return
+      const t = e.target as HTMLElement
+      if (t.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (id) navigate(`/anlegg/${id}/rediger`)
+    }
+    document.addEventListener('keydown', tast)
+    return () => document.removeEventListener('keydown', tast)
+  }, [id, navigate])
+
   // ---------- Rendering ----------
 
   if (loading) {
@@ -269,7 +287,7 @@ export default function AnleggDetaljer() {
           <h2 className="text-lg font-semibold text-red-400 mb-1">Kunne ikke laste anlegg</h2>
           <p className="text-sm text-red-300 mb-3">{feil ?? 'Anlegget finnes ikke'}</p>
           <div className="flex gap-2">
-            <button onClick={loadAll} className="btn-primary text-sm">Prøv igjen</button>
+            <Button variant="primary" onClick={loadAll}>Prøv igjen</Button>
             <Link to="/anlegg" className="btn-secondary text-sm">Til anleggslisten</Link>
           </div>
         </div>
@@ -307,18 +325,29 @@ export default function AnleggDetaljer() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => navigate(`/anlegg/${anlegg.id}/rediger`)} className="btn-secondary gap-2" title="Rediger">
-            <Edit className="w-4 h-4" /><span className="hidden sm:inline">Rediger</span>
-          </button>
-          <button onClick={() => navigate('/ordre', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id } })} className="btn-primary gap-2" title="Ny ordre">
-            <Plus className="w-4 h-4" /><span className="hidden sm:inline">Ny ordre</span>
-          </button>
-          {kundeNummer && (
-            <button onClick={() => setVisDropbox(true)} className="btn-secondary !px-0 w-11" title="Dropbox-filer" aria-label="Dropbox-filer">
-              <Cloud className="w-5 h-5" />
-            </button>
-          )}
-          <MerMeny anlegg={anlegg} onChanged={loadAll} />
+          <IconButtonGroup>
+            {kundeNummer && <IconButton variant="ghost" label="Dropbox-filer" icon={<Cloud />} onClick={() => setVisDropbox(true)} />}
+            <IconButton variant="ghost" label="Kopier lenke til anlegget" icon={<Share2 />} onClick={kopierLenke} />
+            <MerMeny anlegg={anlegg} onChanged={loadAll} />
+          </IconButtonGroup>
+          <Button variant="outline" icon={<Edit />} kbd="E" onClick={() => navigate(`/anlegg/${anlegg.id}/rediger`)}>
+            <span className="hidden sm:inline">Rediger</span>
+          </Button>
+          <div className="inline-flex">
+            <Button variant="primary" icon={<Plus />} className="rounded-r-none" onClick={() => navigate('/ordre', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id } })}>
+              <span className="hidden sm:inline">Ny ordre</span>
+            </Button>
+            <DropdownMenu trigger={open => (
+              <Button variant="primary" aria-label="Flere valg for ny" aria-expanded={open} className="rounded-l-none w-8 px-0 border-l border-white/25"><ChevronDown /></Button>
+            )}>
+              <MenuLabel>Opprett</MenuLabel>
+              <MenuItem icon={<ClipboardList />} onSelect={() => navigate('/ordre', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id } })}>Ny ordre</MenuItem>
+              <MenuItem icon={<CheckSquare />} onSelect={() => navigate('/oppgaver', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id, opprettNy: true } })}>Ny oppgave</MenuItem>
+              <MenuItem icon={<MessageSquare />} onSelect={() => { setTab('oversikt'); setTimeout(() => notatRef.current?.focus(), 50) }}>Nytt notat</MenuItem>
+              <MenuSeparator />
+              <MenuItem icon={<FileText />} onSelect={() => navigate('/rapporter', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id } })}>Registrer kontroll…</MenuItem>
+            </DropdownMenu>
+          </div>
         </div>
       </header>
 
@@ -560,54 +589,29 @@ function StatusVelger({ anlegg, onChanged }: { anlegg: AnleggRow; onChanged: () 
 
 function MerMeny({ anlegg, onChanged }: { anlegg: AnleggRow; onChanged: () => void }) {
   const navigate = useNavigate()
-  const [apen, setApen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!apen) return
-    function lukk(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setApen(false) }
-    function esc(e: KeyboardEvent) { if (e.key === 'Escape') setApen(false) }
-    document.addEventListener('mousedown', lukk); document.addEventListener('keydown', esc)
-    return () => { document.removeEventListener('mousedown', lukk); document.removeEventListener('keydown', esc) }
-  }, [apen])
 
   async function toggleSkjult() {
     const { error } = await db.from('anlegg').update({ skjult: !anlegg.skjult }).eq('id', anlegg.id)
     if (error) { toast.error('Kunne ikke endre synlighet', error); return }
     toast.success(anlegg.skjult ? 'Anlegget vises igjen i listen' : 'Anlegget er skjult fra listen')
-    setApen(false); onChanged()
+    onChanged()
   }
 
   async function kopierKode() {
     if (!anlegg.unik_kode) return
     try { await navigator.clipboard.writeText(anlegg.unik_kode); toast.success('Unik kode kopiert') } catch { toast.error('Kunne ikke kopiere') }
-    setApen(false)
-  }
-
-  const Rad = ({ ikon, tekst, onClick, href }: { ikon: React.ReactNode; tekst: string; onClick?: () => void; href?: string }) => {
-    const k = 'w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100 [&>svg]:w-4 [&>svg]:h-4 [&>svg]:text-gray-400'
-    return href
-      ? <a href={href} target="_blank" rel="noopener noreferrer" className={k} onClick={() => setApen(false)}>{ikon}{tekst}</a>
-      : <button type="button" onClick={onClick} className={k}>{ikon}{tekst}</button>
   }
 
   return (
-    <div ref={ref} className="relative">
-      <button type="button" onClick={() => setApen(v => !v)} aria-haspopup="menu" aria-expanded={apen} aria-label="Flere valg" className="btn-secondary !px-0 w-11">
-        <MoreHorizontal className="w-5 h-5" />
-      </button>
-      {apen && (
-        <div role="menu" className="absolute right-0 mt-2 w-60 rounded-lg bg-white dark:bg-dark-50 border border-gray-200 dark:border-gray-800 shadow-xl py-1 z-30">
-          <Rad ikon={<DollarSign />} tekst="Kontrollpriser" onClick={() => navigate('/priser', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })} />
-          {anlegg.unik_kode && <Rad ikon={<QrCode />} tekst={`Kopier unik kode (${anlegg.unik_kode})`} onClick={kopierKode} />}
-          {anlegg.kontrollportal_url && <Rad ikon={<ExternalLink />} tekst="Åpne kontrollportal" href={anlegg.kontrollportal_url} />}
-          <Rad ikon={<Layers />} tekst="Teknisk dokumentasjon" onClick={() => navigate('/teknisk', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })} />
-          <div className="my-1 border-t border-gray-200 dark:border-gray-800" />
-          <Rad ikon={anlegg.skjult ? <Eye /> : <EyeOff />} tekst={anlegg.skjult ? 'Vis anlegget i listen' : 'Skjul anlegget fra listen'} onClick={toggleSkjult} />
-          <Rad ikon={<Link2 />} tekst="Gammel visning" onClick={() => navigate('/anlegg', { state: { viewAnleggId: anlegg.id, legacyView: true } })} />
-        </div>
-      )}
-    </div>
+    <DropdownMenu trigger={open => <IconButton variant="ghost" label="Flere valg" icon={<MoreHorizontal />} aria-haspopup="menu" aria-expanded={open} />}>
+      <MenuItem icon={<DollarSign />} onSelect={() => navigate('/priser', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}>Kontrollpriser</MenuItem>
+      {anlegg.unik_kode && <MenuItem icon={<QrCode />} onSelect={kopierKode}>Kopier unik kode ({anlegg.unik_kode})</MenuItem>}
+      {anlegg.kontrollportal_url && <MenuItem icon={<ExternalLink />} href={anlegg.kontrollportal_url}>Åpne kontrollportal</MenuItem>}
+      <MenuItem icon={<Layers />} onSelect={() => navigate('/teknisk', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}>Teknisk dokumentasjon</MenuItem>
+      <MenuSeparator />
+      <MenuItem icon={anlegg.skjult ? <Eye /> : <EyeOff />} onSelect={toggleSkjult}>{anlegg.skjult ? 'Vis anlegget i listen' : 'Skjul anlegget fra listen'}</MenuItem>
+      <MenuItem icon={<Link2 />} onSelect={() => navigate('/anlegg', { state: { viewAnleggId: anlegg.id, legacyView: true } })}>Gammel visning</MenuItem>
+    </DropdownMenu>
   )
 }
 
@@ -824,17 +828,13 @@ function NotatSkjema({ anlegg, kundeNavn, textareaRef, onOpprettet }: { anlegg: 
       </div>
       {tekst && (
         <div className="flex items-center gap-2 flex-wrap sm:pl-11">
-          <button type="button" onClick={forbedre} disabled={forbedrer} className="btn-secondary !min-h-[36px] !py-1 text-xs gap-1.5">
-            {forbedrer ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}Forbedre med AI
-          </button>
+          <Button variant="outline" icon={<Sparkles />} loading={forbedrer} onClick={forbedre}>Forbedre med AI</Button>
           <label className="sr-only" htmlFor="notat-mottaker">Varsle kollega</label>
-          <select id="notat-mottaker" value={mottakerId} onChange={e => setMottakerId(e.target.value)} className="input !w-auto !min-h-[36px] !py-1 text-xs">
+          <select id="notat-mottaker" value={mottakerId} onChange={e => setMottakerId(e.target.value)} className="input !w-auto !min-h-[36px] !h-9 !py-1 text-sm">
             <option value="">Ikke varsle noen</option>
             {ansatte.map(a => <option key={a.id} value={a.id}>Varsle {a.navn}</option>)}
           </select>
-          <button type="submit" disabled={lagrer} className="btn-primary !min-h-[36px] !py-1 text-xs ml-auto gap-1.5">
-            {lagrer ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}Lagre notat
-          </button>
+          <Button variant="primary" type="submit" icon={<Send />} loading={lagrer} className="ml-auto">Lagre notat</Button>
         </div>
       )}
     </form>
@@ -1012,8 +1012,8 @@ function DokumenterFane({ anlegg, dokumenter, onApne, onSend, onLastOpp, onDropb
           <input id="dok-sok" type="search" value={sok} onChange={e => setSok(e.target.value)} placeholder="Søk i dokumenter…" className="input pl-9" />
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={onLastOpp} className="btn-secondary gap-2"><Upload className="w-4 h-4" />Last opp</button>
-          {onDropbox && <button type="button" onClick={onDropbox} className="btn-secondary gap-2"><Cloud className="w-4 h-4" />Dropbox</button>}
+          <Button variant="outline" icon={<Upload />} onClick={onLastOpp}>Last opp</Button>
+          {onDropbox && <Button variant="outline" icon={<Cloud />} onClick={onDropbox}>Dropbox</Button>}
         </div>
       </div>
       {liste.length === 0 ? (
@@ -1027,8 +1027,8 @@ function DokumenterFane({ anlegg, dokumenter, onApne, onSend, onLastOpp, onDropb
                 <div className="text-sm text-gray-900 dark:text-white truncate hover:text-primary">{d.filnavn}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">{d.dato ? formatDate(d.dato) : 'Ukjent dato'}{d.kilde === 'storage' ? ' · kun i lagring' : ''}</div>
               </button>
-              <button type="button" onClick={() => onSend(d)} className="btn-secondary !min-h-[36px] !py-1 text-xs gap-1.5" title="Send på e-post"><Send className="w-3.5 h-3.5" /><span className="hidden sm:inline">Send</span></button>
-              <button type="button" onClick={() => onApne(d)} className="btn-secondary !min-h-[36px] !py-1 text-xs gap-1.5" title="Åpne"><ExternalLink className="w-3.5 h-3.5" /><span className="hidden sm:inline">Åpne</span></button>
+              <Button variant="ghost" icon={<Send />} onClick={() => onSend(d)} title="Send på e-post"><span className="hidden sm:inline">Send</span></Button>
+              <Button variant="ghost" icon={<ExternalLink />} onClick={() => onApne(d)} title="Åpne"><span className="hidden sm:inline">Åpne</span></Button>
             </div>
           ))}
         </div>
@@ -1078,7 +1078,7 @@ function KontaktModal({ anleggId, eksisterendeIder, onClose, onLagtTil }: { anle
       <div role="dialog" aria-modal="true" aria-labelledby="kontakt-modal-tittel" onClick={e => e.stopPropagation()} className="card w-full sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-b-none sm:rounded-lg space-y-4">
         <div className="flex items-center justify-between">
           <h2 id="kontakt-modal-tittel" className="text-lg font-semibold text-gray-900 dark:text-white">Legg til kontaktperson</h2>
-          <button type="button" onClick={onClose} aria-label="Lukk" className="w-9 h-9 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-100 flex items-center justify-center"><X className="w-5 h-5" /></button>
+          <IconButton variant="ghost" label="Lukk" icon={<X />} onClick={onClose} />
         </div>
         <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800">
           <FaneKnapp aktiv={modus === 'velg'} onClick={() => setModus('velg')}>Velg eksisterende</FaneKnapp>
@@ -1111,8 +1111,8 @@ function KontaktModal({ anleggId, eksisterendeIder, onClose, onLagtTil }: { anle
               <div><label htmlFor="ny-epost" className="block text-sm text-gray-600 dark:text-gray-400 mb-1">E-post</label><input id="ny-epost" type="email" value={ny.epost} onChange={e => setNy({ ...ny, epost: e.target.value })} className="input" /></div>
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <button type="button" onClick={onClose} className="btn-secondary">Avbryt</button>
-              <button type="submit" disabled={lagrer} className="btn-primary gap-2">{lagrer && <Loader2 className="w-4 h-4 animate-spin" />}Opprett og legg til</button>
+              <Button variant="ghost" onClick={onClose}>Avbryt</Button>
+              <Button variant="primary" type="submit" loading={lagrer}>Opprett og legg til</Button>
             </div>
           </form>
         )}

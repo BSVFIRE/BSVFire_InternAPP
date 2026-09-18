@@ -6,12 +6,13 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2, Trash2 } from 'lucide-react'
+import { AlertCircle, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { createLogger } from '@/lib/logger'
 import { omdopDropboxAnleggMappe } from '@/lib/anleggDropbox'
+import { Button } from '@/components/ui/Button'
 import {
   AdresseFelter, EksternFelter, Felt, KontrollFelter, KundeVelger, TOMT_SKJEMA,
   tilAnleggRad, useSkjemaValg, validerAnlegg, type AnleggSkjemaVerdier,
@@ -75,6 +76,15 @@ export default function AnleggRediger() {
     window.addEventListener('beforeunload', h)
     return () => window.removeEventListener('beforeunload', h)
   }, [endret])
+
+  // ⌘S / Ctrl+S lagrer
+  useEffect(() => {
+    function tast(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); if (endret && !lagrer) lagre() }
+    }
+    document.addEventListener('keydown', tast)
+    return () => document.removeEventListener('keydown', tast)
+  })
 
   const oppdater = useCallback((patch: Partial<AnleggSkjemaVerdier>) => {
     setVerdier(v => ({ ...v, ...patch }))
@@ -242,7 +252,7 @@ export default function AnleggRediger() {
             <section className="card space-y-3 border-red-200 dark:border-red-900/50">
               <h2 className="text-sm font-semibold text-red-700 dark:text-red-400">Faresone</h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">Sletting fjerner anlegget med kontrolldata, notater og dokumentkoblinger. Ordre og oppgaver beholdes.</p>
-              <button type="button" onClick={slett} disabled={lagrer} className="btn-secondary !text-red-600 dark:!text-red-400 gap-2 text-sm"><Trash2 className="w-4 h-4" />Slett anlegg</button>
+              <Button variant="danger" icon={<Trash2 />} onClick={slett} disabled={lagrer} className="border border-red-200 dark:border-red-900/50">Slett anlegg</Button>
             </section>
           </div>
         </div>
@@ -254,10 +264,8 @@ export default function AnleggRediger() {
           <span className={cn('w-2 h-2 rounded-full', endret ? 'bg-yellow-500' : 'bg-gray-300 dark:bg-gray-700')} />
           <span className="hidden sm:inline">{endret ? 'Ulagrede endringer' : 'Ingen endringer'}</span>
         </span>
-        <button type="button" onClick={avbryt} className="btn-secondary">Avbryt</button>
-        <button type="submit" disabled={lagrer || !endret} className="btn-primary gap-2 disabled:opacity-50">
-          {lagrer && <Loader2 className="w-4 h-4 animate-spin" />}Lagre
-        </button>
+        <Button variant="ghost" onClick={avbryt}>Avbryt</Button>
+        <Button variant="primary" type="submit" loading={lagrer} disabled={!endret} kbd="⌘S">Lagre</Button>
       </div>
     </form>
   )

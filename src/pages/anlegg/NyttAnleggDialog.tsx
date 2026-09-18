@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Loader2, X } from 'lucide-react'
+import { Button, IconButton } from '@/components/ui/Button'
 import { db } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
@@ -79,7 +80,7 @@ export function NyttAnleggDialog({ kundeId, onClose }: Props) {
         className="card w-full sm:max-w-xl max-h-[92vh] overflow-y-auto rounded-b-none sm:rounded-lg !p-0 flex flex-col">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 id="nytt-anlegg-tittel" className="text-lg font-bold text-gray-900 dark:text-white">Nytt anlegg</h2>
-          <button type="button" onClick={onClose} disabled={lagrer} aria-label="Lukk" className="w-9 h-9 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-100 flex items-center justify-center"><X className="w-5 h-5" /></button>
+          <IconButton variant="ghost" label="Lukk" icon={<X />} onClick={onClose} disabled={lagrer} />
         </div>
 
         {loading ? (
@@ -104,8 +105,8 @@ export function NyttAnleggDialog({ kundeId, onClose }: Props) {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4 border-t border-gray-200 dark:border-gray-800 mt-auto">
           <p className="text-xs text-gray-500 dark:text-gray-400 sm:max-w-[55%]">Kontaktpersoner, priser og dokumenter legger du til på anleggets side etterpå.</p>
           <div className="flex gap-2 sm:ml-auto">
-            <button type="button" onClick={onClose} disabled={lagrer} className="btn-secondary flex-1 sm:flex-none">Avbryt</button>
-            <button type="submit" disabled={lagrer || loading} className="btn-primary gap-2 flex-1 sm:flex-none">{lagrer && <Loader2 className="w-4 h-4 animate-spin" />}Opprett anlegg</button>
+            <Button variant="ghost" onClick={onClose} disabled={lagrer} className="flex-1 sm:flex-none">Avbryt</Button>
+            <Button variant="primary" type="submit" loading={lagrer} disabled={loading} className="flex-1 sm:flex-none">Opprett anlegg</Button>
           </div>
         </div>
       </form>

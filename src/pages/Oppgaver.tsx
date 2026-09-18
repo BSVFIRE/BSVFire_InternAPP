@@ -78,6 +78,7 @@ export function Oppgaver() {
   const [filterPrioritet, setFilterPrioritet] = useState<string>('alle')
   const [filterTekniker, setFilterTekniker] = useState<string>('')
   const [inkluderFullforte, setInkluderFullforte] = useState(false)
+  const [prefill, setPrefill] = useState<{ kundeId?: string; anleggId?: string } | null>(null)
   const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
     return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
   })
@@ -112,7 +113,14 @@ export function Oppgaver() {
 
   // Håndter navigasjon fra Dashboard
   useEffect(() => {
-    const state = location.state as { selectedOppgaveId?: string } | null
+    const state = location.state as { selectedOppgaveId?: string; kundeId?: string; anleggId?: string; opprettNy?: boolean } | null
+    if (state?.opprettNy) {
+      setPrefill({ kundeId: state.kundeId, anleggId: state.anleggId })
+      setSelectedOppgave(null)
+      setViewMode('create')
+      window.history.replaceState({}, document.title)
+      return
+    }
     if (state?.selectedOppgaveId && oppgaver.length > 0) {
       const oppgave = oppgaver.find(o => o.id === state.selectedOppgaveId)
       if (oppgave) {
@@ -277,6 +285,7 @@ export function Oppgaver() {
     return (
       <OppgaveForm
         oppgave={selectedOppgave}
+        prefill={prefill}
         onSave={async () => {
           await loadOppgaver()
           setViewMode('list')
@@ -762,6 +771,8 @@ export function Oppgaver() {
 // Oppgave Form Component
 interface OppgaveFormProps {
   oppgave: OppgaveMedDetaljer | null
+  /** Forhåndsvalgt kunde/anlegg ved opprettelse fra en annen side */
+  prefill?: { kundeId?: string; anleggId?: string } | null
   onSave: () => void
   onCancel: () => void
 }
@@ -784,7 +795,7 @@ interface Kontaktperson {
   rolle: string | null
 }
 
-function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
+function OppgaveForm({ oppgave, prefill, onSave, onCancel }: OppgaveFormProps) {
   // Beregn default forfallsdato (2 uker frem i tid)
   const getDefaultForfallsdato = () => {
     const dato = new Date()
@@ -795,8 +806,8 @@ function OppgaveForm({ oppgave, onSave, onCancel }: OppgaveFormProps) {
   const [formData, setFormData] = useState({
     type: oppgave?.type || '',
     tittel: oppgave?.tittel || '',
-    kunde_id: oppgave?.kunde_id || '',
-    anlegg_id: oppgave?.anlegg_id || '',
+    kunde_id: oppgave?.kunde_id || prefill?.kundeId || '',
+    anlegg_id: oppgave?.anlegg_id || prefill?.anleggId || '',
     tekniker_id: oppgave?.tekniker_id || '',
     kontaktperson: oppgave?.kontaktperson || '',
     prioritet: oppgave?.prioritet || '',
