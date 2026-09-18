@@ -22,7 +22,9 @@ function klient(): Promise<PublicClientApplication> {
   if (klar) return klar
   klar = (async () => {
     msal = new PublicClientApplication({
-      auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: window.location.origin },
+      // Popupen lander på en tom side (public/ms-callback.html) – ikke hele appen – så MSAL får
+      // lest svaret før noe annet skjer. Må være registrert som SPA-redirect i Entra.
+      auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: `${window.location.origin}/ms-callback.html`, postLogoutRedirectUri: window.location.origin },
       cache: { cacheLocation: 'localStorage' },
     })
     await msal.initialize()
