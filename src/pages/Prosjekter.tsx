@@ -11,6 +11,7 @@ import {
 import { formatDate } from '@/lib/utils'
 import { Combobox } from '@/components/ui/Combobox'
 import { buildAnleggDropboxPath, listDropboxFolder, type DropboxEntry } from '@/services/dropboxServiceV2'
+import { ProsjektFramdrift } from '@/components/ProsjektFramdrift'
 
 // Types
 interface Prosjekt {
@@ -1390,6 +1391,16 @@ function ProsjektDetails({
 
           {/* Dokumentasjonskrav med status og Dropbox-filer */}
           <ProsjektDokumenter prosjekt={prosjekt} onRefresh={onRefresh} />
+
+          {/* Framdriftsplan */}
+          <ProsjektFramdrift 
+            prosjektId={prosjekt.id}
+            teamMedlemmer={[
+              ...(prosjekt.prosjektleder ? [{ id: prosjekt.prosjektleder.id, navn: prosjekt.prosjektleder.navn }] : []),
+              ...(prosjekt.prosjekt_medlemmer?.map(m => ({ id: m.ansatt.id, navn: m.ansatt.navn })) || [])
+            ]}
+            onUpdate={onRefresh}
+          />
 
           {/* Team */}
           <div className="card">

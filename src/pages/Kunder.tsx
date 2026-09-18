@@ -251,6 +251,7 @@ export function Kunder() {
           return a.navn.localeCompare(b.navn, 'nb-NO')
         }
         return aCount - bCount
+      }
       default:
         return 0
     }
@@ -1147,6 +1148,10 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    
+    // Forhindre dobbelt-klikk
+    if (saving) return
+    
     setSaving(true)
 
     try {
@@ -1186,12 +1191,20 @@ function KundeForm({ kunde, onSave, onCancel }: KundeFormProps) {
         createDropboxFoldersForKunde(formData.kunde_nummer, formData.navn)
       }
 
-      // Vis advarsel hvis ny kunde uten kundenummer
-      if (isNewKunde && !formData.kunde_nummer) {
-        const status = await checkDropboxStatus()
-        if (status.connected) {
-          alert('⚠️ Kunde opprettet uten kundenummer\n\nDropbox-mapper ble ikke opprettet. For å synkronisere til Dropbox må du:\n\n1. Legg til kundenummer på kunden\n2. Gå til Admin → Dropbox Mapper\n3. Velg kunden og opprett mapper manuelt')
+      // Vis bekreftelse eller advarsel
+      if (isNewKunde) {
+        if (!formData.kunde_nummer) {
+          const status = await checkDropboxStatus()
+          if (status.connected) {
+            alert('⚠️ Kunde opprettet uten kundenummer\n\nDropbox-mapper ble ikke opprettet. For å synkronisere til Dropbox må du:\n\n1. Legg til kundenummer på kunden\n2. Gå til Admin → Dropbox Mapper\n3. Velg kunden og opprett mapper manuelt')
+          } else {
+            alert(`✓ Kunde "${formData.navn}" opprettet!`)
+          }
+        } else {
+          alert(`✓ Kunde "${formData.navn}" opprettet!`)
         }
+      } else {
+        alert(`✓ Kunde "${formData.navn}" oppdatert!`)
       }
 
       // Send kundenavnet til onSave hvis det er en ny kunde

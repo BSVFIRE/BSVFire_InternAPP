@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
-import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send, Cloud, Zap, List, Layout, FileCheck, Shield, ChevronDown, ChevronUp, Upload, Mic, MicOff, Sparkles } from 'lucide-react'
+import { Plus, Search, Building2, MapPin, Edit, Trash2, Eye, EyeOff, Calendar, AlertCircle, User, Mail, Phone, Star, FileText, ExternalLink, QrCode, Link2, ClipboardList, DollarSign, Download, Loader2, CheckCircle, MessageSquare, Send, Cloud, Zap, List, Layout, FileCheck, Shield, Upload, Mic, MicOff, Sparkles, Home, PanelRightOpen, PanelRightClose, X } from 'lucide-react'
 import { AnleggImport } from '@/components/AnleggImport'
 import { checkDropboxStatus, createDropboxFolder, renameDropboxFolder } from '@/services/dropboxServiceV2'
 import { DropboxFileBrowser } from '@/components/DropboxFileBrowser'
@@ -53,6 +53,8 @@ interface Anlegg {
   fg_database_registrert: boolean | null
   ansvarlig_tekniker_id: string | null
   ansvarlig_tekniker?: { navn: string } | null
+  er_leilighetsbygg: boolean | null
+  antall_etasjer: number | null
 }
 
 interface Kunde {
@@ -3053,20 +3055,23 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
   const [updatingFgDatabase, setUpdatingFgDatabase] = useState(false)
   const statusDropdownRef = useRef<HTMLDivElement>(null)
   
-  // Collapsible seksjoner - Anleggsinformasjon og Kontrollinfo er åpne som standard
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['anleggsinformasjon', 'kontrollinfo']))
+  // Leilighetsoversikt
+  const [showLeiligheter, setShowLeiligheter] = useState(false)
   
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev => {
-      const next = new Set(prev)
-      if (next.has(section)) {
-        next.delete(section)
-      } else {
-        next.add(section)
-      }
-      return next
-    })
-  }
+  // Kollapsbar sidebar
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  
+  // Tab-basert navigasjon
+  type TabType = 'anleggsinformasjon' | 'kontrollinfo' | 'kontaktpersoner' | 'dokumenter' | 'notater'
+  const [activeTab, setActiveTab] = useState<TabType>('anleggsinformasjon')
+  
+  const tabs: { id: TabType; label: string; count?: number }[] = [
+    { id: 'anleggsinformasjon', label: 'Anleggsinformasjon' },
+    { id: 'kontrollinfo', label: 'Kontrollinfo' },
+    { id: 'kontaktpersoner', label: 'Kontaktpersoner', count: kontaktpersoner.length },
+    { id: 'dokumenter', label: 'Dokumenter', count: dokumenter.length },
+    { id: 'notater', label: 'Notater', count: interneNotater.length },
+  ]
 
   // Lukk status-dropdown når man klikker utenfor
   useEffect(() => {
@@ -3513,22 +3518,71 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="relative">
+        {/* Sidebar toggle knapp - fast posisjonert */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="fixed right-4 top-24 z-40 p-2 bg-white dark:bg-dark-200 rounded-lg shadow-lg border border-gray-200 dark:border-dark-100 hover:bg-gray-50 dark:hover:bg-dark-300 transition-colors lg:hidden"
+          title={sidebarOpen ? 'Lukk sidebar' : 'Åpne sidebar'}
+        >
+          {sidebarOpen ? <X className="w-5 h-5" /> : <PanelRightOpen className="w-5 h-5" />}
+        </button>
+
+        <div className={`grid grid-cols-1 gap-6 transition-all duration-300 ${sidebarOpen ? 'lg:grid-cols-3' : ''}`}>
+          <div className={`space-y-6 ${sidebarOpen ? 'lg:col-span-2' : ''}`}>
+            {/* Horisontal scrollbar tab-linje med sidebar toggle */}
+            <div className="flex items-center gap-2">
+              <div className="overflow-x-auto scrollbar-hide flex-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+                <div className="flex gap-1 min-w-max bg-gray-100 dark:bg-dark-100 p-1 rounded-lg">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-dark-200/50'
+                  }`}
+                >
+                  {tab.label}
+                  {tab.count !== undefined && (
+                    <span className={`px-1.5 py-0.5 text-xs rounded-full ${
+                      activeTab === tab.id
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-gray-200 dark:bg-dark-300 text-gray-500 dark:text-gray-400'
+                    }`}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Sidebar toggle knapp - desktop */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="hidden lg:flex items-center gap-1.5 px-3 py-2 bg-gray-100 dark:bg-dark-100 hover:bg-gray-200 dark:hover:bg-dark-200 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 transition-colors"
+            title={sidebarOpen ? 'Skjul sidebar' : 'Vis sidebar'}
+          >
+            {sidebarOpen ? (
+              <>
+                <PanelRightClose className="w-4 h-4" />
+                <span className="hidden xl:inline">Skjul</span>
+              </>
+            ) : (
+              <>
+                <PanelRightOpen className="w-4 h-4" />
+                <span className="hidden xl:inline">Mer</span>
+              </>
+            )}
+          </button>
+        </div>
+
+          {/* Tab-innhold */}
+          {activeTab === 'anleggsinformasjon' && (
           <div className="card">
-            <button 
-              onClick={() => toggleSection('anleggsinformasjon')}
-              className="w-full flex items-center justify-between text-left"
-            >
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Anleggsinformasjon</h2>
-              {expandedSections.has('anleggsinformasjon') ? (
-                <ChevronUp className="w-5 h-5 text-gray-400" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-gray-400" />
-              )}
-            </button>
-            {expandedSections.has('anleggsinformasjon') && (
-            <div className="space-y-4 mt-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">Anleggsinformasjon</h2>
+            <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Adresse</p>
                 <p className="text-gray-900 dark:text-white">{anlegg.adresse || '-'}</p>
@@ -3601,23 +3655,13 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                 </div>
               </div>
             </div>
-            )}
           </div>
+          )}
 
+          {activeTab === 'kontrollinfo' && (
           <div className="card">
-            <button 
-              onClick={() => toggleSection('kontrollinfo')}
-              className="w-full flex items-center justify-between text-left"
-            >
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Kontrollinfo</h2>
-              {expandedSections.has('kontrollinfo') ? (
-                <ChevronUp className="w-5 h-5 text-gray-400" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-gray-400" />
-              )}
-            </button>
-            {expandedSections.has('kontrollinfo') && (
-            <div className="space-y-4 mt-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">Kontrollinfo</h2>
+            <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Kontrollmåned</p>
                 <p className="text-gray-900 dark:text-white">
@@ -3712,25 +3756,12 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                 )}
               </div>
             </div>
-            )}
-          </div>
 
-          {/* Ekstern informasjon */}
-          {anlegg.kontroll_type?.includes('Ekstern') && (
-            <div className="card">
-              <button 
-                onClick={() => toggleSection('ekstern')}
-                className="w-full flex items-center justify-between text-left"
-              >
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Ekstern informasjon</h2>
-                {expandedSections.has('ekstern') ? (
-                  <ChevronUp className="w-5 h-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
-                )}
-              </button>
-              {expandedSections.has('ekstern') && (
-              <div className="space-y-4 mt-4">
+            {/* Ekstern informasjon - vises i Kontrollinfo-tab hvis relevant */}
+            {anlegg.kontroll_type?.includes('Ekstern') && (
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Ekstern informasjon</h3>
+                <div className="space-y-4">
                 {anlegg.ekstern_type && (
                   <div>
                     <p className="text-sm text-gray-400 dark:text-gray-400 mb-1">Type ekstern tjeneste</p>
@@ -3776,9 +3807,10 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                 {!anlegg.ekstern_type && !anlegg.ekstern_firma && !anlegg.ekstern_kontaktperson && !anlegg.ekstern_telefon && !anlegg.ekstern_epost && (
                   <p className="text-gray-400 dark:text-gray-500 text-sm italic">Ingen ekstern informasjon registrert</p>
                 )}
+                </div>
               </div>
-              )}
-            </div>
+            )}
+          </div>
           )}
 
           {/* Kontaktperson Modal */}
@@ -3920,21 +3952,12 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
           )}
 
           {/* Kontaktpersoner */}
+          {activeTab === 'kontaktpersoner' && (
           <div className="card">
-            <div className="flex items-center justify-between">
-              <button 
-                onClick={() => toggleSection('kontaktpersoner')}
-                className="flex items-center gap-2 text-left"
-              >
-                {expandedSections.has('kontaktpersoner') ? (
-                  <ChevronUp className="w-5 h-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
-                )}
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
-                  Kontaktpersoner ({kontaktpersoner.length})
-                </h2>
-              </button>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                Kontaktpersoner ({kontaktpersoner.length})
+              </h2>
               <button
                 onClick={() => {
                   setVisKontaktModal(true)
@@ -3946,8 +3969,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
                 Legg til
               </button>
             </div>
-            {expandedSections.has('kontaktpersoner') && (
-            <div className="mt-4">
+            <div>
             {loadingKontakter ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
@@ -4020,27 +4042,18 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
               <p className="text-gray-400 dark:text-gray-400 text-center py-8">Ingen kontaktpersoner registrert</p>
             )}
             </div>
-            )}
           </div>
+          )}
 
           {/* Dokumenter med faner */}
+          {activeTab === 'dokumenter' && (
           <div className="card">
-            <div className="flex items-center justify-between">
-              <button 
-                onClick={() => toggleSection('dokumenter')}
-                className="flex items-center gap-2 text-left"
-              >
-                {expandedSections.has('dokumenter') ? (
-                  <ChevronUp className="w-5 h-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
-                )}
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
-                  Dokumenter
-                </h2>
-              </button>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                Dokumenter
+              </h2>
               {/* Faner */}
-              {anlegg.kunde_nummer && expandedSections.has('dokumenter') && (
+              {anlegg.kunde_nummer && (
                 <div className="flex bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
                   <button
                     onClick={() => setDokumentFane('storage')}
@@ -4067,8 +4080,7 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
               )}
             </div>
 
-            {expandedSections.has('dokumenter') && (
-            <div className="mt-4">
+            <div>
             {/* Storage-fane */}
             {dokumentFane === 'storage' && (
               <>
@@ -4246,27 +4258,16 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
               </>
             )}
             </div>
-            )}
           </div>
+          )}
 
           {/* Interne Notater */}
+          {activeTab === 'notater' && (
           <div className="card">
-            <button 
-              onClick={() => toggleSection('notater')}
-              className="w-full flex items-center gap-2 text-left"
-            >
-              {expandedSections.has('notater') ? (
-                <ChevronUp className="w-5 h-5 text-gray-400" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-gray-400" />
-              )}
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
-                Interne notater ({interneNotater.length})
-              </h2>
-            </button>
-            
-            {expandedSections.has('notater') && (
-            <div className="mt-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
+              Interne notater ({interneNotater.length})
+            </h2>
+            <div>
             {/* Opprett nytt notat */}
             <form onSubmit={handleOpprettNotat} className="mb-6">
               <div className="space-y-3">
@@ -4371,10 +4372,12 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
               <p className="text-gray-400 dark:text-gray-400 text-center py-8">Ingen interne notater ennå</p>
             )}
             </div>
-            )}
           </div>
+          )}
         </div>
 
+        {/* Kollapsbar Sidebar */}
+        {sidebarOpen && (
         <div className="space-y-6">
           <div className="card">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Metadata</h2>
@@ -4396,6 +4399,21 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
           <div className="card">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Snarveier</h2>
             <div className="space-y-2">
+              {/* Leilighetsoversikt */}
+              <button
+                onClick={() => setShowLeiligheter(true)}
+                className="w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors text-left"
+              >
+                <div className="w-8 h-8 bg-teal-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Home className="w-4 h-4 text-teal-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Leilighetsoversikt</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Boenheter og kontrollstatus</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-400" />
+              </button>
+
               <button
                 onClick={() => navigate('/teknisk', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr, tab: 'detektorliste' } })}
                 className="w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors text-left"
@@ -4615,6 +4633,8 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
             </div>
           </div>
         </div>
+        )}
+        </div>
       </div>
 
       {/* Dropbox File Browser Modal */}
@@ -4625,6 +4645,16 @@ function AnleggDetails({ anlegg, kundeNavn, kontaktpersoner, dokumenter, interne
           kundeNummer={anlegg.kunde_nummer}
           kundeNavn={kundeNavn}
           anleggNavn={anlegg.anleggsnavn}
+        />
+      )}
+
+      {/* Leilighetsoversikt Modal */}
+      {showLeiligheter && (
+        <LeilighetsOversikt
+          anleggId={anlegg.id}
+          anleggNavn={anlegg.anleggsnavn}
+          antallEtasjer={anlegg.antall_etasjer}
+          onClose={() => setShowLeiligheter(false)}
         />
       )}
     </div>
