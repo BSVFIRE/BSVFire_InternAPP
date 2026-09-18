@@ -7102,6 +7102,13 @@ export type Database = {
       }
     }
     Functions: {
+      avvik_per_anlegg: {
+        Args: never
+        Returns: {
+          anlegg_id: string
+          antall: number
+        }[]
+      }
       cleanup_old_logs: { Args: never; Returns: undefined }
       cleanup_orphaned_attachments: { Args: never; Returns: undefined }
       create_detektorliste_with_items: {

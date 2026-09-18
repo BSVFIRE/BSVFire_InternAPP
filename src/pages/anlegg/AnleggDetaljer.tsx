@@ -13,7 +13,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle, Building2, Check, CheckSquare, ChevronLeft, ClipboardList, Clock, Cloud,
-  DollarSign, Edit, ExternalLink, EyeOff, Eye, FileText, Link2, Loader2, Mail, MapPin,
+  DollarSign, Edit, ExternalLink, EyeOff, Eye, FileText, Loader2, Mail, MapPin,
   MessageSquare, Mic, MicOff, MoreHorizontal, Navigation, Phone, Plus, Search,
   Send, Sparkles, Star, Upload, X, Home, Layers, AlertTriangle, ChevronDown, Share2,
 } from 'lucide-react'
@@ -606,7 +606,6 @@ function MerMeny({ anlegg, onChanged }: { anlegg: AnleggRow; onChanged: () => vo
       <MenuItem icon={<Layers />} onSelect={() => navigate('/teknisk', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}>Teknisk dokumentasjon</MenuItem>
       <MenuSeparator />
       <MenuItem icon={anlegg.skjult ? <Eye /> : <EyeOff />} onSelect={toggleSkjult}>{anlegg.skjult ? 'Vis anlegget i listen' : 'Skjul anlegget fra listen'}</MenuItem>
-      <MenuItem icon={<Link2 />} onSelect={() => navigate('/anlegg', { state: { viewAnleggId: anlegg.id, legacyView: true } })}>Gammel visning</MenuItem>
     </DropdownMenu>
   )
 }

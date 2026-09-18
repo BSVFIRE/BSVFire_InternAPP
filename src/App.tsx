@@ -18,7 +18,7 @@ import { ResetPassword } from './pages/ResetPassword'
 
 // Lazy-loaded sider (lastes når de trengs)
 const Kunder = lazy(() => import('./pages/Kunder').then(m => ({ default: m.Kunder })))
-const Anlegg = lazy(() => import('./pages/Anlegg').then(m => ({ default: m.Anlegg })))
+const Anlegg = lazy(() => import('./pages/anlegg/AnleggListe'))
 const AnleggDetaljer = lazy(() => import('./pages/anlegg/AnleggDetaljer'))
 const AnleggRediger = lazy(() => import('./pages/anlegg/AnleggRediger'))
 const KobleQrKode = lazy(() => import('./pages/anlegg/KobleQrKode'))
