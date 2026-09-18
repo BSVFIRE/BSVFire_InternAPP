@@ -22,7 +22,7 @@ async function runMigration() {
   try {
     console.log('🚀 Kjører migrasjon: auto_update_kontroll_status.sql')
     
-    const migrationPath = join(__dirname, 'supabase_migrations', 'auto_update_kontroll_status.sql')
+    const migrationPath = join(__dirname, '..', 'supabase', 'migrations_archive', 'manuelle', 'auto_update_kontroll_status.sql')
     const sql = readFileSync(migrationPath, 'utf-8')
     
     const { error } = await supabase.rpc('exec_sql', { sql_query: sql })

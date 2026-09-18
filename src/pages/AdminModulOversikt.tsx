@@ -118,7 +118,7 @@ export function AdminModulOversikt() {
         </h3>
         <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
         <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-          Har du kjørt SQL-migrasjonen? Se <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">supabase_migrations/create_modul_tilganger.sql</code>
+          Har du kjørt SQL-migrasjonen? Se <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">supabase/migrations_archive/manuelle/create_modul_tilganger.sql</code>
         </p>
         <button
           onClick={refresh}
