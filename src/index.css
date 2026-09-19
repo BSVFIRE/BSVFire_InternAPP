@@ -9,6 +9,7 @@
   
   :root {
     --keyboard-height: 0px;
+    --sidebar-w: 16rem; /* settes av Layout: 16rem full meny, 4.5rem smal */
   }
   
   body {

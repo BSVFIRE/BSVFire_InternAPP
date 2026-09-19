@@ -237,7 +237,7 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
       })}
 
       {velgModus && (
-        <div className="fixed bottom-4 left-4 right-4 lg:left-72 z-20 flex justify-center pointer-events-none">
+        <div className="fixed bottom-4 left-4 right-4 lg:left-[calc(var(--sidebar-w)+2rem)] z-20 flex justify-center pointer-events-none">
           <div className="pointer-events-auto card !py-2 !px-3 shadow-lg border-primary/40 flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums px-1">{valgte.size} valgt</span>
             <ByggVelger verdi="" eksisterende={forslag.bygg} disabled={valgte.size === 0} placeholder="Sett bygg…" onChange={v => settPaaValgte({ bygg: v || null })} className="!h-[34px] !min-h-[34px] !py-0 text-sm w-auto" />

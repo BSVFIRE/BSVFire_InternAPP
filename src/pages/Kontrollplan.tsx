@@ -321,7 +321,7 @@ export function Kontrollplan() {
 
       {/* Massehandling */}
       {valgte.size > 0 && (
-        <div className="fixed bottom-4 left-4 right-4 lg:left-72 z-20 flex justify-center pointer-events-none">
+        <div className="fixed bottom-4 left-4 right-4 lg:left-[calc(var(--sidebar-w)+2rem)] z-20 flex justify-center pointer-events-none">
           <div className="pointer-events-auto card !py-2 !px-3 shadow-lg flex flex-wrap items-center gap-2 border-primary/40">
             <span className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums px-1">{valgte.size} valgt</span>
             <select aria-label="Sett tekniker" defaultValue="" onChange={e => { if (e.target.value) { oppdater(Array.from(valgte), { ansvarlig_tekniker_id: e.target.value === 'ingen' ? null : e.target.value }); e.target.value = '' } }} className="input !min-h-[34px] !h-[34px] !py-0 text-sm w-auto">

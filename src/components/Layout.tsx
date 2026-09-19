@@ -1,4 +1,4 @@
-import { useState, ReactNode } from 'react'
+import { useEffect, useState, ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
@@ -31,6 +31,8 @@ import {
   QrCode,
   CalendarDays,
   ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   UserCircle
 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
@@ -105,6 +107,12 @@ export function Layout({ children }: LayoutProps) {
   // Modul-tilgang og admin-status (is_admin() i databasen, basert på ansatte.rolle)
   const { harTilgang, isSuperAdmin } = useModulTilgang()
   const [lukkede, setLukkede] = useState<Set<string>>(lesLukkede)
+  // Smal meny (bare ikoner) på store skjermer – huskes
+  const [smal, setSmal] = useState(() => { try { return localStorage.getItem('nav_smal') === '1' } catch { return false } })
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-w', smal ? '4.5rem' : '16rem')
+    try { localStorage.setItem('nav_smal', smal ? '1' : '0') } catch { /* ignorer */ }
+  }, [smal])
 
   function toggleGruppe(id: string) {
     setLukkede(prev => {
@@ -151,15 +159,24 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 w-64 bg-white dark:bg-dark-50 border-r border-gray-200 dark:border-gray-800 z-40
-        transform transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 w-64 lg:w-[var(--sidebar-w)] bg-white dark:bg-dark-50 border-r border-gray-200 dark:border-gray-800 z-40
+        transform transition-[transform,width] duration-300 ease-in-out
         lg:translate-x-0
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-200 dark:border-gray-800">
-            <div className="w-10 h-10 bg-[#3d4f5f] rounded-xl flex items-center justify-center">
+          <div className={`relative flex items-center gap-3 py-5 border-b border-gray-200 dark:border-gray-800 ${smal ? 'lg:px-0 lg:justify-center px-6' : 'px-6'}`}>
+            <button
+              type="button"
+              onClick={() => setSmal(v => !v)}
+              title={smal ? 'Vis full meny' : 'Skjul menyen'}
+              aria-label={smal ? 'Vis full meny' : 'Skjul menyen'}
+              className="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white dark:bg-dark-50 border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-primary hover:border-primary items-center justify-center shadow-sm z-10"
+            >
+              {smal ? <ChevronsRight className="w-3.5 h-3.5" /> : <ChevronsLeft className="w-3.5 h-3.5" />}
+            </button>
+            <div className="w-10 h-10 bg-[#3d4f5f] rounded-xl flex items-center justify-center flex-shrink-0">
               {/* FireCtrl F-logo */}
               <svg viewBox="0 0 40 40" className="w-7 h-7" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M8 12C8 10 10 8 12 8H28V14H14V18H24V24H14V32H8V12Z" fill="white"/>
@@ -167,7 +184,7 @@ export function Layout({ children }: LayoutProps) {
                 <path d="M28 8L20 16H28V8Z" fill="white" fillOpacity="0.7"/>
               </svg>
             </div>
-            <div className="flex-1">
+            <div className={`flex-1 ${smal ? 'lg:hidden' : ''}`}>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-wide">
                 <span className="font-light">FIRE</span><span className="font-bold">CTRL</span>
               </h1>
@@ -182,18 +199,19 @@ export function Layout({ children }: LayoutProps) {
               const apen = !g.tittel || inneholderAktiv || !lukkede.has(g.id)
               return (
                 <div key={g.id} className="mb-1">
+                  {g.tittel && smal && <div className={`hidden lg:block mx-3 my-2 border-t ${g.adminGruppe ? 'border-red-300 dark:border-red-900' : 'border-gray-200 dark:border-gray-800'}`} title={g.tittel} />}
                   {g.tittel && (
                     <button
                       type="button"
                       onClick={() => toggleGruppe(g.id)}
                       aria-expanded={apen}
-                      className={`w-full flex items-center justify-between px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider ${g.adminGruppe ? 'text-red-500/80' : 'text-gray-400 dark:text-gray-500'} hover:text-gray-700 dark:hover:text-gray-300`}
+                      className={`w-full flex items-center justify-between px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider ${g.adminGruppe ? 'text-red-500/80' : 'text-gray-400 dark:text-gray-500'} hover:text-gray-700 dark:hover:text-gray-300 ${smal ? 'lg:hidden' : ''}`}
                     >
                       <span className="flex items-center gap-1.5">{g.adminGruppe && <Shield className="w-3 h-3" />}{g.tittel}</span>
                       <ChevronDown className={`w-3.5 h-3.5 transition-transform ${apen ? '' : '-rotate-90'}`} />
                     </button>
                   )}
-                  {apen && (
+                  {(apen || smal) && (
                     <div className="space-y-0.5">
                       {g.items.map(item => {
                         const aktiv = erAktiv(item.href)
@@ -202,14 +220,15 @@ export function Layout({ children }: LayoutProps) {
                             key={item.href}
                             to={item.href}
                             onClick={() => setIsSidebarOpen(false)}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[38px] ${
+                            title={smal ? item.name : undefined}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[38px] ${smal ? 'lg:justify-center lg:px-0' : ''} ${
                               aktiv
                                 ? (g.adminGruppe ? 'bg-red-500/15 text-red-600 dark:text-red-400' : 'bg-primary text-white shadow-sm shadow-primary/20')
                                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100'
                             }`}
                           >
-                            <item.icon className="w-[18px] h-[18px]" />
-                            {item.name}
+                            <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
+                            <span className={smal ? 'lg:hidden' : ''}>{item.name}</span>
                           </Link>
                         )
                       })}
@@ -221,7 +240,15 @@ export function Layout({ children }: LayoutProps) {
           </nav>
 
           {/* User Section */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+          <div className={`p-4 border-t border-gray-200 dark:border-gray-800 ${smal ? 'lg:p-2' : ''}`}>
+            {smal ? (
+              <div className="hidden lg:flex flex-col items-center gap-1">
+                <Link to="/admin/bedrift" title="Min profil" className="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-white text-sm font-medium hover:opacity-90">{user?.email?.charAt(0).toUpperCase()}</Link>
+                <button onClick={toggleTheme} title={theme === 'dark' ? 'Lys modus' : 'Mørk modus'} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg">{theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}</button>
+                <button onClick={signOut} title="Logg ut" className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg"><LogOut className="w-4 h-4" /></button>
+              </div>
+            ) : null}
+            <div className={smal ? 'lg:hidden' : ''}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
@@ -269,12 +296,13 @@ export function Layout({ children }: LayoutProps) {
                 </>
               )}
             </button>
+            </div>
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="lg:pl-64">
+      <main className="lg:pl-[var(--sidebar-w)] transition-[padding] duration-300">
         <div className="p-4 sm:p-6 lg:p-8 pt-20 lg:pt-8">
           {children}
         </div>
