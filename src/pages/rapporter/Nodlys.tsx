@@ -261,6 +261,16 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     }
   }
 
+  /** Samme endring på flere armaturer (velg flere → sett bygg/etasje/…) */
+  async function lagreEndringFlere(ids: string[], patch: Partial<NodlysEnhet>) {
+    if (ids.length === 0) return
+    if (!isOnline) { ids.forEach(id => queueUpdate('anleggsdata_nodlys', { id, ...patch })); setNodlysListe(prev => prev.map(n => ids.includes(n.id) ? { ...n, ...patch } : n)); return }
+    const { error } = await supabase.from('anleggsdata_nodlys').update(patch).in('id', ids)
+    if (error) { toast.error('Kunne ikke oppdatere', error); return }
+    setNodlysListe(prev => { const ny = prev.map(n => ids.includes(n.id) ? { ...n, ...patch } : n); cacheData(`nodlys_${selectedAnlegg}`, ny); return ny })
+    toast.success(`${ids.length} armaturer oppdatert`)
+  }
+
   async function markerAlleKontrollert() {
     const ids = nodlysListe.filter(n => !n.kontrollert).map(n => n.id)
     if (ids.length === 0) return
@@ -1183,6 +1193,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
               enheter={nodlysListe}
               lagrer={lagrer}
               onEndre={lagreEndring}
+              onEndreFlere={lagreEndringFlere}
               onSlett={e => deleteNodlys(e.id)}
               onRediger={e => { setSelectedNodlys(e); setViewMode('edit') }}
             />

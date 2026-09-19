@@ -5,7 +5,8 @@
  * Feltene redigeres i raden på PC (klikk), på mobil via «Rediger»-skjemaet.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, ChevronRight, Edit, Loader2, MoreHorizontal, Search, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Check, CheckSquare, ChevronDown, ChevronRight, Edit, Loader2, MoreHorizontal, Search, Trash2, X } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
@@ -27,11 +28,12 @@ const FELTER: { key: Felt; navn: string; bredde: string }[] = [
   { key: 'notat', navn: 'Notat', bredde: 'w-40' },
 ]
 
-export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
+export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, onRediger }: {
   enheter: NodlysEnhet[]
   /** id-er som lagres akkurat nå */
   lagrer: Set<string>
   onEndre: (id: string, patch: Partial<NodlysEnhet>) => void
+  onEndreFlere: (ids: string[], patch: Partial<NodlysEnhet>) => Promise<void>
   onSlett: (enhet: NodlysEnhet) => void
   onRediger: (enhet: NodlysEnhet) => void
 }) {
@@ -39,6 +41,8 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
   const [q, setQ] = useState('')
   const [lukkede, setLukkede] = useState<Set<string>>(new Set())
   const [redigerer, setRedigerer] = useState<{ id: string; felt: Felt } | null>(null)
+  const [velgModus, setVelgModus] = useState(false)
+  const [valgte, setValgte] = useState<Set<string>>(new Set())
 
   const teller = useMemo(() => ({
     gjenstar: enheter.filter(e => !e.kontrollert).length,
@@ -104,6 +108,10 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
     onEndre(e.id, { kontrollert: !e.kontrollert })
   }
   function toggleGruppe(k: string) { setLukkede(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n }) }
+  function toggleValgt(id: string) { setValgte(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n }) }
+  function toggleValgteIds(ids: string[]) { setValgte(prev => { const n = new Set(prev); const alle = ids.every(i => n.has(i)); for (const i of ids) alle ? n.delete(i) : n.add(i); return n }) }
+  function avsluttValg() { setVelgModus(false); setValgte(new Set()) }
+  async function settPaaValgte(patch: Partial<NodlysEnhet>) { await onEndreFlere(Array.from(valgte), patch); setValgte(new Set()) }
 
   /** Enter → samme felt i neste rad, Tab → neste felt (håndteres av nettleseren via rekkefølge) */
   function nesteRad(id: string, felt: Felt) {
@@ -132,9 +140,12 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
           <Chip aktiv={chip === 'avvik'} onClick={() => setChip('avvik')}><span className="w-2 h-2 rounded-full bg-red-500" />Avvik <b>{teller.avvik}</b></Chip>
           <Chip aktiv={chip === 'alle'} onClick={() => setChip('alle')}>Alle <b>{teller.alle}</b></Chip>
         </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Søk nr., plassering, kurs…" aria-label="Søk" className="input pl-9 !min-h-[38px] !h-[38px]" />
+        <div className="flex gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-56">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Søk nr., plassering, kurs…" aria-label="Søk" className="input pl-9 !min-h-[38px] !h-[38px]" />
+          </div>
+          <Button variant={velgModus ? 'primary' : 'outline'} icon={<CheckSquare />} onClick={() => velgModus ? avsluttValg() : setVelgModus(true)} className="!h-[38px]"><span className="hidden sm:inline">{velgModus ? 'Ferdig' : 'Velg flere'}</span></Button>
         </div>
       </div>
 
@@ -161,6 +172,7 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
               return (
                 <section key={key} className={cn('card !p-0 overflow-hidden', harBygg && 'ml-3 sm:ml-5')} aria-label={[bg.bygg, g.etasje || 'Uten etasje'].filter(Boolean).join(' – ')}>
                   <button type="button" onClick={() => toggleGruppe(key)} aria-expanded={apen} className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-dark-100 text-left">
+                    {velgModus && <input type="checkbox" checked={g.rader.every(r => valgte.has(r.id))} onChange={() => toggleValgteIds(g.rader.map(r => r.id))} onClick={ev => ev.stopPropagation()} aria-label="Velg alle i etasjen" className="w-4 h-4 rounded text-primary focus:ring-primary" />}
                     <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', apen && 'rotate-90')} />
                     <span className="font-semibold text-gray-900 dark:text-white">{g.etasje || 'Uten etasje'}</span>
                     <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{g.kontrollert} av {g.totalt}</span>
@@ -182,7 +194,7 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                           {g.rader.map(e => (
                             <tr key={e.id} className={cn('group', e.kontrollert ? 'bg-white dark:bg-transparent' : 'bg-yellow-50/40 dark:bg-yellow-900/5')}>
-                              <td className="pl-3"><Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} /></td>
+                              <td className="pl-3">{velgModus ? <input type="checkbox" checked={valgte.has(e.id)} onChange={() => toggleValgt(e.id)} aria-label="Velg" className="w-[18px] h-[18px] rounded text-primary focus:ring-primary" /> : <Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} />}</td>
                               {FELTER.map(f => (
                                 <td key={f.key} className="px-1 py-1">
                                   <Celle e={e} felt={f.key} aktiv={redigerer?.id === e.id && redigerer.felt === f.key} forslag={forslag[f.key as keyof typeof forslag]}
@@ -204,14 +216,14 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
                       {/* Mobil/nettbrett: én kompakt rad per armatur med statusknapper */}
                       <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
                         {g.rader.map(e => (
-                          <div key={e.id} className={cn('flex items-center gap-2.5 px-3 py-2.5', !e.kontrollert && 'bg-yellow-50/40 dark:bg-yellow-900/5')}>
-                            <Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} />
-                            <button type="button" onClick={() => onRediger(e)} className="flex-1 min-w-0 text-left">
+                          <div key={e.id} onClick={velgModus ? () => toggleValgt(e.id) : undefined} className={cn('flex items-center gap-2.5 px-3 py-2.5', !e.kontrollert && 'bg-yellow-50/40 dark:bg-yellow-900/5', velgModus && valgte.has(e.id) && 'bg-primary/10')}>
+                            {velgModus ? <input type="checkbox" checked={valgte.has(e.id)} onChange={() => toggleValgt(e.id)} onClick={ev => ev.stopPropagation()} aria-label="Velg" className="w-[18px] h-[18px] rounded text-primary focus:ring-primary flex-shrink-0" /> : <Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} />}
+                            <button type="button" onClick={velgModus ? undefined : () => onRediger(e)} className="flex-1 min-w-0 text-left">
                               <span className="block font-semibold text-gray-900 dark:text-white truncate"><span className="text-gray-400 font-mono text-xs mr-1.5">{e.internnummer ?? '–'}</span>{e.plassering || <span className="text-gray-400 font-normal">Uten plassering</span>}</span>
                               <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[e.amatur_id ? `Armatur ${e.amatur_id}` : null, e.type, e.kurs ? `Kurs ${e.kurs}` : null, e.fordeling, e.batteritype].filter(Boolean).join(' · ') || 'Trykk for å fylle ut'}</span>
                               {e.notat && <span className="block text-xs text-amber-700 dark:text-amber-400 truncate">{e.notat}</span>}
                             </button>
-                            <StatusKnapper e={e} kompakt onVelg={s => settStatus(e, s)} onSlett={() => onSlett(e)} />
+                            {!velgModus && <StatusKnapper e={e} kompakt onVelg={s => settStatus(e, s)} onSlett={() => onSlett(e)} />}
                           </div>
                         ))}
                       </div>
@@ -223,7 +235,54 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
           </div>
         )
       })}
+
+      {velgModus && (
+        <div className="fixed bottom-4 left-4 right-4 lg:left-72 z-20 flex justify-center pointer-events-none">
+          <div className="pointer-events-auto card !py-2 !px-3 shadow-lg border-primary/40 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums px-1">{valgte.size} valgt</span>
+            <ByggVelger verdi="" eksisterende={forslag.bygg} disabled={valgte.size === 0} placeholder="Sett bygg…" onChange={v => settPaaValgte({ bygg: v || null })} className="!h-[34px] !min-h-[34px] !py-0 text-sm w-auto" />
+            <select aria-label="Sett etasje" defaultValue="" disabled={valgte.size === 0} onChange={ev => { if (ev.target.value) { settPaaValgte({ etasje: ev.target.value }); ev.target.value = '' } }} className="input !h-[34px] !min-h-[34px] !py-0 text-sm w-auto">
+              <option value="" disabled>Sett etasje…</option>
+              {ETASJER.map(x => <option key={x} value={x}>{x}</option>)}
+            </select>
+            <select aria-label="Sett batteritype" defaultValue="" disabled={valgte.size === 0} onChange={ev => { if (ev.target.value) { settPaaValgte({ batteritype: ev.target.value }); ev.target.value = '' } }} className="input !h-[34px] !min-h-[34px] !py-0 text-sm w-auto">
+              <option value="" disabled>Sett batteri…</option>
+              {forslag.batteritype.map(x => <option key={x} value={x}>{x}</option>)}
+            </select>
+            <Button variant="outline" icon={<Check />} disabled={valgte.size === 0} onClick={() => settPaaValgte({ kontrollert: true })} className="!h-[34px]">Kontrollert</Button>
+            <Button variant="ghost" icon={<X />} onClick={avsluttValg} className="!h-[34px]">Ferdig</Button>
+          </div>
+        </div>
+      )}
     </div>
+  )
+}
+
+/** Nedtrekk med byggene som finnes på anlegget + «Nytt bygg…» som gir et tekstfelt. */
+function ByggVelger({ verdi, eksisterende, onChange, onAvbryt, placeholder, disabled, className, autoFocus, inputRef, onKeyDown, onBlur }: {
+  verdi: string; eksisterende: string[]; onChange: (v: string) => void; onAvbryt?: () => void; placeholder?: string; disabled?: boolean; className?: string; autoFocus?: boolean
+  inputRef?: React.RefObject<HTMLInputElement | HTMLSelectElement>; onKeyDown?: (ev: React.KeyboardEvent) => void; onBlur?: () => void
+}) {
+  const [nytt, setNytt] = useState(false)
+  const [tekst, setTekst] = useState('')
+  // Når vi bytter fra nedtrekk til tekstfelt skal ikke nedtrekkets blur lukke cellen
+  const bytter = useRef(false)
+  const valg = eksisterende.includes(verdi) || !verdi ? eksisterende : [verdi, ...eksisterende]
+  if (nytt) {
+    return (
+      <input ref={inputRef as React.RefObject<HTMLInputElement>} value={tekst} onChange={ev => setTekst(ev.target.value)} placeholder="Navn på bygg" autoFocus aria-label="Nytt bygg"
+        onKeyDown={ev => { if (ev.key === 'Enter') { ev.preventDefault(); if (tekst.trim()) onChange(tekst.trim()); setNytt(false); setTekst('') } if (ev.key === 'Escape') { setNytt(false); onAvbryt?.() } }}
+        onBlur={() => { if (tekst.trim()) onChange(tekst.trim()); else onAvbryt?.(); setNytt(false); setTekst('') }}
+        className={cn('input', className)} />
+    )
+  }
+  return (
+    <select ref={inputRef as React.RefObject<HTMLSelectElement>} value={verdi} disabled={disabled} autoFocus={autoFocus} aria-label={placeholder ?? 'Bygg'} onKeyDown={onKeyDown} onBlur={() => { if (!bytter.current) onBlur?.() }}
+      onChange={ev => { if (ev.target.value === '__nytt') { bytter.current = true; setNytt(true); return } onChange(ev.target.value) }} className={cn('input', className)}>
+      <option value="">{placeholder ?? '–'}</option>
+      {valg.map(x => <option key={x} value={x}>{x}</option>)}
+      <option value="__nytt">＋ Nytt bygg…</option>
+    </select>
   )
 }
 
@@ -274,6 +333,11 @@ function Celle({ e, felt, aktiv, forslag, onStart, onLagre, onAvbryt }: {
 
   if (!aktiv) {
     return <button type="button" onClick={onStart} className={cn('w-full text-left px-1.5 py-1 rounded hover:bg-gray-100 dark:hover:bg-dark-100 truncate', e[felt] ? (felt === 'notat' ? 'text-amber-700 dark:text-amber-400' : 'text-gray-900 dark:text-white') : 'text-gray-300 dark:text-gray-600')} title={e[felt] || 'Klikk for å redigere'}>{e[felt] || '–'}</button>
+  }
+  if (felt === 'bygg') {
+    return <ByggVelger verdi={v} eksisterende={forslag ?? []} inputRef={ref} className="!min-h-[30px] !h-[30px] !py-0 !px-1.5 text-sm w-full"
+      onChange={val => { setV(val); lagre(val, false) }} onAvbryt={avbryt}
+      onKeyDown={ev => { if (ev.key === 'Escape') avbryt(); if (ev.key === 'Tab') lagre(v, false) }} onBlur={() => setTimeout(() => lagre(v, false), 120)} />
   }
   const valg = felt === 'etasje' ? ETASJER : felt === 'type' ? NODLYS_TYPER : null
   const felles = {
