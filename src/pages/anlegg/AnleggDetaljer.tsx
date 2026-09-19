@@ -867,7 +867,7 @@ function KontaktPanel({ anleggId, kontakter, onChanged, onLeggTil }: { anleggId:
             {k.primar && <Star className="absolute -top-1 -right-1 w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />}
           </button>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">{k.navn}</div>
+            <Link to={`/kontaktpersoner/${k.id}`} className="block text-sm font-semibold text-gray-900 dark:text-white truncate hover:text-primary">{k.navn}</Link>
             <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{k.rolle ?? k.epost ?? k.telefon ?? ''}</div>
           </div>
           {k.telefon && <a href={`tel:${k.telefon}`} aria-label={`Ring ${k.navn}`} title={k.telefon} className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-100 text-gray-500 dark:text-gray-400 hover:text-primary flex items-center justify-center"><Phone className="w-4 h-4" /></a>}

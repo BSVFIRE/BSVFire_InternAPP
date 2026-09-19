@@ -26,7 +26,9 @@ const AnleggDetaljer = lazy(() => import('./pages/anlegg/AnleggDetaljer'))
 const AnleggRediger = lazy(() => import('./pages/anlegg/AnleggRediger'))
 const KobleQrKode = lazy(() => import('./pages/anlegg/KobleQrKode'))
 const AdminQrKoder = lazy(() => import('./pages/AdminQrKoder').then(m => ({ default: m.AdminQrKoder })))
-const Kontaktpersoner = lazy(() => import('./pages/Kontaktpersoner').then(m => ({ default: m.Kontaktpersoner })))
+const Kontaktpersoner = lazy(() => import('./pages/kontaktpersoner/KontaktListe'))
+const KontaktDetaljer = lazy(() => import('./pages/kontaktpersoner/KontaktDetaljer'))
+const KontaktRediger = lazy(() => import('./pages/kontaktpersoner/KontaktRediger'))
 const EksternKontaktpersoner = lazy(() => import('./pages/EksternKontaktpersoner').then(m => ({ default: m.EksternKontaktpersoner })))
 const Ordre = lazy(() => import('./pages/Ordre').then(m => ({ default: m.Ordre })))
 const Oppgaver = lazy(() => import('./pages/Oppgaver').then(m => ({ default: m.Oppgaver })))
@@ -135,6 +137,8 @@ function App() {
                       <Route path="/kontrollplan" element={<Kontrollplan />} />
                       <Route path="/kalender" element={<Kalender />} />
                       <Route path="/kontaktpersoner" element={<Kontaktpersoner />} />
+                      <Route path="/kontaktpersoner/:id" element={<KontaktDetaljer />} />
+                      <Route path="/kontaktpersoner/:id/rediger" element={<KontaktRediger />} />
                       <Route path="/ekstern-kontaktpersoner" element={<EksternKontaktpersoner />} />
                       <Route path="/ordre" element={<Ordre />} />
                       <Route path="/oppgaver" element={<Oppgaver />} />
