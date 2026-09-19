@@ -11,6 +11,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AlertTriangle, Building2, Calendar, CalendarDays, CheckSquare, ClipboardList, Clock, MapPin, MessageSquare, Plus } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
+import { fullforOppgave as fullforOppgaveRegel } from '@/lib/oppgaver'
 import { cn, formatDate, isoUke, isoUkeAar, ukeDatoer, UKEDAGER } from '@/lib/utils'
 import { createLogger } from '@/lib/logger'
 import { ANLEGG_STATUSER, MAANEDER, OPPGAVE_STATUSER, ORDRE_STATUSER } from '@/lib/constants'
@@ -21,7 +22,7 @@ import { Button } from '@/components/ui/Button'
 const log = createLogger('Dashboard')
 
 type AnleggKort = Pick<Tables<'anlegg'>, 'id' | 'anleggsnavn' | 'poststed' | 'kontroll_status' | 'kontroll_maaned' | 'kontroll_type' | 'ansvarlig_tekniker_id' | 'skjult'> & { customer: { navn: string | null } | null }
-type Oppgave = Pick<Tables<'oppgaver'>, 'id' | 'tittel' | 'type' | 'status' | 'forfallsdato' | 'tekniker_id' | 'anlegg_id' | 'sist_oppdatert'> & { anlegg: { anleggsnavn: string | null } | null; tekniker: { navn: string | null } | null }
+type Oppgave = Pick<Tables<'oppgaver'>, 'id' | 'tittel' | 'type' | 'status' | 'forfallsdato' | 'tekniker_id' | 'anlegg_id' | 'ordre_id' | 'sist_oppdatert'> & { anlegg: { anleggsnavn: string | null } | null; tekniker: { navn: string | null } | null }
 type Ordre = Pick<Tables<'ordre'>, 'id' | 'ordre_nummer' | 'type' | 'status' | 'tekniker_id' | 'anlegg_id' | 'sist_oppdatert' | 'opprettet_dato'> & { anlegg: { anleggsnavn: string | null } | null; tekniker: { navn: string | null } | null }
 type PlanDag = { id: string; dag: number; estimert_oppstart: string | null; anlegg_id: string; ukesplan: { id: string; aar: number; uke_nummer: number; kunde_id: string; ukesplan_teknikere: { ansatt_id: string }[] } | null; anlegg: { anleggsnavn: string | null; poststed: string | null } | null }
 type Melding = Pick<Tables<'intern_kommentar'>, 'id' | 'intern_kommentar' | 'created_at' | 'anlegg_id'>
@@ -77,7 +78,7 @@ export function Dashboard() {
       const aarStart = `${aar}-01-01`
       const [a, o, ord, p, m, av, ordreIAar, k, kUten, pr] = await Promise.all([
         db.from('anlegg').select('id, anleggsnavn, poststed, kontroll_status, kontroll_maaned, kontroll_type, ansvarlig_tekniker_id, skjult, customer:kundenr(navn)').or('skjult.is.null,skjult.eq.false'),
-        db.from('oppgaver').select('id, tittel, type, status, forfallsdato, tekniker_id, anlegg_id, sist_oppdatert, anlegg:anlegg_id(anleggsnavn), tekniker:tekniker_id(navn)').neq('status', OPPGAVE_STATUSER.FULLFORT).order('forfallsdato', { ascending: true, nullsFirst: false }).limit(200),
+        db.from('oppgaver').select('id, tittel, type, status, forfallsdato, tekniker_id, anlegg_id, ordre_id, sist_oppdatert, anlegg:anlegg_id(anleggsnavn), tekniker:tekniker_id(navn)').neq('status', OPPGAVE_STATUSER.FULLFORT).order('forfallsdato', { ascending: true, nullsFirst: false }).limit(200),
         db.from('ordre').select('id, ordre_nummer, type, status, tekniker_id, anlegg_id, sist_oppdatert, opprettet_dato, anlegg:anlegg_id(anleggsnavn), tekniker:tekniker_id(navn)').not('status', 'in', `("${ORDRE_STATUSER.FULLFORT}","${ORDRE_STATUSER.FAKTURERT}")`).order('sist_oppdatert', { ascending: false }).limit(100),
         db.from('ukesplan_dager').select('id, dag, estimert_oppstart, anlegg_id, ukesplan:ukesplan_id!inner(id, aar, uke_nummer, kunde_id, ukesplan_teknikere(ansatt_id)), anlegg:anlegg_id(anleggsnavn, poststed)')
           .or(`and(aar.eq.${ukeAar},uke_nummer.eq.${uke}),and(aar.eq.${nesteUkeAar},uke_nummer.eq.${nesteUke})`, { referencedTable: 'ukesplan' }),
@@ -179,9 +180,9 @@ export function Dashboard() {
   }, [ordre, oppgaver, navigate])
 
   async function fullforOppgave(o: Oppgave) {
-    const { error } = await db.from('oppgaver').update({ status: OPPGAVE_STATUSER.FULLFORT, sist_oppdatert: new Date().toISOString() }).eq('id', o.id)
-    if (error) { toast.error('Kunne ikke fullføre oppgave', error); return }
-    toast.success(`«${o.tittel ?? o.type}» fullført`)
+    const res = await fullforOppgaveRegel(o)
+    if (res.error) { toast.error('Kunne ikke fullføre oppgave', res.error); return }
+    toast.success(res.ordreFakturert ? `«${o.tittel ?? o.type}» fullført – ordren er satt til Fakturert` : `«${o.tittel ?? o.type}» fullført`)
     setOppgaver(prev => prev.filter(x => x.id !== o.id))
   }
 

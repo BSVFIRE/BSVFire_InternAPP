@@ -30,8 +30,12 @@ const Kontaktpersoner = lazy(() => import('./pages/kontaktpersoner/KontaktListe'
 const KontaktDetaljer = lazy(() => import('./pages/kontaktpersoner/KontaktDetaljer'))
 const KontaktRediger = lazy(() => import('./pages/kontaktpersoner/KontaktRediger'))
 const EksternKontaktpersoner = lazy(() => import('./pages/EksternKontaktpersoner').then(m => ({ default: m.EksternKontaktpersoner })))
-const Ordre = lazy(() => import('./pages/Ordre').then(m => ({ default: m.Ordre })))
-const Oppgaver = lazy(() => import('./pages/Oppgaver').then(m => ({ default: m.Oppgaver })))
+const Ordre = lazy(() => import('./pages/ordre/OrdreListe'))
+const OrdreDetaljer = lazy(() => import('./pages/ordre/OrdreDetaljer'))
+const OrdreRediger = lazy(() => import('./pages/ordre/OrdreRediger'))
+const Oppgaver = lazy(() => import('./pages/oppgaver/OppgaveListe'))
+const OppgaveDetaljer = lazy(() => import('./pages/oppgaver/OppgaveDetaljer'))
+const OppgaveRediger = lazy(() => import('./pages/oppgaver/OppgaveRediger'))
 const Rapporter = lazy(() => import('./pages/Rapporter').then(m => ({ default: m.Rapporter })))
 const RapportOversikt = lazy(() => import('./pages/RapportOversikt').then(m => ({ default: m.RapportOversikt })))
 const SendRapporter = lazy(() => import('./pages/SendRapporter').then(m => ({ default: m.SendRapporter })))
@@ -141,7 +145,11 @@ function App() {
                       <Route path="/kontaktpersoner/:id/rediger" element={<KontaktRediger />} />
                       <Route path="/ekstern-kontaktpersoner" element={<EksternKontaktpersoner />} />
                       <Route path="/ordre" element={<Ordre />} />
+                      <Route path="/ordre/:id" element={<OrdreDetaljer />} />
+                      <Route path="/ordre/:id/rediger" element={<OrdreRediger />} />
                       <Route path="/oppgaver" element={<Oppgaver />} />
+                      <Route path="/oppgaver/:id" element={<OppgaveDetaljer />} />
+                      <Route path="/oppgaver/:id/rediger" element={<OppgaveRediger />} />
                       <Route path="/meldinger" element={<Meldinger />} />
                       <Route path="/prosjekter" element={<Prosjekter />} />
                       <Route path="/moter" element={<Moter />} />

@@ -394,8 +394,8 @@ export default function AnleggDetaljer() {
           <span><b className="font-semibold text-gray-900 dark:text-white">Ansvarlig:</b> {anlegg.ansvarlig_tekniker?.navn ?? 'Ikke satt'}</span>
           <button onClick={() => setTab('avvik')} className="hover:text-gray-900 dark:hover:text-white"><span className={cn('font-semibold', avvik.length > 0 ? 'text-red-600 dark:text-red-400' : 'text-primary')}>{avvik.length}</span> avvik</button>
           <button onClick={() => { setTab('oversikt'); setVisTodoAdmin(true) }} className="hover:text-gray-900 dark:hover:text-white"><span className="text-primary font-semibold">{apneTodos.length}</span> åpne todo</button>
-          <button onClick={() => navigate('/ordre', { state: { anleggId: anlegg.id } })} className="hover:text-gray-900 dark:hover:text-white"><span className="text-primary font-semibold">{aktiveOrdre.length}</span> {aktiveOrdre.length === 1 ? 'aktiv ordre' : 'aktive ordre'}</button>
-          <button onClick={() => navigate('/oppgaver', { state: { anleggId: anlegg.id } })} className="hover:text-gray-900 dark:hover:text-white"><span className="text-primary font-semibold">{apneOppgaver.length}</span> {apneOppgaver.length === 1 ? 'åpen oppgave' : 'åpne oppgaver'}</button>
+          <button onClick={() => navigate(`/ordre?anlegg=${anlegg.id}&f=aktive`)} className="hover:text-gray-900 dark:hover:text-white"><span className="text-primary font-semibold">{aktiveOrdre.length}</span> {aktiveOrdre.length === 1 ? 'aktiv ordre' : 'aktive ordre'}</button>
+          <button onClick={() => navigate(`/oppgaver?anlegg=${anlegg.id}`)} className="hover:text-gray-900 dark:hover:text-white"><span className="text-primary font-semibold">{apneOppgaver.length}</span> {apneOppgaver.length === 1 ? 'åpen oppgave' : 'åpne oppgaver'}</button>
           {anlegg.sist_oppdatert && <span className="hidden md:inline ml-auto">Sist oppdatert {formatDate(anlegg.sist_oppdatert)}{anlegg.status_oppdatert_av_navn ? ` av ${anlegg.status_oppdatert_av_navn}` : ''}</span>}
         </div>
       </section>
