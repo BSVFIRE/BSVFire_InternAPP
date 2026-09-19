@@ -16,22 +16,13 @@ export function OutlookKobling() {
 
   async function koble() {
     setJobber(true)
-    try {
-      const k = await kobleTilOutlook()
-      setKoblet(true)
-      toast.success(`Outlook koblet: ${k.username}`)
-    } catch (err) {
-      const m = err instanceof Error ? err.message : ''
-      if (!/user_cancelled|popup_window_error/i.test(m)) toast.error('Kunne ikke koble til Outlook', err)
-    } finally {
-      setJobber(false)
-    }
+    try { await kobleTilOutlook() /* navigerer bort – siden lastes på nytt etter innlogging */ }
+    catch (err) { toast.error('Kunne ikke starte Microsoft-innlogging', err); setJobber(false) }
   }
   async function kobleFra() {
     setJobber(true)
-    try { await kobleFraOutlook(); setKoblet(false); toast.success('Outlook koblet fra') }
-    catch (err) { toast.error('Kunne ikke koble fra', err) }
-    finally { setJobber(false) }
+    try { await kobleFraOutlook() }
+    catch (err) { toast.error('Kunne ikke koble fra', err); setJobber(false) }
   }
 
   return (

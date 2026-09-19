@@ -22,14 +22,15 @@ function klient(): Promise<PublicClientApplication> {
   if (klar) return klar
   klar = (async () => {
     msal = new PublicClientApplication({
-      // Popupen lander på /ms-callback (rute i appen som kjører MSAL og sender svaret til
-      // hovedvinduet). Må være registrert som SPA-redirect i Entra.
+      // Redirect-flyt: Microsoft sender brukeren til /ms-callback (rute i appen). Må være registrert som SPA-redirect i Entra.
       auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: `${window.location.origin}/ms-callback`, postLogoutRedirectUri: window.location.origin },
       cache: { cacheLocation: 'localStorage' },
     })
     await msal.initialize()
-    // Fullfør evt. redirect-innlogging (brukes ikke aktivt, men er ufarlig)
-    await msal.handleRedirectPromise().catch(() => null)
+    // Fullfører redirect-innlogging når vi lander på /ms-callback; ellers no-op.
+    // Med navigateToLoginRequestUrl (standard) sendes brukeren videre til siden innloggingen startet fra.
+    const res = await msal.handleRedirectPromise().catch(err => { log.warn('Microsoft redirect feilet', { err }); return null })
+    if (res?.account) { msal.setActiveAccount(res.account); log.info('Outlook koblet', { bruker: res.account.username }) }
     return msal
   })()
   return klar
@@ -49,19 +50,19 @@ export async function erKobletTilOutlook(): Promise<boolean> {
   return m.getAllAccounts().length > 0
 }
 
-/** Åpner Microsoft-innlogging i popup. Returnerer kontoen. */
-export async function kobleTilOutlook(): Promise<AccountInfo> {
+/**
+ * Sender brukeren til Microsoft-innlogging i samme fane. Etter innlogging lander man på
+ * /ms-callback, MSAL leser svaret og sender brukeren tilbake hit (redirectStartPage).
+ */
+export async function kobleTilOutlook(): Promise<void> {
   const m = await klient()
-  const res = await m.loginPopup({ scopes: SCOPES, prompt: 'select_account' })
-  m.setActiveAccount(res.account)
-  log.info('Outlook koblet', { bruker: res.account.username })
-  return res.account
+  await m.loginRedirect({ scopes: SCOPES, prompt: 'select_account', redirectStartPage: window.location.href })
 }
 
 export async function kobleFraOutlook(): Promise<void> {
   const m = await klient()
   const konto = m.getAllAccounts()[0]
-  if (konto) await m.logoutPopup({ account: konto })
+  if (konto) await m.logoutRedirect({ account: konto, postLogoutRedirectUri: window.location.href })
 }
 
 async function token(): Promise<string | null> {
@@ -73,8 +74,9 @@ async function token(): Promise<string | null> {
     return r.accessToken
   } catch (err) {
     if (err instanceof InteractionRequiredAuthError) {
-      const r = await m.acquireTokenPopup({ scopes: SCOPES, account: konto })
-      return r.accessToken
+      // Samtykke/innlogging må fornyes – send brukeren til Microsoft og tilbake hit
+      await m.acquireTokenRedirect({ scopes: SCOPES, account: konto, redirectStartPage: window.location.href })
+      return null
     }
     throw err
   }
