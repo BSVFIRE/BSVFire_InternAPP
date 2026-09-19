@@ -86,7 +86,8 @@ export function Kalender() {
 
   const hendelser = useMemo<Hendelse[]>(() => {
     const h: Hendelse[] = []
-    if (mine) for (const a of avtaler) h.push({ kind: 'avtale', id: a.id, start: a.start, slutt: a.slutt, heleDagen: a.heleDagen, tittel: a.tittel, sted: a.sted, lenke: a.lenke })
+    // Egne Outlook-avtaler vises i begge visninger (kollegers kalendere kommer når de er delt)
+    for (const a of avtaler) h.push({ kind: 'avtale', id: a.id, start: a.start, slutt: a.slutt, heleDagen: a.heleDagen, tittel: a.tittel, sted: a.sted, lenke: a.lenke })
     for (const d of planDager) {
       if (!d.ukesplan) continue
       if (mine && ansatt && !d.ukesplan.ukesplan_teknikere.some(t => t.ansatt_id === ansatt.id)) continue

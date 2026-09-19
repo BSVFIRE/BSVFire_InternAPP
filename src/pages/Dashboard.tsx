@@ -147,11 +147,9 @@ export function Dashboard() {
       if (!dato || startAvDag(dato) < iDag) continue
       rader.push({ kind: 'plan', dato, id: d.id, anleggId: d.anlegg_id, tittel: d.anlegg?.anleggsnavn ?? 'Anlegg', under: [`Ukesplan uke ${d.ukesplan.uke_nummer}`, d.estimert_oppstart ? `kl. ${d.estimert_oppstart.slice(0, 5)}` : null, d.anlegg?.poststed].filter(Boolean).join(' · ') })
     }
-    if (mine) {
-      for (const a of avtaler) {
-        if (startAvDag(a.start) < iDag && !a.heleDagen) continue
-        rader.push({ kind: 'avtale', dato: a.start, id: `k${a.id}`, avtale: a })
-      }
+    for (const a of avtaler) {
+      if (startAvDag(a.start) < iDag && !a.heleDagen) continue
+      rader.push({ kind: 'avtale', dato: a.start, id: `k${a.id}`, avtale: a })
     }
     const grense = new Date(iDag); grense.setDate(iDag.getDate() + 7)
     for (const o of mineOppgaver) {
@@ -232,12 +230,12 @@ export function Dashboard() {
           {/* Venstre */}
           <div className="space-y-4">
             <Boks tittel="Neste opp" lenke={{ til: '/kalender', tekst: 'Åpne kalender' }}>
-              {mine && outlook === 'ikke_koblet' && (
+              {outlook === 'ikke_koblet' && (
                 <Link to="/admin/bedrift" className="flex items-center gap-2 px-4 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60 hover:text-primary">
                   <CalendarDays className="w-3.5 h-3.5" />Koble til Outlook for å se kalenderen din her →
                 </Link>
               )}
-              {mine && outlook === 'feil' && <p className="px-4 py-2 text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border-b border-gray-100 dark:border-gray-800/60">Kunne ikke hente Outlook-kalenderen. Prøv å koble til på nytt i profilen.</p>}
+              {outlook === 'feil' && <p className="px-4 py-2 text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border-b border-gray-100 dark:border-gray-800/60">Kunne ikke hente Outlook-kalenderen. Prøv å koble til på nytt i profilen.</p>}
               {nesteOpp.length === 0 ? <Tom>Ingenting planlagt de neste sju dagene{mine ? ' for deg' : ''}.</Tom> : (() => {
                 let forrige = ''
                 return nesteOpp.map(r => {
