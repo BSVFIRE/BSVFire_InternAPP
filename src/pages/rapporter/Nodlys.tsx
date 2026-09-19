@@ -742,6 +742,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       yPos += 5
 
       // Sorter etter armatur_id (numerisk)
+      const harBygg = nodlysListe.some(n => n.bygg)
       const sortedNodlysForPdf = [...nodlysListe].sort((a, b) => {
         const numA = parseInt(a.amatur_id || '0') || 0
         const numB = parseInt(b.amatur_id || '0') || 0
@@ -750,12 +751,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
       autoTable(doc, {
         startY: yPos,
-        head: [['Armatur ID', 'Fordeling', 'Kurs', 'Etasje', 'Plassering', 'Produsent', 'Type', 'Status', 'Kontrollert']],
+        head: [['Armatur ID', 'Fordeling', 'Kurs', harBygg ? 'Bygg / etasje' : 'Etasje', 'Plassering', 'Produsent', 'Type', 'Status', 'Kontrollert']],
         body: sortedNodlysForPdf.map(n => [
           n.amatur_id || '-',
           n.fordeling || '-',
           n.kurs || '-',
-          n.etasje || '-',
+          harBygg ? [n.bygg, n.etasje].filter(Boolean).join(' – ') || '-' : (n.etasje || '-'),
           n.plassering || '-',
           n.produsent || '-',
           n.type || '-',
@@ -923,6 +924,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         'Armatur ID': n.amatur_id || '',
         'Fordeling': n.fordeling || '',
         'Kurs': n.kurs || '',
+        'Bygg': n.bygg || '',
         'Etasje': n.etasje || '',
         'Plassering': n.plassering || '',
         'Produsent': n.produsent || '',
@@ -1246,6 +1248,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
     amatur_id: nodlys?.amatur_id || '',
     fordeling: nodlys?.fordeling || '',
     kurs: nodlys?.kurs || '',
+    bygg: nodlys?.bygg || '',
     etasje: nodlys?.etasje || '',
     type: nodlys?.type || '',
     produsent: nodlys?.produsent || '',
@@ -1255,6 +1258,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
   })
   const [saving, setSaving] = useState(false)
   const [fordelingOptions, setFordelingOptions] = useState<string[]>([])
+  const [byggOptions, setByggOptions] = useState<string[]>([])
   const [kursOptions, setKursOptions] = useState<string[]>([])
   const [produsentOptions, setProdusentOptions] = useState<string[]>([])
   const [showFordelingSuggestions, setShowFordelingSuggestions] = useState(false)
@@ -1268,7 +1272,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
       try {
         const { data, error } = await supabase
           .from('anleggsdata_nodlys')
-          .select('fordeling, kurs, produsent, internnummer')
+          .select('fordeling, kurs, produsent, bygg, internnummer')
           .eq('anlegg_id', anleggId)
 
         if (error) throw error
@@ -1279,6 +1283,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
           const produsenter = Array.from(new Set(data.map(d => d.produsent).filter((v): v is string => v !== null && v !== ''))).sort()
           
           setFordelingOptions(fordelinger)
+          setByggOptions(Array.from(new Set(data.map(d => d.bygg).filter((v): v is string => Boolean(v)))).sort((a, b) => a.localeCompare(b, 'nb-NO', { numeric: true })))
           setKursOptions(kurser)
           setProdusentOptions(produsenter)
 
@@ -1312,6 +1317,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
         amatur_id: formData.amatur_id || null,
         fordeling: formData.fordeling || null,
         kurs: formData.kurs || null,
+        bygg: formData.bygg.trim() || null,
         etasje: formData.etasje || null,
         type: formData.type || null,
         produsent: formData.produsent || null,
@@ -1504,6 +1510,23 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
                   ))}
               </div>
             )}
+          </div>
+
+          {/* Bygg */}
+          <div>
+            <label htmlFor="nodlys-bygg" className="block text-sm font-medium text-gray-300 mb-2">
+              Bygg <span className="text-gray-500 font-normal">(valgfritt)</span>
+            </label>
+            <input
+              id="nodlys-bygg"
+              type="text"
+              list="nodlys-bygg-forslag"
+              value={formData.bygg}
+              onChange={(e) => setFormData({ ...formData, bygg: e.target.value })}
+              className="input"
+              placeholder="F.eks. Bygg 1, Fløy B"
+            />
+            <datalist id="nodlys-bygg-forslag">{byggOptions.map(b => <option key={b} value={b} />)}</datalist>
           </div>
 
           {/* Etasje */}
@@ -1888,6 +1911,7 @@ function BulkAddForm({ anleggId, onSave, onCancel }: BulkAddFormProps) {
         amatur_id: null,
         fordeling: null,
         kurs: null,
+        bygg: null,
         etasje: null,
         type: null,
         produsent: null,

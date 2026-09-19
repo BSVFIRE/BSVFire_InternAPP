@@ -1,6 +1,6 @@
 /**
  * Nødlysliste for kontroll i felt.
- * Fremdrift øverst, chips (Gjenstår / Kontrollert / Avvik / Alle), gruppert på etasje,
+ * Fremdrift øverst, chips (Gjenstår / Kontrollert / Avvik / Alle), gruppert på bygg → etasje,
  * statusknapper rett i raden (OK = ett trykk, resten i meny). Hver endring lagres med en gang.
  * Feltene redigeres i raden på PC (klikk), på mobil via «Rediger»-skjemaet.
  */
@@ -9,16 +9,18 @@ import { AlertTriangle, Check, ChevronDown, ChevronRight, Edit, Loader2, MoreHor
 import { cn } from '@/lib/utils'
 import { IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
-import { AVVIK_STATUSER, ETASJER, NODLYS_STATUSER, NODLYS_TYPER, STATUS_FARGE, etasjeSortNokkel, type NodlysEnhet } from './typer'
+import { AVVIK_STATUSER, ETASJER, NODLYS_STATUSER, NODLYS_TYPER, STATUS_FARGE, byggSortNokkel, etasjeSortNokkel, type NodlysEnhet } from './typer'
 
 type Chip = 'gjenstar' | 'kontrollert' | 'avvik' | 'alle'
-type Felt = 'internnummer' | 'amatur_id' | 'fordeling' | 'kurs' | 'etasje' | 'plassering' | 'produsent' | 'type'
+type Felt = 'internnummer' | 'amatur_id' | 'fordeling' | 'kurs' | 'bygg' | 'etasje' | 'plassering' | 'produsent' | 'type'
 const FELTER: { key: Felt; navn: string; bredde: string }[] = [
   { key: 'internnummer', navn: 'Nr.', bredde: 'w-16' },
   { key: 'amatur_id', navn: 'Armatur', bredde: 'w-24' },
   { key: 'plassering', navn: 'Plassering', bredde: '' },
   { key: 'fordeling', navn: 'Fordeling', bredde: 'w-24' },
   { key: 'kurs', navn: 'Kurs', bredde: 'w-20' },
+  { key: 'bygg', navn: 'Bygg', bredde: 'w-24' },
+  { key: 'etasje', navn: 'Etasje', bredde: 'w-20' },
   { key: 'type', navn: 'Type', bredde: 'w-24' },
   { key: 'produsent', navn: 'Produsent', bredde: 'w-28' },
 ]
@@ -46,31 +48,50 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
   // Når alt er kontrollert, vis alle i stedet for en tom «Gjenstår»-liste
   useEffect(() => { if (chip === 'gjenstar' && teller.gjenstar === 0 && teller.alle > 0) setChip('alle') }, [chip, teller])
 
-  const grupper = useMemo(() => {
+  interface EtasjeGruppe { etasje: string; rader: NodlysEnhet[]; totalt: number; kontrollert: number }
+  interface ByggGruppe { bygg: string; etasjer: EtasjeGruppe[]; totalt: number; kontrollert: number }
+
+  const harBygg = useMemo(() => enheter.some(e => e.bygg?.trim()), [enheter])
+
+  const grupper = useMemo<ByggGruppe[]>(() => {
     const s = q.trim().toLowerCase()
     const liste = enheter.filter(e => {
       if (chip === 'gjenstar' && e.kontrollert) return false
       if (chip === 'kontrollert' && !e.kontrollert) return false
       if (chip === 'avvik' && !AVVIK_STATUSER.has(e.status ?? '')) return false
       if (!s) return true
-      return [e.internnummer, e.amatur_id, e.plassering, e.fordeling, e.kurs, e.etasje, e.type, e.produsent, e.status].some(v => v?.toLowerCase().includes(s))
+      return [e.internnummer, e.amatur_id, e.plassering, e.fordeling, e.kurs, e.bygg, e.etasje, e.type, e.produsent, e.status].some(v => v?.toLowerCase().includes(s))
     })
-    const m = new Map<string, NodlysEnhet[]>()
-    for (const e of liste) { const k = e.etasje?.trim() || ''; m.set(k, [...(m.get(k) ?? []), e]) }
-    return Array.from(m.entries())
-      .sort((a, b) => etasjeSortNokkel(a[0] || null) - etasjeSortNokkel(b[0] || null))
-      .map(([etasje, rader]) => ({
-        etasje,
-        rader: rader.sort((a, b) => (a.internnummer ?? '').localeCompare(b.internnummer ?? '', 'nb-NO', { numeric: true }) || (a.amatur_id ?? '').localeCompare(b.amatur_id ?? '', 'nb-NO', { numeric: true })),
-        totalt: enheter.filter(e => (e.etasje?.trim() || '') === etasje).length,
-        kontrollert: enheter.filter(e => (e.etasje?.trim() || '') === etasje && e.kontrollert).length,
-      }))
-  }, [enheter, chip, q])
+    const byggAv = (e: NodlysEnhet) => harBygg ? (e.bygg?.trim() || '') : ''
+    const etasjeAv = (e: NodlysEnhet) => e.etasje?.trim() || ''
+    const tre = new Map<string, Map<string, NodlysEnhet[]>>()
+    for (const e of liste) {
+      const b = byggAv(e), et = etasjeAv(e)
+      if (!tre.has(b)) tre.set(b, new Map())
+      const m = tre.get(b)!; m.set(et, [...(m.get(et) ?? []), e])
+    }
+    const sorter = (r: NodlysEnhet[]) => r.sort((a, b) => (a.internnummer ?? '').localeCompare(b.internnummer ?? '', 'nb-NO', { numeric: true }) || (a.amatur_id ?? '').localeCompare(b.amatur_id ?? '', 'nb-NO', { numeric: true }))
+    return Array.from(tre.entries()).sort((a, b) => byggSortNokkel(a[0], b[0])).map(([bygg, etasjer]) => {
+      const iBygg = enheter.filter(e => byggAv(e) === bygg)
+      return {
+        bygg,
+        totalt: iBygg.length,
+        kontrollert: iBygg.filter(e => e.kontrollert).length,
+        etasjer: Array.from(etasjer.entries()).sort((a, b) => etasjeSortNokkel(a[0] || null) - etasjeSortNokkel(b[0] || null)).map(([etasje, rader]) => ({
+          etasje,
+          rader: sorter(rader),
+          totalt: iBygg.filter(e => etasjeAv(e) === etasje).length,
+          kontrollert: iBygg.filter(e => etasjeAv(e) === etasje && e.kontrollert).length,
+        })),
+      }
+    })
+  }, [enheter, chip, q, harBygg])
 
   const forslag = useMemo(() => ({
     fordeling: unike(enheter.map(e => e.fordeling)),
     kurs: unike(enheter.map(e => e.kurs)),
     produsent: unike(enheter.map(e => e.produsent)),
+    bygg: unike(enheter.map(e => e.bygg)),
   }), [enheter])
 
   function settStatus(e: NodlysEnhet, status: string) {
@@ -79,11 +100,11 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
   function toggleKontrollert(e: NodlysEnhet) {
     onEndre(e.id, { kontrollert: !e.kontrollert })
   }
-  function toggleEtasje(k: string) { setLukkede(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n }) }
+  function toggleGruppe(k: string) { setLukkede(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n }) }
 
   /** Enter → samme felt i neste rad, Tab → neste felt (håndteres av nettleseren via rekkefølge) */
   function nesteRad(id: string, felt: Felt) {
-    const flat = grupper.flatMap(g => g.rader)
+    const flat = grupper.flatMap(b => b.etasjer.flatMap(g => g.rader))
     const i = flat.findIndex(r => r.id === id)
     if (i >= 0 && i < flat.length - 1) setRedigerer({ id: flat[i + 1].id, felt }); else setRedigerer(null)
   }
@@ -118,68 +139,84 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
         <div className="card text-center py-10 text-sm text-gray-500 dark:text-gray-400">
           {q ? 'Ingen armaturer matcher søket.' : chip === 'gjenstar' ? 'Alle armaturer er kontrollert 🎉' : chip === 'avvik' ? 'Ingen avvik registrert.' : 'Ingen armaturer registrert ennå. Bruk «Ny armatur» eller «Legg til flere».'}
         </div>
-      ) : grupper.map(g => {
-        const key = g.etasje || '(uten)'
-        const apen = !lukkede.has(key)
+      ) : grupper.map(bg => {
+        const byggKey = `b:${bg.bygg || '(uten)'}`
+        const byggApen = !lukkede.has(byggKey)
         return (
-          <section key={key} className="card !p-0 overflow-hidden" aria-label={g.etasje || 'Uten etasje'}>
-            <button type="button" onClick={() => toggleEtasje(key)} aria-expanded={apen} className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-dark-100 text-left">
-              <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', apen && 'rotate-90')} />
-              <span className="font-semibold text-gray-900 dark:text-white">{g.etasje || 'Uten etasje'}</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{g.kontrollert} av {g.totalt}</span>
-              {g.kontrollert === g.totalt && <Check className="w-4 h-4 text-green-600 dark:text-green-400" strokeWidth={3} />}
-              <span className="ml-auto text-xs text-gray-400 tabular-nums">{g.rader.length} vist</span>
-            </button>
-            {apen && (
-              <>
-                {/* PC: tabell med redigerbare celler */}
-                <table className="hidden lg:table w-full text-sm">
-                  <thead className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    <tr className="border-b border-gray-200 dark:border-gray-800">
-                      <th className="w-8"></th>
-                      {FELTER.map(f => <th key={f.key} className={cn('px-2 py-1.5 text-left font-semibold', f.bredde)}>{f.navn}</th>)}
-                      <th className="px-2 py-1.5 text-left font-semibold w-[300px]">Status</th>
-                      <th className="w-px"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {g.rader.map(e => (
-                      <tr key={e.id} className={cn('group', e.kontrollert ? 'bg-white dark:bg-transparent' : 'bg-yellow-50/40 dark:bg-yellow-900/5')}>
-                        <td className="pl-3"><Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} /></td>
-                        {FELTER.map(f => (
-                          <td key={f.key} className="px-1 py-1">
-                            <Celle e={e} felt={f.key} aktiv={redigerer?.id === e.id && redigerer.felt === f.key} forslag={forslag[f.key as keyof typeof forslag]}
-                              onStart={() => setRedigerer({ id: e.id, felt: f.key })} onLagre={(v, videre) => { if ((e[f.key] ?? '') !== v) onEndre(e.id, { [f.key]: v || null }); videre ? nesteRad(e.id, f.key) : setRedigerer(null) }} onAvbryt={() => setRedigerer(null)} />
-                          </td>
-                        ))}
-                        <td className="px-2 py-1"><StatusKnapper e={e} onVelg={s => settStatus(e, s)} /></td>
-                        <td className="px-1 py-1">
-                          <div className="flex opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-                            <IconButton variant="ghost" label="Rediger i skjema" icon={<Edit />} onClick={() => onRediger(e)} className="w-8 h-8" />
-                            <IconButton variant="ghost" label="Slett" icon={<Trash2 />} onClick={() => onSlett(e)} className="w-8 h-8 hover:!text-red-500" />
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* Mobil/nettbrett: én kompakt rad per armatur med statusknapper */}
-                <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
-                  {g.rader.map(e => (
-                    <div key={e.id} className={cn('flex items-center gap-2.5 px-3 py-2.5', !e.kontrollert && 'bg-yellow-50/40 dark:bg-yellow-900/5')}>
-                      <Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} />
-                      <button type="button" onClick={() => onRediger(e)} className="flex-1 min-w-0 text-left">
-                        <span className="block font-semibold text-gray-900 dark:text-white truncate"><span className="text-gray-400 font-mono text-xs mr-1.5">{e.internnummer ?? '–'}</span>{e.plassering || <span className="text-gray-400 font-normal">Uten plassering</span>}</span>
-                        <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[e.amatur_id ? `Armatur ${e.amatur_id}` : null, e.type, e.kurs ? `Kurs ${e.kurs}` : null, e.fordeling].filter(Boolean).join(' · ') || 'Trykk for å fylle ut'}</span>
-                      </button>
-                      <StatusKnapper e={e} kompakt onVelg={s => settStatus(e, s)} onSlett={() => onSlett(e)} />
-                    </div>
-                  ))}
-                </div>
-              </>
+          <div key={byggKey} className="space-y-2">
+            {harBygg && (
+              <button type="button" onClick={() => toggleGruppe(byggKey)} aria-expanded={byggApen} className="w-full flex items-center gap-2 px-1 py-1 text-left">
+                <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', byggApen && 'rotate-90')} />
+                <span className="text-base font-bold text-gray-900 dark:text-white">{bg.bygg || 'Uten bygg'}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{bg.kontrollert} av {bg.totalt}</span>
+                {bg.kontrollert === bg.totalt && <Check className="w-4 h-4 text-green-600 dark:text-green-400" strokeWidth={3} />}
+              </button>
             )}
-          </section>
+            {byggApen && bg.etasjer.map(g => {
+              const key = `e:${bg.bygg}|${g.etasje || '(uten)'}`
+              const apen = !lukkede.has(key)
+              return (
+                <section key={key} className={cn('card !p-0 overflow-hidden', harBygg && 'ml-3 sm:ml-5')} aria-label={[bg.bygg, g.etasje || 'Uten etasje'].filter(Boolean).join(' – ')}>
+                  <button type="button" onClick={() => toggleGruppe(key)} aria-expanded={apen} className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-dark-100 text-left">
+                    <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', apen && 'rotate-90')} />
+                    <span className="font-semibold text-gray-900 dark:text-white">{g.etasje || 'Uten etasje'}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{g.kontrollert} av {g.totalt}</span>
+                    {g.kontrollert === g.totalt && <Check className="w-4 h-4 text-green-600 dark:text-green-400" strokeWidth={3} />}
+                    <span className="ml-auto text-xs text-gray-400 tabular-nums">{g.rader.length} vist</span>
+                  </button>
+                  {apen && (
+                    <>
+                      {/* PC: tabell med redigerbare celler */}
+                      <table className="hidden lg:table w-full text-sm">
+                        <thead className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          <tr className="border-b border-gray-200 dark:border-gray-800">
+                            <th className="w-8"></th>
+                            {FELTER.map(f => <th key={f.key} className={cn('px-2 py-1.5 text-left font-semibold', f.bredde)}>{f.navn}</th>)}
+                            <th className="px-2 py-1.5 text-left font-semibold w-[300px]">Status</th>
+                            <th className="w-px"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                          {g.rader.map(e => (
+                            <tr key={e.id} className={cn('group', e.kontrollert ? 'bg-white dark:bg-transparent' : 'bg-yellow-50/40 dark:bg-yellow-900/5')}>
+                              <td className="pl-3"><Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} /></td>
+                              {FELTER.map(f => (
+                                <td key={f.key} className="px-1 py-1">
+                                  <Celle e={e} felt={f.key} aktiv={redigerer?.id === e.id && redigerer.felt === f.key} forslag={forslag[f.key as keyof typeof forslag]}
+                                    onStart={() => setRedigerer({ id: e.id, felt: f.key })} onLagre={(v, videre) => { if ((e[f.key] ?? '') !== v) onEndre(e.id, { [f.key]: v || null }); videre ? nesteRad(e.id, f.key) : setRedigerer(null) }} onAvbryt={() => setRedigerer(null)} />
+                                </td>
+                              ))}
+                              <td className="px-2 py-1"><StatusKnapper e={e} onVelg={s => settStatus(e, s)} /></td>
+                              <td className="px-1 py-1">
+                                <div className="flex opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                                  <IconButton variant="ghost" label="Rediger i skjema" icon={<Edit />} onClick={() => onRediger(e)} className="w-8 h-8" />
+                                  <IconButton variant="ghost" label="Slett" icon={<Trash2 />} onClick={() => onSlett(e)} className="w-8 h-8 hover:!text-red-500" />
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+
+                      {/* Mobil/nettbrett: én kompakt rad per armatur med statusknapper */}
+                      <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                        {g.rader.map(e => (
+                          <div key={e.id} className={cn('flex items-center gap-2.5 px-3 py-2.5', !e.kontrollert && 'bg-yellow-50/40 dark:bg-yellow-900/5')}>
+                            <Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} />
+                            <button type="button" onClick={() => onRediger(e)} className="flex-1 min-w-0 text-left">
+                              <span className="block font-semibold text-gray-900 dark:text-white truncate"><span className="text-gray-400 font-mono text-xs mr-1.5">{e.internnummer ?? '–'}</span>{e.plassering || <span className="text-gray-400 font-normal">Uten plassering</span>}</span>
+                              <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[e.amatur_id ? `Armatur ${e.amatur_id}` : null, e.type, e.kurs ? `Kurs ${e.kurs}` : null, e.fordeling].filter(Boolean).join(' · ') || 'Trykk for å fylle ut'}</span>
+                            </button>
+                            <StatusKnapper e={e} kompakt onVelg={s => settStatus(e, s)} onSlett={() => onSlett(e)} />
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </section>
+              )
+            })}
+          </div>
         )
       })}
     </div>

@@ -1893,6 +1893,7 @@ export type Database = {
         Row: {
           amatur_id: string | null
           anlegg_id: string | null
+          bygg: string | null
           etasje: string | null
           fordeling: string | null
           id: string
@@ -1910,6 +1911,7 @@ export type Database = {
         Insert: {
           amatur_id?: string | null
           anlegg_id?: string | null
+          bygg?: string | null
           etasje?: string | null
           fordeling?: string | null
           id?: string
@@ -1927,6 +1929,7 @@ export type Database = {
         Update: {
           amatur_id?: string | null
           anlegg_id?: string | null
+          bygg?: string | null
           etasje?: string | null
           fordeling?: string | null
           id?: string

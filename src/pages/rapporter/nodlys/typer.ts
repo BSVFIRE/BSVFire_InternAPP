@@ -5,6 +5,7 @@ export interface NodlysEnhet {
   amatur_id: string | null
   fordeling: string | null
   kurs: string | null
+  bygg: string | null
   etasje: string | null
   type: string | null
   produsent: string | null
@@ -36,4 +37,11 @@ export function etasjeSortNokkel(etasje: string | null): number {
   if (!etasje) return 999
   const m = etasje.match(/-?\d+/)
   return m ? parseInt(m[0], 10) : 998
+}
+
+/** Sorterer bygg naturlig («Bygg 2» før «Bygg 10»), tomt sist. */
+export function byggSortNokkel(a: string, b: string): number {
+  if (!a) return 1
+  if (!b) return -1
+  return a.localeCompare(b, 'nb-NO', { numeric: true })
 }
