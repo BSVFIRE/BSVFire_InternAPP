@@ -1,9 +1,9 @@
 import { useState, ReactNode } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   Home, 
   Users, 
-  UserPlus,
   Building2, 
   ClipboardList, 
   CheckSquare, 
@@ -29,7 +29,9 @@ import {
   CalendarCheck,
   TrendingUp,
   QrCode,
-  CalendarDays
+  CalendarDays,
+  ChevronDown,
+  UserCircle
 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
@@ -42,37 +44,52 @@ interface LayoutProps {
   children: ReactNode
 }
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: Home, modulKey: 'dashboard', alwaysShow: true },
-  { name: 'Kunder', href: '/kunder', icon: Users, modulKey: 'kunder' },
-  { name: 'Anlegg', href: '/anlegg', icon: Building2, modulKey: 'anlegg' },
-  { name: 'Kontrollplan', href: '/kontrollplan', icon: Calendar, modulKey: 'kontrollplan' },
-  { name: 'Kalender', href: '/kalender', icon: CalendarDays, modulKey: 'kalender', alwaysShow: true },
-  { name: 'Kontaktpersoner', href: '/kontaktpersoner', icon: Users, modulKey: 'kontaktpersoner' },
-  { name: 'Ordre', href: '/ordre', icon: ClipboardList, modulKey: 'ordre_oppgaver' },
-  { name: 'Oppgaver', href: '/oppgaver', icon: CheckSquare, modulKey: 'ordre_oppgaver' },
-  { name: 'Meldinger', href: '/meldinger', icon: Inbox, modulKey: 'meldinger' },
-  { name: 'Prosjekter', href: '/prosjekter', icon: FolderKanban, modulKey: 'prosjekter' },
-  { name: 'Møter', href: '/moter', icon: Calendar, modulKey: 'ordre_oppgaver' },
-  { name: 'KS/HMS', href: '/ks-hms', icon: ShieldCheck, modulKey: 'ks_hms' },
-  { name: 'Rapporter', href: '/rapporter', icon: FileText, modulKey: 'rapporter' },
-  { name: 'Teknisk', href: '/teknisk', icon: Settings, modulKey: 'teknisk' },
-  { name: 'Dokumentasjon', href: '/dokumentasjon', icon: BookOpen, modulKey: 'dokumentasjon', alwaysShow: true },
-  { name: 'Brukere', href: '/admin/bedrift', icon: UserPlus, modulKey: 'admin_brukere', adminOnly: true },
+interface NavItem { name: string; href: string; icon: LucideIcon; modulKey: string; alwaysShow?: boolean }
+interface NavGruppe { id: string; tittel: string | null; items: NavItem[]; adminGruppe?: boolean }
+
+// Menyen er delt i grupper. Gruppen du står i er alltid åpen; ellers huskes åpen/lukket per gruppe.
+const NAV_GRUPPER: NavGruppe[] = [
+  { id: 'topp', tittel: null, items: [
+    { name: 'Dashboard', href: '/', icon: Home, modulKey: 'dashboard', alwaysShow: true },
+    { name: 'Kalender', href: '/kalender', icon: CalendarDays, modulKey: 'kalender', alwaysShow: true },
+  ] },
+  { id: 'kunder', tittel: 'Kunder & anlegg', items: [
+    { name: 'Kunder', href: '/kunder', icon: Users, modulKey: 'kunder' },
+    { name: 'Anlegg', href: '/anlegg', icon: Building2, modulKey: 'anlegg' },
+    { name: 'Kontaktpersoner', href: '/kontaktpersoner', icon: Users, modulKey: 'kontaktpersoner' },
+    { name: 'Kontrollplan', href: '/kontrollplan', icon: Calendar, modulKey: 'kontrollplan' },
+  ] },
+  { id: 'arbeid', tittel: 'Arbeid', items: [
+    { name: 'Ordre', href: '/ordre', icon: ClipboardList, modulKey: 'ordre_oppgaver' },
+    { name: 'Oppgaver', href: '/oppgaver', icon: CheckSquare, modulKey: 'ordre_oppgaver' },
+    { name: 'Meldinger', href: '/meldinger', icon: Inbox, modulKey: 'meldinger' },
+    { name: 'Prosjekter', href: '/prosjekter', icon: FolderKanban, modulKey: 'prosjekter' },
+    { name: 'Møter', href: '/moter', icon: Calendar, modulKey: 'ordre_oppgaver' },
+  ] },
+  { id: 'rapporter', tittel: 'Rapporter & kvalitet', items: [
+    { name: 'Rapporter', href: '/rapporter', icon: FileText, modulKey: 'rapporter' },
+    { name: 'Teknisk', href: '/teknisk', icon: Settings, modulKey: 'teknisk' },
+    { name: 'KS/HMS', href: '/ks-hms', icon: ShieldCheck, modulKey: 'ks_hms' },
+    { name: 'Dokumentasjon', href: '/dokumentasjon', icon: BookOpen, modulKey: 'dokumentasjon', alwaysShow: true },
+  ] },
+  { id: 'admin', tittel: 'Administrator', adminGruppe: true, items: [
+    { name: 'Modul Oversikt', href: '/admin/modul-oversikt', icon: Shield, modulKey: 'admin_modul_tilgang' },
+    { name: 'Salg', href: '/admin/salg', icon: TrendingUp, modulKey: 'admin_salg' },
+    { name: 'Årsavslutning', href: '/admin/aarsavslutning', icon: CalendarCheck, modulKey: 'admin_aarsavslutning' },
+    { name: 'Prisadministrasjon', href: '/admin/prisadministrasjon', icon: DollarSign, modulKey: 'admin_prisadministrasjon' },
+    { name: 'PowerOffice', href: '/admin/poweroffice', icon: Building, modulKey: 'admin_poweroffice' },
+    { name: 'Dropbox Mapper', href: '/admin/dropbox-folders', icon: Cloud, modulKey: 'admin_dropbox' },
+    { name: 'QR-koder', href: '/admin/qr-koder', icon: QrCode, modulKey: 'admin_qr_koder' },
+    { name: 'System Logger', href: '/admin/logger', icon: Bug, modulKey: 'admin_logger' },
+    { name: 'AI Embeddings', href: '/admin/ai-embeddings', icon: Sparkles, modulKey: 'admin_ai_embeddings' },
+    { name: 'AI Kunnskapsbase', href: '/admin/ai-knowledge', icon: BookOpen, modulKey: 'admin_ai_knowledge' },
+  ] },
 ]
 
-const adminNavigation = [
-  { name: 'Modul Oversikt', href: '/admin/modul-oversikt', icon: Shield, modulKey: 'admin_modul_tilgang' },
-  { name: 'Salg', href: '/admin/salg', icon: TrendingUp, modulKey: 'admin_salg' },
-  { name: 'Årsavslutning', href: '/admin/aarsavslutning', icon: CalendarCheck, modulKey: 'admin_aarsavslutning' },
-  { name: 'Prisadministrasjon', href: '/admin/prisadministrasjon', icon: DollarSign, modulKey: 'admin_prisadministrasjon' },
-  { name: 'PowerOffice', href: '/admin/poweroffice', icon: Building, modulKey: 'admin_poweroffice' },
-  { name: 'Dropbox Mapper', href: '/admin/dropbox-folders', icon: Cloud, modulKey: 'admin_dropbox' },
-  { name: 'QR-koder', href: '/admin/qr-koder', icon: QrCode, modulKey: 'admin_qr_koder' },
-  { name: 'System Logger', href: '/admin/logger', icon: Bug, modulKey: 'admin_logger' },
-  { name: 'AI Embeddings', href: '/admin/ai-embeddings', icon: Sparkles, modulKey: 'admin_ai_embeddings' },
-  { name: 'AI Kunnskapsbase', href: '/admin/ai-knowledge', icon: BookOpen, modulKey: 'admin_ai_knowledge' },
-]
+const LUKKET_KEY = 'nav_lukkede_grupper'
+function lesLukkede(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(LUKKET_KEY) ?? '["admin"]')) } catch { return new Set(['admin']) }
+}
 
 // BSV company_id - kun dette firmaet skal se admin-tjenestene
 // TODO: Aktiver når company_id er implementert i databasen
@@ -85,48 +102,24 @@ export function Layout({ children }: LayoutProps) {
   const [showOfflineInfo, setShowOfflineInfo] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   
-  // Deaktiverte tellere (brukes i UI men hentes ikke fra DB ennå)
-  const ulestemeldinger = 0
-  const aktiveOrdre = 0
-  const aktiveOppgaver = 0
-  
   // Modul-tilgang og admin-status (is_admin() i databasen, basert på ansatte.rolle)
   const { harTilgang, isSuperAdmin } = useModulTilgang()
-  
-  // Vis admin-seksjonen hvis bruker er admin eller har tilgang til minst én admin-modul
-  const hasAnyAdminModuleAccess = adminNavigation.some(item => harTilgang(item.modulKey, 'se'))
-  const showAdminSection = isSuperAdmin || hasAnyAdminModuleAccess
+  const [lukkede, setLukkede] = useState<Set<string>>(lesLukkede)
 
-  // Meldingssystem deaktivert midlertidig - tabeller mangler
-  // useEffect(() => {
-  //   async function loadUlestemeldinger() {
-  //     if (!user?.email) return
-  //     try {
-  //       const { data: ansatt } = await supabase
-  //         .from('ansatte')
-  //         .select('id')
-  //         .eq('epost', user.email)
-  //         .single()
-  //       if (ansatt) {
-  //         const { count, error } = await supabase
-  //           .from('intern_kommentar')
-  //           .select('*', { count: 'exact', head: true })
-  //           .eq('mottaker_id', ansatt.id)
-  //           .eq('lest', false)
-  //         if (error) {
-  //           if (error.code === '42703') return
-  //           throw error
-  //         }
-  //         setUlestemeldinger(count || 0)
-  //       }
-  //     } catch (error) {
-  //       console.error('Feil ved henting av uleste meldinger:', error)
-  //     }
-  //   }
-  //   loadUlestemeldinger()
-  //   const interval = setInterval(loadUlestemeldinger, 30000)
-  //   return () => clearInterval(interval)
-  // }, [user])
+  function toggleGruppe(id: string) {
+    setLukkede(prev => {
+      const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id)
+      try { localStorage.setItem(LUKKET_KEY, JSON.stringify(Array.from(n))) } catch { /* ignorer */ }
+      return n
+    })
+  }
+
+  // Synlige grupper: filtrer elementer på modultilgang; admin-gruppen kun for admin / de med minst én admin-modul
+  const grupper = NAV_GRUPPER.map(g => ({
+    ...g,
+    items: g.items.filter(i => i.alwaysShow || harTilgang(i.modulKey, 'se') || (g.adminGruppe && isSuperAdmin)),
+  })).filter(g => g.items.length > 0)
+  const erAktiv = (href: string) => href === '/' ? location.pathname === '/' || location.pathname === '/dashboard' : location.pathname === href || location.pathname.startsWith(href + '/')
 
   // Ordre/oppgaver-telling deaktivert midlertidig - tabeller mangler
   // useEffect(() => {
@@ -183,85 +176,48 @@ export function Layout({ children }: LayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {navigation
-              .filter(item => {
-                // Alltid vis hvis alwaysShow
-                if (item.alwaysShow) return true
-                // Skjul adminOnly-elementer hvis bruker ikke har admin-tilgang
-                if ((item as any).adminOnly && !showAdminSection) return false
-                // Vis hvis bruker har tilgang til modulen
-                return harTilgang(item.modulKey, 'se')
-              })
-              .map((item) => {
-              const isActive = location.pathname === item.href
-              const showMeldingBadge = item.href === '/meldinger' && ulestemeldinger > 0
-              const showOrdreBadge = item.href === '/ordre' && aktiveOrdre > 0
-              const showOppgaveBadge = item.href === '/oppgaver' && aktiveOppgaver > 0
-              const badgeCount = item.href === '/meldinger' ? ulestemeldinger 
-                : item.href === '/ordre' ? aktiveOrdre 
-                : item.href === '/oppgaver' ? aktiveOppgaver : 0
-              const showBadge = showMeldingBadge || showOrdreBadge || showOppgaveBadge
-              
+          <nav className="flex-1 px-3 py-3 overflow-y-auto">
+            {grupper.map(g => {
+              const inneholderAktiv = g.items.some(i => erAktiv(i.href))
+              const apen = !g.tittel || inneholderAktiv || !lukkede.has(g.id)
               return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  onClick={() => setIsSidebarOpen(false)}
-                  className={`
-                    flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all relative min-h-[44px]
-                    ${isActive 
-                      ? 'bg-primary text-white shadow-lg shadow-primary/20' 
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100'
-                    }
-                  `}
-                >
-                  <item.icon className="w-5 h-5" />
-                  {item.name}
-                  {showBadge && (
-                    <span className={`ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 text-white text-xs font-bold rounded-full ${
-                      showMeldingBadge ? 'bg-red-500' : 'bg-primary'
-                    }`}>
-                      {badgeCount > 99 ? '99+' : badgeCount}
-                    </span>
+                <div key={g.id} className="mb-1">
+                  {g.tittel && (
+                    <button
+                      type="button"
+                      onClick={() => toggleGruppe(g.id)}
+                      aria-expanded={apen}
+                      className={`w-full flex items-center justify-between px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider ${g.adminGruppe ? 'text-red-500/80' : 'text-gray-400 dark:text-gray-500'} hover:text-gray-700 dark:hover:text-gray-300`}
+                    >
+                      <span className="flex items-center gap-1.5">{g.adminGruppe && <Shield className="w-3 h-3" />}{g.tittel}</span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${apen ? '' : '-rotate-90'}`} />
+                    </button>
                   )}
-                </Link>
+                  {apen && (
+                    <div className="space-y-0.5">
+                      {g.items.map(item => {
+                        const aktiv = erAktiv(item.href)
+                        return (
+                          <Link
+                            key={item.href}
+                            to={item.href}
+                            onClick={() => setIsSidebarOpen(false)}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[38px] ${
+                              aktiv
+                                ? (g.adminGruppe ? 'bg-red-500/15 text-red-600 dark:text-red-400' : 'bg-primary text-white shadow-sm shadow-primary/20')
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100'
+                            }`}
+                          >
+                            <item.icon className="w-[18px] h-[18px]" />
+                            {item.name}
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               )
             })}
-
-            {/* Admin Section - Kun synlig for BSV admins og super admins */}
-            {showAdminSection && (
-              <>
-                <div className="pt-4 pb-2 px-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                    <Shield className="w-3 h-3" />
-                    Administrator
-                  </div>
-                </div>
-                {adminNavigation
-                  .filter(item => harTilgang(item.modulKey, 'se'))
-                  .map((item) => {
-                    const isActive = location.pathname === item.href
-                    return (
-                      <Link
-                        key={item.name}
-                        to={item.href}
-                        onClick={() => setIsSidebarOpen(false)}
-                        className={`
-                          flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all min-h-[44px]
-                          ${isActive 
-                            ? 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30' 
-                            : 'text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10'
-                          }
-                        `}
-                      >
-                        <item.icon className="w-5 h-5" />
-                        {item.name}
-                      </Link>
-                    )
-                  })}
-              </>
-            )}
           </nav>
 
           {/* User Section */}
@@ -274,9 +230,9 @@ export function Layout({ children }: LayoutProps) {
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-200 truncate">
-                    {user?.email?.split('@')[0]}
-                  </p>
+                  <Link to="/admin/bedrift" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-1 text-sm font-medium text-gray-900 dark:text-gray-200 truncate hover:text-primary" title="Min profil">
+                    {user?.email?.split('@')[0]}<UserCircle className="w-3.5 h-3.5 text-gray-400" />
+                  </Link>
                 </div>
               </div>
               <div className="flex items-center gap-1">
