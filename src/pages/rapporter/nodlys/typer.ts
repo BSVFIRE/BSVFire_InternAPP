@@ -9,6 +9,8 @@ export interface NodlysEnhet {
   etasje: string | null
   type: string | null
   produsent: string | null
+  batteritype: string | null
+  notat: string | null
   plassering: string | null
   status: string | null
   kundenavn: string | null
@@ -18,6 +20,7 @@ export interface NodlysEnhet {
 
 export const NODLYS_STATUSER = ['OK', 'Defekt', 'Mangler', 'Utskiftet', 'Batterifeil', 'Skadet armatur'] as const
 export const ETASJER = ['-2.Etg', '-1.Etg', '0.Etg', '1.Etg', '2.Etg', '3.Etg', '4.Etg', '5.Etg', '6.Etg', '7.Etg', '8.Etg', '9.Etg', '10.Etg'] as const
+export const BATTERITYPER = ['NiCd', 'NiMH', 'LiFePO4', 'Li-ion', 'Bly'] as const
 export const NODLYS_TYPER = ['ML', 'LL', 'Strobe', 'Fluoriserende'] as const
 
 /** Statuser som betyr at armaturen har et avvik som må følges opp (Utskiftet = løst). */

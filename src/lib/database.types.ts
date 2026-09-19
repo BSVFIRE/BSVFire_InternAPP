@@ -1893,6 +1893,7 @@ export type Database = {
         Row: {
           amatur_id: string | null
           anlegg_id: string | null
+          batteritype: string | null
           bygg: string | null
           etasje: string | null
           fordeling: string | null
@@ -1900,6 +1901,7 @@ export type Database = {
           internnummer: string | null
           kontrollert: boolean | null
           kundenavn: string | null
+          notat: string | null
           kurs: string | null
           opprettet_dato: string
           plassering: string | null
@@ -1911,6 +1913,7 @@ export type Database = {
         Insert: {
           amatur_id?: string | null
           anlegg_id?: string | null
+          batteritype?: string | null
           bygg?: string | null
           etasje?: string | null
           fordeling?: string | null
@@ -1918,6 +1921,7 @@ export type Database = {
           internnummer?: string | null
           kontrollert?: boolean | null
           kundenavn?: string | null
+          notat?: string | null
           kurs?: string | null
           opprettet_dato?: string
           plassering?: string | null
@@ -1929,6 +1933,7 @@ export type Database = {
         Update: {
           amatur_id?: string | null
           anlegg_id?: string | null
+          batteritype?: string | null
           bygg?: string | null
           etasje?: string | null
           fordeling?: string | null
@@ -1936,6 +1941,7 @@ export type Database = {
           internnummer?: string | null
           kontrollert?: boolean | null
           kundenavn?: string | null
+          notat?: string | null
           kurs?: string | null
           opprettet_dato?: string
           plassering?: string | null

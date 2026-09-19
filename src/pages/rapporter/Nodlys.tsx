@@ -19,7 +19,7 @@ import { toast } from '@/lib/toast'
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { NodlysListe } from './nodlys/NodlysListe'
-import type { NodlysEnhet } from './nodlys/typer'
+import { BATTERITYPER, type NodlysEnhet } from './nodlys/typer'
 
 interface Kunde {
   id: string
@@ -751,7 +751,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
       autoTable(doc, {
         startY: yPos,
-        head: [['Armatur ID', 'Fordeling', 'Kurs', harBygg ? 'Bygg / etasje' : 'Etasje', 'Plassering', 'Produsent', 'Type', 'Status', 'Kontrollert']],
+        head: [['Armatur ID', 'Fordeling', 'Kurs', harBygg ? 'Bygg / etasje' : 'Etasje', 'Plassering', 'Produsent', 'Type', 'Batteri', 'Status', 'Kontrollert', 'Notat']],
         body: sortedNodlysForPdf.map(n => [
           n.amatur_id || '-',
           n.fordeling || '-',
@@ -760,10 +760,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           n.plassering || '-',
           n.produsent || '-',
           n.type || '-',
+          n.batteritype || '-',
           n.status || '-',
-          n.kontrollert ? 'Ja' : 'Nei'
+          n.kontrollert ? 'Ja' : 'Nei',
+          n.notat || ''
         ]),
-        styles: { fontSize: 8 },
+        styles: { fontSize: 7 },
         headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 8 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
         margin: { left: 10, right: 10, bottom: 25 },
@@ -929,8 +931,10 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         'Plassering': n.plassering || '',
         'Produsent': n.produsent || '',
         'Type': n.type || '',
+        'Batteritype': n.batteritype || '',
         'Status': n.status || '',
-        'Kontrollert': n.kontrollert ? 'Ja' : 'Nei'
+        'Kontrollert': n.kontrollert ? 'Ja' : 'Nei',
+        'Notat': n.notat || ''
       }))
 
       // Opprett arbeidsbok
@@ -1249,6 +1253,8 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
     fordeling: nodlys?.fordeling || '',
     kurs: nodlys?.kurs || '',
     bygg: nodlys?.bygg || '',
+    batteritype: nodlys?.batteritype || '',
+    notat: nodlys?.notat || '',
     etasje: nodlys?.etasje || '',
     type: nodlys?.type || '',
     produsent: nodlys?.produsent || '',
@@ -1318,6 +1324,8 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
         fordeling: formData.fordeling || null,
         kurs: formData.kurs || null,
         bygg: formData.bygg.trim() || null,
+        batteritype: formData.batteritype.trim() || null,
+        notat: formData.notat.trim() || null,
         etasje: formData.etasje || null,
         type: formData.type || null,
         produsent: formData.produsent || null,
@@ -1604,6 +1612,23 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
             )}
           </div>
 
+          {/* Batteritype */}
+          <div>
+            <label htmlFor="nodlys-batteri" className="block text-sm font-medium text-gray-300 mb-2">
+              Batteritype
+            </label>
+            <input
+              id="nodlys-batteri"
+              type="text"
+              list="nodlys-batteri-forslag"
+              value={formData.batteritype}
+              onChange={(e) => setFormData({ ...formData, batteritype: e.target.value })}
+              className="input"
+              placeholder="F.eks. NiCd 3,6V 1,5Ah"
+            />
+            <datalist id="nodlys-batteri-forslag">{BATTERITYPER.map(b => <option key={b} value={b} />)}</datalist>
+          </div>
+
           {/* Status */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -1619,6 +1644,21 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
                 <option key={status} value={status}>{status}</option>
               ))}
             </select>
+          </div>
+
+          {/* Notat */}
+          <div className="md:col-span-2">
+            <label htmlFor="nodlys-notat" className="block text-sm font-medium text-gray-300 mb-2">
+              Notat
+            </label>
+            <textarea
+              id="nodlys-notat"
+              value={formData.notat}
+              onChange={(e) => setFormData({ ...formData, notat: e.target.value })}
+              rows={2}
+              className="input !h-auto"
+              placeholder="F.eks. «Bak himling», «Venter på deler», «Byttet batteri 2026»"
+            />
           </div>
 
           {/* Kontrollert */}
@@ -1912,6 +1952,8 @@ function BulkAddForm({ anleggId, onSave, onCancel }: BulkAddFormProps) {
         fordeling: null,
         kurs: null,
         bygg: null,
+        batteritype: null,
+        notat: null,
         etasje: null,
         type: null,
         produsent: null,

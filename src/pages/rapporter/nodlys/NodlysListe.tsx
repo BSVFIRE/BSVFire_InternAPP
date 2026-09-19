@@ -9,10 +9,10 @@ import { AlertTriangle, Check, ChevronDown, ChevronRight, Edit, Loader2, MoreHor
 import { cn } from '@/lib/utils'
 import { IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
-import { AVVIK_STATUSER, ETASJER, NODLYS_STATUSER, NODLYS_TYPER, STATUS_FARGE, byggSortNokkel, etasjeSortNokkel, type NodlysEnhet } from './typer'
+import { AVVIK_STATUSER, BATTERITYPER, ETASJER, NODLYS_STATUSER, NODLYS_TYPER, STATUS_FARGE, byggSortNokkel, etasjeSortNokkel, type NodlysEnhet } from './typer'
 
 type Chip = 'gjenstar' | 'kontrollert' | 'avvik' | 'alle'
-type Felt = 'internnummer' | 'amatur_id' | 'fordeling' | 'kurs' | 'bygg' | 'etasje' | 'plassering' | 'produsent' | 'type'
+type Felt = 'internnummer' | 'amatur_id' | 'fordeling' | 'kurs' | 'bygg' | 'etasje' | 'plassering' | 'produsent' | 'type' | 'batteritype' | 'notat'
 const FELTER: { key: Felt; navn: string; bredde: string }[] = [
   { key: 'internnummer', navn: 'Nr.', bredde: 'w-16' },
   { key: 'amatur_id', navn: 'Armatur', bredde: 'w-24' },
@@ -23,6 +23,8 @@ const FELTER: { key: Felt; navn: string; bredde: string }[] = [
   { key: 'etasje', navn: 'Etasje', bredde: 'w-20' },
   { key: 'type', navn: 'Type', bredde: 'w-24' },
   { key: 'produsent', navn: 'Produsent', bredde: 'w-28' },
+  { key: 'batteritype', navn: 'Batteri', bredde: 'w-24' },
+  { key: 'notat', navn: 'Notat', bredde: 'w-40' },
 ]
 
 export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
@@ -60,7 +62,7 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
       if (chip === 'kontrollert' && !e.kontrollert) return false
       if (chip === 'avvik' && !AVVIK_STATUSER.has(e.status ?? '')) return false
       if (!s) return true
-      return [e.internnummer, e.amatur_id, e.plassering, e.fordeling, e.kurs, e.bygg, e.etasje, e.type, e.produsent, e.status].some(v => v?.toLowerCase().includes(s))
+      return [e.internnummer, e.amatur_id, e.plassering, e.fordeling, e.kurs, e.bygg, e.etasje, e.type, e.produsent, e.status, e.batteritype, e.notat].some(v => v?.toLowerCase().includes(s))
     })
     const byggAv = (e: NodlysEnhet) => harBygg ? (e.bygg?.trim() || '') : ''
     const etasjeAv = (e: NodlysEnhet) => e.etasje?.trim() || ''
@@ -92,6 +94,7 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
     kurs: unike(enheter.map(e => e.kurs)),
     produsent: unike(enheter.map(e => e.produsent)),
     bygg: unike(enheter.map(e => e.bygg)),
+    batteritype: unike([...BATTERITYPER, ...enheter.map(e => e.batteritype)]),
   }), [enheter])
 
   function settStatus(e: NodlysEnhet, status: string) {
@@ -205,7 +208,8 @@ export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
                             <Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} />
                             <button type="button" onClick={() => onRediger(e)} className="flex-1 min-w-0 text-left">
                               <span className="block font-semibold text-gray-900 dark:text-white truncate"><span className="text-gray-400 font-mono text-xs mr-1.5">{e.internnummer ?? '–'}</span>{e.plassering || <span className="text-gray-400 font-normal">Uten plassering</span>}</span>
-                              <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[e.amatur_id ? `Armatur ${e.amatur_id}` : null, e.type, e.kurs ? `Kurs ${e.kurs}` : null, e.fordeling].filter(Boolean).join(' · ') || 'Trykk for å fylle ut'}</span>
+                              <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[e.amatur_id ? `Armatur ${e.amatur_id}` : null, e.type, e.kurs ? `Kurs ${e.kurs}` : null, e.fordeling, e.batteritype].filter(Boolean).join(' · ') || 'Trykk for å fylle ut'}</span>
+                              {e.notat && <span className="block text-xs text-amber-700 dark:text-amber-400 truncate">{e.notat}</span>}
                             </button>
                             <StatusKnapper e={e} kompakt onVelg={s => settStatus(e, s)} onSlett={() => onSlett(e)} />
                           </div>
@@ -269,7 +273,7 @@ function Celle({ e, felt, aktiv, forslag, onStart, onLagre, onAvbryt }: {
   const avbryt = () => { ferdig.current = true; onAvbryt() }
 
   if (!aktiv) {
-    return <button type="button" onClick={onStart} className={cn('w-full text-left px-1.5 py-1 rounded hover:bg-gray-100 dark:hover:bg-dark-100 truncate', e[felt] ? 'text-gray-900 dark:text-white' : 'text-gray-300 dark:text-gray-600')} title="Klikk for å redigere">{e[felt] || '–'}</button>
+    return <button type="button" onClick={onStart} className={cn('w-full text-left px-1.5 py-1 rounded hover:bg-gray-100 dark:hover:bg-dark-100 truncate', e[felt] ? (felt === 'notat' ? 'text-amber-700 dark:text-amber-400' : 'text-gray-900 dark:text-white') : 'text-gray-300 dark:text-gray-600')} title={e[felt] || 'Klikk for å redigere'}>{e[felt] || '–'}</button>
   }
   const valg = felt === 'etasje' ? ETASJER : felt === 'type' ? NODLYS_TYPER : null
   const felles = {

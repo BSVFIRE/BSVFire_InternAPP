@@ -9,6 +9,8 @@ interface ImportData {
   fordeling?: string
   kurs?: string
   bygg?: string
+  batteritype?: string
+  notat?: string
   etasje?: string
   type?: string
   produsent?: string
@@ -57,6 +59,15 @@ export function NodlysImport({ anleggId, onClose, onImportComplete }: NodlysImpo
     'kursnummer': 'kurs',
     'kurs nr': 'kurs',
     
+    // Batteri / notat
+    'batteritype': 'batteritype',
+    'batteri': 'batteritype',
+    'batteri type': 'batteritype',
+    'notat': 'notat',
+    'note': 'notat',
+    'merknad': 'notat',
+    'kommentar': 'notat',
+
     // Bygg
     'bygg': 'bygg',
     'bygning': 'bygg',
@@ -173,6 +184,8 @@ export function NodlysImport({ anleggId, onClose, onImportComplete }: NodlysImpo
                   case 'fordeling':
                   case 'kurs':
                   case 'bygg':
+                  case 'batteritype':
+                  case 'notat':
                   case 'etasje':
                   case 'type':
                   case 'produsent':
@@ -241,6 +254,8 @@ export function NodlysImport({ anleggId, onClose, onImportComplete }: NodlysImpo
                   case 'fordeling':
                   case 'kurs':
                   case 'bygg':
+                  case 'batteritype':
+                  case 'notat':
                   case 'etasje':
                   case 'type':
                   case 'produsent':
@@ -302,6 +317,8 @@ export function NodlysImport({ anleggId, onClose, onImportComplete }: NodlysImpo
               fordeling: item.fordeling || null,
               kurs: item.kurs || null,
               bygg: item.bygg || null,
+              batteritype: item.batteritype || null,
+              notat: item.notat || null,
               etasje: item.etasje || null,
               type: item.type || null,
               produsent: item.produsent || null,
