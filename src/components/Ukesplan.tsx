@@ -6,6 +6,7 @@ import {
   GripVertical
 } from 'lucide-react'
 import { createDropboxFolder, uploadToDropbox } from '@/services/dropboxServiceV2'
+import { toast } from '@/lib/toast'
 
 interface Kunde {
   id: string
@@ -430,10 +431,11 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
         if (teknikerError) throw teknikerError
       }
       
+      toast.success('Ukesplan lagret')
       onSave?.()
     } catch (err) {
       console.error('Feil ved lagring:', err)
-      alert('Kunne ikke lagre ukesplanen')
+      toast.error('Kunne ikke lagre ukesplanen', err)
     } finally {
       setSaving(false)
     }
@@ -442,7 +444,7 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
   // Vis forhåndsvisning
   function showPdfPreview() {
     if (!selectedKundeId || Object.keys(dagPlaner).length === 0) {
-      alert('Legg til minst ett anlegg før du genererer PDF')
+      toast.warning('Legg til minst ett anlegg før du genererer PDF')
       return
     }
     
@@ -502,7 +504,7 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
       setShowPreview(false)
     } catch (err) {
       console.error('Feil ved PDF-generering:', err)
-      alert('Kunne ikke generere PDF')
+      toast.error('Kunne ikke generere PDF', err)
     } finally {
       setGeneratingPdf(false)
     }
