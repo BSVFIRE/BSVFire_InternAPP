@@ -87,7 +87,7 @@ const FELTER: FeltDef<Brannslange>[] = [
   { key: 'plassering', navn: 'Plassering', placeholder: 'Gang', forslag: true },
   { key: 'etasje', navn: 'Etasje', bredde: 'w-24', type: 'select', valg: etasjeAlternativer, mobil: true },
   { key: 'produsent', navn: 'Produsent', bredde: 'w-28', forslag: true },
-  { key: 'modell', navn: 'Modell', bredde: 'w-32', type: 'select', valg: modellAlternativer, mobil: true },
+  { key: 'modell', navn: 'Modell', bredde: 'w-32', type: 'valgEllerTekst', valg: modellAlternativer, mobil: true },
   { key: 'brannklasse', navn: 'Klasse', bredde: 'w-16', type: 'select', valg: brannklasseAlternativer },
   { key: 'produksjonsaar', navn: 'Prod.år', bredde: 'w-20', placeholder: '2019', mobil: true },
   { key: 'trykktest', navn: 'Trykktest', bredde: 'w-24', type: 'aar', placeholder: 'År', mobil: true },

@@ -16,7 +16,8 @@ export interface FeltDef<T> {
   navn: string
   /** Tailwind-bredde for kolonnen på PC */
   bredde?: string
-  type?: 'text' | 'select' | 'aar'
+  /** 'valgEllerTekst': nedtrekk med faste valg + det som finnes i listen, og «Skriv inn…» for nye verdier */
+  type?: 'text' | 'select' | 'aar' | 'valgEllerTekst'
   valg?: readonly string[]
   /** Foreslå verdier som allerede finnes i listen */
   forslag?: boolean
@@ -104,7 +105,7 @@ export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, sta
 
   const forslag = useMemo(() => {
     const m: Record<string, string[]> = {}
-    for (const f of felter) if (f.forslag) m[f.key] = Array.from(new Set(rader.map(r => String(r[f.key] ?? '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'nb-NO', { numeric: true }))
+    for (const f of felter) if (f.forslag || f.type === 'valgEllerTekst') m[f.key] = Array.from(new Set(rader.map(r => String(r[f.key] ?? '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'nb-NO', { numeric: true }))
     return m
   }, [rader, felter])
 
@@ -235,7 +236,7 @@ export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, sta
                         {redigerer?.id === r.id && redigerer.felt === '__mobil' && (
                           <div className="grid grid-cols-2 gap-2 pt-1" onClick={ev => ev.stopPropagation()}>
                             <MobilFelt navn="Nr." verdi={String(r[nummerKey] ?? '')} onLagre={v => onEndre(r.id, { [nummerKey]: v || null } as Partial<T>)} />
-                            {felter.map(f => <MobilFelt key={f.key} navn={f.navn} verdi={String(r[f.key] ?? '')} valg={f.type === 'select' ? f.valg : undefined} forslag={forslag[f.key]} onLagre={v => onEndre(r.id, { [f.key]: v || null } as Partial<T>)} />)}
+                            {felter.map(f => <MobilFelt key={f.key} navn={f.navn} verdi={String(r[f.key] ?? '')} valg={f.type === 'select' ? f.valg : undefined} valgEllerTekst={f.type === 'valgEllerTekst' ? [...(f.valg ?? []), ...(forslag[f.key] ?? [])] : undefined} forslag={forslag[f.key]} onLagre={v => onEndre(r.id, { [f.key]: v || null } as Partial<T>)} />)}
                             <button type="button" onClick={() => setRedigerer(null)} className="col-span-2 text-sm text-primary py-1">Lukk</button>
                           </div>
                         )}
@@ -342,6 +343,9 @@ function Celle<T>({ rad, felt, aktiv, forslag, onStart, onLagre, onAvbryt, klass
     onBlur: () => setTimeout(() => lagre(v, false), 120),
     className: 'input !min-h-[30px] !h-[30px] !py-0 !px-1.5 text-sm w-full',
   }
+  if (felt.type === 'valgEllerTekst') {
+    return <ValgEllerTekst verdi={v} valg={[...(felt.valg ?? []), ...(forslag ?? [])]} inputRef={ref} className={felles.className} onChange={val => { setV(val); lagre(val, false) }} onAvbryt={avbryt} onKeyDown={felles.onKeyDown} onBlur={felles.onBlur} />
+  }
   if (felt.type === 'select' && felt.valg) {
     return (
       <select ref={ref as React.RefObject<HTMLSelectElement>} value={v} onChange={ev => { setV(ev.target.value); lagre(ev.target.value, false) }} {...felles}>
@@ -359,19 +363,48 @@ function Celle<T>({ rad, felt, aktiv, forslag, onStart, onLagre, onAvbryt, klass
   )
 }
 
-function MobilFelt({ navn, verdi, valg, forslag, onLagre }: { navn: string; verdi: string; valg?: readonly string[]; forslag?: string[]; onLagre: (v: string) => void }) {
+function MobilFelt({ navn, verdi, valg, valgEllerTekst, forslag, onLagre }: { navn: string; verdi: string; valg?: readonly string[]; valgEllerTekst?: string[]; forslag?: string[]; onLagre: (v: string) => void }) {
   const [v, setV] = useState(verdi)
   useEffect(() => setV(verdi), [verdi])
   const id = `mf-${navn}-${Math.random().toString(36).slice(2, 7)}`
   return (
     <label className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
       <span>{navn}</span>
-      {valg ? (
+      {valgEllerTekst ? (
+        <ValgEllerTekst verdi={v} valg={valgEllerTekst} className="!h-[36px] !min-h-[36px] !py-0 text-sm" onChange={val => { setV(val); onLagre(val) }} />
+      ) : valg ? (
         <select value={v} onChange={e => { setV(e.target.value); onLagre(e.target.value) }} className="input !h-[36px] !min-h-[36px] !py-0 text-sm">{!valg.includes('') && <option value="">–</option>}{valg.map(x => <option key={x} value={x}>{x || '–'}</option>)}</select>
       ) : (
         <><input value={v} onChange={e => setV(e.target.value)} onBlur={() => { if (v !== verdi) onLagre(v) }} list={forslag?.length ? id : undefined} className="input !h-[36px] !min-h-[36px] !py-0 text-sm" />{forslag?.length ? <datalist id={id}>{forslag.map(x => <option key={x} value={x} />)}</datalist> : null}</>
       )}
     </label>
+  )
+}
+
+/** Nedtrekk med kjente verdier + «＋ Skriv inn…» som gir et tekstfelt for nye (f.eks. ny modell eller brannklasse). */
+function ValgEllerTekst({ verdi, valg, onChange, onAvbryt, className, inputRef, onKeyDown, onBlur }: {
+  verdi: string; valg: string[]; onChange: (v: string) => void; onAvbryt?: () => void; className?: string
+  inputRef?: React.RefObject<HTMLInputElement | HTMLSelectElement>; onKeyDown?: (ev: React.KeyboardEvent) => void; onBlur?: () => void
+}) {
+  const [nytt, setNytt] = useState(false)
+  const [tekst, setTekst] = useState('')
+  const bytter = useRef(false)
+  const liste = Array.from(new Set([...valg.filter(Boolean), ...(verdi ? [verdi] : [])]))
+  if (nytt) {
+    return (
+      <input ref={inputRef as React.RefObject<HTMLInputElement>} value={tekst} onChange={ev => setTekst(ev.target.value)} placeholder="Skriv inn…" autoFocus aria-label="Ny verdi"
+        onKeyDown={ev => { if (ev.key === 'Enter') { ev.preventDefault(); if (tekst.trim()) onChange(tekst.trim()); setNytt(false); setTekst('') } if (ev.key === 'Escape') { setNytt(false); onAvbryt?.() } }}
+        onBlur={() => { if (tekst.trim()) onChange(tekst.trim()); else onAvbryt?.(); setNytt(false); setTekst('') }}
+        className={cn('input', className)} />
+    )
+  }
+  return (
+    <select ref={inputRef as React.RefObject<HTMLSelectElement>} value={verdi} onKeyDown={onKeyDown} onBlur={() => { if (!bytter.current) onBlur?.() }}
+      onChange={ev => { if (ev.target.value === '__nytt') { bytter.current = true; setNytt(true); return } onChange(ev.target.value) }} className={cn('input', className)}>
+      <option value="">–</option>
+      {liste.map(x => <option key={x} value={x}>{x}</option>)}
+      <option value="__nytt">＋ Skriv inn…</option>
+    </select>
   )
 }
 
