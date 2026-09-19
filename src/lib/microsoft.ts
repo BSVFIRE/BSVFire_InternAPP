@@ -35,6 +35,11 @@ function klient(): Promise<PublicClientApplication> {
   return klar
 }
 
+/** Kalles på landingssiden (/ms-callback.html): leser svaret og gir det til hovedvinduet. */
+export async function fullforMicrosoftRedirect(): Promise<void> {
+  await klient()
+}
+
 export function outlookKonto(): AccountInfo | null {
   return msal?.getAllAccounts()[0] ?? null
 }

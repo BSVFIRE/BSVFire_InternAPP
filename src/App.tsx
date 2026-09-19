@@ -15,6 +15,7 @@ import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { DropboxCallback } from './pages/DropboxCallback'
 import { ResetPassword } from './pages/ResetPassword'
+import { MsCallback } from './pages/MsCallback'
 
 // Lazy-loaded sider (lastes når de trengs)
 const Kunder = lazy(() => import('./pages/kunder/KundeListe'))
@@ -113,6 +114,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/dropbox-callback" element={<DropboxCallback />} />
+          <Route path="/ms-callback.html" element={<MsCallback />} />
           <Route
             path="/*"
             element={
