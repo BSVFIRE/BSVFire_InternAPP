@@ -51,8 +51,13 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
     alle: enheter.length,
   }), [enheter])
 
-  // Når alt er kontrollert, vis alle i stedet for en tom «Gjenstår»-liste
-  useEffect(() => { if (chip === 'gjenstar' && teller.gjenstar === 0 && teller.alle > 0) setChip('alle') }, [chip, teller])
+  // Startvisning: «Gjenstår» når kontrollen er i gang, «Alle» når den er (nesten) ferdig – velges én gang når listen er lastet
+  const [startValgt, setStartValgt] = useState(false)
+  useEffect(() => {
+    if (startValgt || teller.alle === 0) return
+    setStartValgt(true)
+    if (teller.gjenstar === 0 || teller.gjenstar <= teller.alle * 0.1) setChip('alle')
+  }, [startValgt, teller])
 
   interface EtasjeGruppe { etasje: string; rader: NodlysEnhet[]; totalt: number; kontrollert: number }
   interface ByggGruppe { bygg: string; etasjer: EtasjeGruppe[]; totalt: number; kontrollert: number }
@@ -235,6 +240,10 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
           </div>
         )
       })}
+
+      {chip !== 'alle' && teller.alle > 0 && (
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400">Viser {chip === 'gjenstar' ? teller.gjenstar : chip === 'kontrollert' ? teller.kontrollert : teller.avvik} av {teller.alle} · <button type="button" onClick={() => setChip('alle')} className="text-primary hover:underline">Vis alle</button></p>
+      )}
 
       {velgModus && (
         <div className="fixed bottom-4 left-4 right-4 lg:left-[calc(var(--sidebar-w)+2rem)] z-20 flex justify-center pointer-events-none">

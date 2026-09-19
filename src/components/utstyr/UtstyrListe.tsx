@@ -73,7 +73,13 @@ export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, sta
     alle: rader.length,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [rader])
-  useEffect(() => { if (chip === 'gjenstar' && teller.gjenstar === 0 && teller.alle > 0) setChip('alle') }, [chip, teller])
+  // Startvisning: «Gjenstår» når kontrollen er i gang, «Alle» når den er (nesten) ferdig – velges én gang når listen er lastet
+  const [startValgt, setStartValgt] = useState(false)
+  useEffect(() => {
+    if (startValgt || teller.alle === 0) return
+    setStartValgt(true)
+    if (teller.gjenstar === 0 || teller.gjenstar <= teller.alle * 0.1) setChip('alle')
+  }, [startValgt, teller])
 
   const grupper = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -242,6 +248,10 @@ export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, sta
           </section>
         )
       })}
+
+      {chip !== 'alle' && teller.alle > 0 && (
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400">Viser {chip === 'gjenstar' ? teller.gjenstar : chip === 'kontrollert' ? teller.kontrollert : teller.avvik} av {teller.alle} · <button type="button" onClick={() => setChip('alle')} className="text-primary hover:underline">Vis alle</button></p>
+      )}
 
       {/* Legg til */}
       <div className="card !p-3 flex flex-wrap items-center gap-2">
