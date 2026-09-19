@@ -1,0 +1,264 @@
+/**
+ * Nødlysliste for kontroll i felt.
+ * Fremdrift øverst, chips (Gjenstår / Kontrollert / Avvik / Alle), gruppert på etasje,
+ * statusknapper rett i raden (OK = ett trykk, resten i meny). Hver endring lagres med en gang.
+ * Feltene redigeres i raden på PC (klikk), på mobil via «Rediger»-skjemaet.
+ */
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Edit, Loader2, MoreHorizontal, Search, Trash2, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { IconButton } from '@/components/ui/Button'
+import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
+import { AVVIK_STATUSER, ETASJER, NODLYS_STATUSER, NODLYS_TYPER, STATUS_FARGE, etasjeSortNokkel, type NodlysEnhet } from './typer'
+
+type Chip = 'gjenstar' | 'kontrollert' | 'avvik' | 'alle'
+type Felt = 'internnummer' | 'amatur_id' | 'fordeling' | 'kurs' | 'etasje' | 'plassering' | 'produsent' | 'type'
+const FELTER: { key: Felt; navn: string; bredde: string }[] = [
+  { key: 'internnummer', navn: 'Nr.', bredde: 'w-16' },
+  { key: 'amatur_id', navn: 'Armatur', bredde: 'w-24' },
+  { key: 'plassering', navn: 'Plassering', bredde: '' },
+  { key: 'fordeling', navn: 'Fordeling', bredde: 'w-24' },
+  { key: 'kurs', navn: 'Kurs', bredde: 'w-20' },
+  { key: 'type', navn: 'Type', bredde: 'w-24' },
+  { key: 'produsent', navn: 'Produsent', bredde: 'w-28' },
+]
+
+export function NodlysListe({ enheter, lagrer, onEndre, onSlett, onRediger }: {
+  enheter: NodlysEnhet[]
+  /** id-er som lagres akkurat nå */
+  lagrer: Set<string>
+  onEndre: (id: string, patch: Partial<NodlysEnhet>) => void
+  onSlett: (enhet: NodlysEnhet) => void
+  onRediger: (enhet: NodlysEnhet) => void
+}) {
+  const [chip, setChip] = useState<Chip>('gjenstar')
+  const [q, setQ] = useState('')
+  const [lukkede, setLukkede] = useState<Set<string>>(new Set())
+  const [redigerer, setRedigerer] = useState<{ id: string; felt: Felt } | null>(null)
+
+  const teller = useMemo(() => ({
+    gjenstar: enheter.filter(e => !e.kontrollert).length,
+    kontrollert: enheter.filter(e => e.kontrollert).length,
+    avvik: enheter.filter(e => AVVIK_STATUSER.has(e.status ?? '')).length,
+    alle: enheter.length,
+  }), [enheter])
+
+  // Når alt er kontrollert, vis alle i stedet for en tom «Gjenstår»-liste
+  useEffect(() => { if (chip === 'gjenstar' && teller.gjenstar === 0 && teller.alle > 0) setChip('alle') }, [chip, teller])
+
+  const grupper = useMemo(() => {
+    const s = q.trim().toLowerCase()
+    const liste = enheter.filter(e => {
+      if (chip === 'gjenstar' && e.kontrollert) return false
+      if (chip === 'kontrollert' && !e.kontrollert) return false
+      if (chip === 'avvik' && !AVVIK_STATUSER.has(e.status ?? '')) return false
+      if (!s) return true
+      return [e.internnummer, e.amatur_id, e.plassering, e.fordeling, e.kurs, e.etasje, e.type, e.produsent, e.status].some(v => v?.toLowerCase().includes(s))
+    })
+    const m = new Map<string, NodlysEnhet[]>()
+    for (const e of liste) { const k = e.etasje?.trim() || ''; m.set(k, [...(m.get(k) ?? []), e]) }
+    return Array.from(m.entries())
+      .sort((a, b) => etasjeSortNokkel(a[0] || null) - etasjeSortNokkel(b[0] || null))
+      .map(([etasje, rader]) => ({
+        etasje,
+        rader: rader.sort((a, b) => (a.internnummer ?? '').localeCompare(b.internnummer ?? '', 'nb-NO', { numeric: true }) || (a.amatur_id ?? '').localeCompare(b.amatur_id ?? '', 'nb-NO', { numeric: true })),
+        totalt: enheter.filter(e => (e.etasje?.trim() || '') === etasje).length,
+        kontrollert: enheter.filter(e => (e.etasje?.trim() || '') === etasje && e.kontrollert).length,
+      }))
+  }, [enheter, chip, q])
+
+  const forslag = useMemo(() => ({
+    fordeling: unike(enheter.map(e => e.fordeling)),
+    kurs: unike(enheter.map(e => e.kurs)),
+    produsent: unike(enheter.map(e => e.produsent)),
+  }), [enheter])
+
+  function settStatus(e: NodlysEnhet, status: string) {
+    onEndre(e.id, { status, kontrollert: true })
+  }
+  function toggleKontrollert(e: NodlysEnhet) {
+    onEndre(e.id, { kontrollert: !e.kontrollert })
+  }
+  function toggleEtasje(k: string) { setLukkede(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n }) }
+
+  /** Enter → samme felt i neste rad, Tab → neste felt (håndteres av nettleseren via rekkefølge) */
+  function nesteRad(id: string, felt: Felt) {
+    const flat = grupper.flatMap(g => g.rader)
+    const i = flat.findIndex(r => r.id === id)
+    if (i >= 0 && i < flat.length - 1) setRedigerer({ id: flat[i + 1].id, felt }); else setRedigerer(null)
+  }
+
+  const pct = teller.alle ? Math.round((teller.kontrollert / teller.alle) * 100) : 0
+
+  return (
+    <div className="space-y-3">
+      {/* Fremdrift */}
+      <div className="card !p-4 space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-sm font-semibold text-gray-900 dark:text-white">{teller.kontrollert} av {teller.alle} kontrollert <span className="text-gray-400 font-normal">· {pct} %</span></div>
+          {teller.avvik > 0 && <span className="inline-flex items-center gap-1 text-sm font-medium text-red-600 dark:text-red-400"><AlertTriangle className="w-4 h-4" />{teller.avvik} avvik</span>}
+        </div>
+        <div className="h-2 rounded-full bg-gray-200 dark:bg-dark-100 overflow-hidden"><div className={cn('h-full rounded-full transition-all', pct === 100 ? 'bg-green-500' : 'bg-primary')} style={{ width: `${pct}%` }} /></div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-1 flex-1" role="group" aria-label="Filter">
+          <Chip aktiv={chip === 'gjenstar'} onClick={() => setChip('gjenstar')}>Gjenstår <b>{teller.gjenstar}</b></Chip>
+          <Chip aktiv={chip === 'kontrollert'} onClick={() => setChip('kontrollert')}><Check className="w-3.5 h-3.5" strokeWidth={3} />Kontrollert <b>{teller.kontrollert}</b></Chip>
+          <Chip aktiv={chip === 'avvik'} onClick={() => setChip('avvik')}><span className="w-2 h-2 rounded-full bg-red-500" />Avvik <b>{teller.avvik}</b></Chip>
+          <Chip aktiv={chip === 'alle'} onClick={() => setChip('alle')}>Alle <b>{teller.alle}</b></Chip>
+        </div>
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Søk nr., plassering, kurs…" aria-label="Søk" className="input pl-9 !min-h-[38px] !h-[38px]" />
+        </div>
+      </div>
+
+      {grupper.length === 0 ? (
+        <div className="card text-center py-10 text-sm text-gray-500 dark:text-gray-400">
+          {q ? 'Ingen armaturer matcher søket.' : chip === 'gjenstar' ? 'Alle armaturer er kontrollert 🎉' : chip === 'avvik' ? 'Ingen avvik registrert.' : 'Ingen armaturer registrert ennå. Bruk «Ny armatur» eller «Legg til flere».'}
+        </div>
+      ) : grupper.map(g => {
+        const key = g.etasje || '(uten)'
+        const apen = !lukkede.has(key)
+        return (
+          <section key={key} className="card !p-0 overflow-hidden" aria-label={g.etasje || 'Uten etasje'}>
+            <button type="button" onClick={() => toggleEtasje(key)} aria-expanded={apen} className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-dark-100 text-left">
+              <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', apen && 'rotate-90')} />
+              <span className="font-semibold text-gray-900 dark:text-white">{g.etasje || 'Uten etasje'}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{g.kontrollert} av {g.totalt}</span>
+              {g.kontrollert === g.totalt && <Check className="w-4 h-4 text-green-600 dark:text-green-400" strokeWidth={3} />}
+              <span className="ml-auto text-xs text-gray-400 tabular-nums">{g.rader.length} vist</span>
+            </button>
+            {apen && (
+              <>
+                {/* PC: tabell med redigerbare celler */}
+                <table className="hidden lg:table w-full text-sm">
+                  <thead className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    <tr className="border-b border-gray-200 dark:border-gray-800">
+                      <th className="w-8"></th>
+                      {FELTER.map(f => <th key={f.key} className={cn('px-2 py-1.5 text-left font-semibold', f.bredde)}>{f.navn}</th>)}
+                      <th className="px-2 py-1.5 text-left font-semibold w-[300px]">Status</th>
+                      <th className="w-px"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {g.rader.map(e => (
+                      <tr key={e.id} className={cn('group', e.kontrollert ? 'bg-white dark:bg-transparent' : 'bg-yellow-50/40 dark:bg-yellow-900/5')}>
+                        <td className="pl-3"><Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} /></td>
+                        {FELTER.map(f => (
+                          <td key={f.key} className="px-1 py-1">
+                            <Celle e={e} felt={f.key} aktiv={redigerer?.id === e.id && redigerer.felt === f.key} forslag={forslag[f.key as keyof typeof forslag]}
+                              onStart={() => setRedigerer({ id: e.id, felt: f.key })} onLagre={(v, videre) => { if ((e[f.key] ?? '') !== v) onEndre(e.id, { [f.key]: v || null }); videre ? nesteRad(e.id, f.key) : setRedigerer(null) }} onAvbryt={() => setRedigerer(null)} />
+                          </td>
+                        ))}
+                        <td className="px-2 py-1"><StatusKnapper e={e} onVelg={s => settStatus(e, s)} /></td>
+                        <td className="px-1 py-1">
+                          <div className="flex opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                            <IconButton variant="ghost" label="Rediger i skjema" icon={<Edit />} onClick={() => onRediger(e)} className="w-8 h-8" />
+                            <IconButton variant="ghost" label="Slett" icon={<Trash2 />} onClick={() => onSlett(e)} className="w-8 h-8 hover:!text-red-500" />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* Mobil/nettbrett: én kompakt rad per armatur med statusknapper */}
+                <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                  {g.rader.map(e => (
+                    <div key={e.id} className={cn('flex items-center gap-2.5 px-3 py-2.5', !e.kontrollert && 'bg-yellow-50/40 dark:bg-yellow-900/5')}>
+                      <Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} />
+                      <button type="button" onClick={() => onRediger(e)} className="flex-1 min-w-0 text-left">
+                        <span className="block font-semibold text-gray-900 dark:text-white truncate"><span className="text-gray-400 font-mono text-xs mr-1.5">{e.internnummer ?? '–'}</span>{e.plassering || <span className="text-gray-400 font-normal">Uten plassering</span>}</span>
+                        <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[e.amatur_id ? `Armatur ${e.amatur_id}` : null, e.type, e.kurs ? `Kurs ${e.kurs}` : null, e.fordeling].filter(Boolean).join(' · ') || 'Trykk for å fylle ut'}</span>
+                      </button>
+                      <StatusKnapper e={e} kompakt onVelg={s => settStatus(e, s)} onSlett={() => onSlett(e)} />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
+function Kontrollert({ e, lagrer, onClick }: { e: NodlysEnhet; lagrer: boolean; onClick: () => void }) {
+  if (lagrer) return <span className="w-6 h-6 flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-primary" /></span>
+  return (
+    <button type="button" onClick={onClick} aria-pressed={Boolean(e.kontrollert)} aria-label={e.kontrollert ? 'Kontrollert – trykk for å angre' : 'Merk som kontrollert'} title={e.kontrollert ? 'Kontrollert' : 'Ikke kontrollert'}
+      className={cn('w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors', e.kontrollert ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 dark:border-gray-600 hover:border-green-500')}>
+      {e.kontrollert && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+    </button>
+  )
+}
+
+/** OK som stor knapp, valgt status som pille, øvrige statuser i meny. */
+function StatusKnapper({ e, kompakt, onVelg, onSlett }: { e: NodlysEnhet; kompakt?: boolean; onVelg: (s: string) => void; onSlett?: () => void }) {
+  const harStatus = Boolean(e.status)
+  return (
+    <div className="flex items-center gap-1.5 flex-shrink-0">
+      {harStatus && e.status !== 'OK' ? (
+        <span className={cn('inline-flex items-center px-2 h-8 rounded-full text-xs font-semibold border whitespace-nowrap', STATUS_FARGE[e.status!] ?? 'bg-gray-100 text-gray-700 border-gray-300')}>{e.status}</span>
+      ) : (
+        <button type="button" onClick={() => onVelg('OK')} aria-pressed={e.status === 'OK'} className={cn('h-8 px-3 rounded-lg text-sm font-semibold border transition-colors inline-flex items-center gap-1', e.status === 'OK' ? 'bg-green-500 border-green-500 text-white' : 'border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20')}><Check className="w-3.5 h-3.5" strokeWidth={3} />OK</button>
+      )}
+      {!kompakt && !harStatus && NODLYS_STATUSER.filter(s => s !== 'OK' && s !== 'Utskiftet').map(s => (
+        <button key={s} type="button" onClick={() => onVelg(s)} className="h-8 px-2 rounded-lg text-xs border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-red-400 hover:text-red-600 dark:hover:text-red-400 whitespace-nowrap">{s}</button>
+      ))}
+      <DropdownMenu trigger={open => <IconButton variant="ghost" label="Flere statuser" icon={kompakt ? <MoreHorizontal /> : <ChevronDown />} aria-expanded={open} className="w-8 h-8" />}>
+        {NODLYS_STATUSER.map(s => <MenuItem key={s} icon={s === e.status ? <Check /> : undefined} onSelect={() => onVelg(s)}>{s}</MenuItem>)}
+        {e.status && <><MenuSeparator /><MenuItem icon={<X />} onSelect={() => onVelg('')}>Fjern status</MenuItem></>}
+        {onSlett && <><MenuSeparator /><MenuItem icon={<Trash2 />} danger onSelect={onSlett}>Slett armatur…</MenuItem></>}
+      </DropdownMenu>
+    </div>
+  )
+}
+
+/** Redigerbar celle: klikk → input (med forslag for fordeling/kurs/produsent, nedtrekk for etasje/type). Enter = lagre og gå til neste rad. */
+function Celle({ e, felt, aktiv, forslag, onStart, onLagre, onAvbryt }: {
+  e: NodlysEnhet; felt: Felt; aktiv: boolean; forslag?: string[]
+  onStart: () => void; onLagre: (verdi: string, videre: boolean) => void; onAvbryt: () => void
+}) {
+  const [v, setV] = useState(e[felt] ?? '')
+  const ref = useRef<HTMLInputElement | HTMLSelectElement>(null)
+  // Enter/Tab og blur kan begge fyre – lagre bare én gang per redigering
+  const ferdig = useRef(false)
+  useEffect(() => { if (aktiv) { ferdig.current = false; setV(e[felt] ?? ''); setTimeout(() => ref.current?.focus({ preventScroll: true }), 0) } }, [aktiv, e, felt])
+  const lagre = (verdi: string, videre: boolean) => { if (ferdig.current) return; ferdig.current = true; onLagre(verdi, videre) }
+  const avbryt = () => { ferdig.current = true; onAvbryt() }
+
+  if (!aktiv) {
+    return <button type="button" onClick={onStart} className={cn('w-full text-left px-1.5 py-1 rounded hover:bg-gray-100 dark:hover:bg-dark-100 truncate', e[felt] ? 'text-gray-900 dark:text-white' : 'text-gray-300 dark:text-gray-600')} title="Klikk for å redigere">{e[felt] || '–'}</button>
+  }
+  const valg = felt === 'etasje' ? ETASJER : felt === 'type' ? NODLYS_TYPER : null
+  const felles = {
+    onKeyDown: (ev: React.KeyboardEvent) => { if (ev.key === 'Enter') { ev.preventDefault(); lagre(v, true) } if (ev.key === 'Escape') avbryt(); if (ev.key === 'Tab') lagre(v, false) },
+    onBlur: () => setTimeout(() => lagre(v, false), 120),
+    className: 'input !min-h-[30px] !h-[30px] !py-0 !px-1.5 text-sm w-full',
+  }
+  if (valg) {
+    return (
+      <select ref={ref as React.RefObject<HTMLSelectElement>} value={v} onChange={ev => { setV(ev.target.value); lagre(ev.target.value, false) }} {...felles}>
+        <option value="">–</option>
+        {valg.map(x => <option key={x} value={x}>{x}</option>)}
+      </select>
+    )
+  }
+  const listeId = forslag?.length ? `forslag-${felt}` : undefined
+  return (
+    <>
+      <input ref={ref as React.RefObject<HTMLInputElement>} value={v} onChange={ev => setV(ev.target.value)} list={listeId} {...felles} />
+      {listeId && <datalist id={listeId}>{forslag!.map(x => <option key={x} value={x} />)}</datalist>}
+    </>
+  )
+}
+
+function Chip({ aktiv, onClick, children }: { aktiv: boolean; onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" onClick={onClick} aria-pressed={aktiv} className={cn('inline-flex items-center gap-2 h-[34px] px-3 rounded-full border text-sm whitespace-nowrap flex-shrink-0 transition-colors [&>b]:font-bold [&>b]:tabular-nums', aktiv ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500')}>{children}</button>
+}
+
+function unike(v: (string | null)[]): string[] { return Array.from(new Set(v.filter((x): x is string => Boolean(x && x.trim())))).sort((a, b) => a.localeCompare(b, 'nb-NO', { numeric: true })) }

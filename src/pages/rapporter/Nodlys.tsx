@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Search, Lightbulb, Edit, Trash2, Building2, Eye, Maximize2, Minimize2, Save, Upload, LayoutGrid, Table, FileSpreadsheet, ClipboardCheck } from 'lucide-react'
+import { ArrowLeft, Plus, Lightbulb, Edit, Building2, Eye, Save, Upload, FileSpreadsheet, ClipboardCheck, MoreHorizontal } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useLocation, useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
@@ -15,6 +15,11 @@ import { SendRapportDialog } from '@/components/SendRapportDialog'
 import { KontrolldatoVelger } from '@/components/KontrolldatoVelger'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
 import { Combobox } from '@/components/ui/Combobox'
+import { toast } from '@/lib/toast'
+import { Button, IconButton } from '@/components/ui/Button'
+import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
+import { NodlysListe } from './nodlys/NodlysListe'
+import type { NodlysEnhet } from './nodlys/typer'
 
 interface Kunde {
   id: string
@@ -28,23 +33,6 @@ interface Anlegg {
   adresse?: string | null
   postnummer?: string | null
   poststed?: string | null
-}
-
-interface NodlysEnhet {
-  id: string
-  anlegg_id: string | null
-  internnummer: string | null
-  amatur_id: string | null
-  fordeling: string | null
-  kurs: string | null
-  etasje: string | null
-  type: string | null
-  produsent: string | null
-  plassering: string | null
-  status: string | null
-  kundenavn: string | null
-  kontrollert: boolean | null
-  created_at: string
 }
 
 interface NettverkEnhet {
@@ -86,51 +74,14 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'bulk' | 'nettverk' | 'import'>('list')
   const [selectedNodlys, setSelectedNodlys] = useState<NodlysEnhet | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [sortBy, setSortBy] = useState<'internnummer' | 'amatur_id' | 'fordeling' | 'kurs' | 'plassering' | 'etasje' | 'type' | 'status' | 'kontrollert'>('amatur_id')
-  const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null)
-  const [editValue, setEditValue] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [showFullfortDialog, setShowFullfortDialog] = useState(false)
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
   const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
   const [dropboxAvailable, setDropboxAvailable] = useState(false)
   const [kontrolldato, setKontrolldato] = useState<Date>(new Date())
-  const [unsavedChanges, setUnsavedChanges] = useState<Map<string, Partial<NodlysEnhet>>>(new Map())
-  const [originalData, setOriginalData] = useState<NodlysEnhet[]>([])
-  const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
-    // Auto-switch to cards on mobile
-    return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
-  })
-  const statusSelectRef = useRef<HTMLSelectElement>(null)
-  const scrollPositionRef = useRef<number>(0)
-
-  // Focus status select without scrolling
-  useEffect(() => {
-    if (editingCell?.field === 'status' && statusSelectRef.current) {
-      // Lagre scroll-posisjon før fokusering
-      const scrollContainer = document.querySelector('.overflow-x-auto') || window
-      scrollPositionRef.current = scrollContainer instanceof Window ? window.scrollY : scrollContainer.scrollTop
-      
-      // Bruk setTimeout for å sikre at DOM er ferdig oppdatert
-      setTimeout(() => {
-        if (statusSelectRef.current) {
-          statusSelectRef.current.focus({ preventScroll: true })
-          
-          // Gjenopprett scroll-posisjon som backup
-          setTimeout(() => {
-            if (scrollContainer instanceof Window) {
-              window.scrollTo(0, scrollPositionRef.current)
-            } else {
-              scrollContainer.scrollTop = scrollPositionRef.current
-            }
-          }, 0)
-        }
-      }, 0)
-    }
-  }, [editingCell])
+  const [lagrer, setLagrer] = useState<Set<string>>(new Set())
+  const [visVelger, setVisVelger] = useState(!state?.anleggId)
 
   useEffect(() => {
     loadKunder()
@@ -202,8 +153,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
         if (error) throw error
         setNodlysListe(data || [])
-        setOriginalData(data || [])
-        setUnsavedChanges(new Map())
         // Cache data for offline use
         cacheData(`nodlys_${anleggId}`, data || [])
       } else {
@@ -212,8 +161,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         const cached = getCachedData<NodlysEnhet[]>(`nodlys_${anleggId}`)
         if (cached) {
           setNodlysListe(cached)
-          setOriginalData(cached)
-          setUnsavedChanges(new Map())
           console.log('📦 Bruker cached nødlysdata (offline)')
         } else {
           console.log('⚠️ Ingen cached data tilgjengelig')
@@ -275,134 +222,53 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           .from('evakueringsplan_status')
           .insert({ anlegg_id: selectedAnlegg, status: evakueringsplanStatus })
       }
-      alert('Evakueringsplan-status lagret!')
+      toast.success('Evakueringsplan-status lagret')
     } catch (error) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre evakueringsplan-status')
+      toast.error('Kunne ikke lagre evakueringsplan-status')
     }
   }
 
 
   async function deleteNodlys(id: string) {
-    // Sjekk om det finnes ulagrede endringer
-    if (unsavedChanges.size > 0) {
-      if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du sletter nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette med slettingen?')) {
-        return
-      }
-    }
-    
-    if (!confirm('Er du sikker på at du vil slette denne nødlysenheten?')) return
-
+    const enhet = nodlysListe.find(n => n.id === id)
+    if (!confirm(`Slette armatur ${enhet?.internnummer ?? ''}${enhet?.plassering ? ` (${enhet.plassering})` : ''}?`)) return
     try {
-      const { error } = await supabase
-        .from('anleggsdata_nodlys')
-        .delete()
-        .eq('id', id)
-
+      const { error } = await supabase.from('anleggsdata_nodlys').delete().eq('id', id)
       if (error) throw error
-      await loadNodlys(selectedAnlegg)
+      setNodlysListe(prev => prev.filter(n => n.id !== id))
+      toast.success('Armatur slettet')
     } catch (error) {
       console.error('Feil ved sletting:', error)
-      alert('Kunne ikke slette nødlysenhet')
+      toast.error('Kunne ikke slette armatur', error)
     }
   }
 
-  function startEditing(id: string, field: string, currentValue: string | null) {
-    setEditingCell({ id, field })
-    setEditValue(currentValue || '')
-  }
-
-  function trackChange(id: string, field: string, value: string | boolean | null) {
-    const newChanges = new Map(unsavedChanges)
-    const existing = newChanges.get(id) || {}
-    newChanges.set(id, { ...existing, [field]: value })
-    setUnsavedChanges(newChanges)
-  }
-
-  async function saveInlineEdit(id: string, field: string) {
-    // Oppdater lokal state (ikke lagre til database ennå)
-    const updatedList = nodlysListe.map(n => 
-      n.id === id ? { ...n, [field]: editValue || null } : n
-    )
-    setNodlysListe(updatedList)
-    
-    // Track endringen
-    trackChange(id, field, editValue || null)
-    
-    setEditingCell(null)
-    setEditValue('')
-  }
-
-  async function saveAllChanges() {
-    if (unsavedChanges.size === 0) return
-    
-    try {
-      setIsSaving(true)
-      
-      // Batch update alle endringer
-      const updates = Array.from(unsavedChanges.entries()).map(([id, changes]) => ({
-        id,
-        ...changes
-      }))
-      
-      if (isOnline) {
-        // Online: oppdater alle i databasen
-        for (const update of updates) {
-          const { id, ...fields } = update
-          const { error } = await supabase
-            .from('anleggsdata_nodlys')
-            .update(fields)
-            .eq('id', id)
-
-          if (error) throw error
-        }
-        
-        alert(`✅ ${updates.length} endring${updates.length > 1 ? 'er' : ''} lagret!`)
-      } else {
-        // Offline: legg alle i kø for senere synkronisering
-        updates.forEach(update => {
-          queueUpdate('anleggsdata_nodlys', update)
-        })
-        console.log(`📝 ${updates.length} endring${updates.length > 1 ? 'er' : ''} lagret lokalt - synkroniseres når du er online igjen`)
-        alert(`📝 ${updates.length} endring${updates.length > 1 ? 'er' : ''} lagret lokalt`)
-      }
-
-      // Cache oppdatert liste
-      cacheData(`nodlys_${selectedAnlegg}`, nodlysListe)
-      
-      // Reset unsaved changes og oppdater original data
-      setOriginalData(nodlysListe)
-      setUnsavedChanges(new Map())
-    } catch (error: any) {
-      console.error('Feil ved lagring av endringer:', error)
-      
-      let feilmelding = 'Kunne ikke lagre endringer. '
-      if (error?.message?.includes('Load failed') || error?.message?.includes('fetch')) {
-        feilmelding += 'Sjekk internettforbindelsen din og prøv igjen.'
-      } else if (error?.code === '42501') {
-        feilmelding += 'Du har ikke tilgang til å lagre endringer.'
-      } else if (!navigator.onLine) {
-        feilmelding += 'Du er ikke tilkoblet internett.'
-      } else {
-        feilmelding += 'Prøv igjen senere.'
-      }
-      
-      alert(feilmelding)
-    } finally {
-      setIsSaving(false)
+  /** Lagrer én endring med en gang (offline: legges i kø). Ruller tilbake hvis lagringen feiler. */
+  async function lagreEndring(id: string, patch: Partial<NodlysEnhet>) {
+    const forrige = nodlysListe.find(n => n.id === id)
+    if (!forrige) return
+    setNodlysListe(prev => { const ny = prev.map(n => n.id === id ? { ...n, ...patch } : n); cacheData(`nodlys_${selectedAnlegg}`, ny); return ny })
+    if (!isOnline) { queueUpdate('anleggsdata_nodlys', { id, ...patch }); return }
+    setLagrer(prev => new Set(prev).add(id))
+    const { error } = await supabase.from('anleggsdata_nodlys').update(patch).eq('id', id)
+    setLagrer(prev => { const n = new Set(prev); n.delete(id); return n })
+    if (error) {
+      const tilbake: Partial<NodlysEnhet> = {}
+      for (const k of Object.keys(patch) as (keyof NodlysEnhet)[]) (tilbake as Record<string, unknown>)[k] = forrige[k]
+      setNodlysListe(prev => prev.map(n => n.id === id ? { ...n, ...tilbake } : n))
+      toast.error('Kunne ikke lagre endringen', error)
     }
   }
 
-  function discardChanges() {
-    if (!confirm('⚠️ Er du sikker på at du vil forkaste alle ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '?\n\nDisse endringene kan ikke gjenopprettes.')) return
-    
-    setNodlysListe(originalData)
-    setUnsavedChanges(new Map())
-  }
-
-  function cancelEditing() {
-    setEditingCell(null)
-    setEditValue('')
+  async function markerAlleKontrollert() {
+    const ids = nodlysListe.filter(n => !n.kontrollert).map(n => n.id)
+    if (ids.length === 0) return
+    if (!confirm(`Merke ${ids.length} armaturer som kontrollert?`)) return
+    const { error } = await supabase.from('anleggsdata_nodlys').update({ kontrollert: true }).in('id', ids)
+    if (error) { toast.error('Kunne ikke oppdatere', error); return }
+    setNodlysListe(prev => prev.map(n => ({ ...n, kontrollert: true })))
+    toast.success(`${ids.length} armaturer merket som kontrollert`)
   }
 
   async function handleTjenesteFullfort() {
@@ -428,7 +294,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       setShowSendRapportDialog(true)
     } catch (error) {
       console.error('Feil ved oppdatering av tjenestestatus:', error)
-      alert('Rapport lagret, men kunne ikke oppdatere status')
+      toast.warning('Rapport lagret, men kunne ikke oppdatere tjenestestatus')
       setShowFullfortDialog(false)
       setPendingPdfSave(null)
       setLoading(false)
@@ -461,9 +327,9 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       const { mode, doc, fileName } = pendingPdfSave
       if (mode === 'download') {
         doc.save(fileName)
-        alert('Rapport lagret og lastet ned!')
+        toast.success('Rapport lagret og lastet ned')
       } else {
-        alert('Rapport lagret!')
+        toast.success('Rapport lagret')
       }
     }
     setShowFullfortDialog(false)
@@ -1032,7 +898,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       }
     } catch (error) {
       console.error('Feil ved generering av rapport:', error)
-      alert('Kunne ikke generere rapport')
+      toast.error('Kunne ikke generere rapport')
     } finally {
       setLoading(false)
     }
@@ -1099,331 +965,11 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       XLSX.writeFile(wb, fileName)
     } catch (error) {
       console.error('Feil ved eksport til Excel:', error)
-      alert('Kunne ikke eksportere til Excel')
+      toast.error('Kunne ikke eksportere til Excel')
     }
   }
 
   // Hent unike verdier for autocomplete
-  function getUniqueValues(field: 'fordeling' | 'kurs' | 'produsent'): string[] {
-    const values = nodlysListe
-      .map(n => n[field])
-      .filter((v): v is string => v !== null && v !== '')
-    return Array.from(new Set(values)).sort()
-  }
-
-  // Redigerbar celle-komponent
-  function EditableCell({ 
-    nodlysId, 
-    field, 
-    value, 
-    className = "text-gray-700 dark:text-gray-300" 
-  }: { 
-    nodlysId: string
-    field: string
-    value: string | null
-    className?: string 
-  }) {
-    const isEditing = editingCell?.id === nodlysId && editingCell?.field === field
-    const [showSuggestions, setShowSuggestions] = useState(false)
-    const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
-    const [localValue, setLocalValue] = useState(value || '')
-    const inputRef = useRef<HTMLInputElement>(null)
-    const selectRef = useRef<HTMLSelectElement>(null)
-
-    // Synkroniser localValue når editing starter
-    useEffect(() => {
-      if (isEditing) {
-        setLocalValue(value || '')
-      }
-    }, [isEditing, value])
-
-    // Håndter autocomplete for fordeling, kurs, produsent
-    const isAutocompleteField = field === 'fordeling' || field === 'kurs' || field === 'produsent'
-    const isEtasjeField = field === 'etasje'
-    const isTypeField = field === 'type'
-
-    useEffect(() => {
-      if (isEditing && isAutocompleteField) {
-        const uniqueValues = getUniqueValues(field as 'fordeling' | 'kurs' | 'produsent')
-        const filtered = uniqueValues.filter(v => 
-          v.toLowerCase().startsWith(localValue.toLowerCase())
-        )
-        setFilteredSuggestions(filtered)
-        setShowSuggestions(filtered.length > 0 && localValue.length > 0)
-      }
-    }, [localValue, isEditing, isAutocompleteField, field])
-
-    // Focus input/select without scrolling
-    useEffect(() => {
-      if (isEditing) {
-        // Lagre scroll-posisjon før fokusering
-        const scrollContainer = document.querySelector('.overflow-x-auto') || window
-        const scrollPos = scrollContainer instanceof Window ? window.scrollY : scrollContainer.scrollTop
-        
-        // Bruk setTimeout for å sikre at DOM er ferdig oppdatert
-        setTimeout(() => {
-          if (inputRef.current) {
-            inputRef.current.focus({ preventScroll: true })
-          } else if (selectRef.current) {
-            selectRef.current.focus({ preventScroll: true })
-          }
-          
-          // Gjenopprett scroll-posisjon som backup
-          setTimeout(() => {
-            if (scrollContainer instanceof Window) {
-              window.scrollTo(0, scrollPos)
-            } else {
-              scrollContainer.scrollTop = scrollPos
-            }
-          }, 0)
-        }, 0)
-      }
-    }, [isEditing])
-
-    if (isEditing) {
-      // Etasje dropdown
-      if (isEtasjeField) {
-        return (
-          <select
-            ref={selectRef}
-            value={localValue}
-            onChange={(e) => {
-              const newValue = e.target.value
-              setLocalValue(newValue)
-              // Lagre umiddelbart når bruker velger fra dropdown
-              setTimeout(() => {
-                const updatedList = nodlysListe.map(n => 
-                  n.id === nodlysId ? { ...n, [field]: newValue || null } : n
-                )
-                setNodlysListe(updatedList)
-                trackChange(nodlysId, field, newValue || null)
-                setEditingCell(null)
-              }, 0)
-            }}
-            onBlur={() => {
-              // Backup: lagre hvis ikke allerede lagret
-              setTimeout(() => {
-                if (editingCell?.id === nodlysId && editingCell?.field === field) {
-                  saveInlineEdit(nodlysId, field)
-                }
-              }, 150)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') saveInlineEdit(nodlysId, field)
-              if (e.key === 'Escape') cancelEditing()
-            }}
-            className="input py-1 px-2 text-sm w-full"
-          >
-            <option value="">Velg etasje</option>
-            {etasjeOptions.map((etasje) => (
-              <option key={etasje} value={etasje}>{etasje}</option>
-            ))}
-          </select>
-        )
-      }
-
-      // Type dropdown
-      if (isTypeField) {
-        return (
-          <select
-            ref={selectRef}
-            value={localValue}
-            onChange={(e) => {
-              const newValue = e.target.value
-              setLocalValue(newValue)
-              // Lagre umiddelbart når bruker velger fra dropdown
-              setTimeout(() => {
-                const updatedList = nodlysListe.map(n => 
-                  n.id === nodlysId ? { ...n, [field]: newValue || null } : n
-                )
-                setNodlysListe(updatedList)
-                trackChange(nodlysId, field, newValue || null)
-                setEditingCell(null)
-              }, 0)
-            }}
-            onBlur={() => {
-              // Backup: lagre hvis ikke allerede lagret
-              setTimeout(() => {
-                if (editingCell?.id === nodlysId && editingCell?.field === field) {
-                  saveInlineEdit(nodlysId, field)
-                }
-              }, 150)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') saveInlineEdit(nodlysId, field)
-              if (e.key === 'Escape') cancelEditing()
-            }}
-            className="input py-1 px-2 text-sm w-full"
-          >
-            <option value="">Velg type</option>
-            {typeOptions.map((type) => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
-        )
-      }
-
-      // Autocomplete for fordeling, kurs, produsent
-      if (isAutocompleteField) {
-        return (
-          <div className="relative">
-            <input
-              ref={inputRef}
-              type="text"
-              value={localValue}
-              onChange={(e) => setLocalValue(e.target.value)}
-              onBlur={(e) => {
-                // Sjekk om klikket var på en suggestion
-                const relatedTarget = e.relatedTarget as HTMLElement
-                if (relatedTarget?.closest('.suggestion-item')) {
-                  return // Ikke lagre hvis vi klikker på en suggestion
-                }
-                // Delay to allow click events to register first
-                setTimeout(() => {
-                  // Lagre med localValue
-                  const updatedList = nodlysListe.map(n => 
-                    n.id === nodlysId ? { ...n, [field]: localValue || null } : n
-                  )
-                  setNodlysListe(updatedList)
-                  trackChange(nodlysId, field, localValue || null)
-                  setEditingCell(null)
-                  setShowSuggestions(false)
-                }, 150)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const updatedList = nodlysListe.map(n => 
-                    n.id === nodlysId ? { ...n, [field]: localValue || null } : n
-                  )
-                  setNodlysListe(updatedList)
-                  trackChange(nodlysId, field, localValue || null)
-                  setEditingCell(null)
-                  setShowSuggestions(false)
-                }
-                if (e.key === 'Escape') {
-                  cancelEditing()
-                  setShowSuggestions(false)
-                }
-              }}
-              className="input py-1 px-2 text-sm w-full"
-              placeholder={`Skriv eller velg ${field}...`}
-            />
-            {showSuggestions && filteredSuggestions.length > 0 && (
-              <div className="absolute z-50 w-full bottom-full mb-1 bg-dark-100 border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                {filteredSuggestions.map((suggestion, idx) => (
-                  <div
-                    key={idx}
-                    className="suggestion-item w-full text-left px-3 py-2 hover:bg-primary/20 text-gray-300 text-sm transition-colors cursor-pointer"
-                    onMouseDown={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setShowSuggestions(false)
-                      
-                      // Oppdater lokal state
-                      const updatedList = nodlysListe.map(n => 
-                        n.id === nodlysId ? { ...n, [field]: suggestion } : n
-                      )
-                      setNodlysListe(updatedList)
-                      
-                      // Track endringen
-                      trackChange(nodlysId, field, suggestion)
-                      
-                      setEditingCell(null)
-                    }}
-                  >
-                    {suggestion}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      }
-
-      // Standard text input for other fields (inkludert plassering)
-      return (
-        <input
-          ref={inputRef}
-          type="text"
-          value={localValue}
-          onChange={(e) => setLocalValue(e.target.value)}
-          onBlur={() => {
-            // Delay to allow click events to register first
-            setTimeout(() => {
-              // Lagre med localValue
-              const updatedList = nodlysListe.map(n => 
-                n.id === nodlysId ? { ...n, [field]: localValue || null } : n
-              )
-              setNodlysListe(updatedList)
-              trackChange(nodlysId, field, localValue || null)
-              setEditingCell(null)
-            }, 150)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              const updatedList = nodlysListe.map(n => 
-                n.id === nodlysId ? { ...n, [field]: localValue || null } : n
-              )
-              setNodlysListe(updatedList)
-              trackChange(nodlysId, field, localValue || null)
-              setEditingCell(null)
-            }
-            if (e.key === 'Escape') cancelEditing()
-          }}
-          className="input py-1 px-2 text-sm w-full"
-        />
-      )
-    }
-
-    // Display mode
-    const hasUnsavedChange = unsavedChanges.has(nodlysId) && field in (unsavedChanges.get(nodlysId) || {})
-    
-    return (
-      <span
-        onClick={() => startEditing(nodlysId, field, value)}
-        className={`${className} ${hasUnsavedChange ? 'bg-yellow-500/20 border border-yellow-500/50' : ''} cursor-pointer hover:bg-dark-100 px-2 py-1 rounded transition-colors`}
-        title={hasUnsavedChange ? "Ulagret endring - klikk for å redigere" : "Klikk for å redigere"}
-      >
-        {value || '-'}
-      </span>
-    )
-  }
-
-  const filteredNodlys = nodlysListe.filter(n =>
-    (n.plassering?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (n.type?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (n.status?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (n.etasje?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (n.internnummer?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  )
-
-  // Sortering
-  const sortedNodlys = [...filteredNodlys].sort((a, b) => {
-    switch (sortBy) {
-      case 'internnummer':
-        return (a.internnummer || '').localeCompare(b.internnummer || '', 'nb-NO', { numeric: true })
-      case 'amatur_id':
-        return (a.amatur_id || '').localeCompare(b.amatur_id || '', 'nb-NO', { numeric: true })
-      case 'fordeling':
-        return (a.fordeling || '').localeCompare(b.fordeling || '', 'nb-NO')
-      case 'kurs':
-        return (a.kurs || '').localeCompare(b.kurs || '', 'nb-NO', { numeric: true })
-      case 'plassering':
-        return (a.plassering || '').localeCompare(b.plassering || '', 'nb-NO')
-      case 'etasje':
-        return (a.etasje || '').localeCompare(b.etasje || '', 'nb-NO', { numeric: true })
-      case 'type':
-        return (a.type || '').localeCompare(b.type || '', 'nb-NO')
-      case 'status':
-        return (a.status || '').localeCompare(b.status || '', 'nb-NO')
-      case 'kontrollert':
-        // Ikke kontrollert først, deretter kontrollert
-        if (a.kontrollert === b.kontrollert) return 0
-        return a.kontrollert ? 1 : -1
-      default:
-        return 0
-    }
-  })
 
   const selectedKundeNavn = kunder.find(k => k.id === selectedKunde)?.navn || ''
   const selectedAnleggNavn = anlegg.find(a => a.id === selectedAnlegg)?.anleggsnavn || ''
@@ -1545,11 +1091,9 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         onSave={async () => {
           await loadNodlys(selectedAnlegg)
           setViewMode('list')
-          setIsFullscreen(true)
         }}
         onCancel={() => {
           setViewMode('list')
-          setIsFullscreen(true)
         }}
       />
     )
@@ -1564,1149 +1108,126 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           await loadNodlys(selectedAnlegg)
           setViewMode('list')
           setSelectedNodlys(null)
-          setIsFullscreen(true)
         }}
         onCancel={() => {
           setViewMode('list')
           setSelectedNodlys(null)
-          setIsFullscreen(true)
         }}
       />
     )
   }
 
-  // Fullskjerm-visning (kun når viewMode === 'list')
-  if (isFullscreen) {
-    return (
-      <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-dark-200 overflow-auto">
-        <div className="min-h-screen p-4 sm:p-6">
-          {/* Header med lukkeknapp */}
-          <div className="flex flex-col gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
-            <div className="flex items-start justify-between gap-2">
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight">
-                Nødlysenheter - {selectedKundeNavn} - {selectedAnleggNavn}
-                <span className="block sm:inline sm:ml-3 text-sm sm:text-lg text-gray-500 dark:text-gray-400 font-normal mt-1 sm:mt-0">
-                  ({sortedNodlys.length} {sortedNodlys.length === 1 ? 'enhet' : 'enheter'})
-                </span>
-              </h2>
-              <button
-                onClick={() => setIsFullscreen(false)}
-                className="p-2 sm:p-3 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0 touch-target"
-                title="Lukk fullskjerm"
-              >
-                <Minimize2 className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => {
-                  setViewMode('bulk')
-                }}
-                className="btn-primary flex items-center gap-2 text-sm sm:text-base"
-              >
-                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden xs:inline">Legg til flere</span>
-                <span className="xs:hidden">Flere</span>
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedNodlys(null)
-                  setViewMode('create')
-                }}
-                className="btn-primary flex items-center gap-2 text-sm sm:text-base"
-              >
-                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden xs:inline">Ny nødlysenhet</span>
-                <span className="xs:hidden">Ny</span>
-              </button>
-              {nodlysListe.length > 0 && (
-                <button
-                  onClick={async () => {
-                    if (!confirm(`Er du sikker på at du vil markere alle ${nodlysListe.length} nødlysenheter som kontrollert?`)) {
-                      return
-                    }
-                    
-                    try {
-                      setIsSaving(true)
-                      
-                      // Oppdater alle enheter til kontrollert = true
-                      const updates = nodlysListe.map(nodlys => ({
-                        id: nodlys.id,
-                        kontrollert: true
-                      }))
-                      
-                      // Oppdater i databasen
-                      for (const update of updates) {
-                        const { error } = await supabase
-                          .from('anleggsdata_nodlys')
-                          .update({ kontrollert: true })
-                          .eq('id', update.id)
-                        
-                        if (error) throw error
-                      }
-                      
-                      // Oppdater lokal state
-                      const updatedList = nodlysListe.map(n => ({ ...n, kontrollert: true }))
-                      setNodlysListe(updatedList)
-                      setOriginalData(updatedList)
-                      setUnsavedChanges(new Map())
-                      
-                      alert(`✅ Alle ${nodlysListe.length} nødlysenheter er markert som kontrollert`)
-                    } catch (error) {
-                      console.error('Feil ved oppdatering:', error)
-                      alert('Kunne ikke oppdatere alle enheter. Prøv igjen.')
-                    } finally {
-                      setIsSaving(false)
-                    }
-                  }}
-                  className="btn bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm sm:text-base"
-                  disabled={isSaving || nodlysListe.every(n => n.kontrollert)}
-                  title={nodlysListe.every(n => n.kontrollert) ? 'Alle enheter er allerede kontrollert' : 'Marker alle som kontrollert'}
-                >
-                  <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="hidden xs:inline">Marker alle som kontrollert</span>
-                  <span className="xs:hidden">Alle OK</span>
-                </button>
-              )}
-            </div>
-          </div>
+  const alleKontrollert = nodlysListe.length > 0 && nodlysListe.every(n => n.kontrollert)
+  const antallKontrollert = nodlysListe.filter(n => n.kontrollert).length
 
-          {/* Lagre endringer banner */}
-          {unsavedChanges.size > 0 && (
-            <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                  <div>
-                    <p className="text-yellow-500 font-medium">
-                      {unsavedChanges.size} ulagret{unsavedChanges.size > 1 ? 'e' : ''} endring{unsavedChanges.size > 1 ? 'er' : ''}
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      Endringene dine er ikke lagret til databasen ennå
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={discardChanges}
-                    className="btn-secondary text-sm"
-                    disabled={isSaving}
-                  >
-                    Forkast
-                  </button>
-                  <button
-                    onClick={saveAllChanges}
-                    className="btn-primary flex items-center gap-2"
-                    disabled={isSaving}
-                  >
-                    {isSaving ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        Lagrer...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4" />
-                        Lagre alle endringer
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Tabell i fullskjerm */}
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-gray-400">Laster nødlysenheter...</p>
-            </div>
-          ) : sortedNodlys.length === 0 ? (
-            <div className="text-center py-12">
-              <Lightbulb className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">Ingen nødlysenheter funnet</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-gray-800">
-              <table className="w-full table-fixed">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-800">
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Intern nr.</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Armatur ID</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Fordeling</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Kurs</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Etasje</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-40">Plassering</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Produsent</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Type</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Status</th>
-                    <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Kontrollert</th>
-                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Handlinger</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedNodlys.map((nodlys) => (
-                    <tr
-                      key={nodlys.id}
-                      className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors"
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-yellow-500/10 rounded-lg flex items-center justify-center">
-                            <Lightbulb className="w-5 h-5 text-yellow-500" />
-                          </div>
-                          <EditableCell 
-                            nodlysId={nodlys.id} 
-                            field="internnummer" 
-                            value={nodlys.internnummer}
-                            className="text-gray-900 dark:text-white font-medium"
-                          />
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <EditableCell nodlysId={nodlys.id} field="amatur_id" value={nodlys.amatur_id} />
-                      </td>
-                      <td className="py-3 px-4">
-                        <EditableCell nodlysId={nodlys.id} field="fordeling" value={nodlys.fordeling} />
-                      </td>
-                      <td className="py-3 px-4">
-                        <EditableCell nodlysId={nodlys.id} field="kurs" value={nodlys.kurs} />
-                      </td>
-                      <td className="py-3 px-4">
-                        <EditableCell nodlysId={nodlys.id} field="etasje" value={nodlys.etasje} />
-                      </td>
-                      <td className="py-3 px-4">
-                        <EditableCell nodlysId={nodlys.id} field="plassering" value={nodlys.plassering} />
-                      </td>
-                      <td className="py-3 px-4">
-                        <EditableCell nodlysId={nodlys.id} field="produsent" value={nodlys.produsent} />
-                      </td>
-                      <td className="py-3 px-4">
-                        <EditableCell nodlysId={nodlys.id} field="type" value={nodlys.type} />
-                      </td>
-                      <td className="py-3 px-4">
-                        {editingCell?.id === nodlys.id && editingCell?.field === 'status' ? (
-                          <select
-                            ref={statusSelectRef}
-                            value={editValue}
-                            onChange={(e) => {
-                              const newValue = e.target.value
-                              setEditValue(newValue)
-                              // Lagre umiddelbart når bruker velger fra dropdown
-                              setTimeout(() => {
-                                const updatedList = nodlysListe.map(n => 
-                                  n.id === nodlys.id ? { ...n, status: newValue || null } : n
-                                )
-                                setNodlysListe(updatedList)
-                                trackChange(nodlys.id, 'status', newValue || null)
-                                setEditingCell(null)
-                                setEditValue('')
-                              }, 0)
-                            }}
-                            onBlur={() => {
-                              // Backup: lagre hvis ikke allerede lagret
-                              setTimeout(() => {
-                                if (editingCell?.id === nodlys.id && editingCell?.field === 'status') {
-                                  saveInlineEdit(nodlys.id, 'status')
-                                }
-                              }, 150)
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') saveInlineEdit(nodlys.id, 'status')
-                              if (e.key === 'Escape') cancelEditing()
-                            }}
-                            className="input py-1 px-2 text-sm"
-                          >
-                            <option value="">Velg status</option>
-                            {statusTyper.map((status) => (
-                              <option key={status} value={status}>{status}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span
-                            onMouseDown={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              startEditing(nodlys.id, 'status', nodlys.status)
-                            }}
-                            className={`cursor-pointer ${
-                              unsavedChanges.has(nodlys.id) && 'status' in (unsavedChanges.get(nodlys.id) || {})
-                                ? 'bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded'
-                                : ''
-                            }`}
-                            title={unsavedChanges.has(nodlys.id) && 'status' in (unsavedChanges.get(nodlys.id) || {}) ? "Ulagret endring - klikk for å redigere" : "Klikk for å redigere"}
-                          >
-                            {nodlys.status ? (
-                              <span className={`badge ${
-                                nodlys.status === 'OK' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-800' :
-                                nodlys.status === 'Defekt' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800' :
-                                nodlys.status === 'Mangler' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-800' :
-                                nodlys.status === 'Batterifeil' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800' :
-                                'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800'
-                              }`}>
-                                {nodlys.status}
-                              </span>
-                            ) : (
-                              <span className="text-gray-500">-</span>
-                            )}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center justify-center">
-                          <div className={`${
-                            unsavedChanges.has(nodlys.id) && 'kontrollert' in (unsavedChanges.get(nodlys.id) || {})
-                              ? 'bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded'
-                              : ''
-                          }`}>
-                            <input
-                              type="checkbox"
-                              checked={nodlys.kontrollert === true}
-                              onChange={(e) => {
-                                const newValue = e.target.checked
-                                
-                                // Oppdater lokal state
-                                const updatedList = nodlysListe.map(n => 
-                                  n.id === nodlys.id ? { ...n, kontrollert: newValue } : n
-                                )
-                                setNodlysListe(updatedList)
-                                
-                                // Track endringen
-                                trackChange(nodlys.id, 'kontrollert', newValue)
-                              }}
-                              className="w-5 h-5 text-green-600 bg-white dark:bg-dark-100 border-gray-300 dark:border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
-                              title={nodlys.kontrollert ? 'Marker som ikke kontrollert' : 'Marker som kontrollert'}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => {
-                              setSelectedNodlys(nodlys)
-                              setViewMode('edit')
-                            }}
-                            className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
-                            title="Rediger"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteNodlys(nodlys.id)}
-                            className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                            title="Slett"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-    )
+  function tilbake() {
+    if (fromAnlegg && state?.anleggId) navigate(`/anlegg/${state.anleggId}`)
+    else onBack()
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-10">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => {
-              // Sjekk om det finnes ulagrede endringer
-              if (unsavedChanges.size > 0) {
-                if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du går tilbake nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
-                  return
-                }
-              }
-              
-              if (fromAnlegg && state?.anleggId) {
-                // Naviger tilbake til anleggsvisningen
-                navigate('/anlegg', { state: { viewAnleggId: state.anleggId } })
-              } else {
-                // Naviger til rapporter-oversikten
-                onBack()
-              }
-            }}
-            className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Nødlys</h1>
-            <p className="text-gray-600 dark:text-gray-400">Registrer og administrer nødlysarmaturer</p>
-          </div>
-        </div>
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={tilbake} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />{fromAnlegg ? 'Anlegg' : 'Rapporter'}</button>
+        {selectedAnleggNavn && <><span className="hidden sm:inline">/</span><span className="hidden sm:inline text-gray-900 dark:text-white truncate">{selectedAnleggNavn}</span></>}
       </div>
 
-      {/* Kunde og Anlegg Velger */}
-      <div className="card">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Kunde */}
-          <div>
-            <Combobox
-              label="Velg kunde"
-              options={kunder.map(k => ({ id: k.id, label: k.navn }))}
-              value={selectedKunde}
-              onChange={(val) => {
-                // Sjekk om det finnes ulagrede endringer
-                if (unsavedChanges.size > 0 && val !== selectedKunde) {
-                  if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du bytter kunde nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
-                    return
-                  }
-                }
-                setSelectedKunde(val)
-                setSelectedAnlegg('')
-              }}
-              placeholder="Søk og velg kunde..."
-              searchPlaceholder="Skriv for å søke..."
-              emptyMessage="Ingen kunder funnet"
-            />
+      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><Lightbulb className="w-6 h-6 text-yellow-500" />Nødlys</h1>
+          {selectedAnlegg ? (
+            <button type="button" onClick={() => setVisVelger(v => !v)} className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary mt-0.5 text-left">
+              {selectedKundeNavn} · <span className="font-medium text-gray-900 dark:text-white">{selectedAnleggNavn}</span> <span className="text-xs">{visVelger ? '· skjul velger' : '· bytt anlegg'}</span>
+            </button>
+          ) : <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Velg kunde og anlegg for å starte kontrollen.</p>}
+        </div>
+        {selectedAnlegg && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <DropdownMenu trigger={open => <IconButton variant="outline" label="Flere valg" icon={<MoreHorizontal />} aria-expanded={open} />}>
+              <MenuItem icon={<Plus />} onSelect={() => setViewMode('bulk')}>Legg til flere (nummerert)</MenuItem>
+              <MenuItem icon={<Upload />} onSelect={() => setViewMode('import')}>Importer fra Excel/CSV</MenuItem>
+              <MenuItem icon={<FileSpreadsheet />} onSelect={eksporterTilExcel}>Eksporter til Excel</MenuItem>
+              <MenuSeparator />
+              <MenuItem icon={<Building2 />} onSelect={() => setViewMode('nettverk')}>{harNettverk ? `Sentralisert anlegg (${nettverkListe.length})` : 'Legg til sentralisert anlegg'}</MenuItem>
+              <MenuSeparator />
+              <MenuItem icon={<ClipboardCheck />} onSelect={markerAlleKontrollert}>{alleKontrollert ? 'Alle er kontrollert' : `Merk alle ${nodlysListe.length - antallKontrollert} gjenstående som kontrollert…`}</MenuItem>
+            </DropdownMenu>
+            <Button variant="primary" icon={<Plus />} onClick={() => { setSelectedNodlys(null); setViewMode('create') }}><span className="hidden sm:inline">Ny armatur</span></Button>
           </div>
+        )}
+      </header>
 
-          {/* Anlegg */}
-          <div>
-            <Combobox
-              label="Velg anlegg"
-              options={anlegg.map(a => ({ 
-                id: a.id, 
-                label: a.anleggsnavn,
-                sublabel: a.adresse ? `${a.adresse}${a.poststed ? `, ${a.poststed}` : ''}` : undefined
-              }))}
-              value={selectedAnlegg}
-              onChange={(val) => {
-                // Sjekk om det finnes ulagrede endringer
-                if (unsavedChanges.size > 0 && val !== selectedAnlegg) {
-                  if (!confirm('⚠️ ADVARSEL: Du har ' + unsavedChanges.size + ' ulagret' + (unsavedChanges.size > 1 ? 'e' : '') + ' endring' + (unsavedChanges.size > 1 ? 'er' : '') + '!\n\nHvis du bytter anlegg nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
-                    return
-                  }
-                }
-                setSelectedAnlegg(val)
-              }}
-              placeholder="Søk og velg anlegg..."
-              searchPlaceholder="Skriv for å søke..."
-              emptyMessage="Ingen anlegg funnet"
-              disabled={!selectedKunde}
-            />
+      {/* Kunde/anlegg-velger – bare når vi ikke kom fra et anlegg, eller brukeren vil bytte */}
+      {(visVelger || !selectedAnlegg) && (
+        <div className="card">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Combobox label="Kunde" options={kunder.map(k => ({ id: k.id, label: k.navn }))} value={selectedKunde} onChange={val => { setSelectedKunde(val); setSelectedAnlegg('') }} placeholder="Søk og velg kunde…" searchPlaceholder="Skriv for å søke…" emptyMessage="Ingen kunder funnet" />
+            <Combobox label="Anlegg" options={anlegg.map(a => ({ id: a.id, label: a.anleggsnavn, sublabel: a.adresse ? `${a.adresse}${a.poststed ? `, ${a.poststed}` : ''}` : undefined }))} value={selectedAnlegg} onChange={val => { setSelectedAnlegg(val); if (val) setVisVelger(false) }} placeholder="Søk og velg anlegg…" searchPlaceholder="Skriv for å søke…" emptyMessage="Ingen anlegg funnet" disabled={!selectedKunde} />
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Nødlysliste */}
       {selectedAnlegg && (
         <>
-          {/* Valgt anlegg info */}
-          <div className="card bg-primary/5 border-primary/20">
-            <div className="flex items-center gap-3">
-              <Building2 className="w-5 h-5 text-primary" />
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Valgt anlegg</p>
-                <p className="text-gray-900 dark:text-white font-medium">{selectedKundeNavn} - {selectedAnleggNavn}</p>
-              </div>
-            </div>
-          </div>
+          {!isOnline && <div className="card !py-2.5 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-800 text-sm text-yellow-800 dark:text-yellow-300">Du er offline – endringer lagres lokalt og sendes når du er på nett igjen.</div>}
 
-          {/* Handlingsknapper */}
-          <div className="card">
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => setViewMode('import')}
-                className="btn-secondary flex items-center gap-2"
-              >
-                <Upload className="w-5 h-5" />
-                Importer fra Excel/CSV
-              </button>
-              <button
-                onClick={() => setViewMode('nettverk')}
-                className="btn-primary flex items-center gap-2"
-              >
-                <Building2 className="w-5 h-5" />
-                {harNettverk ? `Sentralisert anlegg (${nettverkListe.length})` : 'Legg til sentralisert anlegg'}
-              </button>
-              <button
-                onClick={() => setViewMode('bulk')}
-                className="btn-primary flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Legg til flere
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedNodlys(null)
-                  setViewMode('create')
-                }}
-                className="btn-primary flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Ny nødlysenhet
-              </button>
-              {nodlysListe.length > 0 && (
-                <button
-                  onClick={async () => {
-                    if (!confirm(`Er du sikker på at du vil markere alle ${nodlysListe.length} nødlysenheter som kontrollert?`)) {
-                      return
-                    }
-                    
-                    try {
-                      setIsSaving(true)
-                      
-                      // Oppdater alle enheter til kontrollert = true
-                      const updates = nodlysListe.map(nodlys => ({
-                        id: nodlys.id,
-                        kontrollert: true
-                      }))
-                      
-                      // Oppdater i databasen
-                      for (const update of updates) {
-                        const { error } = await supabase
-                          .from('anleggsdata_nodlys')
-                          .update({ kontrollert: true })
-                          .eq('id', update.id)
-                        
-                        if (error) throw error
-                      }
-                      
-                      // Oppdater lokal state
-                      const updatedList = nodlysListe.map(n => ({ ...n, kontrollert: true }))
-                      setNodlysListe(updatedList)
-                      setOriginalData(updatedList)
-                      setUnsavedChanges(new Map())
-                      
-                      alert(`✅ Alle ${nodlysListe.length} nødlysenheter er markert som kontrollert`)
-                    } catch (error) {
-                      console.error('Feil ved oppdatering:', error)
-                      alert('Kunne ikke oppdatere alle enheter. Prøv igjen.')
-                    } finally {
-                      setIsSaving(false)
-                    }
-                  }}
-                  className="btn bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  disabled={isSaving || nodlysListe.every(n => n.kontrollert)}
-                  title={nodlysListe.every(n => n.kontrollert) ? 'Alle enheter er allerede kontrollert' : 'Marker alle som kontrollert'}
-                >
-                  <Lightbulb className="w-5 h-5" />
-                  Marker alle som kontrollert
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Lagre endringer banner */}
-          {unsavedChanges.size > 0 && (
-            <div className="card bg-yellow-500/10 border-yellow-500/30">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                  <div>
-                    <p className="text-yellow-500 font-medium">
-                      {unsavedChanges.size} ulagret{unsavedChanges.size > 1 ? 'e' : ''} endring{unsavedChanges.size > 1 ? 'er' : ''}
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      Endringene dine er ikke lagret til databasen ennå
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={discardChanges}
-                    className="btn-secondary text-sm"
-                    disabled={isSaving}
-                  >
-                    Forkast
-                  </button>
-                  <button
-                    onClick={saveAllChanges}
-                    className="btn-primary flex items-center gap-2"
-                    disabled={isSaving}
-                  >
-                    {isSaving ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        Lagrer...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4" />
-                        Lagre alle endringer
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
+          {loading && nodlysListe.length === 0 ? <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div> : (
+            <NodlysListe
+              enheter={nodlysListe}
+              lagrer={lagrer}
+              onEndre={lagreEndring}
+              onSlett={e => deleteNodlys(e.id)}
+              onRediger={e => { setSelectedNodlys(e); setViewMode('edit') }}
+            />
           )}
 
-          {/* Search and Sort */}
-          <div className="card">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Søk etter plassering, type, status..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input pl-10"
-                />
-              </div>
-              <div className="md:w-64">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="input"
-                >
-                  <option value="internnummer">Sorter: Internnummer</option>
-                  <option value="amatur_id">Sorter: Armatur ID</option>
-                  <option value="fordeling">Sorter: Fordeling</option>
-                  <option value="kurs">Sorter: Kurs</option>
-                  <option value="plassering">Sorter: Plassering</option>
-                  <option value="etasje">Sorter: Etasje</option>
-                  <option value="type">Sorter: Type</option>
-                  <option value="status">Sorter: Status</option>
-                  <option value="kontrollert">Sorter: Ikke kontrollert først</option>
+          {/* Fullfør kontroll */}
+          <section className="card space-y-4" aria-label="Fullfør kontroll">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><ClipboardCheck className="w-5 h-5" /></span>
+              <div><h2 className="text-base font-semibold text-gray-900 dark:text-white">Fullfør kontroll</h2><p className="text-xs text-gray-500 dark:text-gray-400">Sjekk punktene, velg dato og generer rapporten.</p></div>
+            </div>
+            <ol className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+              <Punkt ok={alleKontrollert} tittel="Armaturer kontrollert" tekst={`${antallKontrollert} av ${nodlysListe.length}`} />
+              <Punkt ok={Boolean(evakueringsplanStatus)} tittel="Evakueringsplan" tekst={evakueringsplanStatus || 'Ikke satt'} />
+              <Punkt ok tittel="Kontrolldato" tekst={kontrolldato.toLocaleDateString('nb-NO')} />
+            </ol>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label htmlFor="evak-status" className="block text-sm font-medium text-gray-900 dark:text-white">Evakueringsplaner</label>
+                <select id="evak-status" value={evakueringsplanStatus} onChange={e => { setEvakueringsplanStatus(e.target.value); setTimeout(() => saveEvakueringsplan(), 100) }} className="input">
+                  <option value="">Velg status</option>
+                  <option value="Ja">Ja – i orden</option>
+                  <option value="Nei">Nei – mangler</option>
+                  <option value="Må oppdateres">Må oppdateres</option>
                 </select>
               </div>
+              <KontrolldatoVelger kontrolldato={kontrolldato} onDatoChange={setKontrolldato} label="Kontrolldato" />
             </div>
-          </div>
-
-          {/* Nødlys Tabell */}
-          <div className="card">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Nødlysenheter
-                <span className="ml-2 text-sm text-gray-500 dark:text-gray-400 font-normal">
-                  ({sortedNodlys.length} {sortedNodlys.length === 1 ? 'enhet' : 'enheter'})
-                </span>
-              </h2>
-              <div className="flex items-center gap-2">
-                {/* View toggle */}
-                <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
-                  <button
-                    onClick={() => setDisplayMode('table')}
-                    className={`p-2 rounded transition-colors ${
-                      displayMode === 'table'
-                        ? 'bg-primary text-white'
-                        : 'text-gray-400 hover:text-white'
-                    }`}
-                    title="Tabellvisning"
-                  >
-                    <Table className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setDisplayMode('cards')}
-                    className={`p-2 rounded transition-colors ${
-                      displayMode === 'cards'
-                        ? 'bg-primary text-white'
-                        : 'text-gray-400 hover:text-white'
-                    }`}
-                    title="Kortvisning"
-                  >
-                    <LayoutGrid className="w-4 h-4" />
-                  </button>
-                </div>
-                <button
-                  onClick={() => setIsFullscreen(true)}
-                  className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                  title="Fullskjerm"
-                >
-                  <Maximize2 className="w-5 h-5" />
-                </button>
-              </div>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <Button variant="primary" size="md" icon={<Save />} loading={loading} disabled={nodlysListe.length === 0} onClick={() => genererPDF('save')} className="sm:flex-1">Generer rapport</Button>
+              <Button variant="outline" size="md" icon={<Eye />} disabled={loading || nodlysListe.length === 0} onClick={() => genererPDF('preview')}>Forhåndsvis</Button>
             </div>
+            {!alleKontrollert && nodlysListe.length > 0 && <p className="text-xs text-yellow-700 dark:text-yellow-400">{nodlysListe.length - antallKontrollert} armaturer er ikke kontrollert ennå. Du kan likevel generere rapport.</p>}
+          </section>
 
-            {loading ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-gray-400">Laster nødlysenheter...</p>
-              </div>
-            ) : sortedNodlys.length === 0 ? (
-              <div className="text-center py-12">
-                <Lightbulb className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">
-                  {searchTerm ? 'Ingen nødlysenheter funnet' : 'Ingen nødlysenheter registrert ennå'}
-                </p>
-                {!searchTerm && (
-                  <button
-                    onClick={() => {
-                      setSelectedNodlys(null)
-                      setViewMode('create')
-                    }}
-                    className="btn-primary mt-4"
-                  >
-                    <Plus className="w-5 h-5 mr-2" />
-                    Legg til første nødlysenhet
-                  </button>
-                )}
-              </div>
-            ) : displayMode === 'cards' ? (
-              /* Kortvisning - Mobile-vennlig */
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sortedNodlys.map((nodlys) => (
-                  <div
-                    key={nodlys.id}
-                    className="bg-dark-100 rounded-lg p-4 border border-gray-800 hover:border-primary/50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-yellow-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Lightbulb className="w-5 h-5 text-yellow-500" />
-                        </div>
-                        <div>
-                          <p className="text-gray-900 dark:text-white font-medium">{nodlys.internnummer || '-'}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Armatur: {nodlys.amatur_id || '-'}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => {
-                            setSelectedNodlys(nodlys)
-                            setViewMode('edit')
-                          }}
-                          className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors touch-target"
-                          title="Rediger"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteNodlys(nodlys.id)}
-                          className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors touch-target"
-                          title="Slett"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Fordeling:</span>
-                        <span className="text-gray-700 dark:text-gray-200">{nodlys.fordeling || '-'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Kurs:</span>
-                        <span className="text-gray-700 dark:text-gray-200">{nodlys.kurs || '-'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Etasje:</span>
-                        <span className="text-gray-700 dark:text-gray-200">{nodlys.etasje || '-'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Plassering:</span>
-                        <span className="text-gray-700 dark:text-gray-200 text-right">{nodlys.plassering || '-'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Produsent:</span>
-                        <span className="text-gray-700 dark:text-gray-200">{nodlys.produsent || '-'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Type:</span>
-                        <span className="text-gray-700 dark:text-gray-200">{nodlys.type || '-'}</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-800">
-                        <span className="text-gray-400">Status:</span>
-                        {nodlys.status ? (
-                          <span className={`badge ${
-                            nodlys.status === 'OK' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-800' :
-                            nodlys.status === 'Defekt' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800' :
-                            nodlys.status === 'Mangler' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-800' :
-                            nodlys.status === 'Batterifeil' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800' :
-                            'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800'
-                          }`}>
-                            {nodlys.status}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500">-</span>
-                        )}
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Kontrollert:</span>
-                        <input
-                          type="checkbox"
-                          checked={nodlys.kontrollert === true}
-                          onChange={(e) => {
-                            const newValue = e.target.checked
-                            const updatedList = nodlysListe.map(n => 
-                              n.id === nodlys.id ? { ...n, kontrollert: newValue } : n
-                            )
-                            setNodlysListe(updatedList)
-                            trackChange(nodlys.id, 'kontrollert', newValue)
-                          }}
-                          className="w-5 h-5 text-green-600 bg-white dark:bg-dark-100 border-gray-300 dark:border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              /* Tabellvisning */
-              <div className="overflow-x-auto">
-                <table className="w-full table-fixed">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-800">
-                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Intern nr.</th>
-                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Armatur ID</th>
-                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Fordeling</th>
-                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Kurs</th>
-                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Etasje</th>
-                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-40">Plassering</th>
-                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Produsent</th>
-                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Type</th>
-                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Status</th>
-                      <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Kontrollert</th>
-                      <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Handlinger</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedNodlys.map((nodlys) => (
-                      <tr
-                        key={nodlys.id}
-                        className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors"
-                      >
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-yellow-500/10 rounded-lg flex items-center justify-center">
-                              <Lightbulb className="w-5 h-5 text-yellow-500" />
-                            </div>
-                            <EditableCell 
-                              nodlysId={nodlys.id} 
-                              field="internnummer" 
-                              value={nodlys.internnummer}
-                              className="text-gray-900 dark:text-white font-medium"
-                            />
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <EditableCell nodlysId={nodlys.id} field="amatur_id" value={nodlys.amatur_id} />
-                        </td>
-                        <td className="py-3 px-4">
-                          <EditableCell nodlysId={nodlys.id} field="fordeling" value={nodlys.fordeling} />
-                        </td>
-                        <td className="py-3 px-4">
-                          <EditableCell nodlysId={nodlys.id} field="kurs" value={nodlys.kurs} />
-                        </td>
-                        <td className="py-3 px-4">
-                          <EditableCell nodlysId={nodlys.id} field="etasje" value={nodlys.etasje} />
-                        </td>
-                        <td className="py-3 px-4">
-                          <EditableCell nodlysId={nodlys.id} field="plassering" value={nodlys.plassering} />
-                        </td>
-                        <td className="py-3 px-4">
-                          <EditableCell nodlysId={nodlys.id} field="produsent" value={nodlys.produsent} />
-                        </td>
-                        <td className="py-3 px-4">
-                          <EditableCell nodlysId={nodlys.id} field="type" value={nodlys.type} />
-                        </td>
-                        <td className="py-3 px-4">
-                          {editingCell?.id === nodlys.id && editingCell?.field === 'status' ? (
-                            <select
-                              ref={statusSelectRef}
-                              value={editValue}
-                              onChange={(e) => {
-                                const newValue = e.target.value
-                                setEditValue(newValue)
-                                // Lagre umiddelbart når bruker velger fra dropdown
-                                setTimeout(() => {
-                                  const updatedList = nodlysListe.map(n => 
-                                    n.id === nodlys.id ? { ...n, status: newValue || null } : n
-                                  )
-                                  setNodlysListe(updatedList)
-                                  trackChange(nodlys.id, 'status', newValue || null)
-                                  setEditingCell(null)
-                                  setEditValue('')
-                                }, 0)
-                              }}
-                              onBlur={() => {
-                                // Backup: lagre hvis ikke allerede lagret
-                                setTimeout(() => {
-                                  if (editingCell?.id === nodlys.id && editingCell?.field === 'status') {
-                                    saveInlineEdit(nodlys.id, 'status')
-                                  }
-                                }, 150)
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') saveInlineEdit(nodlys.id, 'status')
-                                if (e.key === 'Escape') cancelEditing()
-                              }}
-                              className="input py-1 px-2 text-sm"
-                            >
-                              <option value="">Velg status</option>
-                              {statusTyper.map((status) => (
-                                <option key={status} value={status}>{status}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                startEditing(nodlys.id, 'status', nodlys.status)
-                              }}
-                              className={`cursor-pointer ${
-                                unsavedChanges.has(nodlys.id) && 'status' in (unsavedChanges.get(nodlys.id) || {})
-                                  ? 'bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded'
-                                  : ''
-                              }`}
-                              title={unsavedChanges.has(nodlys.id) && 'status' in (unsavedChanges.get(nodlys.id) || {}) ? "Ulagret endring - klikk for å redigere" : "Klikk for å redigere"}
-                            >
-                              {nodlys.status ? (
-                                <span className={`badge ${
-                                  nodlys.status === 'OK' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-800' :
-                                  nodlys.status === 'Defekt' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800' :
-                                  nodlys.status === 'Mangler' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-800' :
-                                  nodlys.status === 'Batterifeil' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800' :
-                                  'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800'
-                                }`}>
-                                  {nodlys.status}
-                                </span>
-                              ) : (
-                                <span className="text-gray-500">-</span>
-                              )}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center justify-center">
-                            <div className={`${
-                              unsavedChanges.has(nodlys.id) && 'kontrollert' in (unsavedChanges.get(nodlys.id) || {})
-                                ? 'bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded'
-                                : ''
-                            }`}>
-                              <input
-                                type="checkbox"
-                                checked={nodlys.kontrollert === true}
-                                onChange={(e) => {
-                                  const newValue = e.target.checked
-                                  
-                                  // Oppdater lokal state
-                                  const updatedList = nodlysListe.map(n => 
-                                    n.id === nodlys.id ? { ...n, kontrollert: newValue } : n
-                                  )
-                                  setNodlysListe(updatedList)
-                                  
-                                  // Track endringen
-                                  trackChange(nodlys.id, 'kontrollert', newValue)
-                                }}
-                                className="w-5 h-5 text-green-600 bg-dark-100 border-gray-700 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
-                                title={nodlys.kontrollert ? 'Marker som ikke kontrollert' : 'Marker som kontrollert'}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedNodlys(nodlys)
-                                setViewMode('edit')
-                              }}
-                              className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
-                              title="Rediger"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => deleteNodlys(nodlys.id)}
-                              className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                              title="Slett"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Fullfør kontroll - Samlet seksjon */}
-          <div className="card bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
-                <ClipboardCheck className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Fullfør kontroll</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Sjekkliste før du genererer rapport</p>
-              </div>
-            </div>
-
-            {/* Sjekkliste */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              {/* Status 1: Enheter kontrollert */}
-              <div className={`p-4 rounded-xl border-2 transition-all ${
-                nodlysListe.every(n => n.kontrollert) 
-                  ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
-                  : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
-              }`}>
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    nodlysListe.every(n => n.kontrollert)
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400'
-                  }`}>
-                    {nodlysListe.every(n => n.kontrollert) ? '✓' : '1'}
-                  </div>
-                  <div>
-                    <p className={`font-medium ${nodlysListe.every(n => n.kontrollert) ? 'text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                      Enheter kontrollert
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {nodlysListe.filter(n => n.kontrollert).length} av {nodlysListe.length} enheter
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Status 2: Evakueringsplan */}
-              <div className={`p-4 rounded-xl border-2 transition-all ${
-                evakueringsplanStatus 
-                  ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
-                  : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
-              }`}>
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    evakueringsplanStatus
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400'
-                  }`}>
-                    {evakueringsplanStatus ? '✓' : '2'}
-                  </div>
-                  <div>
-                    <p className={`font-medium ${evakueringsplanStatus ? 'text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                      Evakueringsplan
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {evakueringsplanStatus || 'Ikke satt'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Status 3: Dato valgt */}
-              <div className="p-4 rounded-xl border-2 bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-500 text-white">
-                    ✓
-                  </div>
-                  <div>
-                    <p className="font-medium text-green-700 dark:text-green-400">Kontrolldato</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {kontrolldato.toLocaleDateString('nb-NO')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Evakueringsplan dropdown */}
-            <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Evakueringsplaner status
-                  </label>
-                  <select
-                    value={evakueringsplanStatus}
-                    onChange={(e) => {
-                      setEvakueringsplanStatus(e.target.value)
-                      // Auto-lagre når bruker velger
-                      setTimeout(() => saveEvakueringsplan(), 100)
-                    }}
-                    className="input"
-                  >
-                    <option value="">Velg status</option>
-                    <option value="Ja">✓ Ja - I orden</option>
-                    <option value="Nei">✗ Nei - Mangler</option>
-                    <option value="Må oppdateres">⚠ Må oppdateres</option>
-                  </select>
-                </div>
-                <div>
-                  <KontrolldatoVelger
-                    kontrolldato={kontrolldato}
-                    onDatoChange={setKontrolldato}
-                    label="Kontrolldato"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Hovedhandling - Stor knapp */}
-            <button
-              onClick={() => genererPDF('save')}
-              disabled={loading || nodlysListe.length === 0}
-              className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30"
-            >
-              <Save className="w-6 h-6" />
-              Generer rapport
-            </button>
-
-            {/* Sekundære handlinger */}
-            <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
-              <button
-                onClick={() => genererPDF('preview')}
-                disabled={loading || nodlysListe.length === 0}
-                className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-              >
-                <Eye className="w-4 h-4" />
-                Forhåndsvis
-              </button>
-              <span className="text-gray-300 dark:text-gray-600">|</span>
-              <button
-                onClick={() => genererPDF('save')}
-                disabled={loading || nodlysListe.length === 0}
-                className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                Kun lagre
-              </button>
-              <span className="text-gray-300 dark:text-gray-600">|</span>
-              <button
-                onClick={eksporterTilExcel}
-                disabled={nodlysListe.length === 0}
-                className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                Excel
-              </button>
-            </div>
-          </div>
-
-          {/* Kommentarer seksjon */}
-          <KommentarViewNodlys
-            anleggId={selectedAnlegg}
-            kundeNavn={kunder.find(k => k.id === selectedKunde)?.navn || ''}
-            anleggNavn={anlegg.find(a => a.id === selectedAnlegg)?.anleggsnavn || ''}
-            onBack={() => {}}
-          />
+          <KommentarViewNodlys anleggId={selectedAnlegg} kundeNavn={selectedKundeNavn} anleggNavn={selectedAnleggNavn} onBack={() => {}} />
         </>
       )}
 
-      {/* Dialog for å sette tjeneste til fullført */}
-      <TjenesteFullfortDialog
-        tjeneste="Nødlys"
-        isOpen={showFullfortDialog}
-        onConfirm={handleTjenesteFullfort}
-        onCancel={handleTjenesteAvbryt}
-      />
-
-      {/* Dialog for å navigere til Send Rapporter */}
-      <SendRapportDialog
-        isOpen={showSendRapportDialog}
-        onConfirm={handleSendRapportConfirm}
-        onCancel={handleSendRapportCancel}
-      />
+      <TjenesteFullfortDialog tjeneste="Nødlys" isOpen={showFullfortDialog} onConfirm={handleTjenesteFullfort} onCancel={handleTjenesteAvbryt} />
+      <SendRapportDialog isOpen={showSendRapportDialog} onConfirm={handleSendRapportConfirm} onCancel={handleSendRapportCancel} />
     </div>
+  )
+}
+
+function Punkt({ ok, tittel, tekst }: { ok: boolean; tittel: string; tekst: string }) {
+  return (
+    <li className={`flex items-center gap-3 p-3 rounded-lg border ${ok ? 'border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-800'}`}>
+      <span className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${ok ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-dark-100 text-gray-500'}`}>{ok ? '✓' : '•'}</span>
+      <span className="min-w-0"><span className={`block font-medium ${ok ? 'text-green-800 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>{tittel}</span><span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{tekst}</span></span>
+    </li>
   )
 }
 
@@ -2829,7 +1350,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
       onSave()
     } catch (error) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre nødlysenhet')
+      toast.error('Kunne ikke lagre armatur')
     } finally {
       setSaving(false)
     }
@@ -3150,7 +1671,7 @@ function NettverkView({ anleggId, nettverkListe, onBack, onUpdate }: NettverkVie
       onUpdate()
     } catch (error) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre endringer')
+      toast.error('Kunne ikke lagre endringer')
     }
   }
 
@@ -3353,7 +1874,7 @@ function BulkAddForm({ anleggId, onSave, onCancel }: BulkAddFormProps) {
     e.preventDefault()
     
     if (antall < 1 || antall > 25) {
-      alert('Antall må være mellom 1 og 25')
+      toast.warning('Antall må være mellom 1 og 25')
       return
     }
 
@@ -3392,7 +1913,7 @@ function BulkAddForm({ anleggId, onSave, onCancel }: BulkAddFormProps) {
       onSave()
     } catch (error) {
       console.error('Feil ved opprettelse:', error)
-      alert('Kunne ikke opprette nødlysenheter')
+      toast.error('Kunne ikke opprette armaturer')
     } finally {
       setSaving(false)
     }
