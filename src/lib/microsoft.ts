@@ -116,20 +116,39 @@ interface GraphEvent {
   location?: { displayName?: string }; organizer?: { emailAddress?: { name?: string } }
 }
 
-/** Avtaler i egen kalender mellom to tidspunkt (calendarView ekspanderer gjentakende avtaler). */
-export async function hentAvtaler(fra: Date, til: Date): Promise<Avtale[]> {
+export interface Kalender { id: string; navn: string; standard: boolean; farge: string | null; eier: string | null }
+
+/** Kalenderne på kontoen (egne og delte). */
+export async function hentKalendere(): Promise<Kalender[]> {
+  const data = await graph<{ value: { id: string; name: string; isDefaultCalendar?: boolean; hexColor?: string; owner?: { name?: string } }[] }>('/me/calendars?$select=id,name,isDefaultCalendar,hexColor,owner&$top=50')
+  return data.value.map(k => ({ id: k.id, navn: k.name, standard: Boolean(k.isDefaultCalendar), farge: k.hexColor || null, eier: k.owner?.name ?? null }))
+}
+
+const VALG_KEY = 'outlook_kalendere'
+/** Hvilke kalendere som vises på dashboardet (kalender-ID-er). Tom = kun standardkalenderen. */
+export function valgteKalendere(): string[] {
+  try { return JSON.parse(localStorage.getItem(VALG_KEY) ?? '[]') } catch { return [] }
+}
+export function lagreValgteKalendere(ider: string[]) {
+  try { localStorage.setItem(VALG_KEY, JSON.stringify(ider)) } catch { /* ignorer */ }
+}
+
+/** Avtaler mellom to tidspunkt fra valgte kalendere (calendarView ekspanderer gjentakende avtaler). */
+export async function hentAvtaler(fra: Date, til: Date, kalenderIder: string[] = valgteKalendere()): Promise<Avtale[]> {
   const p = new URLSearchParams({
     startDateTime: fra.toISOString(), endDateTime: til.toISOString(),
     $select: 'id,subject,start,end,isAllDay,location,webLink,showAs,organizer', $orderby: 'start/dateTime', $top: '100',
   })
-  const data = await graph<{ value: GraphEvent[] }>(`/me/calendarView?${p}`)
-  return data.value.map(e => ({
+  const stier = kalenderIder.length ? kalenderIder.map(id => `/me/calendars/${encodeURIComponent(id)}/calendarView?${p}`) : [`/me/calendarView?${p}`]
+  const svar = await Promise.all(stier.map(sti => graph<{ value: GraphEvent[] }>(sti).catch(() => ({ value: [] as GraphEvent[] }))))
+  const sett = new Set<string>()
+  return svar.flatMap(d => d.value).filter(e => !sett.has(e.id) && sett.add(e.id)).sort((a, b) => a.start.dateTime.localeCompare(b.start.dateTime)).map(e => ({
     id: e.id,
     tittel: e.subject ?? '(uten tittel)',
     start: new Date(e.start.dateTime),
     slutt: new Date(e.end.dateTime),
     heleDagen: e.isAllDay,
-    sted: e.location?.displayName || null,
+    sted: penStedsnavn(e.location?.displayName),
     lenke: e.webLink,
     visesSom: e.showAs,
     arrangor: e.organizer?.emailAddress?.name ?? null,
@@ -157,6 +176,17 @@ export async function opprettAvtale(a: { tittel: string; start: Date; slutt: Dat
 
 export async function slettAvtale(id: string): Promise<void> {
   await graph(`/me/events/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+/** «https://meet.google.com/…» → «Google Meet», «Microsoft Teams-møte» → «Teams», ellers uendret */
+function penStedsnavn(sted: string | null | undefined): string | null {
+  if (!sted) return null
+  const s = sted.trim()
+  if (/meet\.google\.com/i.test(s)) return 'Google Meet'
+  if (/teams\.microsoft\.com|teams-møte|teams meeting/i.test(s)) return 'Teams'
+  if (/zoom\.us/i.test(s)) return 'Zoom'
+  if (/^https?:\/\//i.test(s)) return 'Nettmøte'
+  return s
 }
 
 /** Lokal tid uten sone-suffiks (Graph tolker sammen med timeZone-feltet) */

@@ -110,7 +110,7 @@ export function Dashboard() {
       if (!aktiv) return
       if (!koblet) { setOutlook('ikke_koblet'); return }
       try {
-        const til = new Date(iDag); til.setDate(iDag.getDate() + 14)
+        const til = new Date(iDag); til.setDate(iDag.getDate() + 7)
         const a = await hentAvtaler(iDag, til)
         if (aktiv) { setAvtaler(a.filter(x => x.visesSom !== 'free')); setOutlook('koblet') }
       } catch (err) {
@@ -153,14 +153,14 @@ export function Dashboard() {
         rader.push({ kind: 'avtale', dato: a.start, id: `k${a.id}`, avtale: a })
       }
     }
-    const grense = new Date(iDag); grense.setDate(iDag.getDate() + 14)
+    const grense = new Date(iDag); grense.setDate(iDag.getDate() + 7)
     for (const o of mineOppgaver) {
       const dato = o.forfallsdato ? startAvDag(new Date(o.forfallsdato)) : null
       if (dato && dato > grense) continue
       if (!dato) continue
       rader.push({ kind: 'oppgave', dato, id: o.id, oppgave: o })
     }
-    return rader.sort((x, y) => (x.dato?.getTime() ?? Infinity) - (y.dato?.getTime() ?? Infinity)).slice(0, 14)
+    return rader.sort((x, y) => (x.dato?.getTime() ?? Infinity) - (y.dato?.getTime() ?? Infinity)).slice(0, 20)
   }, [minePlanDager, mineOppgaver, iDag, avtaler, mine])
 
   // ---- Ikke planlagt ennå: månedens anlegg uten ordre i år og uten ukesplan denne/neste uke ----
@@ -238,37 +238,39 @@ export function Dashboard() {
                 </Link>
               )}
               {mine && outlook === 'feil' && <p className="px-4 py-2 text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border-b border-gray-100 dark:border-gray-800/60">Kunne ikke hente Outlook-kalenderen. Prøv å koble til på nytt i profilen.</p>}
-              {nesteOpp.length === 0 ? <Tom>Ingenting planlagt de neste to ukene{mine ? ' for deg' : ''}.</Tom> : (() => {
+              {nesteOpp.length === 0 ? <Tom>Ingenting planlagt de neste sju dagene{mine ? ' for deg' : ''}.</Tom> : (() => {
                 let forrige = ''
                 return nesteOpp.map(r => {
-                  const key = r.dato ? (sammeDag(r.dato, iDag) ? 'I dag' : r.dato < iDag ? 'Forfalt' : `${UKEDAGER[(r.dato.getDay() + 6) % 7]} ${formatDate(r.dato)}`) : 'Uten dato'
+                  const iMorgen = new Date(iDag); iMorgen.setDate(iDag.getDate() + 1)
+                  const key = r.dato ? (r.dato < iDag && !sammeDag(r.dato, iDag) ? 'Forfalt' : sammeDag(r.dato, iDag) ? 'I dag' : sammeDag(r.dato, iMorgen) ? 'I morgen' : `${UKEDAGER[(r.dato.getDay() + 6) % 7]} ${r.dato.getDate()}.`) : 'Uten dato'
                   const visHeader = key !== forrige; forrige = key
                   return (
                     <div key={r.id}>
                       {visHeader && <div className={cn('px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide bg-gray-50 dark:bg-dark-100', key === 'Forfalt' ? 'text-red-600 dark:text-red-400' : key === 'I dag' ? 'text-primary' : 'text-gray-500 dark:text-gray-400')}>{key}</div>}
                       {r.kind === 'avtale' ? (
-                        <a href={r.avtale.lenke ?? '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60">
-                          <span className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 flex items-center justify-center flex-shrink-0"><CalendarDays className="w-4 h-4" /></span>
-                          <span className="flex-1 min-w-0">
-                            <span className="block font-semibold text-gray-900 dark:text-white truncate">{r.avtale.tittel}</span>
-                            <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">
-                              {r.avtale.heleDagen ? 'Hele dagen' : `kl. ${r.avtale.start.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}–${r.avtale.slutt.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}`}
-                              {r.avtale.sted && <> · <MapPin className="inline w-3 h-3 -mt-0.5" /> {r.avtale.sted}</>}
-                            </span>
+                        <a href={r.avtale.lenke ?? '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60">
+                          <span className="w-14 flex-shrink-0 text-xs tabular-nums leading-tight text-gray-700 dark:text-gray-300">
+                            {r.avtale.heleDagen ? <span className="text-gray-500 dark:text-gray-400">Hele<br />dagen</span> : <><span className="block font-semibold text-gray-900 dark:text-white">{r.avtale.start.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}</span><span className="block text-gray-500 dark:text-gray-400">{r.avtale.slutt.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}</span></>}
                           </span>
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 whitespace-nowrap">Outlook</span>
+                          <span className="w-0.5 self-stretch rounded-full bg-blue-400 dark:bg-blue-500 flex-shrink-0" />
+                          <span className="flex-1 min-w-0">
+                            <span className="block font-medium text-gray-900 dark:text-white truncate">{r.avtale.tittel}</span>
+                            {r.avtale.sted && <span className="block text-xs text-gray-500 dark:text-gray-400 truncate"><MapPin className="inline w-3 h-3 -mt-0.5 mr-0.5" />{r.avtale.sted}</span>}
+                          </span>
                         </a>
                       ) : r.kind === 'plan' ? (
-                        <button type="button" onClick={() => navigate(`/anlegg/${r.anleggId}`)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60">
-                          <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0"><Building2 className="w-4 h-4" /></span>
+                        <button type="button" onClick={() => navigate(`/anlegg/${r.anleggId}`)} className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60">
+                          <span className="w-14 flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">Ukesplan</span>
+                          <span className="w-0.5 self-stretch rounded-full bg-primary flex-shrink-0" />
                           <span className="flex-1 min-w-0"><span className="block font-semibold text-gray-900 dark:text-white truncate">{r.tittel}</span><span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{r.under}</span></span>
                         </button>
                       ) : (
-                        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800/60">
+                        <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-100 dark:border-gray-800/60">
+                          <span className="w-14 flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">Oppgave</span>
                           <input type="checkbox" checked={false} onChange={() => fullforOppgave(r.oppgave)} aria-label={`Fullfør ${r.oppgave.tittel ?? ''}`} className="w-4.5 h-4.5 w-[18px] h-[18px] rounded text-primary focus:ring-primary flex-shrink-0" />
                           <button type="button" onClick={() => navigate('/oppgaver', { state: { selectedOppgaveId: r.oppgave.id } })} className="flex-1 min-w-0 text-left">
                             <span className="block font-semibold text-gray-900 dark:text-white truncate">{r.oppgave.tittel ?? r.oppgave.type}</span>
-                            <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">Oppgave{r.oppgave.anlegg?.anleggsnavn ? ` · ${r.oppgave.anlegg.anleggsnavn}` : ''}{!mine && r.oppgave.tekniker?.navn ? ` · ${r.oppgave.tekniker.navn}` : ''}</span>
+                            {(r.oppgave.anlegg?.anleggsnavn || (!mine && r.oppgave.tekniker?.navn)) && <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[r.oppgave.anlegg?.anleggsnavn, !mine ? r.oppgave.tekniker?.navn : null].filter(Boolean).join(' · ')}</span>}
                           </button>
                           <span className={cn('px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap', r.dato && r.dato < iDag ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : PILL[r.oppgave.status ?? ''] ?? 'bg-gray-100 text-gray-700 dark:bg-dark-100 dark:text-gray-400')}>{r.dato && r.dato < iDag ? 'Forfalt' : r.oppgave.status}</span>
                         </div>
