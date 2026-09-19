@@ -28,7 +28,8 @@ import {
   Cloud,
   CalendarCheck,
   TrendingUp,
-  QrCode
+  QrCode,
+  CalendarDays
 } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
@@ -46,6 +47,7 @@ const navigation = [
   { name: 'Kunder', href: '/kunder', icon: Users, modulKey: 'kunder' },
   { name: 'Anlegg', href: '/anlegg', icon: Building2, modulKey: 'anlegg' },
   { name: 'Kontrollplan', href: '/kontrollplan', icon: Calendar, modulKey: 'kontrollplan' },
+  { name: 'Kalender', href: '/kalender', icon: CalendarDays, modulKey: 'kalender', alwaysShow: true },
   { name: 'Kontaktpersoner', href: '/kontaktpersoner', icon: Users, modulKey: 'kontaktpersoner' },
   { name: 'Ordre', href: '/ordre', icon: ClipboardList, modulKey: 'ordre_oppgaver' },
   { name: 'Oppgaver', href: '/oppgaver', icon: CheckSquare, modulKey: 'ordre_oppgaver' },

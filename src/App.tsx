@@ -46,6 +46,7 @@ const AdminAIEmbeddings = lazy(() => import('./pages/AdminAIEmbeddings').then(m 
 const AdminAIKnowledge = lazy(() => import('./pages/AdminAIKnowledge').then(m => ({ default: m.AdminAIKnowledge })))
 const Moter = lazy(() => import('./pages/Moter').then(m => ({ default: m.Moter })))
 const Kontrollplan = lazy(() => import('./pages/Kontrollplan').then(m => ({ default: m.Kontrollplan })))
+const Kalender = lazy(() => import('./pages/Kalender').then(m => ({ default: m.Kalender })))
 const Meldinger = lazy(() => import('./pages/Meldinger').then(m => ({ default: m.Meldinger })))
 const PowerOfficeTest = lazy(() => import('./pages/PowerOfficeTest'))
 const AdminDropboxFolders = lazy(() => import('./pages/AdminDropboxFolders').then(m => ({ default: m.AdminDropboxFolders })))
@@ -132,6 +133,7 @@ function App() {
                       <Route path="/anlegg/:id/rediger" element={<AnleggRediger />} />
                       <Route path="/qr/:kode" element={<KobleQrKode />} />
                       <Route path="/kontrollplan" element={<Kontrollplan />} />
+                      <Route path="/kalender" element={<Kalender />} />
                       <Route path="/kontaktpersoner" element={<Kontaktpersoner />} />
                       <Route path="/ekstern-kontaktpersoner" element={<EksternKontaktpersoner />} />
                       <Route path="/ordre" element={<Ordre />} />

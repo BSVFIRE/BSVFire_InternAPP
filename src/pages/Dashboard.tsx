@@ -231,7 +231,7 @@ export function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-5 items-start">
           {/* Venstre */}
           <div className="space-y-4">
-            <Boks tittel="Neste opp" lenke={{ til: '/kontrollplan', tekst: 'Kontrollplan' }}>
+            <Boks tittel="Neste opp" lenke={{ til: '/kalender', tekst: 'Åpne kalender' }}>
               {mine && outlook === 'ikke_koblet' && (
                 <Link to="/admin/bedrift" className="flex items-center gap-2 px-4 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-dark-100 border-b border-gray-100 dark:border-gray-800/60 hover:text-primary">
                   <CalendarDays className="w-3.5 h-3.5" />Koble til Outlook for å se kalenderen din her →
