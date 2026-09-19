@@ -413,11 +413,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
       // Generer PDF
       const doc = new jsPDF()
-      const pageWidth = doc.internal.pageSize.getWidth()
-      const pageHeight = doc.internal.pageSize.getHeight()
       
       // Funksjon for å legge til footer på hver side
       const addFooter = (pageNum: number) => {
+        // Bruk gjeldende sides mål – listesiden er liggende, resten stående
+        const pageWidth = doc.internal.pageSize.getWidth()
+        const pageHeight = doc.internal.pageSize.getHeight()
         const footerY = pageHeight - 20
         
         // Linje over footer
@@ -721,8 +722,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       // Legg til footer på første side
       addFooter(1)
 
-      // Ny side for nødlysliste
-      doc.addPage()
+      // Ny side for nødlysliste – liggende, så alle kolonnene får plass
+      doc.addPage('a4', 'landscape')
       yPos = 20
 
       // Logo på side 2
@@ -775,9 +776,10 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           n.kontrollert ? 'Ja' : 'Nei',
           n.notat || ''
         ]),
-        styles: { fontSize: 7 },
+        styles: { fontSize: 8, cellPadding: 1.5, overflow: 'linebreak' },
         headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 8 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
+        columnStyles: { 0: { cellWidth: 20 }, 1: { cellWidth: 24 }, 2: { cellWidth: 16 }, 3: { cellWidth: harBygg ? 34 : 18 }, 5: { cellWidth: 26 }, 6: { cellWidth: 18 }, 7: { cellWidth: 22 }, 8: { cellWidth: 24 }, 9: { cellWidth: 18 } },
         margin: { left: 10, right: 10, bottom: 25 },
         didDrawPage: () => {
           // Legg til footer på hver side
@@ -787,9 +789,9 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         }
       })
 
-      // Kommentarer seksjon - på ny side hvis det finnes kommentarer
+      // Kommentarer seksjon - på ny (stående) side hvis det finnes kommentarer
       if (kommentarer && kommentarer.length > 0) {
-        doc.addPage()
+        doc.addPage('a4', 'portrait')
         yPos = 20
 
         // Tittel
