@@ -114,7 +114,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/dropbox-callback" element={<DropboxCallback />} />
-          <Route path="/ms-callback.html" element={<MsCallback />} />
+          <Route path="/ms-callback" element={<MsCallback />} />
           <Route
             path="/*"
             element={

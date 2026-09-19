@@ -1,5 +1,5 @@
 /**
- * Landingsside for Microsoft-innlogging i popup (/ms-callback.html).
+ * Landingsside for Microsoft-innlogging i popup (/ms-callback).
  * MSAL v5 krever at landingssiden selv kjører MSAL: handleRedirectPromise() leser svaret
  * og sender det til hovedvinduet (BroadcastChannel), som deretter lukker popupen.
  * Ingen innloggingsvakt her – siden skal fungere før FireCtrl-sesjonen er sjekket.

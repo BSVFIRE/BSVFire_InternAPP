@@ -22,9 +22,9 @@ function klient(): Promise<PublicClientApplication> {
   if (klar) return klar
   klar = (async () => {
     msal = new PublicClientApplication({
-      // Popupen lander på en tom side (public/ms-callback.html) – ikke hele appen – så MSAL får
-      // lest svaret før noe annet skjer. Må være registrert som SPA-redirect i Entra.
-      auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: `${window.location.origin}/ms-callback.html`, postLogoutRedirectUri: window.location.origin },
+      // Popupen lander på /ms-callback (rute i appen som kjører MSAL og sender svaret til
+      // hovedvinduet). Må være registrert som SPA-redirect i Entra.
+      auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: `${window.location.origin}/ms-callback`, postLogoutRedirectUri: window.location.origin },
       cache: { cacheLocation: 'localStorage' },
     })
     await msal.initialize()
@@ -35,7 +35,7 @@ function klient(): Promise<PublicClientApplication> {
   return klar
 }
 
-/** Kalles på landingssiden (/ms-callback.html): leser svaret og gir det til hovedvinduet. */
+/** Kalles på landingssiden (/ms-callback): leser svaret og gir det til hovedvinduet. */
 export async function fullforMicrosoftRedirect(): Promise<void> {
   await klient()
 }
