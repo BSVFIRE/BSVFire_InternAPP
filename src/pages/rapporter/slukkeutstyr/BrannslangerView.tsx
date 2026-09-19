@@ -1,6 +1,10 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Wifi, WifiOff, Check, LayoutGrid, Table, ClipboardCheck } from 'lucide-react'
+import { ArrowLeft, Save, Eye, ClipboardCheck, Droplets } from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { useOfflineQueue } from '@/hooks/useOffline'
+import { Button } from '@/components/ui/Button'
+import { UtstyrListe, type FeltDef, type StatusDef } from '@/components/utstyr/UtstyrListe'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -13,7 +17,7 @@ import { KontrolldatoVelger } from '@/components/KontrolldatoVelger'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
 
 interface Brannslange {
-  id?: string
+  id: string
   anlegg_id: string
   slangenummer?: string | null
   plassering?: string | null
@@ -67,10 +71,27 @@ const brannklasseAlternativer = [
   'A'
 ]
 
+const STATUS_DEF: StatusDef = {
+  alle: statusAlternativer,
+  ok: new Set(['OK']),
+  noytral: new Set(['Ikke funnet', 'Ikke tilkomst']),
+}
+
 const etasjeAlternativer = [
   '',
   ...Array.from({ length: 15 }, (_, i) => `${i - 2} Etg`),
   'Ukjent'
+]
+
+const FELTER: FeltDef<Brannslange>[] = [
+  { key: 'plassering', navn: 'Plassering', placeholder: 'Gang', forslag: true },
+  { key: 'etasje', navn: 'Etasje', bredde: 'w-24', type: 'select', valg: etasjeAlternativer, mobil: true },
+  { key: 'produsent', navn: 'Produsent', bredde: 'w-28', forslag: true },
+  { key: 'modell', navn: 'Modell', bredde: 'w-32', type: 'select', valg: modellAlternativer, mobil: true },
+  { key: 'brannklasse', navn: 'Klasse', bredde: 'w-16', type: 'select', valg: brannklasseAlternativer },
+  { key: 'produksjonsaar', navn: 'Prod.år', bredde: 'w-20', placeholder: '2019', mobil: true },
+  { key: 'trykktest', navn: 'Trykktest', bredde: 'w-24', type: 'aar', placeholder: 'År', mobil: true },
+  { key: 'sistekontroll', navn: 'Kontroll', bredde: 'w-24', type: 'aar', placeholder: 'År' },
 ]
 
 export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: BrannslangerViewProps) {
@@ -78,18 +99,8 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   const { user } = useAuthStore()
   const [slanger, setSlanger] = useState<Brannslange[]>([])
   const [loading, setLoading] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [antallNye, setAntallNye] = useState(1)
-  const [sortBy, setSortBy] = useState<'slangenummer' | 'plassering' | 'etasje' | 'modell' | 'status'>('slangenummer')
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const [pendingChanges, setPendingChanges] = useState(0)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const localStorageKey = `brannslanger_offline_${anleggId}`
-  const [editingStatusIndex, setEditingStatusIndex] = useState<number | null>(null)
+  const { isOnline, queueUpdate, queueInsert } = useOfflineQueue()
+  const [lagrer, setLagrer] = useState<Set<string>>(new Set())
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [showFullfortDialog, setShowFullfortDialog] = useState(false)
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
@@ -98,66 +109,12 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   const [evakueringsplanStatus, setEvakueringsplanStatus] = useState('')
   const [dropboxAvailable, setDropboxAvailable] = useState(false)
   const [kontrolldato, setKontrolldato] = useState<Date>(new Date())
-  const [saveToDropbox] = useState(true)
-  const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
-    // Auto-switch to cards on mobile
-    return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
-  })
-  
-  // Autocomplete for produsent
-  const [produsentOptions, setProdusentOptions] = useState<string[]>([])
-  const [showProdusentSuggestions, setShowProdusentSuggestions] = useState<number | null>(null)
-
   useEffect(() => {
     loadSlanger()
     loadEvakueringsplan(anleggId)
-    loadProdusentOptions()
     // Sjekk Dropbox-status
     checkDropboxStatus().then(status => setDropboxAvailable(status.connected))
   }, [anleggId])
-
-  // Wrapper for setSlanger som også setter hasUnsavedChanges
-  const updateSlanger = (newSlanger: Brannslange[] | ((prev: Brannslange[]) => Brannslange[])) => {
-    setSlanger(newSlanger)
-    setHasUnsavedChanges(true)
-  }
-
-  // Online/offline event listeners
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true)
-      syncOfflineData()
-    }
-    
-    const handleOffline = () => {
-      setIsOnline(false)
-    }
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
-    // Sjekk om det er pending data ved mount
-    const stored = localStorage.getItem(localStorageKey)
-    if (stored && navigator.onLine) {
-      syncOfflineData()
-    }
-
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-
-    // AUTOLAGRING DEAKTIVERT - forårsaker duplikater
-    // Set new timeout
-    // saveTimeoutRef.current = setTimeout(() => {
-    //   autoSave()
-    // }, 3000) // 3 sekunder debounce
-
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    }
-  }, [slanger])
 
   async function loadSlanger() {
     try {
@@ -187,13 +144,9 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       // Konverter status og type_avvik fra database format
       const processedData = (data || []).map(slange => ({
         ...slange,
-        status: Array.isArray(slange.status) && slange.status.length > 0
-          ? slange.status[0]  // Ta første element hvis array
-          : slange.status || 'OK',  //Eller bruk string direkte
-        type_avvik: Array.isArray(slange.type_avvik)
-          ? slange.type_avvik
-          : []
-      }))
+        slangenummer: slange.slangenummer != null ? String(slange.slangenummer) : null,
+        type_avvik: Array.isArray(slange.type_avvik) ? slange.type_avvik : []
+      })) as Brannslange[]
       
       // Sjekk for duplikater
       const ids = processedData.map(s => s.id)
@@ -203,10 +156,9 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       }
       
       setSlanger(processedData)
-      setHasUnsavedChanges(false)
     } catch (error) {
       console.error('Feil ved lasting av brannslanger:', error)
-      alert('Kunne ikke laste brannslanger')
+      toast.error('Kunne ikke laste brannslanger', error)
     } finally {
       setLoading(false)
     }
@@ -227,25 +179,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
     }
   }
 
-  async function loadProdusentOptions() {
-    try {
-      const { data, error } = await supabase
-        .from('anleggsdata_brannslanger')
-        .select('produsent')
-        .eq('anlegg_id', anleggId)
-        .not('produsent', 'is', null)
-        .neq('produsent', '')
-      
-      if (!error && data) {
-        const uniqueProdusenter = Array.from(new Set(data.map(s => s.produsent).filter((v): v is string => v !== null && v !== ''))).sort()
-        setProdusentOptions(uniqueProdusenter)
-      }
-    } catch (error) {
-      console.error('Feil ved lasting av produsenter:', error)
-    }
-  }
-
-  async function saveEvakueringsplan() {
+  async function saveEvakueringsplan(status: string = evakueringsplanStatus) {
     try {
       const { data: existing } = await supabase
         .from('evakueringsplan_status')
@@ -256,12 +190,12 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       if (existing) {
         await supabase
           .from('evakueringsplan_status')
-          .update({ status: evakueringsplanStatus })
+          .update({ status: status })
           .eq('anlegg_id', anleggId)
       } else {
         await supabase
           .from('evakueringsplan_status')
-          .insert({ anlegg_id: anleggId, status: evakueringsplanStatus })
+          .insert({ anlegg_id: anleggId, status: status })
       }
     } catch (error) {
       console.error('Feil ved lagring av evakueringsplan:', error)
@@ -269,168 +203,51 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
     }
   }
 
-  function leggTilNye() {
-    // Finn høyeste nummer
-    let hoyesteNummer = 0
-    slanger.forEach(s => {
-      const num = parseInt(s.slangenummer || '0')
-      if (!isNaN(num) && num > hoyesteNummer) {
-        hoyesteNummer = num
-      }
-    })
-
-    const nyeSlanger: Brannslange[] = Array.from({ length: antallNye }, (_, index) => ({
-      anlegg_id: anleggId,
-      slangenummer: String(hoyesteNummer + index + 1),
-      plassering: '',
-      etasje: '',
-      produsent: '',
-      modell: '',
-      brannklasse: 'A',
-      produksjonsaar: '',
-      sistekontroll: '',
-      trykktest: '',
-      status: 'OK',
-      type_avvik: []
-    }))
-
-    updateSlanger([...slanger, ...nyeSlanger])
-    setAntallNye(1)
-  }
-
-
-  async function syncOfflineData() {
-    const stored = localStorage.getItem(localStorageKey)
-    if (!stored) return
-
-    try {
-      setSaving(true)
-      const offlineData: Brannslange[] = JSON.parse(stored)
-
-      for (const slange of offlineData) {
-        // Konverter status array til string for databasen
-        const dataToSave = {
-          ...slange,
-          status: Array.isArray(slange.status) && slange.status.length > 0
-            ? slange.status[0]
-            : 'OK'
-        }
-
-        if (slange.id) {
-          await supabase
-            .from('anleggsdata_brannslanger')
-            .update(dataToSave)
-            .eq('id', slange.id)
-        } else if (slange.slangenummer || slange.plassering) {
-          await supabase
-            .from('anleggsdata_brannslanger')
-            .insert([{ ...dataToSave, anlegg_id: anleggId }])
-        }
-      }
-
-      localStorage.removeItem(localStorageKey)
-      setPendingChanges(0)
-      setLastSaved(new Date())
-      await loadSlanger()
-      setHasUnsavedChanges(false)
-    } catch (error) {
-      console.error('Feil ved synkronisering:', error)
-    } finally {
-      setSaving(false)
+  /** Lagrer én endring med en gang (offline: kø). Status settes → siste kontroll = i år. */
+  async function lagreEndring(id: string, patch: Partial<Brannslange>) {
+    const forrige = slanger.find(x => x.id === id)
+    if (!forrige) return
+    const aar = String(new Date().getFullYear())
+    if (patch.type_avvik && patch.type_avvik.length > 0 && forrige.sistekontroll !== aar) patch = { ...patch, sistekontroll: aar }
+    setSlanger(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x))
+    const tilDb = { ...patch, ...(patch.type_avvik ? { type_avvik: patch.type_avvik.length ? patch.type_avvik : null } : {}) }
+    if (!isOnline) { queueUpdate('anleggsdata_brannslanger', { id, ...tilDb }); return }
+    setLagrer(prev => new Set(prev).add(id))
+    const { error } = await supabase.from('anleggsdata_brannslanger').update(tilDb).eq('id', id)
+    setLagrer(prev => { const n = new Set(prev); n.delete(id); return n })
+    if (error) {
+      const tilbake: Partial<Brannslange> = {}
+      for (const k of Object.keys(patch) as (keyof Brannslange)[]) (tilbake as Record<string, unknown>)[k] = forrige[k]
+      setSlanger(prev => prev.map(x => x.id === id ? { ...x, ...tilbake } : x))
+      toast.error('Kunne ikke lagre endringen', error)
     }
   }
 
-  async function lagreAlle() {
-    try {
-      setLoading(true)
-      
-      // Deaktiver autolagring midlertidig
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-
-      for (const slange of slanger) {
-        // Skip tomme rader uten data
-        if (!slange.id && !slange.slangenummer && !slange.plassering) {
-          continue
-        }
-        
-        // Fjern status fra dataToSave - vi bruker kun type_avvik
-        const { status, ...dataUtenStatus } = slange
-        
-        const dataToSave = {
-          ...dataUtenStatus,
-          type_avvik: Array.isArray(slange.type_avvik) && slange.type_avvik.length > 0
-            ? slange.type_avvik
-            : null  // NULL hvis ingen avvik (= OK)
-        }
-        
-        if (slange.id) {
-          // Update eksisterende
-          console.log('Oppdaterer slange med ID:', slange.id, 'Nr:', slange.slangenummer)
-          const { error } = await supabase
-            .from('anleggsdata_brannslanger')
-            .update(dataToSave)
-            .eq('id', slange.id)
-          
-          if (error) {
-            console.error('Feil ved oppdatering:', error, 'Data:', dataToSave)
-            throw error
-          }
-        } else if (slange.slangenummer || slange.plassering) {
-          // Insert nye (kun hvis de har data)
-          console.log('Setter inn ny slange, Nr:', slange.slangenummer)
-          const { data: insertedData, error } = await supabase
-            .from('anleggsdata_brannslanger')
-            .insert([{ ...dataToSave, anlegg_id: anleggId }])
-            .select()
-          
-          if (error) {
-            console.error('Feil ved innsetting:', error, 'Data:', dataToSave)
-            throw error
-          }
-          console.log('Ny slange satt inn med ID:', insertedData?.[0]?.id)
-        }
-      }
-
-      // Lagre tilleggsinformasjon (evakueringsplan) sammen med brannslangene
-      await saveEvakueringsplan()
-      
-      alert('Alle endringer lagret!')
-      // Last inn på nytt fra databasen for å få riktig state
-      await loadSlanger()
-      setHasUnsavedChanges(false)
-    } catch (error) {
-      console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre alle brannslanger')
-    } finally {
-      setLoading(false)
-    }
+  async function lagreEndringFlere(ids: string[], patch: Partial<Brannslange>) {
+    if (ids.length === 0) return
+    setSlanger(prev => prev.map(x => ids.includes(x.id) ? { ...x, ...patch } : x))
+    if (!isOnline) { ids.forEach(id => queueUpdate('anleggsdata_brannslanger', { id, ...patch })); return }
+    const { error } = await supabase.from('anleggsdata_brannslanger').update(patch).in('id', ids)
+    if (error) { toast.error('Kunne ikke oppdatere', error); await loadSlanger(); return }
+    toast.success(`${ids.length} brannslanger oppdatert`)
   }
 
-  async function deleteSlange(id: string) {
-    // Sjekk om det finnes ulagrede endringer
-    if (hasUnsavedChanges) {
-      if (!confirm('⚠️ ADVARSEL: Du har ulagrede endringer!\n\nHvis du sletter nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette med slettingen?')) {
-        return
-      }
-    }
-    
-    if (!confirm('Er du sikker på at du vil slette denne brannslangen?')) return
+  async function leggTilNye(antall: number) {
+    const hoyeste = slanger.reduce((m, x) => Math.max(m, parseInt(x.slangenummer || '0') || 0), 0)
+    const nye = Array.from({ length: antall }, (_, i) => ({ anlegg_id: anleggId, slangenummer: hoyeste + i + 1, brannklasse: 'A' }))
+    if (!isOnline) { nye.forEach(n => queueInsert('anleggsdata_brannslanger', n)); toast.info('Lagt i kø – vises når du er på nett igjen'); return }
+    const { error } = await supabase.from('anleggsdata_brannslanger').insert(nye)
+    if (error) { toast.error('Kunne ikke legge til', error); return }
+    await loadSlanger()
+    toast.success(antall === 1 ? `Slange ${hoyeste + 1} lagt til` : `${antall} slanger lagt til (${hoyeste + 1}–${hoyeste + antall})`)
+  }
 
-    try {
-      const { error } = await supabase
-        .from('anleggsdata_brannslanger')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-      await loadSlanger()
-      setHasUnsavedChanges(false)
-    } catch (error) {
-      console.error('Feil ved sletting:', error)
-      alert('Kunne ikke slette brannslange')
-    }
+  async function deleteSlange(s: Brannslange) {
+    if (!confirm(`Slette slange ${s.slangenummer ?? ''}${s.plassering ? ` (${s.plassering})` : ''}?`)) return
+    const { error } = await supabase.from('anleggsdata_brannslanger').delete().eq('id', s.id)
+    if (error) { toast.error('Kunne ikke slette', error); return }
+    setSlanger(prev => prev.filter(x => x.id !== s.id))
+    toast.success('Slange slettet')
   }
 
   async function genererRapport(mode: 'preview' | 'save' | 'download' = 'preview') {
@@ -966,7 +783,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
           })
 
         // Last opp til Dropbox hvis aktivert
-        if (saveToDropbox && dropboxAvailable) {
+        if (dropboxAvailable) {
           try {
             // Hent kundedata for Dropbox-sti
             const { data: anleggData } = await supabase
@@ -1017,7 +834,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       }
     } catch (error) {
       console.error('Feil ved generering av rapport:', error)
-      alert('Kunne ikke generere rapport')
+      toast.error('Kunne ikke generere rapport')
     } finally {
       setLoading(false)
     }
@@ -1046,7 +863,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       setShowSendRapportDialog(true)
     } catch (error) {
       console.error('Feil ved oppdatering av tjenestestatus:', error)
-      alert('Rapport lagret, men kunne ikke oppdatere status')
+      toast.warning('Rapport lagret, men kunne ikke oppdatere tjenestestatus')
       setShowFullfortDialog(false)
       setPendingPdfSave(null)
       setLoading(false)
@@ -1082,65 +899,15 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       const { mode, doc, fileName } = pendingPdfSave
       if (mode === 'download') {
         doc.save(fileName)
-        alert('Rapport lagret og lastet ned!')
+        toast.success('Rapport lagret og lastet ned')
       } else {
-        alert('Rapport lagret!')
+        toast.success('Rapport lagret')
       }
     }
     setShowFullfortDialog(false)
     setPendingPdfSave(null)
     setLoading(false)
   }
-
-  function handleStatusChange(index: number, avvik: string) {
-    // Finn den faktiske slangen i sortedSlanger
-    const slange = sortedSlanger[index]
-    if (!slange) return
-
-    // Finn index i original slanger array
-    const originalIndex = slanger.findIndex(s => s.id ? s.id === slange.id : s === slange)
-    if (originalIndex === -1) return
-
-    const nyeSlanger = [...slanger]
-    const currentAvvik = nyeSlanger[originalIndex].type_avvik || []
-    
-    if (currentAvvik.includes(avvik)) {
-      // Fjern avviket
-      nyeSlanger[originalIndex].type_avvik = currentAvvik.filter((a: string) => a !== avvik)
-    } else {
-      // Legg til avviket
-      nyeSlanger[originalIndex].type_avvik = [...currentAvvik, avvik]
-    }
-    
-    updateSlanger(nyeSlanger)
-  }
-
-  const filteredSlanger = slanger.filter(s =>
-    (s.slangenummer?.toString().toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (s.plassering?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (s.produsent?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  )
-
-  // Sortering
-  const sortedSlanger = [...filteredSlanger].sort((a, b) => {
-    switch (sortBy) {
-      case 'slangenummer':
-        return (a.slangenummer?.toString() || '').localeCompare(b.slangenummer?.toString() || '', 'nb-NO', { numeric: true })
-      case 'plassering':
-        return (a.plassering || '').localeCompare(b.plassering || '', 'nb-NO')
-      case 'etasje':
-        return (a.etasje || '').localeCompare(b.etasje || '', 'nb-NO', { numeric: true })
-      case 'modell':
-        return (a.modell || '').localeCompare(b.modell || '', 'nb-NO')
-      case 'status': {
-        const aStatus = a.status?.[0] || ''
-        const bStatus = b.status?.[0] || ''
-        return aStatus.localeCompare(bStatus, 'nb-NO')
-      }
-      default:
-        return 0
-    }
-  })
 
   // Beregn statistikk basert på type_avvik
   const totalt = slanger.length
@@ -1199,738 +966,53 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
     )
   }
 
-  // Fullskjerm-visning
-  if (isFullscreen) {
-    return (
-      <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-dark-200 overflow-auto">
-        <div className="min-h-screen p-4 sm:p-6">
-          {/* Header med lukkeknapp */}
-          <div className="flex flex-col gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
-            <div className="flex items-start justify-between gap-2">
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight">
-                Brannslanger - {kundeNavn} - {anleggNavn}
-                <span className="block sm:inline sm:ml-3 text-sm sm:text-lg text-gray-500 dark:text-gray-400 font-normal mt-1 sm:mt-0">
-                  ({sortedSlanger.length} {sortedSlanger.length === 1 ? 'enhet' : 'enheter'})
-                </span>
-              </h2>
-              <button
-                onClick={() => setIsFullscreen(false)}
-                className="p-2 sm:p-3 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0 touch-target"
-                title="Lukk fullskjerm"
-              >
-                <Minimize2 className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={leggTilNye}
-                className="btn-primary flex items-center gap-2 text-sm sm:text-base"
-              >
-                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden xs:inline">Legg til ({antallNye})</span>
-                <span className="xs:hidden">+{antallNye}</span>
-              </button>
-              <button
-                onClick={lagreAlle}
-                className="btn-primary flex items-center gap-2 text-sm sm:text-base"
-              >
-                <Save className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden xs:inline">Lagre alle</span>
-                <span className="xs:hidden">Lagre</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Tabell i fullskjerm */}
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-gray-400">Laster brannslanger...</p>
-            </div>
-          ) : sortedSlanger.length === 0 ? (
-            <div className="text-center py-12">
-              <Shield className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">Ingen brannslanger funnet</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-gray-800">
-              <table className="w-full min-w-[1400px]">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-800">
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Nr</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Plassering</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Etasje</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Produsent</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-40">Modell</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-20">Klasse</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">År</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-36">Siste kontroll</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Trykktest</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Status</th>
-                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-20">Handlinger</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedSlanger.map((slange, index) => {
-                    // Finn den faktiske indexen i original slanger array
-                    const originalIndex = slanger.findIndex(s => s.id ? s.id === slange.id : s === slange)
-                    
-                    return (
-                    <tr
-                      key={slange.id || `new-${index}`}
-                      className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors"
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                            <Shield className="w-5 h-5 text-blue-500" />
-                          </div>
-                          <input
-                            type="text"
-                            value={slange.slangenummer || ''}
-                            onChange={(e) => {
-                              const nyeSlanger = [...slanger]
-                              nyeSlanger[originalIndex].slangenummer = e.target.value
-                              updateSlanger(nyeSlanger)
-                            }}
-                            className="input py-1 px-2 text-sm w-full"
-                            placeholder="001"
-                          />
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={slange.plassering || ''}
-                          onChange={(e) => {
-                            const nyeSlanger = [...slanger]
-                            nyeSlanger[originalIndex].plassering = e.target.value
-                            updateSlanger(nyeSlanger)
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                          placeholder="Gang"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <select
-                          value={slange.etasje || ''}
-                          onChange={(e) => {
-                            const nyeSlanger = [...slanger]
-                            nyeSlanger[originalIndex].etasje = e.target.value
-                            updateSlanger(nyeSlanger)
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                        >
-                          {etasjeAlternativer.map((etasje) => (
-                            <option key={etasje} value={etasje}>
-                              {etasje || '-- Velg --'}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={slange.produsent || ''}
-                            onChange={(e) => {
-                              const nyeSlanger = [...slanger]
-                              nyeSlanger[originalIndex].produsent = e.target.value
-                              updateSlanger(nyeSlanger)
-                              setShowProdusentSuggestions(e.target.value.length > 0 ? index : null)
-                            }}
-                            onFocus={() => {
-                              if (slange.produsent && slange.produsent.length > 0) {
-                                setShowProdusentSuggestions(index)
-                              }
-                            }}
-                            onBlur={() => setTimeout(() => setShowProdusentSuggestions(null), 200)}
-                            className="input py-1 px-2 text-sm w-full"
-                            placeholder="Skriv eller velg produsent..."
-                          />
-                          {showProdusentSuggestions === index && produsentOptions.filter(opt => 
-                            opt.toLowerCase().startsWith((slange.produsent || '').toLowerCase())
-                          ).length > 0 && (
-                            <div className="absolute z-50 w-full mt-1 bg-dark-100 border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                              {produsentOptions
-                                .filter(opt => opt.toLowerCase().startsWith((slange.produsent || '').toLowerCase()))
-                                .map((option, idx) => (
-                                  <button
-                                    key={idx}
-                                    type="button"
-                                    onMouseDown={(e) => {
-                                      e.preventDefault()
-                                      const nyeSlanger = [...slanger]
-                                      nyeSlanger[originalIndex].produsent = option
-                                      updateSlanger(nyeSlanger)
-                                      setShowProdusentSuggestions(null)
-                                    }}
-                                    className="w-full text-left px-3 py-2 hover:bg-primary/20 text-gray-300 text-sm transition-colors"
-                                  >
-                                    {option}
-                                  </button>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <select
-                          value={slange.modell || ''}
-                          onChange={(e) => {
-                            const nyeSlanger = [...slanger]
-                            nyeSlanger[originalIndex].modell = e.target.value
-                            updateSlanger(nyeSlanger)
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                        >
-                          {modellAlternativer.map((modell) => (
-                            <option key={modell} value={modell}>
-                              {modell || '-- Velg --'}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-3 px-4">
-                        <select
-                          value={slange.brannklasse || ''}
-                          onChange={(e) => {
-                            const nyeSlanger = [...slanger]
-                            nyeSlanger[originalIndex].brannklasse = e.target.value
-                            updateSlanger(nyeSlanger)
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                        >
-                          {brannklasseAlternativer.map((klasse) => (
-                            <option key={klasse} value={klasse}>
-                              {klasse}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={slange.produksjonsaar || ''}
-                          onChange={(e) => {
-                            const nyeSlanger = [...slanger]
-                            nyeSlanger[originalIndex].produksjonsaar = e.target.value
-                            updateSlanger(nyeSlanger)
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                          placeholder="2024"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={slange.sistekontroll || ''}
-                            onChange={(e) => {
-                              const nyeSlanger = [...slanger]
-                              nyeSlanger[originalIndex].sistekontroll = e.target.value
-                              updateSlanger(nyeSlanger)
-                            }}
-                            className="input py-1 px-2 text-sm w-full"
-                            placeholder="2025"
-                          />
-                          <button
-                            onClick={() => {
-                              const nyeSlanger = [...slanger]
-                              nyeSlanger[originalIndex].sistekontroll = new Date().getFullYear().toString()
-                              updateSlanger(nyeSlanger)
-                            }}
-                            className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
-                              slange.sistekontroll === new Date().getFullYear().toString()
-                                ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
-                                : 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
-                            }`}
-                            title="Fyll inn nåværende år"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={slange.trykktest || ''}
-                          onChange={(e) => {
-                            const nyeSlanger = [...slanger]
-                            nyeSlanger[originalIndex].trykktest = e.target.value
-                            updateSlanger(nyeSlanger)
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                          placeholder="2025"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <button
-                          onClick={() => setEditingStatusIndex(index)}
-                          className="flex flex-wrap gap-1 hover:bg-dark-200 p-2 rounded transition-colors w-full text-left"
-                        >
-                          {slange.type_avvik && slange.type_avvik.length > 0 ? (
-                            slange.type_avvik.map((avvik: string) => (
-                              <span
-                                key={avvik}
-                                className={`px-2 py-1 rounded text-xs ${
-                                  avvik === 'OK' 
-                                    ? 'bg-green-500/20 text-green-400' 
-                                    : 'bg-red-500/20 text-red-400'
-                                }`}
-                              >
-                                {avvik}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">OK</span>
-                          )}
-                        </button>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center justify-end gap-2">
-                          {slange.id && (
-                            <button
-                              onClick={() => deleteSlange(slange.id!)}
-                              className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                              title="Slett"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Status redigerings-modal */}
-          {editingStatusIndex !== null && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingStatusIndex(null)}>
-              <div className="bg-dark-100 rounded-lg p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-xl font-bold text-white mb-4">Velg status</h3>
-                
-                {/* Vis valgte statuser med mulighet til å fjerne */}
-                {sortedSlanger[editingStatusIndex]?.type_avvik && sortedSlanger[editingStatusIndex].type_avvik.length > 0 && (
-                  <div className="mb-4 p-4 bg-dark-200 rounded-lg">
-                    <p className="text-sm text-gray-400 mb-2">Valgte statuser:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {sortedSlanger[editingStatusIndex].type_avvik.map((avvik: string, idx: number) => (
-                        <div
-                          key={idx}
-                          className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 ${
-                            avvik === 'OK'
-                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                          }`}
-                        >
-                          <span>{avvik || '(tom)'}</span>
-                          <button
-                            onClick={() => handleStatusChange(editingStatusIndex, avvik)}
-                            className="hover:bg-black/20 rounded p-0.5 transition-colors"
-                            title="Fjern denne statusen"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-2 gap-2 mb-6">
-                  {statusAlternativer.map((avvik) => {
-                    const isSelected = sortedSlanger[editingStatusIndex]?.type_avvik?.includes(avvik)
-                    const isOK = avvik === 'OK'
-                    return (
-                      <button
-                        key={avvik}
-                        onClick={() => handleStatusChange(editingStatusIndex, avvik)}
-                        className={`px-4 py-3 rounded-lg text-sm transition-colors text-left ${
-                          isSelected
-                            ? isOK 
-                              ? 'bg-green-500 text-white' 
-                              : 'bg-primary text-white'
-                            : 'bg-dark-200 text-gray-400 hover:bg-dark-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                            isSelected ? 'border-white bg-white' : 'border-gray-600'
-                          }`}>
-                            {isSelected && (
-                              <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-                          <span>{avvik}</span>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => setEditingStatusIndex(null)}
-                    className="px-4 py-2 bg-dark-200 text-gray-400 rounded-lg hover:bg-dark-300 transition-colors"
-                  >
-                    Lukk
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    )
+  const currentYear = new Date().getFullYear()
+  const trykkMerke = (x: Brannslange) => {
+    const aar = parseInt(x.trykktest || '0')
+    if (!aar) return null
+    if (aar <= currentYear - 5) return { tekst: 'Må trykktestes', tone: 'r' as const }
+    if (aar === currentYear - 4) return { tekst: 'Trykktest neste', tone: 'y' as const }
+    return null
   }
+  const kontrollerte = slanger.filter(x => x.type_avvik && x.type_avvik.length > 0).length
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => {
-              // Sjekk om det finnes ulagrede endringer
-              if (hasUnsavedChanges) {
-                if (!confirm('⚠️ ADVARSEL: Du har ulagrede endringer!\n\nHvis du går tilbake nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
-                  return
-                }
-              }
-              onBack()
-            }}
-            className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Brannslanger</h1>
-            <p className="text-gray-600 dark:text-gray-400">{kundeNavn} - {anleggNavn}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Online/Offline status */}
-          <div className="flex items-center gap-2">
-            {isOnline ? (
-              <>
-                <Wifi className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-green-400">Online</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-4 h-4 text-yellow-400" />
-                <span className="text-sm text-yellow-400">Offline</span>
-              </>
-            )}
-          </div>
-          {pendingChanges > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-              <span className="text-sm text-orange-500">{pendingChanges} endringer venter</span>
-            </div>
-          )}
-          {saving && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="text-sm text-blue-500">Lagrer...</span>
-            </div>
-          )}
-          {lastSaved && !saving && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-lg">
-              <span className="text-sm text-green-500">
-                Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          )}
-        </div>
+    <div className="space-y-4 pb-10">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Slukkeutstyr</button>
+        <span className="hidden sm:inline">/</span><span className="hidden sm:inline text-gray-900 dark:text-white truncate">{anleggNavn}</span>
       </div>
+      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><Droplets className="w-6 h-6 text-blue-500" />Brannslanger</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{kundeNavn} · <span className="font-medium text-gray-900 dark:text-white">{anleggNavn}</span></p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300">{totalt} totalt</span>
+          <span className="px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">{ok} OK</span>
+          {avvik > 0 && <span className="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400">{avvik} avvik</span>}
+          {ikkeKontrollert > 0 && <span className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300">{ikkeKontrollert} ikke funnet/tilkomst</span>}
+        </div>
+      </header>
 
-      {/* Statistikk */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="card bg-blue-500/10 border-blue-500/20">
-          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">Totalt</p>
-          <p className="text-xl sm:text-2xl font-bold text-white">{totalt}</p>
-        </div>
-        <div className="card bg-green-500/10 border-green-500/20">
-          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">OK</p>
-          <p className="text-xl sm:text-2xl font-bold text-green-400">{ok}</p>
-        </div>
-        <div className="card bg-gray-500/10 border-gray-500/20">
-          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">Ikke kontrollert</p>
-          <p className="text-xl sm:text-2xl font-bold text-gray-400">{ikkeKontrollert}</p>
-        </div>
-        <div className="card bg-red-500/10 border-red-500/20">
-          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">Avvik</p>
-          <p className="text-xl sm:text-2xl font-bold text-red-400">{avvik}</p>
-        </div>
-      </div>
+      {!isOnline && <div className="card !py-2.5 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-800 text-sm text-yellow-800 dark:text-yellow-300">Du er offline – endringer lagres lokalt og sendes når du er på nett igjen.</div>}
 
-      {/* Søk, sortering og legg til */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Søk etter brannslange..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input w-full pl-10"
-            />
-          </div>
-          <div className="w-full md:w-48">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="input w-full h-[44px]"
-            >
-              <option value="slangenummer">Sorter: Nr</option>
-              <option value="plassering">Sorter: Plassering</option>
-              <option value="etasje">Sorter: Etasje</option>
-              <option value="modell">Sorter: Modell</option>
-              <option value="status">Sorter: Status</option>
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              min="1"
-              max="50"
-              value={antallNye}
-              onChange={(e) => setAntallNye(parseInt(e.target.value) || 1)}
-              className="input w-20"
-            />
-            <button
-              onClick={leggTilNye}
-              className="btn-primary flex items-center gap-2 whitespace-nowrap"
-            >
-              <Plus className="w-5 h-5" />
-              Legg til
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Kompakt tabell-visning */}
-      <div className="card">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Brannslanger
-            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400 font-normal">
-              ({sortedSlanger.length} {sortedSlanger.length === 1 ? 'enhet' : 'enheter'})
-            </span>
-          </h2>
-          <div className="flex items-center gap-2">
-            {/* View toggle */}
-            <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
-              <button
-                onClick={() => setDisplayMode('table')}
-                className={`p-2 rounded transition-colors ${
-                  displayMode === 'table'
-                    ? 'bg-primary text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-                title="Tabellvisning"
-              >
-                <Table className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setDisplayMode('cards')}
-                className={`p-2 rounded transition-colors ${
-                  displayMode === 'cards'
-                    ? 'bg-primary text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-                title="Kortvisning"
-              >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
-            </div>
-            <button
-              onClick={() => setIsFullscreen(true)}
-              className="btn-secondary flex items-center gap-2"
-              title="Åpne i fullskjerm for detaljert redigering"
-            >
-              <Maximize2 className="w-5 h-5" />
-              <span className="hidden sm:inline">Rediger i fullskjerm</span>
-            </button>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-gray-400">Laster brannslanger...</p>
-          </div>
-        ) : sortedSlanger.length === 0 ? (
-          <div className="text-center py-12">
-            <Shield className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">Ingen brannslanger funnet</p>
-            <p className="text-sm text-gray-500 mt-2">Klikk "Legg til" for å registrere nye brannslanger</p>
-          </div>
-        ) : displayMode === 'cards' ? (
-          /* Kortvisning - Mobile-vennlig */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sortedSlanger.map((slange, index) => (
-              <div
-                key={slange.id || `new-${index}`}
-                className="bg-dark-100 rounded-lg p-4 border border-gray-800 hover:border-blue-500/50 transition-colors"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Shield className="w-5 h-5 text-blue-500" />
-                    </div>
-                    <div>
-                      <p className="text-gray-900 dark:text-white font-medium">Nr: {slange.slangenummer || '-'}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{slange.modell || 'Ingen modell'}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (confirm('Er du sikker på at du vil slette denne brannslangen?')) {
-                        if (slange.id) {
-                          await supabase
-                            .from('anleggsdata_brannslanger')
-                            .delete()
-                            .eq('id', slange.id)
-                          await loadSlanger()
-                        } else {
-                          updateSlanger(slanger.filter(s => s !== slange))
-                        }
-                      }
-                    }}
-                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors touch-target"
-                    title="Slett"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-                
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Plassering:</span>
-                    <span className="text-gray-200 text-right">{slange.plassering || '-'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Etasje:</span>
-                    <span className="text-gray-200">{slange.etasje || '-'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Produsent:</span>
-                    <span className="text-gray-200">{slange.produsent || '-'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Brannklasse:</span>
-                    <span className="text-gray-200">{slange.brannklasse || '-'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Produksjonsår:</span>
-                    <span className="text-gray-200">{slange.produksjonsaar || '-'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Siste kontroll:</span>
-                    <span className="text-gray-200">{slange.sistekontroll || '-'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Trykktest:</span>
-                    <span className="text-gray-200">{slange.trykktest || '-'}</span>
-                  </div>
-                  <div className="pt-2 border-t border-gray-800">
-                    <span className="text-gray-400 text-xs block mb-2">Status:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {slange.type_avvik && slange.type_avvik.length > 0 ? (
-                        slange.type_avvik.map((avvik: string, i: number) => (
-                          <span
-                            key={i}
-                            className={`badge text-xs ${
-                              avvik === 'OK' ? 'bg-green-900/30 text-green-400 border-green-800' :
-                              avvik.includes('Ikke') ? 'bg-yellow-900/30 text-yellow-400 border-yellow-800' :
-                              'bg-red-900/30 text-red-400 border-red-800'
-                            }`}
-                          >
-                            {avvik}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="badge bg-green-900/30 text-green-400 border-green-800 text-xs">OK</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          /* Tabellvisning */
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-800">
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Nr</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Plassering</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Etasje</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Produsent</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Modell</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Klasse</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">År</th>
-                  <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-          {sortedSlanger.map((slange, index) => (
-            <tr 
-              key={slange.id || `new-${index}`} 
-              className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors cursor-pointer"
-              onClick={() => setIsFullscreen(true)}
-              title="Klikk for å redigere i fullskjerm"
-            >
-              <td className="py-3 px-4">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-blue-500" />
-                  <span className="text-gray-900 dark:text-white font-medium">{slange.slangenummer || '-'}</span>
-                </div>
-              </td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slange.plassering || '-'}</td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slange.etasje || '-'}</td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slange.produsent || '-'}</td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slange.modell || '-'}</td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slange.brannklasse || '-'}</td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slange.produksjonsaar || '-'}</td>
-              <td className="py-3 px-4">
-                {slange.type_avvik && slange.type_avvik.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {slange.type_avvik.map((avvik: string) => (
-                      <span
-                        key={avvik}
-                        className={`px-2 py-1 rounded text-xs ${
-                          avvik === 'OK' 
-                            ? 'bg-green-500/20 text-green-400' 
-                            : 'bg-red-500/20 text-red-400'
-                        }`}
-                      >
-                        {avvik}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">OK</span>
-                )}
-              </td>
-            </tr>
-          ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {loading && slanger.length === 0 ? <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div> : (
+        <UtstyrListe<Brannslange>
+          rader={slanger}
+          nummerKey="slangenummer"
+          felter={FELTER}
+          status={STATUS_DEF}
+          statusKey="type_avvik"
+          lagrer={lagrer}
+          onEndre={lagreEndring}
+          onEndreFlere={lagreEndringFlere}
+          onSlett={deleteSlange}
+          onLeggTil={leggTilNye}
+          merke={trykkMerke}
+          enhetsnavn={{ entall: 'brannslange', flertall: 'brannslanger' }}
+        />
+      )}
 
       {/* Fullfør kontroll - Samlet seksjon */}
       <div className="card bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
@@ -2023,7 +1105,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                 value={evakueringsplanStatus}
                 onChange={(e) => {
                   setEvakueringsplanStatus(e.target.value)
-                  setHasUnsavedChanges(true)
+                  saveEvakueringsplan(e.target.value)
                 }}
                 className="input"
               >
@@ -2036,47 +1118,18 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
             <div>
               <KontrolldatoVelger
                 kontrolldato={kontrolldato}
-                onDatoChange={(dato) => {
-                  setKontrolldato(dato)
-                  setHasUnsavedChanges(true)
-                }}
+                onDatoChange={setKontrolldato}
                 label="Kontrolldato"
               />
             </div>
           </div>
         </div>
 
-        {/* Hovedhandling - Stor knapp */}
-        <button
-          onClick={() => genererRapport('save')}
-          disabled={loading || slanger.length === 0 || hasUnsavedChanges}
-          className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30"
-          title={hasUnsavedChanges ? 'Lagre endringer først' : ''}
-        >
-          <Save className="w-6 h-6" />
-          Generer rapport
-        </button>
-
-        {/* Sekundære handlinger */}
-        <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
-          <button
-            onClick={() => genererRapport('preview')}
-            disabled={loading || slanger.length === 0 || hasUnsavedChanges}
-            className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-          >
-            <Eye className="w-4 h-4" />
-            Forhåndsvis
-          </button>
-          <span className="text-gray-300 dark:text-gray-600">|</span>
-          <button
-            onClick={lagreAlle}
-            disabled={loading || saving}
-            className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            Lagre endringer
-          </button>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <Button variant="primary" size="md" icon={<Save />} loading={loading} disabled={slanger.length === 0} onClick={() => genererRapport('save')} className="sm:flex-1">Generer rapport</Button>
+          <Button variant="outline" size="md" icon={<Eye />} disabled={loading || slanger.length === 0} onClick={() => genererRapport('preview')}>Forhåndsvis</Button>
         </div>
+        {kontrollerte < slanger.length && <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-3">{slanger.length - kontrollerte} slanger har ikke fått status ennå. Du kan likevel generere rapport.</p>}
       </div>
 
       {/* Kommentarer seksjon */}

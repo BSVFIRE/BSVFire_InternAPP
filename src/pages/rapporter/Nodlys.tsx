@@ -204,7 +204,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     }
   }
 
-  async function saveEvakueringsplan() {
+  async function saveEvakueringsplan(status: string = evakueringsplanStatus) {
     try {
       const { data: existing } = await supabase
         .from('evakueringsplan_status')
@@ -215,12 +215,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       if (existing) {
         await supabase
           .from('evakueringsplan_status')
-          .update({ status: evakueringsplanStatus })
+          .update({ status: status })
           .eq('anlegg_id', selectedAnlegg)
       } else {
         await supabase
           .from('evakueringsplan_status')
-          .insert({ anlegg_id: selectedAnlegg, status: evakueringsplanStatus })
+          .insert({ anlegg_id: selectedAnlegg, status: status })
       }
       toast.success('Evakueringsplan-status lagret')
     } catch (error) {
@@ -1215,7 +1215,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label htmlFor="evak-status" className="block text-sm font-medium text-gray-900 dark:text-white">Evakueringsplaner</label>
-                <select id="evak-status" value={evakueringsplanStatus} onChange={e => { setEvakueringsplanStatus(e.target.value); setTimeout(() => saveEvakueringsplan(), 100) }} className="input">
+                <select id="evak-status" value={evakueringsplanStatus} onChange={e => { setEvakueringsplanStatus(e.target.value); saveEvakueringsplan(e.target.value) }} className="input">
                   <option value="">Velg status</option>
                   <option value="Ja">Ja – i orden</option>
                   <option value="Nei">Nei – mangler</option>

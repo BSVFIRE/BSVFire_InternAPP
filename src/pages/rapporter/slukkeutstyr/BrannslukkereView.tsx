@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Save, Trash2, Shield, Search, Maximize2, Minimize2, Eye, Wifi, WifiOff, Check, LayoutGrid, Table, ClipboardCheck, Calculator } from 'lucide-react'
+import { ArrowLeft, Save, Shield, Eye, ClipboardCheck, Calculator } from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { useOfflineQueue } from '@/hooks/useOffline'
+import { Button, IconButton } from '@/components/ui/Button'
+import { UtstyrListe, type FeltDef, type StatusDef } from '@/components/utstyr/UtstyrListe'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -14,7 +18,7 @@ import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/d
 import { CO2VektKalkulator } from '@/components/CO2VektKalkulator'
 
 interface Brannslukker {
-  id?: string
+  id: string
   anlegg_id: string
   apparat_nr?: string | null
   plassering?: string | null
@@ -70,10 +74,27 @@ const brannklasseAlternativer = [
   'A', 'AB', 'ABC', 'ABF', 'B', 'AF'
 ]
 
+const STATUS_DEF: StatusDef = {
+  alle: statusAlternativer,
+  ok: new Set(['OK', 'OK Byttet', 'Byttet ved kontroll']),
+  noytral: new Set(['Ikke funnet', 'Ikke tilkomst', 'Fjernet']),
+}
+
 const etasjeAlternativer = [
   '',
   ...Array.from({ length: 15 }, (_, i) => `${i - 2} Etg`),
   'Ukjent'
+]
+
+const FELTER: FeltDef<Brannslukker>[] = [
+  { key: 'plassering', navn: 'Plassering', placeholder: 'Gang', forslag: true },
+  { key: 'etasje', navn: 'Etasje', bredde: 'w-24', type: 'select', valg: etasjeAlternativer, mobil: true },
+  { key: 'produsent', navn: 'Produsent', bredde: 'w-28', forslag: true },
+  { key: 'modell', navn: 'Modell', bredde: 'w-32', type: 'select', valg: modellAlternativer, mobil: true },
+  { key: 'brannklasse', navn: 'Klasse', bredde: 'w-20', type: 'select', valg: brannklasseAlternativer, mobil: true },
+  { key: 'produksjonsaar', navn: 'Prod.år', bredde: 'w-20', placeholder: '2019', mobil: true },
+  { key: 'service', navn: 'Service (C)', bredde: 'w-24', placeholder: 'År' },
+  { key: 'siste_kontroll', navn: 'Kontroll (B)', bredde: 'w-28', type: 'aar', placeholder: 'År' },
 ]
 
 export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: BrannslukkereViewProps) {
@@ -81,17 +102,8 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   const { user } = useAuthStore()
   const [slukkere, setSlukkere] = useState<Brannslukker[]>([])
   const [loading, setLoading] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [antallNye, setAntallNye] = useState(1)
-  const [sortBy, setSortBy] = useState<'apparat_nr' | 'plassering' | 'etasje' | 'modell' | 'brannklasse' | 'status'>('apparat_nr')
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const [pendingChanges, setPendingChanges] = useState(0)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const localStorageKey = `brannslukkere_offline_${anleggId}`
-  const [editingStatusIndex, setEditingStatusIndex] = useState<number | null>(null)
+  const { isOnline, queueUpdate, queueInsert } = useOfflineQueue()
+  const [lagrer, setLagrer] = useState<Set<string>>(new Set())
   const [previewPdf, setPreviewPdf] = useState<{ blob: Blob; fileName: string } | null>(null)
   const [showFullfortDialog, setShowFullfortDialog] = useState(false)
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
@@ -100,73 +112,14 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
   const [evakueringsplanStatus, setEvakueringsplanStatus] = useState('')
   const [dropboxAvailable, setDropboxAvailable] = useState(false)
   const [kontrolldato, setKontrolldato] = useState<Date>(new Date())
-  const [saveToDropbox] = useState(true)
-  const [displayMode, setDisplayMode] = useState<'table' | 'cards'>(() => {
-    // Auto-switch to cards on mobile
-    return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'cards' : 'table'
-  })
-  
-  // Autocomplete for produsent
-  const [produsentOptions, setProdusentOptions] = useState<string[]>([])
-  const [showProdusentSuggestions, setShowProdusentSuggestions] = useState<number | null>(null)
   const [co2KalkulatorData, setCo2KalkulatorData] = useState<{ modell: string; apparatNr: string } | null>(null)
 
   useEffect(() => {
     loadSlukkere()
     loadEvakueringsplan(anleggId)
-    loadProdusentOptions()
     // Sjekk Dropbox-status
     checkDropboxStatus().then(status => setDropboxAvailable(status.connected))
   }, [anleggId])
-
-  // Wrapper for setSlukkere som også setter hasUnsavedChanges
-  const updateSlukkere = (newSlukkere: Brannslukker[] | ((prev: Brannslukker[]) => Brannslukker[])) => {
-    setSlukkere(newSlukkere)
-    setHasUnsavedChanges(true)
-  }
-
-  // Online/offline event listeners
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true)
-      syncOfflineData()
-    }
-    
-    const handleOffline = () => {
-      setIsOnline(false)
-    }
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
-    // Sjekk om det er pending data ved mount
-    const stored = localStorage.getItem(localStorageKey)
-    if (stored && navigator.onLine) {
-      syncOfflineData()
-    }
-
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [anleggId])
-
-  // AUTOLAGRING DEAKTIVERT - forårsaker duplikater
-  // useEffect(() => {
-  //   if (saveTimeoutRef.current) {
-  //     clearTimeout(saveTimeoutRef.current)
-  //   }
-
-  //   saveTimeoutRef.current = setTimeout(() => {
-  //     autoSave()
-  //   }, 3000) // 3 sekunder debounce
-
-  //   return () => {
-  //     if (saveTimeoutRef.current) {
-  //       clearTimeout(saveTimeoutRef.current)
-  //     }
-  //   }
-  // }, [slukkere])
 
   async function loadSlukkere() {
     try {
@@ -190,11 +143,10 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
         .order('apparat_nr', { ascending: true, nullsFirst: false })
 
       if (error) throw error
-      setSlukkere(data || [])
-      setHasUnsavedChanges(false)
+      setSlukkere((data || []) as Brannslukker[])
     } catch (error) {
       console.error('Feil ved lasting av brannslukkere:', error)
-      alert('Kunne ikke laste brannslukkere')
+      toast.error('Kunne ikke laste brannslukkere', error)
     } finally {
       setLoading(false)
     }
@@ -215,25 +167,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
     }
   }
 
-  async function loadProdusentOptions() {
-    try {
-      const { data, error } = await supabase
-        .from('anleggsdata_brannslukkere')
-        .select('produsent')
-        .eq('anlegg_id', anleggId)
-        .not('produsent', 'is', null)
-        .neq('produsent', '')
-      
-      if (!error && data) {
-        const uniqueProdusenter = Array.from(new Set(data.map(s => s.produsent).filter((v): v is string => v !== null && v !== ''))).sort()
-        setProdusentOptions(uniqueProdusenter)
-      }
-    } catch (error) {
-      console.error('Feil ved lasting av produsenter:', error)
-    }
-  }
-
-  async function saveEvakueringsplan() {
+  async function saveEvakueringsplan(status: string = evakueringsplanStatus) {
     try {
       const { data: existing } = await supabase
         .from('evakueringsplan_status')
@@ -244,12 +178,12 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       if (existing) {
         await supabase
           .from('evakueringsplan_status')
-          .update({ status: evakueringsplanStatus })
+          .update({ status: status })
           .eq('anlegg_id', anleggId)
       } else {
         await supabase
           .from('evakueringsplan_status')
-          .insert({ anlegg_id: anleggId, status: evakueringsplanStatus })
+          .insert({ anlegg_id: anleggId, status: status })
       }
     } catch (error) {
       console.error('Feil ved lagring av evakueringsplan:', error)
@@ -257,63 +191,52 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
     }
   }
 
-  async function syncOfflineData() {
-    const stored = localStorage.getItem(localStorageKey)
-    if (!stored) return
-
-    try {
-      setSaving(true)
-      const offlineData: Brannslukker[] = JSON.parse(stored)
-
-      for (const slukker of offlineData) {
-        if (slukker.id) {
-          await supabase
-            .from('anleggsdata_brannslukkere')
-            .update(slukker)
-            .eq('id', slukker.id)
-        } else if (slukker.apparat_nr || slukker.plassering) {
-          await supabase
-            .from('anleggsdata_brannslukkere')
-            .insert([{ ...slukker, anlegg_id: anleggId }])
-        }
-      }
-
-      localStorage.removeItem(localStorageKey)
-      setPendingChanges(0)
-      setLastSaved(new Date())
-      await loadSlukkere()
-      setHasUnsavedChanges(false)
-    } catch (error) {
-      console.error('Feil ved synkronisering:', error)
-    } finally {
-      setSaving(false)
+  /** Lagrer én endring med en gang (offline: kø). Ruller tilbake ved feil. */
+  async function lagreEndring(id: string, patch: Partial<Brannslukker>) {
+    const forrige = slukkere.find(x => x.id === id)
+    if (!forrige) return
+    // Status settes → siste kontroll = i år (som «Fyll inn nåværende år»-knappen gjorde)
+    const aar = String(new Date().getFullYear())
+    if (patch.status && patch.status.length > 0 && forrige.siste_kontroll !== aar) patch = { ...patch, siste_kontroll: aar }
+    setSlukkere(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x))
+    if (!isOnline) { queueUpdate('anleggsdata_brannslukkere', { id, ...patch }); return }
+    setLagrer(prev => new Set(prev).add(id))
+    const { error } = await supabase.from('anleggsdata_brannslukkere').update(patch).eq('id', id)
+    setLagrer(prev => { const n = new Set(prev); n.delete(id); return n })
+    if (error) {
+      const tilbake: Partial<Brannslukker> = {}
+      for (const k of Object.keys(patch) as (keyof Brannslukker)[]) (tilbake as Record<string, unknown>)[k] = forrige[k]
+      setSlukkere(prev => prev.map(x => x.id === id ? { ...x, ...tilbake } : x))
+      toast.error('Kunne ikke lagre endringen', error)
     }
   }
 
+  async function lagreEndringFlere(ids: string[], patch: Partial<Brannslukker>) {
+    if (ids.length === 0) return
+    setSlukkere(prev => prev.map(x => ids.includes(x.id) ? { ...x, ...patch } : x))
+    if (!isOnline) { ids.forEach(id => queueUpdate('anleggsdata_brannslukkere', { id, ...patch })); return }
+    const { error } = await supabase.from('anleggsdata_brannslukkere').update(patch).in('id', ids)
+    if (error) { toast.error('Kunne ikke oppdatere', error); await loadSlukkere(); return }
+    toast.success(`${ids.length} brannslukkere oppdatert`)
+  }
 
-  async function deleteBrannslukker(id: string) {
-    // Sjekk om det finnes ulagrede endringer
-    if (hasUnsavedChanges) {
-      if (!confirm('⚠️ ADVARSEL: Du har ulagrede endringer!\n\nHvis du sletter nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette med slettingen?')) {
-        return
-      }
-    }
-    
-    if (!confirm('Er du sikker på at du vil slette denne brannslukkeren?')) return
+  /** Nye apparater nummereres etter høyeste eksisterende nummer og lagres med en gang. */
+  async function leggTilNye(antall: number) {
+    const hoyeste = slukkere.reduce((m, x) => Math.max(m, parseInt(x.apparat_nr || '0') || 0), 0)
+    const nye = Array.from({ length: antall }, (_, i) => ({ anlegg_id: anleggId, apparat_nr: String(hoyeste + i + 1), brannklasse: 'A', status: [] as string[] }))
+    if (!isOnline) { nye.forEach(n => queueInsert('anleggsdata_brannslukkere', n)); toast.info('Lagt i kø – vises når du er på nett igjen'); return }
+    const { error } = await supabase.from('anleggsdata_brannslukkere').insert(nye)
+    if (error) { toast.error('Kunne ikke legge til', error); return }
+    await loadSlukkere()
+    toast.success(antall === 1 ? `Apparat ${hoyeste + 1} lagt til` : `${antall} apparater lagt til (${hoyeste + 1}–${hoyeste + antall})`)
+  }
 
-    try {
-      const { error } = await supabase
-        .from('anleggsdata_brannslukkere')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-      await loadSlukkere()
-      setHasUnsavedChanges(false)
-    } catch (error) {
-      console.error('Feil ved sletting:', error)
-      alert('Kunne ikke slette brannslukker')
-    }
+  async function deleteBrannslukker(s: Brannslukker) {
+    if (!confirm(`Slette apparat ${s.apparat_nr ?? ''}${s.plassering ? ` (${s.plassering})` : ''}?`)) return
+    const { error } = await supabase.from('anleggsdata_brannslukkere').delete().eq('id', s.id)
+    if (error) { toast.error('Kunne ikke slette', error); return }
+    setSlukkere(prev => prev.filter(x => x.id !== s.id))
+    toast.success('Apparat slettet')
   }
 
   async function genererRapport(mode: 'preview' | 'save' | 'download' = 'preview') {
@@ -802,7 +725,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
           })
 
         // Last opp til Dropbox hvis aktivert
-        if (saveToDropbox && dropboxAvailable) {
+        if (dropboxAvailable) {
           try {
             // Hent kundedata for Dropbox-sti
             const { data: anleggData } = await supabase
@@ -853,7 +776,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       }
     } catch (error) {
       console.error('Feil ved generering av rapport:', error)
-      alert('Kunne ikke generere rapport')
+      toast.error('Kunne ikke generere rapport')
     } finally {
       setLoading(false)
     }
@@ -882,7 +805,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       setShowSendRapportDialog(true)
     } catch (error) {
       console.error('Feil ved oppdatering av tjenestestatus:', error)
-      alert('Rapport lagret, men kunne ikke oppdatere status')
+      toast.warning('Rapport lagret, men kunne ikke oppdatere tjenestestatus')
       setShowFullfortDialog(false)
       setPendingPdfSave(null)
       setLoading(false)
@@ -918,124 +841,15 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       const { mode, doc, fileName } = pendingPdfSave
       if (mode === 'download') {
         doc.save(fileName)
-        alert('Rapport lagret og lastet ned!')
+        toast.success('Rapport lagret og lastet ned')
       } else {
-        alert('Rapport lagret!')
+        toast.success('Rapport lagret')
       }
     }
     setShowFullfortDialog(false)
     setPendingPdfSave(null)
     setLoading(false)
   }
-
-  function leggTilNye() {
-    // Finn høyeste nummer
-    let hoyesteNummer = 0
-    slukkere.forEach(s => {
-      const num = parseInt(s.apparat_nr || '0')
-      if (!isNaN(num) && num > hoyesteNummer) {
-        hoyesteNummer = num
-      }
-    })
-
-    const nyeSlukkere: Brannslukker[] = Array.from({ length: antallNye }, (_, index) => ({
-      anlegg_id: anleggId,
-      apparat_nr: String(hoyesteNummer + index + 1),
-      plassering: '',
-      etasje: '',
-      produsent: '',
-      modell: '',
-      brannklasse: 'A',
-      produksjonsaar: '',
-      status: []
-    }))
-
-    updateSlukkere([...slukkere, ...nyeSlukkere])
-    setAntallNye(1)
-  }
-
-  async function lagreAlle() {
-    try {
-      setLoading(true)
-
-      for (const slukker of slukkere) {
-        if (slukker.id) {
-          // Update eksisterende
-          await supabase
-            .from('anleggsdata_brannslukkere')
-            .update(slukker)
-            .eq('id', slukker.id)
-        } else if (slukker.apparat_nr || slukker.plassering) {
-          // Insert nye (kun hvis de har data)
-          await supabase
-            .from('anleggsdata_brannslukkere')
-            .insert([{ ...slukker, anlegg_id: anleggId }])
-        }
-      }
-
-      // Lagre tilleggsinformasjon (evakueringsplan) sammen med brannslukkerne
-      await saveEvakueringsplan()
-      
-      alert('Alle endringer lagret!')
-      await loadSlukkere()
-      setHasUnsavedChanges(false)
-    } catch (error) {
-      console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre alle brannslukkere')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function handleStatusChange(index: number, status: string) {
-    // Finn den faktiske slukkeren i sortedSlukkere
-    const slukker = sortedSlukkere[index]
-    if (!slukker) return
-
-    // Finn index i original slukkere array
-    const originalIndex = slukkere.findIndex(s => s.id ? s.id === slukker.id : s === slukker)
-    if (originalIndex === -1) return
-
-    const nyeSlukkere = [...slukkere]
-    const currentStatus = nyeSlukkere[originalIndex].status || []
-    
-    if (currentStatus.includes(status)) {
-      nyeSlukkere[originalIndex].status = currentStatus.filter(s => s !== status)
-    } else {
-      nyeSlukkere[originalIndex].status = [...currentStatus, status]
-    }
-    
-    updateSlukkere(nyeSlukkere)
-  }
-
-  const filteredSlukkere = slukkere.filter(s =>
-    (s.apparat_nr?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (s.plassering?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (s.produsent?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  )
-
-  // Sortering
-  const sortedSlukkere = [...filteredSlukkere].sort((a, b) => {
-    switch (sortBy) {
-      case 'apparat_nr':
-        return (a.apparat_nr || '').localeCompare(b.apparat_nr || '', 'nb-NO', { numeric: true })
-      case 'plassering':
-        return (a.plassering || '').localeCompare(b.plassering || '', 'nb-NO')
-      case 'etasje':
-        return (a.etasje || '').localeCompare(b.etasje || '', 'nb-NO', { numeric: true })
-      case 'modell':
-        return (a.modell || '').localeCompare(b.modell || '', 'nb-NO')
-      case 'brannklasse':
-        return (a.brannklasse || '').localeCompare(b.brannklasse || '', 'nb-NO')
-      case 'status': {
-        const aStatus = a.status?.[0] || ''
-        const bStatus = b.status?.[0] || ''
-        return aStatus.localeCompare(bStatus, 'nb-NO')
-      }
-      default:
-        return 0
-    }
-  })
 
   // Vis forhåndsvisning hvis PDF er generert
   if (previewPdf) {
@@ -1135,828 +949,60 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
     return false
   }).length
 
-  // Fullskjerm-visning
-  if (isFullscreen) {
-    return (
-      <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-dark-200 overflow-auto">
-        <div className="min-h-screen p-4 sm:p-6">
-          {/* Header med lukkeknapp */}
-          <div className="flex flex-col gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
-            <div className="flex items-start justify-between gap-2">
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight">
-                Brannslukkere - {kundeNavn} - {anleggNavn}
-                <span className="block sm:inline sm:ml-3 text-sm sm:text-lg text-gray-500 dark:text-gray-400 font-normal mt-1 sm:mt-0">
-                  ({sortedSlukkere.length} {sortedSlukkere.length === 1 ? 'enhet' : 'enheter'})
-                </span>
-              </h2>
-              <button
-                onClick={() => setIsFullscreen(false)}
-                className="p-2 sm:p-3 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0 touch-target"
-                title="Lukk fullskjerm"
-              >
-                <Minimize2 className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
-            </div>
-            
-            {/* Status og knapper */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
-                {/* Offline indikator */}
-                {!isOnline && (
-                  <span className="text-yellow-400 flex items-center gap-2">
-                    <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                    Offline
-                  </span>
-                )}
-                
-                {/* Pending changes */}
-                {pendingChanges > 0 && (
-                  <span className="text-orange-400 flex items-center gap-2">
-                    {pendingChanges} endringer
-                  </span>
-                )}
-                
-                {/* Lagringsstatus */}
-                {saving && (
-                  <span className="text-gray-400 flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                    {isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}
-                  </span>
-                )}
-                {!saving && lastSaved && pendingChanges === 0 && (
-                  <span className="text-green-400">
-                    Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </div>
-              
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={leggTilNye}
-                  className="btn-primary flex items-center gap-2 text-sm sm:text-base"
-                >
-                  <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="hidden xs:inline">Legg til ({antallNye})</span>
-                  <span className="xs:hidden">+{antallNye}</span>
-                </button>
-                <button
-                  onClick={lagreAlle}
-                  disabled={saving}
-                  className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
-                >
-                  <Save className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="hidden xs:inline">Lagre alle</span>
-                  <span className="xs:hidden">Lagre</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabell i fullskjerm */}
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-gray-400">Laster brannslukkere...</p>
-            </div>
-          ) : sortedSlukkere.length === 0 ? (
-            <div className="text-center py-12">
-              <Shield className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">Ingen brannslukkere funnet</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-gray-800">
-              <table className="w-full min-w-[1400px]">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-800">
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Nr</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-48">Plassering</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Etasje</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-28">Produsent</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-40">Modell</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-20">Klasse</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">År</th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-24">Service <span className="text-xs text-gray-400">(Tillegg C)</span></th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-36">Siste kontroll <span className="text-xs text-gray-400">(Tillegg B)</span></th>
-                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-32">Status</th>
-                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium w-20">Handlinger</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedSlukkere.map((slukker, index) => (
-                    <tr
-                      key={slukker.id || `new-${index}`}
-                      className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors"
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-red-500/10 rounded-lg flex items-center justify-center">
-                            <Shield className="w-5 h-5 text-red-500" />
-                          </div>
-                          <input
-                            type="text"
-                            value={slukker.apparat_nr || ''}
-                            onChange={(e) => {
-                              const nyeSlukkere = [...slukkere]
-                              const originalIndex = slukkere.findIndex(s => s === slukker)
-                              if (originalIndex !== -1) {
-                                nyeSlukkere[originalIndex].apparat_nr = e.target.value
-                                updateSlukkere(nyeSlukkere)
-                              }
-                            }}
-                            className="input text-white font-medium py-1 px-2 text-sm w-full"
-                            placeholder="001"
-                          />
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={slukker.plassering || ''}
-                          onChange={(e) => {
-                            const nyeSlukkere = [...slukkere]
-                            const originalIndex = slukkere.findIndex(s => s === slukker)
-                            if (originalIndex !== -1) {
-                              nyeSlukkere[originalIndex].plassering = e.target.value
-                              updateSlukkere(nyeSlukkere)
-                            }
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                          placeholder="Gang"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <select
-                          value={slukker.etasje || ''}
-                          onChange={(e) => {
-                            const nyeSlukkere = [...slukkere]
-                            const originalIndex = slukkere.findIndex(s => s === slukker)
-                            if (originalIndex !== -1) {
-                              nyeSlukkere[originalIndex].etasje = e.target.value
-                              updateSlukkere(nyeSlukkere)
-                            }
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                        >
-                          {etasjeAlternativer.map((etasje) => (
-                            <option key={etasje} value={etasje}>
-                              {etasje || '-- Velg --'}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={slukker.produsent || ''}
-                            onChange={(e) => {
-                              const nyeSlukkere = [...slukkere]
-                              const originalIndex = slukkere.findIndex(s => s === slukker)
-                              if (originalIndex !== -1) {
-                                nyeSlukkere[originalIndex].produsent = e.target.value
-                                updateSlukkere(nyeSlukkere)
-                                setShowProdusentSuggestions(e.target.value.length > 0 ? index : null)
-                              }
-                            }}
-                            onFocus={() => {
-                              if (slukker.produsent && slukker.produsent.length > 0) {
-                                setShowProdusentSuggestions(index)
-                              }
-                            }}
-                            onBlur={() => setTimeout(() => setShowProdusentSuggestions(null), 200)}
-                            className="input py-1 px-2 text-sm w-full"
-                            placeholder="Skriv eller velg produsent..."
-                          />
-                          {showProdusentSuggestions === index && produsentOptions.filter(opt => 
-                            opt.toLowerCase().startsWith((slukker.produsent || '').toLowerCase())
-                          ).length > 0 && (
-                            <div className="absolute z-50 w-full mt-1 bg-dark-100 border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                              {produsentOptions
-                                .filter(opt => opt.toLowerCase().startsWith((slukker.produsent || '').toLowerCase()))
-                                .map((option, idx) => (
-                                  <button
-                                    key={idx}
-                                    type="button"
-                                    onMouseDown={(e) => {
-                                      e.preventDefault()
-                                      const nyeSlukkere = [...slukkere]
-                                      const originalIndex = slukkere.findIndex(s => s === slukker)
-                                      if (originalIndex !== -1) {
-                                        nyeSlukkere[originalIndex].produsent = option
-                                        updateSlukkere(nyeSlukkere)
-                                        setShowProdusentSuggestions(null)
-                                      }
-                                    }}
-                                    className="w-full text-left px-3 py-2 hover:bg-primary/20 text-gray-300 text-sm transition-colors"
-                                  >
-                                    {option}
-                                  </button>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1">
-                          <select
-                            value={slukker.modell || ''}
-                            onChange={(e) => {
-                              const nyeSlukkere = [...slukkere]
-                              const originalIndex = slukkere.findIndex(s => s === slukker)
-                              if (originalIndex !== -1) {
-                                nyeSlukkere[originalIndex].modell = e.target.value
-                                updateSlukkere(nyeSlukkere)
-                              }
-                            }}
-                            className="input py-1 px-2 text-sm flex-1"
-                          >
-                            {modellAlternativer.map((modell) => (
-                              <option key={modell} value={modell}>
-                                {modell || '-- Velg --'}
-                              </option>
-                            ))}
-                          </select>
-                          {slukker.modell?.includes('CO2') && (
-                            <button
-                              onClick={() => setCo2KalkulatorData({ 
-                                modell: slukker.modell || '', 
-                                apparatNr: slukker.apparat_nr || '' 
-                              })}
-                              className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors flex-shrink-0"
-                              title="Åpne vektkalkulator"
-                            >
-                              <Calculator className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <select
-                          value={slukker.brannklasse || ''}
-                          onChange={(e) => {
-                            const nyeSlukkere = [...slukkere]
-                            const originalIndex = slukkere.findIndex(s => s === slukker)
-                            if (originalIndex !== -1) {
-                              nyeSlukkere[originalIndex].brannklasse = e.target.value
-                              updateSlukkere(nyeSlukkere)
-                            }
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                        >
-                          <option value="">-- Velg --</option>
-                          {brannklasseAlternativer.map((klasse) => (
-                            <option key={klasse} value={klasse}>
-                              {klasse}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={slukker.produksjonsaar || ''}
-                          onChange={(e) => {
-                            const nyeSlukkere = [...slukkere]
-                            const originalIndex = slukkere.findIndex(s => s === slukker)
-                            if (originalIndex !== -1) {
-                              nyeSlukkere[originalIndex].produksjonsaar = e.target.value
-                              updateSlukkere(nyeSlukkere)
-                            }
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                          placeholder="2020"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={slukker.service || ''}
-                          onChange={(e) => {
-                            const nyeSlukkere = [...slukkere]
-                            const originalIndex = slukkere.findIndex(s => s === slukker)
-                            if (originalIndex !== -1) {
-                              nyeSlukkere[originalIndex].service = e.target.value
-                              updateSlukkere(nyeSlukkere)
-                            }
-                          }}
-                          className="input py-1 px-2 text-sm w-full"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={slukker.siste_kontroll || ''}
-                            onChange={(e) => {
-                              const nyeSlukkere = [...slukkere]
-                              const originalIndex = slukkere.findIndex(s => s === slukker)
-                              if (originalIndex !== -1) {
-                                nyeSlukkere[originalIndex].siste_kontroll = e.target.value
-                                updateSlukkere(nyeSlukkere)
-                              }
-                            }}
-                            className="input py-1 px-2 text-sm w-full"
-                            placeholder="2024"
-                          />
-                          <button
-                            onClick={() => {
-                              const nyeSlukkere = [...slukkere]
-                              const originalIndex = slukkere.findIndex(s => s === slukker)
-                              if (originalIndex !== -1) {
-                                nyeSlukkere[originalIndex].siste_kontroll = new Date().getFullYear().toString()
-                                updateSlukkere(nyeSlukkere)
-                              }
-                            }}
-                            className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
-                              slukker.siste_kontroll === new Date().getFullYear().toString()
-                                ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
-                                : 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
-                            }`}
-                            title="Fyll inn nåværende år"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <button
-                          onClick={() => setEditingStatusIndex(index)}
-                          className="flex flex-wrap gap-1 hover:bg-dark-200 p-2 rounded transition-colors w-full text-left"
-                        >
-                          {slukker.status && slukker.status.length > 0 ? (
-                            slukker.status.map((st: string) => (
-                              <span
-                                key={st}
-                                className={`px-2 py-1 rounded text-xs ${
-                                  st === 'OK' || st === 'OK Byttet' || st === 'Byttet ved kontroll'
-                                    ? 'bg-green-500/20 text-green-400' 
-                                    : 'bg-red-500/20 text-red-400'
-                                }`}
-                              >
-                                {st}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-gray-500 text-xs">Klikk for å velge status</span>
-                          )}
-                        </button>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center justify-end gap-2">
-                          {slukker.id && (
-                            <button
-                              onClick={() => deleteBrannslukker(slukker.id!)}
-                              className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                              title="Slett"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Status redigerings-modal */}
-          {editingStatusIndex !== null && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingStatusIndex(null)}>
-              <div className="bg-dark-100 rounded-lg p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-xl font-bold text-white mb-4">Velg status</h3>
-                
-                {/* Vis valgte statuser med mulighet til å fjerne */}
-                {sortedSlukkere[editingStatusIndex]?.status && sortedSlukkere[editingStatusIndex].status.length > 0 && (
-                  <div className="mb-4 p-4 bg-dark-200 rounded-lg">
-                    <p className="text-sm text-gray-400 mb-2">Valgte statuser:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {sortedSlukkere[editingStatusIndex].status.map((st: string, idx: number) => (
-                        <div
-                          key={idx}
-                          className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 ${
-                            st === 'OK' || st === 'OK Byttet' || st === 'Byttet ved kontroll'
-                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                          }`}
-                        >
-                          <span>{st || '(tom)'}</span>
-                          <button
-                            onClick={() => handleStatusChange(editingStatusIndex, st)}
-                            className="hover:bg-black/20 rounded p-0.5 transition-colors"
-                            title="Fjern denne statusen"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-2 gap-2 mb-6">
-                  {statusAlternativer.map((status) => {
-                    const isSelected = sortedSlukkere[editingStatusIndex]?.status?.includes(status)
-                    return (
-                      <button
-                        key={status}
-                        onClick={() => handleStatusChange(editingStatusIndex, status)}
-                        className={`px-4 py-3 rounded-lg text-sm transition-colors text-left ${
-                          isSelected
-                            ? 'bg-primary text-white'
-                            : 'bg-dark-200 text-gray-400 hover:bg-dark-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                            isSelected ? 'border-white bg-white' : 'border-gray-600'
-                          }`}>
-                            {isSelected && (
-                              <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-                          <span>{status}</span>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => setEditingStatusIndex(null)}
-                    className="px-4 py-2 bg-dark-200 text-gray-400 rounded-lg hover:bg-dark-300 transition-colors"
-                  >
-                    Lukk
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* CO2 Vektkalkulator */}
-          <CO2VektKalkulator
-            isOpen={co2KalkulatorData !== null}
-            onClose={() => setCo2KalkulatorData(null)}
-            modell={co2KalkulatorData?.modell || ''}
-            apparatNr={co2KalkulatorData?.apparatNr}
-          />
-        </div>
-      </div>
-    )
+  const utgaattMerke = (x: Brannslukker) => {
+    const serviceAar = parseInt(x.service || '0'); const prodAar = parseInt(x.produksjonsaar || '0')
+    const ref = serviceAar > 0 ? serviceAar : prodAar
+    if (!ref) return null
+    const alder = currentYear - ref; const klasse = x.brannklasse || ''
+    const grense = klasse.includes('ABC') || klasse === 'B' ? 10 : ['AB', 'ABF', 'A', 'AF'].includes(klasse) ? 5 : 0
+    if (!grense) return null
+    if (alder >= grense) return { tekst: 'Utgått', tone: 'r' as const }
+    if (alder === grense - 1) return { tekst: 'Byttes neste', tone: 'y' as const }
+    return null
   }
+  const kontrollerte = slukkere.filter(x => x.status && x.status.length > 0).length
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => {
-              // Sjekk om det finnes ulagrede endringer
-              if (hasUnsavedChanges) {
-                if (!confirm('⚠️ ADVARSEL: Du har ulagrede endringer!\n\nHvis du går tilbake nå, vil alle ulagrede endringer gå tapt.\n\nVil du fortsette?')) {
-                  return
-                }
-              }
-              onBack()
-            }}
-            className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Brannslukkere</h1>
-            <p className="text-gray-600 dark:text-gray-400">{kundeNavn} - {anleggNavn}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Online/Offline status */}
-          <div className="flex items-center gap-2">
-            {isOnline ? (
-              <>
-                <Wifi className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-green-400">Online</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-4 h-4 text-yellow-400" />
-                <span className="text-sm text-yellow-400">Offline</span>
-              </>
-            )}
-          </div>
-          
-          {/* Pending changes */}
-          {pendingChanges > 0 && (
-            <span className="text-sm text-orange-400 flex items-center gap-2">
-              {pendingChanges} endringer venter på synkronisering
-            </span>
-          )}
-          
-          {/* Lagringsstatus */}
-          {saving && (
-            <span className="text-sm text-gray-400 flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-              {isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}
-            </span>
-          )}
-          {!saving && lastSaved && pendingChanges === 0 && (
-            <span className="text-sm text-green-400">
-              Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
-          
-          </div>
+    <div className="space-y-4 pb-10">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Slukkeutstyr</button>
+        <span className="hidden sm:inline">/</span><span className="hidden sm:inline text-gray-900 dark:text-white truncate">{anleggNavn}</span>
       </div>
+      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><Shield className="w-6 h-6 text-red-500" />Brannslukkere</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{kundeNavn} · <span className="font-medium text-gray-900 dark:text-white">{anleggNavn}</span></p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300">{totalt} totalt</span>
+          <span className="px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">{ok} OK</span>
+          {avvik > 0 && <span className="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400">{avvik} avvik</span>}
+          {utgaatt > 0 && <span className="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400">{utgaatt} utgått</span>}
+          {byttesNesteKontroll > 0 && <span className="px-2.5 py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400">{byttesNesteKontroll} byttes neste</span>}
+        </div>
+      </header>
 
-      {/* Statistikk */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-        <div className="card bg-blue-500/10 border-blue-500/20">
-          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">Totalt</p>
-          <p className="text-xl sm:text-2xl font-bold text-white">{totalt}</p>
-        </div>
-        <div className="card bg-green-500/10 border-green-500/20">
-          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">OK</p>
-          <p className="text-xl sm:text-2xl font-bold text-green-400">{ok}</p>
-        </div>
-        <div className="card bg-red-500/10 border-red-500/20">
-          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">Avvik</p>
-          <p className="text-xl sm:text-2xl font-bold text-red-400">{avvik}</p>
-        </div>
-        <div className="card bg-yellow-500/10 border-yellow-500/20">
-          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">Utgått</p>
-          <p className="text-xl sm:text-2xl font-bold text-yellow-400">{utgaatt}</p>
-        </div>
-        <div className="card bg-orange-500/10 border-orange-500/20 col-span-2 sm:col-span-1">
-          <p className="text-xs sm:text-sm text-gray-400 mb-1 truncate">Byttes neste kontroll</p>
-          <p className="text-xl sm:text-2xl font-bold text-orange-400">{byttesNesteKontroll}</p>
-        </div>
-      </div>
+      {!isOnline && <div className="card !py-2.5 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-800 text-sm text-yellow-800 dark:text-yellow-300">Du er offline – endringer lagres lokalt og sendes når du er på nett igjen.</div>}
 
-      {/* Søk, sortering og legg til */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Søk etter brannslukker..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input w-full pl-10"
-            />
-          </div>
-          <div className="w-full md:w-48">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="input w-full h-[44px]"
-            >
-              <option value="apparat_nr">Sorter: Nr</option>
-              <option value="plassering">Sorter: Plassering</option>
-              <option value="etasje">Sorter: Etasje</option>
-              <option value="modell">Sorter: Modell</option>
-              <option value="brannklasse">Sorter: Klasse</option>
-              <option value="status">Sorter: Status</option>
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              min="1"
-              max="50"
-              value={antallNye}
-              onChange={(e) => setAntallNye(parseInt(e.target.value) || 1)}
-              className="input w-20"
-            />
-            <button
-              onClick={leggTilNye}
-              className="btn-primary flex items-center gap-2 whitespace-nowrap"
-            >
-              <Plus className="w-5 h-5" />
-              Legg til
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Kompakt tabell-visning */}
-      <div className="card">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Brannslukkere
-            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400 font-normal">
-              ({sortedSlukkere.length} {sortedSlukkere.length === 1 ? 'enhet' : 'enheter'})
-            </span>
-          </h2>
-          <div className="flex items-center gap-2">
-            {/* View toggle */}
-            <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
-              <button
-                onClick={() => setDisplayMode('table')}
-                className={`p-2 rounded transition-colors ${
-                  displayMode === 'table'
-                    ? 'bg-primary text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-                title="Tabellvisning"
-              >
-                <Table className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setDisplayMode('cards')}
-                className={`p-2 rounded transition-colors ${
-                  displayMode === 'cards'
-                    ? 'bg-primary text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-                title="Kortvisning"
-              >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
-            </div>
-            <button
-              onClick={() => setIsFullscreen(true)}
-              className="btn-secondary flex items-center gap-2"
-              title="Åpne i fullskjerm for detaljert redigering"
-            >
-              <Maximize2 className="w-5 h-5" />
-              <span className="hidden sm:inline">Rediger i fullskjerm</span>
-            </button>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-gray-400">Laster brannslukkere...</p>
-          </div>
-        ) : sortedSlukkere.length === 0 ? (
-        <div className="text-center py-12">
-          <Shield className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-400">Ingen brannslukkere funnet</p>
-          <p className="text-sm text-gray-500 mt-2">Klikk "Legg til" for å registrere nye brannslukkere</p>
-        </div>
-      ) : displayMode === 'cards' ? (
-        /* Kortvisning - Mobile-vennlig */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sortedSlukkere.map((slukker, index) => (
-            <div
-              key={slukker.id || `new-${index}`}
-              className="bg-dark-100 rounded-lg p-4 border border-gray-800 hover:border-red-500/50 transition-colors"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-red-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Shield className="w-5 h-5 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-gray-900 dark:text-white font-medium">Nr: {slukker.apparat_nr || '-'}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{slukker.modell || 'Ingen modell'}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={async () => {
-                    if (confirm('Er du sikker på at du vil slette denne brannslukkeren?')) {
-                      if (slukker.id) {
-                        await supabase
-                          .from('anleggsdata_brannslukkere')
-                          .delete()
-                          .eq('id', slukker.id)
-                        await loadSlukkere()
-                      } else {
-                        updateSlukkere(slukkere.filter(s => s !== slukker))
-                      }
-                    }
-                  }}
-                  className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors touch-target"
-                  title="Slett"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-              
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Plassering:</span>
-                  <span className="text-gray-700 dark:text-gray-200 text-right">{slukker.plassering || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Etasje:</span>
-                  <span className="text-gray-700 dark:text-gray-200">{slukker.etasje || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Produsent:</span>
-                  <span className="text-gray-700 dark:text-gray-200">{slukker.produsent || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Brannklasse:</span>
-                  <span className="text-gray-700 dark:text-gray-200">{slukker.brannklasse || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Produksjonsår:</span>
-                  <span className="text-gray-700 dark:text-gray-200">{slukker.produksjonsaar || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Service:</span>
-                  <span className="text-gray-700 dark:text-gray-200">{slukker.service || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Siste kontroll:</span>
-                  <span className="text-gray-700 dark:text-gray-200">{slukker.siste_kontroll || '-'}</span>
-                </div>
-                <div className="pt-2 border-t border-gray-800">
-                  <span className="text-gray-400 text-xs block mb-2">Status:</span>
-                  <div className="flex flex-wrap gap-1">
-                    {slukker.status && slukker.status.length > 0 ? (
-                      slukker.status.map((s, i) => (
-                        <span
-                          key={i}
-                          className={`badge text-xs ${
-                            s === 'OK' ? 'bg-green-900/30 text-green-400 border-green-800' :
-                            s.includes('Ikke') ? 'bg-yellow-900/30 text-yellow-400 border-yellow-800' :
-                            'bg-red-900/30 text-red-400 border-red-800'
-                          }`}
-                        >
-                          {s}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="badge bg-green-900/30 text-green-400 border-green-800 text-xs">OK</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        /* Tabellvisning */
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px]">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-800">
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Nr</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Plassering</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Etasje</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Produsent</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Modell</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Klasse</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">År</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-          {sortedSlukkere.map((slukker, index) => (
-            <tr 
-              key={slukker.id || `new-${index}`} 
-              className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors cursor-pointer"
-              onClick={() => setIsFullscreen(true)}
-              title="Klikk for å redigere i fullskjerm"
-            >
-              <td className="py-3 px-4">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-red-500" />
-                  <span className="text-gray-900 dark:text-white font-medium">{slukker.apparat_nr || '-'}</span>
-                </div>
-              </td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.plassering || '-'}</td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.etasje || '-'}</td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.produsent || '-'}</td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.modell || '-'}</td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.brannklasse || '-'}</td>
-              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{slukker.produksjonsaar || '-'}</td>
-              <td className="py-3 px-4">
-                {slukker.status && slukker.status.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {slukker.status.map((st) => (
-                      <span
-                        key={st}
-                        className={`px-2 py-1 rounded text-xs ${
-                          st === 'OK' || st === 'OK Byttet' || st === 'Byttet ved kontroll'
-                            ? 'bg-green-500/20 text-green-400' 
-                            : 'bg-red-500/20 text-red-400'
-                        }`}
-                      >
-                        {st}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-gray-500 text-xs">-</span>
-                )}
-              </td>
-            </tr>
-          ))}
-            </tbody>
-          </table>
-        </div>
+      {loading && slukkere.length === 0 ? <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div> : (
+        <UtstyrListe<Brannslukker>
+          rader={slukkere}
+          nummerKey="apparat_nr"
+          felter={FELTER}
+          status={STATUS_DEF}
+          statusKey="status"
+          lagrer={lagrer}
+          onEndre={lagreEndring}
+          onEndreFlere={lagreEndringFlere}
+          onSlett={deleteBrannslukker}
+          onLeggTil={leggTilNye}
+          merke={utgaattMerke}
+          ekstra={x => x.modell?.includes('CO2') ? <IconButton variant="ghost" label="CO2-vektkalkulator" icon={<Calculator />} onClick={() => setCo2KalkulatorData({ modell: x.modell || '', apparatNr: x.apparat_nr || '' })} className="w-8 h-8" /> : null}
+          enhetsnavn={{ entall: 'brannslukker', flertall: 'brannslukkere' }}
+        />
       )}
-      </div>
+
+      <CO2VektKalkulator isOpen={co2KalkulatorData !== null} onClose={() => setCo2KalkulatorData(null)} modell={co2KalkulatorData?.modell || ''} apparatNr={co2KalkulatorData?.apparatNr} />
 
       {/* Fullfør kontroll - Samlet seksjon */}
       <div className="card bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
@@ -2049,7 +1095,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
                 value={evakueringsplanStatus}
                 onChange={(e) => {
                   setEvakueringsplanStatus(e.target.value)
-                  setHasUnsavedChanges(true)
+                  saveEvakueringsplan(e.target.value)
                 }}
                 className="input"
               >
@@ -2062,47 +1108,18 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
             <div>
               <KontrolldatoVelger
                 kontrolldato={kontrolldato}
-                onDatoChange={(dato) => {
-                  setKontrolldato(dato)
-                  setHasUnsavedChanges(true)
-                }}
+                onDatoChange={setKontrolldato}
                 label="Kontrolldato"
               />
             </div>
           </div>
         </div>
 
-        {/* Hovedhandling - Stor knapp */}
-        <button
-          onClick={() => genererRapport('save')}
-          disabled={loading || slukkere.length === 0 || hasUnsavedChanges}
-          className="w-full py-4 px-6 bg-primary hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30"
-          title={hasUnsavedChanges ? 'Lagre endringer først' : ''}
-        >
-          <Save className="w-6 h-6" />
-          Generer rapport
-        </button>
-
-        {/* Sekundære handlinger */}
-        <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
-          <button
-            onClick={() => genererRapport('preview')}
-            disabled={loading || slukkere.length === 0 || hasUnsavedChanges}
-            className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-          >
-            <Eye className="w-4 h-4" />
-            Forhåndsvis
-          </button>
-          <span className="text-gray-300 dark:text-gray-600">|</span>
-          <button
-            onClick={lagreAlle}
-            disabled={loading || saving}
-            className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            Lagre endringer
-          </button>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <Button variant="primary" size="md" icon={<Save />} loading={loading} disabled={slukkere.length === 0} onClick={() => genererRapport('save')} className="sm:flex-1">Generer rapport</Button>
+          <Button variant="outline" size="md" icon={<Eye />} disabled={loading || slukkere.length === 0} onClick={() => genererRapport('preview')}>Forhåndsvis</Button>
         </div>
+        {kontrollerte < slukkere.length && <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-3">{slukkere.length - kontrollerte} apparater har ikke fått status ennå. Du kan likevel generere rapport.</p>}
       </div>
 
       {/* Kommentarer seksjon */}
