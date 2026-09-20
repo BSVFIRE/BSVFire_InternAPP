@@ -12,16 +12,16 @@ export function ResetPassword() {
   const navigate = useNavigate()
   const updatePassword = useAuthStore((state) => state.updatePassword)
   const user = useAuthStore((state) => state.user)
+  const authLoading = useAuthStore((state) => state.loading)
 
   useEffect(() => {
-    // Hvis bruker ikke er logget inn via reset-link, redirect til login
-    if (!user) {
-      const timer = setTimeout(() => {
-        navigate('/login')
-      }, 100)
-      return () => clearTimeout(timer)
-    }
-  }, [user, navigate])
+    // Lenken fra e-posten gir en midlertidig innlogging (PASSWORD_RECOVERY) som kan ta litt tid å lese fra URL-en.
+    // Vent til auth er initialisert, og gi tokenet noen sekunder før vi gir opp og sender til innlogging.
+    if (user || authLoading) return
+    const harToken = window.location.hash.includes('access_token') || window.location.search.includes('code=')
+    const timer = setTimeout(() => navigate('/login', { replace: true }), harToken ? 6000 : 1500)
+    return () => clearTimeout(timer)
+  }, [user, authLoading, navigate])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
