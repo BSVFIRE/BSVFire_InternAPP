@@ -87,7 +87,7 @@ export function WhatsNewDialog({ forceShow = false, onClose }: WhatsNewDialogPro
             </div>
             <div>
               <h2 className="text-xl font-bold">Hva er nytt?</h2>
-              <p className="text-white/80 text-sm">Siste oppdateringer i BSV Fire</p>
+              <p className="text-white/80 text-sm">Siste oppdateringer i FireCtrl</p>
             </div>
           </div>
         </div>

@@ -10,6 +10,22 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '3.0.0',
+    date: '2026-09-20',
+    title: 'Ny drakt på anlegg, kontroller og rapporter',
+    changes: [
+      { type: 'feature', description: 'Anlegg, Kunder, Kontaktpersoner, Ordre og Oppgaver har fått nye lister og egne detaljsider – med søk (/), filterchips og lenker du kan dele' },
+      { type: 'feature', description: 'Nødlys, brannslukkere og brannslanger: kontroll i felt med OK-knapp per enhet, «Gjenstår»-filter, etasje- og bygggrupper og automatisk lagring' },
+      { type: 'feature', description: 'Brannalarm: Enheter og styringer på én side med «Legg til»-dialog, nettverk med batterialder, tilleggsutstyr, og nye FG790/NS3960-skjema laget for mobil og nettbrett' },
+      { type: 'feature', description: 'Kontrollplan: årsoversikt per måned, gruppering på status/kunde/tekniker, massehandling og ukesplaner på samme side' },
+      { type: 'feature', description: 'Dashboard og kalender: «Neste opp» med Outlook-avtaler, ukeplan og oppgaver – koble til Outlook under Min profil' },
+      { type: 'feature', description: 'QR-etiketter på anlegg som kobles til Kontrollportalen med kamera' },
+      { type: 'improvement', description: 'Menyen er gruppert og kan skjules til en smal ikonmeny; Administrator er samlet nederst' },
+      { type: 'improvement', description: 'Kontaktpersoner med flere kort kan slås sammen til ett kort med alle anleggene' },
+      { type: 'fix', description: 'Batteri registreres som monteringsår (2025) og alderen regnes ut automatisk' },
+    ]
+  },
+  {
     version: '2.7.0',
     date: '2026-02-18',
     title: 'Salg - Prospektering',
