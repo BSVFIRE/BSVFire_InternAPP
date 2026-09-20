@@ -72,9 +72,9 @@ export const STYRINGER: { key: string; navn: string; icon: LucideIcon }[] = [
 const STYRING_STATUSER = ['Kontrollert', 'Ikke aktuelt', 'Ikke tilkomst'] as const
 const STYRING_KAT = 'Styringer'
 
-interface Styring { aktiv: boolean; antall: number; status: string; note: string; avvik: string[] }
+export interface Styring { aktiv: boolean; antall: number; status: string; note: string; avvik: string[] }
 
-function lesStyringer(rad: BrannalarmStyring | null): Record<string, Styring> {
+export function lesStyringer(rad: BrannalarmStyring | null): Record<string, Styring> {
   const r = (rad ?? {}) as Record<string, unknown>
   const ut: Record<string, Styring> = {}
   for (const { key } of STYRINGER) {
@@ -85,15 +85,15 @@ function lesStyringer(rad: BrannalarmStyring | null): Record<string, Styring> {
   }
   return ut
 }
-function styringTilKolonner(key: string, s: Styring): Record<string, unknown> {
+export function styringTilKolonner(key: string, s: Styring): Record<string, unknown> {
   return { [`${key}_aktiv`]: s.aktiv, [`${key}_antall`]: s.antall, [`${key}_status`]: s.status, [`${key}_note`]: s.note, [`${key}_har_avvik`]: s.avvik.length > 0, [`${key}_avvik`]: JSON.stringify(s.avvik) }
 }
 
 const LUKKET_KEY = 'brannalarm_enheter_lukkede'
 
 /** Egendefinert enhetstype eller styring – lagres i anleggsdata_brannalarm.egendefinerte (jsonb) */
-interface Egendefinert { id: string; navn: string; slag: 'enhet' | 'styring'; kategori: string; typer: TypeRad[]; antall: number; status: string; note: string; avvik: string[] }
-function lesEgendefinerte(rad: BrannalarmStyring | null): Egendefinert[] {
+export interface Egendefinert { id: string; navn: string; slag: 'enhet' | 'styring'; kategori: string; typer: TypeRad[]; antall: number; status: string; note: string; avvik: string[] }
+export function lesEgendefinerte(rad: BrannalarmStyring | null): Egendefinert[] {
   const raw = (rad as unknown as { egendefinerte?: unknown } | null)?.egendefinerte
   if (!Array.isArray(raw)) return []
   return raw.map(x => ({ id: String(x.id), navn: String(x.navn ?? ''), slag: x.slag === 'styring' ? 'styring' : 'enhet', kategori: String(x.kategori ?? 'Annet'), typer: Array.isArray(x.typer) ? x.typer : [], antall: Number(x.antall ?? 0) || 0, status: String(x.status ?? ''), note: String(x.note ?? ''), avvik: Array.isArray(x.avvik) ? x.avvik : [] }))
@@ -415,16 +415,15 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
 }
 
 /** Én styringsrad: antall · status · avvik · meny, med avvikslinjer og notat under. */
-function StyringRad({ navn, Ikon, egen, st, lagrer, notatApen, onNotat, onLagre, onFjern, onGiNyttNavn }: {
-  navn: string; Ikon: LucideIcon; egen?: boolean; st: Styring; lagrer: boolean; notatApen: boolean; onNotat: () => void; onLagre: (ny: Styring) => void; onFjern: () => void; onGiNyttNavn?: () => void
+export function StyringRad({ navn, Ikon, egen, st, lagrer, notatApen, onNotat, onLagre, onFjern, onGiNyttNavn }: {
+  navn: string; Ikon: LucideIcon; egen?: boolean; st: Styring; lagrer: boolean; notatApen: boolean; onNotat: () => void; onLagre: (ny: Styring) => void; onFjern?: () => void; onGiNyttNavn?: () => void
 }) {
   const harAvvik = st.avvik.length > 0
   const meny = (
     <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
       <MenuItem icon={<StickyNote />} onSelect={onNotat}>{st.note ? 'Rediger notat' : 'Legg til notat'}</MenuItem>
       {onGiNyttNavn && <MenuItem icon={<FileText />} onSelect={onGiNyttNavn}>Gi nytt navn</MenuItem>}
-      <MenuSeparator />
-      <MenuItem icon={<Trash2 />} danger onSelect={onFjern}>Fjern {navn.toLowerCase()} fra anlegget…</MenuItem>
+      {onFjern && <><MenuSeparator /><MenuItem icon={<Trash2 />} danger onSelect={onFjern}>Fjern {navn.toLowerCase()} fra anlegget…</MenuItem></>}
     </DropdownMenu>
   )
   return (
