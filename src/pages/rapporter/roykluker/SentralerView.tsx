@@ -138,9 +138,18 @@ export function SentralerView({ anleggId, kundeNavn, anleggNavn }: SentralerView
   }
 
   async function slettSentral(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne sentralen?')) return
+    const antallLuker = luker.filter(l => l.sentral_id === id).length
+    const sporsmal = antallLuker > 0
+      ? `Sentralen har ${antallLuker} ${antallLuker === 1 ? 'luke' : 'luker'} knyttet til seg. Slette sentralen og alle lukene?`
+      : 'Er du sikker på at du vil slette denne sentralen?'
+    if (!confirm(sporsmal)) return
 
     try {
+      // Lukene peker på sentralen (FK) og må bort først
+      if (antallLuker > 0) {
+        const { error: lukeFeil } = await supabase.from('roykluke_luker').delete().eq('sentral_id', id)
+        if (lukeFeil) throw lukeFeil
+      }
       const { error } = await supabase
         .from('roykluke_sentraler')
         .delete()

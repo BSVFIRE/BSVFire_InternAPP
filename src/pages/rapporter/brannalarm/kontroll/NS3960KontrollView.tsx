@@ -743,7 +743,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
       {Object.entries(KONTROLLPUNKTER_BY_CATEGORY).map(([kategori, punkter]) => {
         const synlige = punkter.filter(visPunkt)
         if (synlige.length === 0) return null
-        const ferdig = punkter.filter(n => data[n].status !== null).length
+        const ferdig = punkter.filter(n => data[n]?.status != null).length
         const lukket = collapsedCategories.has(kategori)
         return (
           <section key={kategori} className="card !p-0 overflow-hidden" aria-label={kategori}>

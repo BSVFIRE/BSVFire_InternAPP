@@ -69,7 +69,15 @@ export function getCachedData<T>(key: string): T | null {
 }
 
 // Queue changes for later sync
+// Postgres-feil som aldri blir bedre av å prøve igjen – endringen kastes ut av køen i stedet for å feile for evig
+const PERMANENTE_FEIL = new Set(['23505', '23503', '23502', '22P02', '42501', '42703', '42P01', 'PGRST204'])
+
 export function queueChange(change: Omit<PendingChange, 'id' | 'timestamp'>) {
+  if (change.operation !== 'insert' && !change.data?.id) {
+    // En update/delete uten id ville feilet med 22P02 («undefined» er ikke en uuid) ved hver synkronisering
+    log.error(`Nektet å legge ${change.operation} på ${change.table} i offline-kø uten id`, { data: change.data })
+    return
+  }
   const pendingChanges = getPendingChanges()
   const newChange: PendingChange = {
     ...change,
@@ -146,10 +154,15 @@ export async function syncPendingChanges() {
       }
 
       if (result?.error) {
-        log.error(`❌ Feil ved synkronisering av ${change.operation} på ${change.table}:`, result.error)
         results.failed++
         results.errors.push(result.error.message)
-        remainingChanges.push(change) // Keep for retry
+        if (PERMANENTE_FEIL.has(result.error.code)) {
+          // Duplikat, manglende rad, ugyldig id osv.: forkast endringen så køen ikke feiler ved hvert sidebytte
+          log.warn(`Forkastet ${change.operation} på ${change.table} fra offline-kø (${result.error.code}): ${result.error.message}`, { data: change.data })
+        } else {
+          log.error(`❌ Feil ved synkronisering av ${change.operation} på ${change.table}:`, result.error)
+          remainingChanges.push(change) // Keep for retry
+        }
       } else {
         log.debug(`✅ Synkronisert ${change.operation} på ${change.table}`)
         results.synced++

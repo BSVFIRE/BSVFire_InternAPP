@@ -40,7 +40,16 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     })
 
     if (response.error) {
-      throw new Error(response.error.message || 'Kunne ikke sende e-post')
+      // Ved non-2xx fra edge-funksjonen ligger Resend-svaret i context – hent det så vi ser hvorfor
+      let detaljer = ''
+      try {
+        const ctx = (response.error as { context?: Response }).context
+        if (ctx && typeof ctx.json === 'function') {
+          const body = await ctx.clone().json()
+          detaljer = typeof body?.error === 'string' ? body.error : JSON.stringify(body?.error ?? body)
+        }
+      } catch { /* ingen detaljer tilgjengelig */ }
+      throw new Error(detaljer ? `Kunne ikke sende e-post: ${detaljer}` : response.error.message || 'Kunne ikke sende e-post')
     }
 
     if (response.data?.error) {
