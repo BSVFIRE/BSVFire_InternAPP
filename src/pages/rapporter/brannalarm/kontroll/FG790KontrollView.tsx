@@ -5,6 +5,9 @@ import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem } from '@/components/ui/DropdownMenu'
+import { FileText } from 'lucide-react'
+import { STYRINGER, StyringRad, lesEgendefinerte, lesStyringer, styringTilKolonner, type Egendefinert, type Styring } from '../EnheterView'
+import type { BrannalarmStyring } from '../../Brannalarm'
 import { KONTROLLPUNKTER_FG790, AVVIK_TYPER, AG_VERDIER, FEILKODER, KONTROLLPUNKT_REFERANSER } from '@/lib/constants/fg790'
 import { useOfflineStatus, useOfflineQueue } from '@/hooks/useOffline'
 import { cacheData, getCachedData } from '@/lib/offline'
@@ -49,6 +52,13 @@ export function FG790KontrollView({
   const [apent, setApent] = useState<string | null>(null)
   const [visVurdering, setVisVurdering] = useState(false)
   const [vurderingMangler, setVurderingMangler] = useState(false)
+  // Styringer på anlegget – status settes her og lagres på anleggsdata_brannalarm
+  const [styr, setStyr] = useState<Record<string, Styring>>({})
+  const [egne, setEgne] = useState<Egendefinert[]>([])
+  const [brannalarmRadId, setBrannalarmRadId] = useState<string | null>(null)
+  const [styrLagrer, setStyrLagrer] = useState<string | null>(null)
+  const [styrNotat, setStyrNotat] = useState<Set<string>>(new Set())
+  const [styringerLukket, setStyringerLukket] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   
@@ -156,6 +166,14 @@ export function FG790KontrollView({
 
       if (anleggData) {
         setAnleggsNavn(anleggData.anleggsnavn)
+      }
+
+      // Styringer registrert på anlegget
+      const { data: brannalarmData } = await supabase.from('anleggsdata_brannalarm').select('*').eq('anlegg_id', anleggId).maybeSingle()
+      if (brannalarmData) {
+        setBrannalarmRadId(brannalarmData.id)
+        setStyr(lesStyringer(brannalarmData as unknown as BrannalarmStyring))
+        setEgne(lesEgendefinerte(brannalarmData as unknown as BrannalarmStyring))
       }
 
       // Sjekk om det finnes et eksisterende utkast
@@ -437,6 +455,33 @@ export function FG790KontrollView({
   const gjenstar = totalPunkter - vurdertePunkter
   const vurderingOk = ingenAnleggsvurdering || kontrollorVurderingSum !== null
 
+  async function skrivBrannalarm(merke: string, kolonner: Record<string, unknown>): Promise<boolean> {
+    setStyrLagrer(merke)
+    const res = brannalarmRadId
+      ? await supabase.from('anleggsdata_brannalarm').update(kolonner).eq('id', brannalarmRadId)
+      : await supabase.from('anleggsdata_brannalarm').upsert({ anlegg_id: anleggId, ...kolonner }, { onConflict: 'anlegg_id' }).select('id').single()
+    setStyrLagrer(null)
+    if (res.error) { toast.error('Kunne ikke lagre styring', res.error); return false }
+    if (!brannalarmRadId && 'data' in res && res.data) setBrannalarmRadId((res.data as { id: string }).id)
+    return true
+  }
+  async function lagreStyring(key: string, ny: Styring) {
+    const forrige = styr[key]
+    setStyr(prev => ({ ...prev, [key]: ny }))
+    if (!(await skrivBrannalarm(key, styringTilKolonner(key, ny)))) setStyr(prev => ({ ...prev, [key]: forrige }))
+  }
+  async function lagreEgenStyring(id: string, ny: Styring) {
+    const forrige = egne
+    const oppdatert = egne.map(x => x.id === id ? { ...x, antall: ny.antall, status: ny.status, note: ny.note, avvik: ny.avvik } : x)
+    setEgne(oppdatert)
+    if (!(await skrivBrannalarm(`e:${id}`, { egendefinerte: oppdatert }))) setEgne(forrige)
+  }
+  const aktiveStyringer = STYRINGER.filter(x => styr[x.key]?.aktiv)
+  const egneStyringer = egne.filter(x => x.slag === 'styring')
+  const styringerTotalt = aktiveStyringer.length + egneStyringer.length
+  const styringerVurdert = aktiveStyringer.filter(x => styr[x.key].status).length + egneStyringer.filter(x => x.status).length
+  const styringerAvvik = aktiveStyringer.filter(x => styr[x.key].avvik.length > 0).length + egneStyringer.filter(x => x.avvik.length > 0).length
+
   const erDetektorPunkt = (p: KontrollpunktData) => p.posisjon === 'POS.2 - Visuell kontroll' && p.tittel.toLowerCase().includes('detektor')
   function visPunkt(p: KontrollpunktData) {
     if (filter === 'gjenstar') return p.status === null
@@ -497,7 +542,7 @@ export function FG790KontrollView({
         </div>
       </div>
 
-      {gjenstar === 0 && filter === 'gjenstar' && (
+      {gjenstar === 0 && styringerVurdert === styringerTotalt && filter === 'gjenstar' && (
         <div className="card text-center py-8 space-y-2">
           <p className="text-sm font-medium text-gray-900 dark:text-white">Alle {totalPunkter} punkter er vurdert 🎉</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">Fyll ut anleggsvurderingen nederst og trykk «Fullfør og lag rapport». <button type="button" onClick={() => setFilter('alle')} className="text-primary hover:underline">Vis alle punkter</button></p>
@@ -615,6 +660,34 @@ export function FG790KontrollView({
         )
       })}
 
+      {/* Styringer på anlegget */}
+      {styringerTotalt > 0 && (filter === 'alle' || (filter === 'gjenstar' && styringerVurdert < styringerTotalt) || (filter === 'avvik' && styringerAvvik > 0)) && (
+        <section className="card !p-0 overflow-hidden" aria-label="Styringer">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-dark-100">
+            <button type="button" onClick={() => setStyringerLukket(v => !v)} aria-expanded={!styringerLukket} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+              <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', !styringerLukket && 'rotate-90')} />
+              <span className="font-semibold text-gray-900 dark:text-white">Styringer på anlegget</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{styringerVurdert} av {styringerTotalt}</span>
+              {styringerVurdert === styringerTotalt && <Check className="w-4 h-4 text-green-600 dark:text-green-400" strokeWidth={3} />}
+              {styringerAvvik > 0 && <span className="text-xs text-orange-600 dark:text-orange-400">· {styringerAvvik} avvik</span>}
+            </button>
+            <DropdownMenu trigger={open => <IconButton variant="ghost" label="Handlinger" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+              <MenuItem icon={<Check />} onSelect={() => { aktiveStyringer.forEach(x => { if (!styr[x.key].status) lagreStyring(x.key, { ...styr[x.key], status: 'Kontrollert' }) }); egneStyringer.forEach(x => { if (!x.status) lagreEgenStyring(x.id, { aktiv: true, antall: x.antall, status: 'Kontrollert', note: x.note, avvik: x.avvik }) }) }}>Merk resten som kontrollert</MenuItem>
+            </DropdownMenu>
+          </div>
+          {!styringerLukket && (
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              {aktiveStyringer.filter(x => filter === 'alle' || (filter === 'gjenstar' ? !styr[x.key].status : styr[x.key].avvik.length > 0)).map(x => (
+                <StyringRad key={x.key} navn={x.navn} Ikon={x.icon} st={styr[x.key]} lagrer={styrLagrer === x.key} notatApen={styrNotat.has(x.key)} onNotat={() => setStyrNotat(prev => { const n = new Set(prev); n.add(x.key); return n })} onLagre={ny => lagreStyring(x.key, ny)} />
+              ))}
+              {egneStyringer.filter(x => filter === 'alle' || (filter === 'gjenstar' ? !x.status : x.avvik.length > 0)).map(x => (
+                <StyringRad key={x.id} navn={x.navn} Ikon={FileText} egen st={{ aktiv: true, antall: x.antall, status: x.status, note: x.note, avvik: x.avvik }} lagrer={styrLagrer === `e:${x.id}`} notatApen={styrNotat.has(`e:${x.id}`)} onNotat={() => setStyrNotat(prev => { const n = new Set(prev); n.add(`e:${x.id}`); return n })} onLagre={ny => lagreEgenStyring(x.id, ny)} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Anleggsvurdering */}
       <section id="fg-vurdering" className={cn('card !p-0 overflow-hidden', vurderingMangler && !vurderingOk && 'border-red-400 dark:border-red-700')} aria-label="Anleggsvurdering">
         <button type="button" onClick={() => setVisVurdering(v => !v)} aria-expanded={visVurdering} className="w-full flex items-center gap-2 px-3 py-2.5 bg-gray-50 dark:bg-dark-100 text-left">
@@ -651,7 +724,7 @@ export function FG790KontrollView({
       </section>
 
       <div className="fixed bottom-0 left-0 right-0 lg:left-[var(--sidebar-w)] z-20 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-gray-800 px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
-        <span className="text-sm text-gray-500 dark:text-gray-400 mr-auto tabular-nums">{gjenstar > 0 ? `${gjenstar} punkter gjenstår` : 'Alle punkter vurdert'}{avvikPunkter ? ` · ${avvikPunkter} avvik` : ''}{!vurderingOk ? ' · vurdering mangler' : ''}</span>
+        <span className="text-sm text-gray-500 dark:text-gray-400 mr-auto tabular-nums">{gjenstar > 0 ? `${gjenstar} punkter gjenstår` : 'Alle punkter vurdert'}{styringerTotalt - styringerVurdert > 0 ? ` · ${styringerTotalt - styringerVurdert} styringer` : ''}{avvikPunkter + styringerAvvik ? ` · ${avvikPunkter + styringerAvvik} avvik` : ''}{!vurderingOk ? ' · vurdering mangler' : ''}</span>
         <Button variant="ghost" loading={saving} disabled={!hasUnsavedChanges} onClick={() => handleSave(false)}><span className="hidden sm:inline">Lagre nå</span><span className="sm:hidden">Lagre</span></Button>
         <Button variant="primary" icon={<ClipboardCheck />} loading={saving} onClick={fullfor}>Fullfør og lag rapport</Button>
       </div>
