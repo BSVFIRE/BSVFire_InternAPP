@@ -1,561 +1,203 @@
-import { useEffect, useState } from 'react'
+/**
+ * Brannalarm – kontrolloversikt for et anlegg.
+ * Påbegynte utkast øverst, tidslinje over utførte kontroller per år, og avvikene fra siste
+ * FG790- og NS3960-kontroll i egen kolonne (med avvikstekstene, ikke bare kommentaren).
+ */
+import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, ArrowLeft, Check, ClipboardCheck, FileText, MoreHorizontal, Play, Plus, Send, Trash2, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, FileText, AlertTriangle, Clock, CheckCircle, Edit, Eye, Plus, Trash2, ClipboardCheck, Shield } from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { cn, formatDate } from '@/lib/utils'
+import { Button, IconButton } from '@/components/ui/Button'
+import { DropdownMenu, MenuItem } from '@/components/ui/DropdownMenu'
 
-interface Kontroll {
-  id: string
-  dato: string
-  kontrollaar: number
-  kontroll_status: 'utkast' | 'ferdig' | 'sendt'
-  rapport_type: 'FG790' | 'NS3960'
-  kontrollor_id?: string
-  har_feil?: boolean
-  har_utkoblinger?: boolean
-}
+type Type = 'FG790' | 'NS3960'
+interface Kontroll { id: string; dato: string; aar: number; status: 'utkast' | 'ferdig' | 'sendt'; type: Type; har_feil: boolean; har_utkoblinger: boolean }
+interface Avvik { type: Type; kategori: string | null; tittel: string; avvikType: string | null; feilkode: string | null; tekster: string[]; kommentar: string }
 
-interface Avvik {
-  kategori: string
-  tittel: string
-  avvik_type: string
-  feilkode?: string
-  kommentar: string
-  rapport_type: 'FG790' | 'NS3960'
-  kontroll_dato?: string
-}
-
-interface KontrollOversiktViewProps {
-  anleggId: string
-  anleggsNavn: string
-  onBack: () => void
-  onStartNy: () => void
-  onOpenKontroll: (kontrollId: string, type: 'FG790' | 'NS3960') => void
-}
-
-export function KontrollOversiktView({ 
-  anleggId, 
-  anleggsNavn, 
-  onBack, 
-  onStartNy,
-  onOpenKontroll 
-}: KontrollOversiktViewProps) {
+export function KontrollOversiktView({ anleggId, anleggsNavn, onBack, onStartNy, onOpenKontroll }: {
+  anleggId: string; anleggsNavn: string; onBack: () => void; onStartNy: () => void; onOpenKontroll: (kontrollId: string, type: Type) => void
+}) {
   const [kontroller, setKontroller] = useState<Kontroll[]>([])
-  const [forrigeAvvik, setForrigeAvvik] = useState<Avvik[]>([])
+  const [avvik, setAvvik] = useState<Avvik[]>([])
+  const [sisteDato, setSisteDato] = useState<Record<Type, string | null>>({ FG790: null, NS3960: null })
+  const [leverandor, setLeverandor] = useState('')
+  const [sentraltype, setSentraltype] = useState('')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
-  const [leverandor, setLeverandor] = useState<string>('')
-  const [sentraltype, setSentraltype] = useState<string>('')
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [sisteKontrollDato, setSisteKontrollDato] = useState<string | null>(null)
+  const [feil, setFeil] = useState<string | null>(null)
+  const [aar, setAar] = useState<number | 'alle'>('alle')
+  const [sletter, setSletter] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (anleggId) {
-      loadKontroller()
-    }
+  useEffect(() => { if (anleggId) last() // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anleggId])
 
-  async function loadKontroller() {
+  async function last() {
     try {
-      setLoading(true)
-      setError(null)
-      
-      console.log('Henter kontroller for anlegg:', anleggId)
-      
-      // Hent alle kontroller for anlegget
-      const { data: kontrollerData, error } = await supabase
-        .from('anleggsdata_kontroll')
-        .select('*')
-        .eq('anlegg_id', anleggId)
-        .order('dato', { ascending: false })
-
-      if (error) {
-        console.error('Feil ved henting av kontroller:', error)
-        // Don't set error if table doesn't exist - just show empty state
-        if (error.code === 'PGRST116' || error.message.includes('does not exist')) {
-          console.log('Tabell finnes ikke ennå, viser tom liste')
-          setKontroller([])
-          setLoading(false)
-          return
-        }
-        setError('Kunne ikke laste kontroller. Kontroller at du har tilgang til dataene.')
-        setKontroller([])
-        setLoading(false)
-        return
-      }
-      
-      console.log('Hentet kontroller:', kontrollerData?.length || 0)
-
-      const typedKontroller = (kontrollerData || []).map(k => ({
-        id: k.id,
-        dato: k.dato || new Date().toISOString(),
-        kontrollaar: k.dato ? new Date(k.dato).getFullYear() : new Date().getFullYear(),
-        kontroll_status: k.kontroll_status || 'ferdig',
-        rapport_type: k.rapport_type || 'FG790',
-        kontrollor_id: k.kontrollor_id,
-        har_feil: k.har_feil,
-        har_utkoblinger: k.har_utkoblinger,
+      setLoading(true); setFeil(null)
+      const [k, b] = await Promise.all([
+        supabase.from('anleggsdata_kontroll').select('id, dato, kontroll_status, rapport_type, har_feil, har_utkoblinger').eq('anlegg_id', anleggId).order('dato', { ascending: false }),
+        supabase.from('anleggsdata_brannalarm').select('leverandor, sentraltype').eq('anlegg_id', anleggId).maybeSingle(),
+      ])
+      if (k.error) throw k.error
+      const liste: Kontroll[] = (k.data ?? []).map(x => ({
+        id: x.id, dato: x.dato ?? new Date().toISOString(), aar: new Date(x.dato ?? Date.now()).getFullYear(),
+        status: (x.kontroll_status as Kontroll['status']) || 'ferdig', type: x.rapport_type === 'NS3960' ? 'NS3960' : 'FG790', har_feil: Boolean(x.har_feil), har_utkoblinger: Boolean(x.har_utkoblinger),
       }))
-
-      setKontroller(typedKontroller)
-      
-      // Hent brannalarmdata (leverandør og sentraltype)
-      const { data: brannalarmData, error: brannalarmError } = await supabase
-        .from('anleggsdata_brannalarm')
-        .select('leverandor, sentraltype')
-        .eq('anlegg_id', anleggId)
-        .maybeSingle()
-      
-      console.log('Brannalarmdata:', brannalarmData, 'Error:', brannalarmError)
-      
-      if (!brannalarmError && brannalarmData) {
-        console.log('Setter leverandør:', brannalarmData.leverandor, 'Sentraltype:', brannalarmData.sentraltype)
-        setLeverandor(brannalarmData.leverandor || '')
-        setSentraltype(brannalarmData.sentraltype || '')
-      }
-
-      // Hent avvik fra forrige år
-      await loadForrigeAvvik(typedKontroller)
-    } catch (error: any) {
-      console.error('Feil ved lasting av kontroller:', error)
-      setError(error?.message || 'En ukjent feil oppstod')
-      setKontroller([])
-    } finally {
-      setLoading(false)
-    }
+      setKontroller(liste)
+      setLeverandor(b.data?.leverandor ?? ''); setSentraltype(b.data?.sentraltype ?? '')
+      await lastAvvik(liste)
+    } catch (e) {
+      setFeil(e instanceof Error ? e.message : 'Kunne ikke laste kontroller')
+    } finally { setLoading(false) }
   }
 
-  async function loadForrigeAvvik(kontrollerData: Kontroll[]) {
-    // Finn siste utførte kontroller (både FG790 og NS3960)
-    const ferdigeKontroller = kontrollerData.filter(k => k.kontroll_status === 'ferdig')
-    
-    if (ferdigeKontroller.length === 0) {
-      setForrigeAvvik([])
-      setSisteKontrollDato(null)
-      return
+  async function lastAvvik(liste: Kontroll[]) {
+    const ferdige = liste.filter(x => x.status !== 'utkast')
+    const siste = (t: Type) => ferdige.filter(x => x.type === t).sort((a, b) => b.dato.localeCompare(a.dato))[0]
+    const fg = siste('FG790'), ns = siste('NS3960')
+    const ut: Avvik[] = []
+    if (fg) {
+      const { data } = await supabase.from('kontrollsjekkpunkter_brannalarm').select('kategori, tittel, avvik_type, feilkode, kommentar').eq('kontroll_id', fg.id).not('avvik_type', 'is', null)
+      for (const d of data ?? []) ut.push({ type: 'FG790', kategori: d.kategori, tittel: d.tittel, avvikType: d.avvik_type, feilkode: d.feilkode, tekster: [], kommentar: d.kommentar ?? '' })
     }
+    if (ns) {
+      const { data } = await supabase.from('ns3960_kontrollpunkter').select('kontrollpunkt_navn, avvik_liste, kommentar').eq('kontroll_id', ns.id).eq('avvik', true)
+      for (const d of data ?? []) {
+        let tekster: string[] = []
+        try { tekster = (JSON.parse(d.avvik_liste ?? '[]') as { beskrivelse?: string }[]).map(a => a.beskrivelse ?? '').filter(Boolean) } catch { /* tom */ }
+        ut.push({ type: 'NS3960', kategori: null, tittel: d.kontrollpunkt_navn, avvikType: 'Avvik', feilkode: null, tekster, kommentar: d.kommentar ?? '' })
+      }
+    }
+    setAvvik(ut)
+    setSisteDato({ FG790: fg?.dato ?? null, NS3960: ns?.dato ?? null })
+  }
 
-    // Finn siste FG790 og NS3960 kontroll
-    const sisteFG790 = ferdigeKontroller
-      .filter(k => k.rapport_type === 'FG790')
-      .sort((a, b) => new Date(b.dato).getTime() - new Date(a.dato).getTime())[0]
-    
-    const sisteNS3960 = ferdigeKontroller
-      .filter(k => k.rapport_type === 'NS3960')
-      .sort((a, b) => new Date(b.dato).getTime() - new Date(a.dato).getTime())[0]
-
-    const alleAvvik: Avvik[] = []
-
+  async function slettUtkast(k: Kontroll) {
+    if (!confirm(`Slette ${k.type}-utkastet fra ${formatDate(k.dato)}? Dette kan ikke angres.`)) return
+    setSletter(k.id)
     try {
-      // Hent FG790 avvik hvis det finnes en siste FG790 kontroll
-      if (sisteFG790) {
-        console.log('Henter FG790 avvik fra kontroll:', sisteFG790.id, 'Dato:', sisteFG790.dato)
-        const { data, error } = await supabase
-          .from('kontrollsjekkpunkter_brannalarm')
-          .select('*')
-          .eq('kontroll_id', sisteFG790.id)
-          .not('avvik_type', 'is', null)
-
-        if (error) {
-          console.error('Feil ved henting av FG790 avvik:', error)
-        } else if (data && data.length > 0) {
-          console.log('Fant', data.length, 'FG790 avvik')
-          const fg790Avvik = data.map(d => ({
-            kategori: d.kategori,
-            tittel: d.tittel,
-            avvik_type: d.avvik_type,
-            feilkode: d.feilkode,
-            kommentar: d.kommentar || '',
-            rapport_type: 'FG790' as const,
-            kontroll_dato: sisteFG790.dato,
-          }))
-          alleAvvik.push(...fg790Avvik)
-        }
-      }
-
-      // Hent NS3960 avvik hvis det finnes en siste NS3960 kontroll
-      if (sisteNS3960) {
-        console.log('Henter NS3960 avvik fra kontroll:', sisteNS3960.id, 'Dato:', sisteNS3960.dato)
-        const { data, error } = await supabase
-          .from('ns3960_kontrollpunkter')
-          .select('*')
-          .eq('kontroll_id', sisteNS3960.id)
-          .eq('avvik', true)
-
-        if (error) {
-          console.error('Feil ved henting av NS3960 avvik:', error)
-        } else if (data && data.length > 0) {
-          console.log('Fant', data.length, 'NS3960 avvik')
-          const ns3960Avvik = data.map(d => ({
-            kategori: 'NS3960',
-            tittel: d.kontrollpunkt_navn,
-            avvik_type: 'Avvik',
-            kommentar: d.kommentar || '',
-            rapport_type: 'NS3960' as const,
-            kontroll_dato: sisteNS3960.dato,
-          }))
-          alleAvvik.push(...ns3960Avvik)
-        }
-      }
-
-      // Sett siste kontroll dato (den nyeste av de to)
-      const sisteDato = [sisteFG790?.dato, sisteNS3960?.dato]
-        .filter(Boolean)
-        .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0]
-      
-      setSisteKontrollDato(sisteDato || null)
-      setForrigeAvvik(alleAvvik)
-      console.log('Totalt', alleAvvik.length, 'avvik lastet')
-    } catch (error) {
-      console.error('Feil ved lasting av avvik:', error)
-      setForrigeAvvik([])
-      setSisteKontrollDato(null)
-    }
+      if (k.type === 'NS3960') { const r = await supabase.from('ns3960_kontrollpunkter').delete().eq('kontroll_id', k.id); if (r.error) throw r.error }
+      else { const r = await supabase.from('kontrollsjekkpunkter_brannalarm').delete().eq('kontroll_id', k.id); if (r.error) throw r.error }
+      const { error } = await supabase.from('anleggsdata_kontroll').delete().eq('id', k.id)
+      if (error) throw error
+      toast.success('Utkast slettet'); await last()
+    } catch (e) { toast.error('Kunne ikke slette utkastet', e) } finally { setSletter(null) }
   }
 
-  const utkast = kontroller.filter(k => k.kontroll_status === 'utkast')
-  const ferdigeKontroller = kontroller.filter(k => k.kontroll_status !== 'utkast')
-  const years = [...new Set(ferdigeKontroller.map(k => k.kontrollaar))].sort((a, b) => b - a)
+  const utkast = kontroller.filter(k => k.status === 'utkast')
+  const ferdige = kontroller.filter(k => k.status !== 'utkast')
+  const aarene = useMemo(() => Array.from(new Set(ferdige.map(k => k.aar))).sort((a, b) => b - a), [ferdige])
+  const vist = aar === 'alle' ? ferdige : ferdige.filter(k => k.aar === aar)
+  const perAar = useMemo(() => { const m = new Map<number, Kontroll[]>(); for (const k of vist) m.set(k.aar, [...(m.get(k.aar) ?? []), k]); return Array.from(m.entries()).sort((a, b) => b[0] - a[0]) }, [vist])
 
-  async function handleDeleteUtkast(utkastId: string, rapportType: 'FG790' | 'NS3960') {
-    if (isDeleting) {
-      console.log('Sletting pågår allerede, avbryter')
-      return
-    }
-
-    const confirm = window.confirm('Er du sikker på at du vil slette dette utkastet? Dette kan ikke angres.')
-    if (!confirm) return
-
-    console.log('Sletter utkast:', utkastId, 'Type:', rapportType)
-    setIsDeleting(true)
-
-    try {
-      // Slett kontrollpunkter først (hvis NS3960)
-      if (rapportType === 'NS3960') {
-        console.log('Sletter NS3960 kontrollpunkter for kontroll_id:', utkastId)
-        const { error: punkterError } = await supabase
-          .from('ns3960_kontrollpunkter')
-          .delete()
-          .eq('kontroll_id', utkastId)
-        
-        if (punkterError) {
-          console.error('Feil ved sletting av kontrollpunkter:', punkterError)
-          throw punkterError
-        }
-        console.log('Kontrollpunkter slettet')
-      }
-
-      // Slett kontrollen
-      console.log('Sletter kontroll fra anleggsdata_kontroll:', utkastId)
-      const { error } = await supabase
-        .from('anleggsdata_kontroll')
-        .delete()
-        .eq('id', utkastId)
-
-      if (error) {
-        console.error('Feil ved sletting av kontroll:', error)
-        throw error
-      }
-
-      console.log('Kontroll slettet, refresher listen')
-      // Refresh listen
-      await loadKontroller()
-      console.log('Listen refreshet')
-    } catch (error) {
-      console.error('Feil ved sletting av utkast:', error)
-      alert('Kunne ikke slette utkast. Prøv igjen.')
-    } finally {
-      setIsDeleting(false)
-    }
-  }
-
-
-  function getStatusColor(status: string) {
-    switch (status) {
-      case 'utkast': return 'text-yellow-400 bg-yellow-500/10'
-      case 'ferdig': return 'text-green-400 bg-green-500/10'
-      case 'sendt': return 'text-blue-400 bg-blue-500/10'
-      default: return 'text-gray-400 bg-gray-500/10'
-    }
-  }
-
-  function getStatusIcon(status: string) {
-    switch (status) {
-      case 'utkast': return <Clock className="w-4 h-4" />
-      case 'ferdig': return <CheckCircle className="w-4 h-4" />
-      case 'sendt': return <CheckCircle className="w-4 h-4" />
-      default: return <FileText className="w-4 h-4" />
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Kontroller</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">{anleggsNavn}</p>
-          </div>
-        </div>
-
-        <div className="card bg-red-500/10 border-red-500/20">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
-            <div>
-              <h3 className="font-semibold text-white mb-2">Kunne ikke laste kontroller</h3>
-              <p className="text-sm text-gray-400 mb-4">{error}</p>
-              <button onClick={onStartNy} className="btn-primary">
-                Start ny kontroll likevel
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div>
+  if (feil) return <div className="card bg-red-900/20 border-red-800 flex items-start gap-3"><AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0" /><div><h2 className="text-lg font-semibold text-red-400 mb-1">Kunne ikke laste kontroller</h2><p className="text-sm text-red-300 mb-3">{feil}</p><Button variant="primary" onClick={last}>Prøv igjen</Button></div></div>
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Header */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0">
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
-          </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Kontroller</h1>
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 truncate">{anleggsNavn}</p>
-            {(leverandor || sentraltype) && (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                {leverandor && <span className="truncate">Leverandør: {leverandor}</span>}
-                {sentraltype && <span className="truncate">Sentraltype: {sentraltype}</span>}
-              </div>
-            )}
-          </div>
-          <button onClick={onStartNy} className="btn-primary flex items-center gap-2 text-sm sm:text-base flex-shrink-0">
-            <Plus className="w-4 h-4" />
-            <span className="hidden xs:inline">Start ny kontroll</span>
-            <span className="xs:hidden">Start</span>
-          </button>
-        </div>
+    <div className="space-y-4 pb-10">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Brannalarm</button>
+        <span className="hidden sm:inline">/</span><span className="hidden sm:inline text-gray-900 dark:text-white truncate">{anleggsNavn}</span>
       </div>
+      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Kontroller</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{[anleggsNavn, [leverandor, sentraltype].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</p>
+        </div>
+        <Button variant="primary" icon={<Plus />} onClick={onStartNy}>Start ny kontroll</Button>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        {/* Main content */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start">
+        <div className="space-y-4">
           {/* Utkast */}
           {utkast.length > 0 && (
-            <div className="space-y-4">
-              {utkast.map((u) => (
-                <div key={u.id} className="card border-yellow-500/30 bg-yellow-500/5">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-                        <Clock className="w-6 h-6 text-yellow-400" />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-base sm:text-lg font-semibold text-yellow-800 dark:text-yellow-200">Pågående utkast</h3>
-                        <p className="text-xs sm:text-sm text-yellow-700 dark:text-yellow-300/80 truncate">
-                          {u.rapport_type} • Opprettet {new Date(u.dato).toLocaleDateString('nb-NO')}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleDeleteUtkast(u.id, u.rapport_type)}
-                        className="btn-secondary flex items-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 text-sm"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Slett
-                      </button>
-                      <button
-                        onClick={() => onOpenKontroll(u.id, u.rapport_type)}
-                        className="btn-primary flex items-center gap-2 text-sm"
-                      >
-                        <Edit className="w-4 h-4" />
-                        Fortsett
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-xs sm:text-sm text-yellow-700 dark:text-gray-400">
-                    Du har et utkast som ikke er fullført. Fortsett arbeidet eller start en ny kontroll.
-                  </p>
+            <section className="space-y-2" aria-label="Påbegynte kontroller">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-1">Påbegynt</h2>
+              {utkast.map(k => (
+                <div key={k.id} className="card !p-3 flex items-center gap-3 border-yellow-300 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-900/10">
+                  <span className="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 flex items-center justify-center flex-shrink-0"><Play className="w-4 h-4" /></span>
+                  <span className="flex-1 min-w-0">
+                    <span className="flex items-center gap-2"><TypePille type={k.type} /><span className="font-semibold text-gray-900 dark:text-white">Påbegynt kontroll</span></span>
+                    <span className="block text-xs text-gray-500 dark:text-gray-400">Startet {formatDate(k.dato)} · ikke ferdigstilt</span>
+                  </span>
+                  <Button variant="primary" icon={<Play />} onClick={() => onOpenKontroll(k.id, k.type)}>Fortsett</Button>
+                  <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+                    <MenuItem icon={<Trash2 />} danger onSelect={() => slettUtkast(k)}>{sletter === k.id ? 'Sletter…' : 'Slett utkast…'}</MenuItem>
+                  </DropdownMenu>
                 </div>
               ))}
-            </div>
+            </section>
           )}
 
-          {/* Tidligere kontroller */}
-          <div className="card">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <h3 className="text-base sm:text-lg font-semibold text-white">Tidligere kontroller</h3>
-              {years.length > 0 && (
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="input py-1 px-3 text-xs sm:text-sm"
-                >
-                  <option value={new Date().getFullYear()}>Alle år</option>
-                  {years.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
+          {/* Utførte */}
+          <section className="space-y-2" aria-label="Utførte kontroller">
+            <div className="flex items-center justify-between gap-3 px-1">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Utførte kontroller <span className="normal-case tracking-normal font-normal">({ferdige.length})</span></h2>
+              {aarene.length > 1 && (
+                <div className="flex gap-1.5 overflow-x-auto">
+                  <Chip aktiv={aar === 'alle'} onClick={() => setAar('alle')}>Alle</Chip>
+                  {aarene.map(a => <Chip key={a} aktiv={aar === a} onClick={() => setAar(a)}>{a}</Chip>)}
+                </div>
               )}
             </div>
-
-            {ferdigeKontroller.length === 0 ? (
-              <div className="text-center py-12">
-                <FileText className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">Ingen kontroller funnet</p>
-                <p className="text-xs text-gray-500 mt-2">Start en ny kontroll for å komme i gang</p>
+            {ferdige.length === 0 ? (
+              <div className="card text-center py-10 space-y-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Ingen utførte kontroller på anlegget ennå.</p>
+                {utkast.length === 0 && <Button variant="primary" icon={<Plus />} onClick={onStartNy}>Start første kontroll</Button>}
               </div>
-            ) : (
-              <div className="space-y-3">
-                {ferdigeKontroller
-                  .filter(k => selectedYear === new Date().getFullYear() || k.kontrollaar === selectedYear)
-                  .map(kontroll => (
-                    <div
-                      key={kontroll.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 rounded-lg border border-gray-800 hover:border-gray-700 transition-colors"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-5 h-5 text-gray-400" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="font-medium text-sm sm:text-base text-white">
-                              {kontroll.rapport_type} Kontroll
-                            </span>
-                            <span className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${getStatusColor(kontroll.kontroll_status)}`}>
-                              {getStatusIcon(kontroll.kontroll_status)}
-                              {kontroll.kontroll_status === 'utkast' ? 'Utkast' : 
-                               kontroll.kontroll_status === 'sendt' ? 'Sendt' : 'Ferdig'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-400 flex-wrap">
-                            <span>{new Date(kontroll.dato).toLocaleDateString('nb-NO')}</span>
-                            {kontroll.har_feil && (
-                              <span className="flex items-center gap-1 text-red-400">
-                                <AlertTriangle className="w-3 h-3" />
-                                Feil
-                              </span>
-                            )}
-                            {kontroll.har_utkoblinger && (
-                              <span className="flex items-center gap-1 text-orange-400">
-                                <AlertTriangle className="w-3 h-3" />
-                                Utkoblinger
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => onOpenKontroll(kontroll.id, kontroll.rapport_type)}
-                        className="btn-secondary flex items-center gap-2 text-sm self-start sm:self-auto"
-                      >
-                        <Eye className="w-4 h-4" />
-                        Åpne
-                      </button>
-                    </div>
+            ) : perAar.map(([a, liste]) => (
+              <div key={a} className="card !p-0 overflow-hidden">
+                <div className="px-4 py-2 bg-gray-50 dark:bg-dark-100 text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">{a}<span className="text-xs text-gray-500 dark:text-gray-400 font-normal">{liste.length} {liste.length === 1 ? 'kontroll' : 'kontroller'}</span></div>
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {liste.map(k => (
+                    <button key={k.id} type="button" onClick={() => onOpenKontroll(k.id, k.type)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-dark-100">
+                      <span className={cn('w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0', k.status === 'sendt' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400')}>{k.status === 'sendt' ? <Send className="w-4 h-4" /> : <ClipboardCheck className="w-4 h-4" />}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="flex items-center gap-2"><TypePille type={k.type} /><span className="font-medium text-gray-900 dark:text-white">{formatDate(k.dato)}</span></span>
+                        <span className="block text-xs text-gray-500 dark:text-gray-400">{k.status === 'sendt' ? 'Rapport sendt kunde' : 'Ferdig'}{k.har_feil ? ' · feil i anlegget' : ''}{k.har_utkoblinger ? ' · utkoblinger' : ''}</span>
+                      </span>
+                      {k.har_feil && <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                      {k.har_utkoblinger && <Zap className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
+                      <span className="text-xs text-primary inline-flex items-center gap-1 flex-shrink-0"><FileText className="w-3.5 h-3.5" />Åpne</span>
+                    </button>
                   ))}
+                </div>
               </div>
-            )}
-          </div>
+            ))}
+          </section>
         </div>
 
-        {/* Sidebar - Avvik fra siste kontroll */}
-        <div className="lg:col-span-1">
-          <div className="card sticky top-6">
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle className="w-5 h-5 text-orange-400" />
-                <h3 className="text-lg font-semibold text-white">Avvik fra siste kontroll</h3>
-              </div>
-              {sisteKontrollDato && (
-                <p className="text-xs text-gray-500 ml-7">
-                  {new Date(sisteKontrollDato).toLocaleDateString('nb-NO', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
-                </p>
-              )}
-            </div>
-
-            {forrigeAvvik.length === 0 ? (
-              <div className="text-center py-8">
-                <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-2" />
-                <p className="text-sm text-gray-400">Ingen avvik registrert</p>
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                {forrigeAvvik.map((avvik, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-3 rounded-lg border ${
-                      avvik.rapport_type === 'FG790'
-                        ? 'bg-blue-500/5 border-blue-500/20'
-                        : 'bg-purple-500/5 border-purple-500/20'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2 mb-2">
-                      <AlertTriangle className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold ${
-                            avvik.rapport_type === 'FG790' 
-                              ? 'bg-blue-500/30 text-blue-300 border border-blue-400/30' 
-                              : 'bg-purple-500/30 text-purple-300 border border-purple-400/30'
-                          }`}>
-                            {avvik.rapport_type === 'FG790' ? (
-                              <ClipboardCheck className="w-3 h-3" />
-                            ) : (
-                              <Shield className="w-3 h-3" />
-                            )}
-                            {avvik.rapport_type}
-                          </span>
-                          <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded text-xs">
-                            {avvik.avvik_type}
-                          </span>
-                        </div>
-                        <div className="text-sm font-medium text-white mb-1">
-                          {avvik.tittel}
-                        </div>
-                        {avvik.kategori && avvik.kategori !== 'NS3960' && (
-                          <div className="text-xs text-gray-500 mb-1">
-                            {avvik.kategori}
-                          </div>
-                        )}
-                        {avvik.feilkode && (
-                          <div className="text-xs text-gray-500 mb-1">
-                            {avvik.feilkode}
-                          </div>
-                        )}
-                        {avvik.kommentar && (
-                          <div className="text-xs text-gray-400 mt-2 p-2 bg-black/20 rounded">
-                            {avvik.kommentar}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* Avvik fra siste kontroll */}
+        <aside className="card !p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2"><AlertTriangle className={cn('w-4 h-4', avvik.length ? 'text-orange-500' : 'text-gray-400')} />Avvik fra siste kontroll</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{(['FG790', 'NS3960'] as Type[]).filter(t => sisteDato[t]).map(t => `${t} ${formatDate(sisteDato[t])}`).join(' · ') || 'Ingen utførte kontroller'}</p>
           </div>
-        </div>
+          {avvik.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400 inline-flex items-center gap-1.5"><Check className="w-4 h-4 text-green-600" strokeWidth={3} />{ferdige.length ? 'Ingen avvik ved siste kontroll.' : 'Avvik vises her etter første kontroll.'}</p>
+          ) : (
+            <ul className="space-y-2">
+              {avvik.map((a, i) => (
+                <li key={i} className="rounded-lg border border-orange-200 dark:border-orange-900/60 bg-orange-50/60 dark:bg-orange-900/10 p-3 space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap"><TypePille type={a.type} />{a.avvikType && a.avvikType !== 'Avvik' && <span className="text-[11px] font-semibold px-1.5 py-px rounded bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300">{a.avvikType}</span>}{a.feilkode && <span className="text-[11px] font-mono text-gray-500">{a.feilkode}</span>}</div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white leading-snug">{a.tittel}</p>
+                  {a.kategori && <p className="text-xs text-gray-500 dark:text-gray-400">{a.kategori}</p>}
+                  {a.tekster.length > 0 && <ul className="space-y-1">{a.tekster.map((t, j) => <li key={j} className="text-sm text-gray-800 dark:text-gray-200 flex gap-2"><span className="w-5 h-5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 text-[11px] font-semibold flex items-center justify-center flex-shrink-0">{j + 1}</span>{t}</li>)}</ul>}
+                  {a.kommentar && <p className="text-xs text-gray-600 dark:text-gray-400 italic">«{a.kommentar}»</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
       </div>
     </div>
   )
+}
+
+function TypePille({ type }: { type: Type }) {
+  return <span className={cn('text-[11px] font-semibold px-1.5 py-px rounded', type === 'FG790' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400')}>{type}</span>
+}
+
+function Chip({ aktiv, onClick, children }: { aktiv: boolean; onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" onClick={onClick} aria-pressed={aktiv} className={cn('h-7 px-2.5 rounded-full border text-xs whitespace-nowrap flex-shrink-0', aktiv ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400')}>{children}</button>
 }
