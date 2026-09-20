@@ -1,813 +1,197 @@
+/**
+ * Brannalarm – tilleggsutstyr: talevarsling, alarmsender og nøkkelsafe.
+ * Tre seksjoner med «finnes på anlegget»-bryter; feltene vises når utstyret finnes.
+ * Hver endring lagres når feltet forlates (offline: kø). Samme rad i anleggsdata_brannalarm som Enheter.
+ */
 import { useEffect, useState } from 'react'
+import { AlertTriangle, ArrowLeft, Check, KeyRound, Minus, Plus, Radio, Volume2, type LucideIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Volume2, Radio, Key, X, Wifi, WifiOff, Save } from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { cn } from '@/lib/utils'
+import { useOfflineQueue } from '@/hooks/useOffline'
 
-interface Kontaktperson {
-  id: string
-  navn: string
-  epost?: string
-  telefon?: string
-  primar?: boolean
+interface Kontakt { id: string; navn: string | null; epost: string | null; telefon: string | null }
+interface Data {
+  talevarsling: boolean; talevarsling_leverandor: string; talevarsling_batteri_type: string; talevarsling_batteri_alder: string; talevarsling_plassering: string; talevarsling_kommentar: string
+  alarmsender_i_anlegg: boolean; mottaker: string[]; gsm_nummer: string; plassering: string; batterialder: string; batteritype: string; forsynet_fra_brannsentral: boolean; sender_2G_4G: string; mottaker_kommentar: string; ekstern_mottaker: string[]
+  nokkelsafe: boolean; nokkelsafe_type: string; nokkelsafe_plassering: string; nokkelsafe_innhold: string; nokkelsafe_kommentar: string
 }
-
-interface TilleggsutstyrData {
-  id?: string
-  anlegg_id: string
-  // Talevarsling
-  talevarsling?: boolean
-  talevarsling_leverandor?: string
-  talevarsling_batteri_type?: string
-  talevarsling_batteri_alder?: string
-  talevarsling_plassering?: string
-  talevarsling_kommentar?: string
-  // Alarmsender
-  alarmsender_i_anlegg?: boolean
-  mottaker?: string[]
-  gsm_nummer?: string
-  plassering?: string
-  batterialder?: string
-  batteritype?: string
-  forsynet_fra_brannsentral?: boolean
-  sender_2G_4G?: string
-  mottaker_kommentar?: string
-  ekstern_mottaker?: string[]
-  ekstern_mottaker_info?: string
-  ekstern_mottaker_aktiv?: boolean
-  // Nøkkelsafe
-  nokkelsafe?: boolean
-  nokkelsafe_type?: string
-  nokkelsafe_plassering?: string
-  nokkelsafe_innhold?: string
-  nokkelsafe_kommentar?: string
+const TOM: Data = {
+  talevarsling: false, talevarsling_leverandor: '', talevarsling_batteri_type: '', talevarsling_batteri_alder: '', talevarsling_plassering: '', talevarsling_kommentar: '',
+  alarmsender_i_anlegg: false, mottaker: [], gsm_nummer: '', plassering: '', batterialder: '', batteritype: '', forsynet_fra_brannsentral: false, sender_2G_4G: '', mottaker_kommentar: '', ekstern_mottaker: [],
+  nokkelsafe: false, nokkelsafe_type: '', nokkelsafe_plassering: '', nokkelsafe_innhold: '', nokkelsafe_kommentar: '',
 }
+const MOTTAKERE = ['110 Brannvesen', 'Alarmsentral', 'Intern', 'Ekstern']
+const SENDER = ['2G', '4G', 'Begge']
+const LUKKET_KEY = 'brannalarm_tillegg_lukkede'
 
-interface TilleggsutstyrViewProps {
-  anleggId: string
-  anleggsNavn: string
-  onBack: () => void
-}
-
-export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: TilleggsutstyrViewProps) {
-  const [data, setData] = useState<TilleggsutstyrData>({
-    anlegg_id: anleggId,
-    talevarsling: false,
-    alarmsender_i_anlegg: false,
-    nokkelsafe: false,
-    forsynet_fra_brannsentral: false,
-    mottaker: [],
-    ekstern_mottaker: [],
-    ekstern_mottaker_aktiv: false,
-  })
-  const [saving, setSaving] = useState(false)
+export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: { anleggId: string; anleggsNavn: string; onBack: () => void }) {
+  const { isOnline, queueUpdate } = useOfflineQueue()
+  const [data, setData] = useState<Data>(TOM)
+  const [radId, setRadId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [kontaktpersoner, setKontaktpersoner] = useState<Kontaktperson[]>([])
-  const [showKontaktDialog, setShowKontaktDialog] = useState(false)
-  const [selectedKontakter, setSelectedKontakter] = useState<string[]>([])
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const [pendingChanges, setPendingChanges] = useState(0)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [initialData, setInitialData] = useState<TilleggsutstyrData | null>(null)
-  const localStorageKey = `tilleggsutstyr_offline_${anleggId}`
+  const [lagrer, setLagrer] = useState(false)
+  const [kontakter, setKontakter] = useState<Kontakt[]>([])
+  const [lukkede, setLukkede] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem(LUKKET_KEY) ?? '[]')) } catch { return new Set() } })
 
   useEffect(() => {
-    loadData()
-    loadKontaktpersoner()
-  }, [anleggId])
-
-  // Sjekk om det er ulagrede endringer
-  useEffect(() => {
-    if (initialData) {
-      const hasChanges = JSON.stringify(data) !== JSON.stringify(initialData)
-      setHasUnsavedChanges(hasChanges)
-    }
-  }, [data, initialData])
-
-  // Advarsel ved navigering bort (browser)
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
-        e.preventDefault()
-        e.returnValue = ''
-      }
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges])
-
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true)
-      syncOfflineData()
-    }
-    const handleOffline = () => setIsOnline(false)
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    const stored = localStorage.getItem(localStorageKey)
-    if (stored && navigator.onLine) syncOfflineData()
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [anleggId])
-
-  async function syncOfflineData() {
-    const stored = localStorage.getItem(localStorageKey)
-    if (!stored) return
-    try {
-      setSaving(true)
-      const savedData = JSON.parse(stored)
-      if (data.id) {
-        await supabase.from('anleggsdata_brannalarm').update(savedData).eq('id', data.id)
-      } else {
-        await supabase.from('anleggsdata_brannalarm').insert(savedData)
-      }
-      localStorage.removeItem(localStorageKey)
-      setPendingChanges(0)
-      setLastSaved(new Date())
-      await loadData()
-    } catch (error) {
-      console.error('Feil ved synkronisering:', error)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function loadData() {
-    try {
-      setLoading(true)
-      const { data: brannalarmData, error } = await supabase
-        .from('anleggsdata_brannalarm')
-        .select('*')
-        .eq('anlegg_id', anleggId)
-        .maybeSingle()
-
-      if (error) throw error
-
-      if (brannalarmData) {
-        const eksternMottaker = brannalarmData.ekstern_mottaker || []
-        const loadedData = {
-          id: brannalarmData.id,
-          anlegg_id: anleggId,
-          talevarsling: brannalarmData.talevarsling || false,
-          talevarsling_leverandor: brannalarmData.talevarsling_leverandor || '',
-          talevarsling_batteri_type: brannalarmData.talevarsling_batteri_type || '',
-          talevarsling_batteri_alder: brannalarmData.talevarsling_batteri_alder || '',
-          talevarsling_plassering: brannalarmData.talevarsling_plassering || '',
-          talevarsling_kommentar: brannalarmData.talevarsling_kommentar || '',
-          alarmsender_i_anlegg: brannalarmData.alarmsender_i_anlegg || false,
-          mottaker: brannalarmData.mottaker || [],
-          gsm_nummer: brannalarmData.gsm_nummer || '',
-          plassering: brannalarmData.plassering || '',
-          batterialder: brannalarmData.batterialder || '',
-          batteritype: brannalarmData.batteritype || '',
-          forsynet_fra_brannsentral: brannalarmData.forsynet_fra_brannsentral || false,
-          sender_2G_4G: brannalarmData.sender_2G_4G || '',
-          mottaker_kommentar: brannalarmData.mottaker_kommentar || '',
-          ekstern_mottaker: eksternMottaker,
-          ekstern_mottaker_info: brannalarmData.ekstern_mottaker_info || '',
-          ekstern_mottaker_aktiv: brannalarmData.ekstern_mottaker_aktiv || false,
-          nokkelsafe: brannalarmData.nokkelsafe || false,
-          nokkelsafe_type: brannalarmData.nokkelsafe_type || '',
-          nokkelsafe_plassering: brannalarmData.nokkelsafe_plassering || '',
-          nokkelsafe_innhold: brannalarmData.nokkelsafe_innhold || '',
-          nokkelsafe_kommentar: brannalarmData.nokkelsafe_kommentar || '',
+    Promise.all([
+      supabase.from('anleggsdata_brannalarm').select('*').eq('anlegg_id', anleggId).maybeSingle(),
+      supabase.from('kontaktpersoner').select('id, navn, epost, telefon, anlegg_kontaktpersoner!inner(anlegg_id)').eq('anlegg_kontaktpersoner.anlegg_id', anleggId),
+    ]).then(([r, k]) => {
+      const b = (r.data ?? {}) as Record<string, unknown>
+      if (r.data) {
+        setRadId(String(b.id))
+        const ny: Record<string, unknown> = { ...TOM }
+        for (const key of Object.keys(TOM) as (keyof Data)[]) {
+          const v = b[key]
+          if (typeof TOM[key] === 'boolean') ny[key] = Boolean(v)
+          else if (Array.isArray(TOM[key])) ny[key] = Array.isArray(v) ? v : []
+          else ny[key] = v == null ? '' : String(v)
         }
-        setData(loadedData)
-        setInitialData(loadedData)
-        setSelectedKontakter(eksternMottaker)
-      } else {
-        setInitialData(data)
+        setData(ny as unknown as Data)
       }
-    } catch (error) {
-      console.error('Feil ved lasting av tilleggsutstyr:', error)
-    } finally {
+      setKontakter((k.data ?? []) as unknown as Kontakt[])
       setLoading(false)
+    })
+  }, [anleggId])
+
+  function toggleSeksjon(k: string) { setLukkede(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); try { localStorage.setItem(LUKKET_KEY, JSON.stringify(Array.from(n))) } catch { /* ignorer */ } return n }) }
+
+  /** Lagrer et utsnitt av feltene med en gang. */
+  async function lagre(patch: Partial<Data>) {
+    const forrige = data
+    const ny = { ...data, ...patch }
+    setData(ny)
+    const kolonner: Record<string, unknown> = { ...patch }
+    // Avledede felt for alarmsender-mottakere (brukes i rapportene)
+    if ('mottaker' in patch || 'ekstern_mottaker' in patch) {
+      kolonner.ekstern_mottaker_aktiv = ny.mottaker.includes('Ekstern')
+      kolonner.ekstern_mottaker_info = ny.ekstern_mottaker.map(navn => { const p = kontakter.find(x => x.navn === navn); return p ? [p.navn, p.epost ? `E-post: ${p.epost}` : null, p.telefon ? `Tlf: ${p.telefon}` : null].filter(Boolean).join(', ') : navn }).join(' | ')
     }
+    if (!isOnline) { if (radId) queueUpdate('anleggsdata_brannalarm', { id: radId, ...kolonner }); else toast.warning('Offline – kunne ikke opprette anleggsdata. Prøv igjen på nett.'); return }
+    setLagrer(true)
+    const res = radId
+      ? await supabase.from('anleggsdata_brannalarm').update(kolonner).eq('id', radId)
+      : await supabase.from('anleggsdata_brannalarm').insert({ anlegg_id: anleggId, ...kolonner }).select('id').single()
+    setLagrer(false)
+    if (res.error) { setData(forrige); toast.error('Kunne ikke lagre', res.error); return }
+    if (!radId && 'data' in res && res.data) setRadId((res.data as { id: string }).id)
   }
 
-  async function loadKontaktpersoner() {
-    try {
-      // Try junction table approach first
-      const { data, error } = await supabase
-        .from('kontaktpersoner')
-        .select(`
-          *,
-          anlegg_kontaktpersoner!inner(
-            anlegg_id,
-            primar
-          )
-        `)
-        .eq('anlegg_kontaktpersoner.anlegg_id', anleggId)
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div>
 
-      let kontakter = data
-
-      // Fallback to direct approach if junction table fails
-      if (error || !kontakter || kontakter.length === 0) {
-        const fallback = await supabase
-          .from('kontaktpersoner')
-          .select('*')
-          .eq('anlegg_id', anleggId)
-        
-        kontakter = fallback.data || []
-      }
-
-      setKontaktpersoner(kontakter as Kontaktperson[])
-    } catch (error) {
-      console.error('Feil ved lasting av kontaktpersoner:', error)
-    }
-  }
-
-  async function handleSave() {
-    setSaving(true)
-    try {
-      // Update ekstern_mottaker_info based on selected contacts
-      const eksternMottakerInfo = selectedKontakter
-        .map(navn => {
-          const person = kontaktpersoner.find(k => k.navn === navn)
-          if (!person) return navn
-          const info = [person.navn]
-          if (person.epost) info.push(`E-post: ${person.epost}`)
-          if (person.telefon) info.push(`Tlf: ${person.telefon}`)
-          return info.join(', ')
-        })
-        .join(' | ')
-
-      const saveData = {
-        anlegg_id: anleggId,
-        talevarsling: data.talevarsling,
-        talevarsling_leverandor: data.talevarsling_leverandor,
-        talevarsling_batteri_type: data.talevarsling_batteri_type,
-        talevarsling_batteri_alder: data.talevarsling_batteri_alder,
-        talevarsling_plassering: data.talevarsling_plassering,
-        talevarsling_kommentar: data.talevarsling_kommentar,
-        alarmsender_i_anlegg: data.alarmsender_i_anlegg,
-        mottaker: data.mottaker,
-        gsm_nummer: data.gsm_nummer,
-        plassering: data.plassering,
-        batterialder: data.batterialder,
-        batteritype: data.batteritype,
-        forsynet_fra_brannsentral: data.forsynet_fra_brannsentral,
-        sender_2G_4G: data.sender_2G_4G,
-        mottaker_kommentar: data.mottaker_kommentar,
-        ekstern_mottaker: selectedKontakter,
-        ekstern_mottaker_info: eksternMottakerInfo,
-        ekstern_mottaker_aktiv: data.mottaker?.includes('Ekstern') || false,
-        nokkelsafe: data.nokkelsafe,
-        nokkelsafe_type: data.nokkelsafe_type,
-        nokkelsafe_plassering: data.nokkelsafe_plassering,
-        nokkelsafe_innhold: data.nokkelsafe_innhold,
-        nokkelsafe_kommentar: data.nokkelsafe_kommentar,
-      }
-
-      if (isOnline) {
-        if (data.id) {
-          await supabase.from('anleggsdata_brannalarm').update(saveData).eq('id', data.id)
-        } else {
-          const { data: newData } = await supabase
-            .from('anleggsdata_brannalarm')
-            .upsert(saveData, { onConflict: 'anlegg_id' })
-            .select()
-            .single()
-          if (newData) {
-            setData(prev => ({ ...prev, id: newData.id }))
-          }
-        }
-        setLastSaved(new Date())
-        setInitialData(data) // Reset ulagrede endringer
-        alert('Tilleggsutstyr lagret!')
-      } else {
-        localStorage.setItem(localStorageKey, JSON.stringify(saveData))
-        setPendingChanges(1)
-        setInitialData(data) // Reset ulagrede endringer
-        alert('Offline - data lagret lokalt og vil synkroniseres når du er online igjen')
-      }
-    } catch (error) {
-      console.error('Feil ved lagring:', error)
-      alert('Feil ved lagring av tilleggsutstyr')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const mottakerOptions = ['110 Brannvesen', 'Alarmsentral', 'Intern', 'Ekstern']
-  const sender2G4GOptions = ['2G', '4G', 'Begge']
-
-  function toggleMottaker(option: string) {
-    const currentMottakere = data.mottaker || []
-    if (currentMottakere.includes(option)) {
-      setData({ ...data, mottaker: currentMottakere.filter(m => m !== option) })
-    } else {
-      setData({ ...data, mottaker: [...currentMottakere, option] })
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
+  const antall = [data.talevarsling, data.alarmsender_i_anlegg, data.nokkelsafe].filter(Boolean).length
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <button 
-            onClick={() => {
-              if (hasUnsavedChanges) {
-                if (!confirm('⚠️ Du har ulagrede endringer!\n\nVil du lagre før du går tilbake?')) {
-                  if (confirm('Er du sikker på at du vil forkaste endringene?')) {
-                    onBack()
-                  }
-                } else {
-                  handleSave()
-                }
-              } else {
-                onBack()
-              }
-            }} 
-            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors flex-shrink-0"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
-          </button>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Tilleggsutstyr</h1>
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 truncate">{anleggsNavn}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          {/* Online/Offline status */}
-          <div className="flex items-center gap-2">
-            {isOnline ? (
-              <>
-                <Wifi className="w-4 h-4 text-green-400" />
-                <span className="text-xs sm:text-sm text-green-400">Online</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-4 h-4 text-yellow-400" />
-                <span className="text-xs sm:text-sm text-yellow-400">Offline</span>
-              </>
-            )}
-          </div>
-          {pendingChanges > 0 && (
-            <span className="text-xs sm:text-sm text-orange-400">{pendingChanges} endring venter</span>
-          )}
-          {saving && (
-            <span className="text-xs sm:text-sm text-gray-400 flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-              <span className="hidden sm:inline">{isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}</span>
-            </span>
-          )}
-          {!saving && lastSaved && pendingChanges === 0 && (
-            <span className="text-xs sm:text-sm text-green-400 hidden sm:inline">
-              Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
-        </div>
+    <div className="space-y-4 pb-10">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Brannalarm</button>
+        <span className="hidden sm:inline">/</span><span className="hidden sm:inline text-gray-900 dark:text-white truncate">{anleggsNavn}</span>
       </div>
+      <header>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Tilleggsutstyr</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{antall === 0 ? 'Ingen tilleggsutstyr registrert' : `${antall} av 3 registrert`}{lagrer ? ' · lagrer…' : ''}{!isOnline ? ' · offline' : ''}</p>
+      </header>
 
-      {/* Talevarsling */}
-      <div className={`card transition-all ${data.talevarsling ? 'border-blue-500/30 bg-blue-500/5' : ''}`}>
-        <div className="flex items-start gap-4">
-          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-            data.talevarsling ? 'bg-blue-500/20' : 'bg-gray-100 dark:bg-gray-800'
-          }`}>
-            <Volume2 className={`w-6 h-6 ${data.talevarsling ? 'text-blue-400' : 'text-gray-500'}`} />
+      <Seksjon id="tale" ikon={Volume2} tittel="Talevarsling" paa={data.talevarsling} oppsummering={[data.talevarsling_leverandor, data.talevarsling_plassering].filter(Boolean).join(' · ')} apen={!lukkede.has('tale')} onToggle={() => toggleSeksjon('tale')} onPaa={v => lagre({ talevarsling: v })}>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Felt label="Leverandør" verdi={data.talevarsling_leverandor} placeholder="F.eks. Bosch, Siemens" onLagre={v => lagre({ talevarsling_leverandor: v })} />
+          <Felt label="Plassering" verdi={data.talevarsling_plassering} placeholder="F.eks. Teknisk rom" onLagre={v => lagre({ talevarsling_plassering: v })} />
+          <Felt label="Batteritype" verdi={data.talevarsling_batteri_type} placeholder="F.eks. 12V 7Ah" onLagre={v => lagre({ talevarsling_batteri_type: v })} />
+          <Felt label="Batterialder (år)" verdi={data.talevarsling_batteri_alder} placeholder="0" numerisk advarsel={batteriAdvarsel(data.talevarsling_batteri_alder)} onLagre={v => lagre({ talevarsling_batteri_alder: v })} />
+        </div>
+        <Felt label="Kommentar" verdi={data.talevarsling_kommentar} placeholder="Spesielle forhold …" flerlinje onLagre={v => lagre({ talevarsling_kommentar: v })} />
+      </Seksjon>
+
+      <Seksjon id="sender" ikon={Radio} tittel="Alarmsender" paa={data.alarmsender_i_anlegg} oppsummering={[data.mottaker.join(', '), data.sender_2G_4G, data.gsm_nummer].filter(Boolean).join(' · ')} apen={!lukkede.has('sender')} onToggle={() => toggleSeksjon('sender')} onPaa={v => lagre({ alarmsender_i_anlegg: v })}>
+        <div className="space-y-1.5">
+          <span className="block text-sm font-medium text-gray-900 dark:text-white">Mottaker</span>
+          <div className="flex flex-wrap gap-2">
+            {MOTTAKERE.map(m => { const paa = data.mottaker.includes(m); return <button key={m} type="button" aria-pressed={paa} onClick={() => lagre({ mottaker: paa ? data.mottaker.filter(x => x !== m) : [...data.mottaker, m] })} className={cn('h-9 px-3 rounded-full border text-sm inline-flex items-center gap-1.5', paa ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400')}>{paa && <Check className="w-3.5 h-3.5" strokeWidth={3} />}{m}</button> })}
           </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className={`text-lg font-semibold ${data.talevarsling ? 'text-blue-400' : 'text-gray-900 dark:text-white'}`}>
-                  Talevarsling
-                </h3>
-                <p className="text-sm text-gray-400">Registrer talevarslingsutstyr</p>
-              </div>
-              <button
-                onClick={() => setData({ ...data, talevarsling: !data.talevarsling })}
-                className={`w-14 h-8 rounded-full transition-colors relative ${
-                  data.talevarsling ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'
-                }`}
-              >
-                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
-                  data.talevarsling ? 'translate-x-7' : 'translate-x-1'
-                }`} />
-              </button>
-            </div>
-
-            {data.talevarsling && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Leverandør</label>
-                  <input
-                    type="text"
-                    value={data.talevarsling_leverandor || ''}
-                    onChange={(e) => setData({ ...data, talevarsling_leverandor: e.target.value })}
-                    className="input"
-                    placeholder="F.eks. Bosch, Siemens..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Batteri type</label>
-                  <input
-                    type="text"
-                    value={data.talevarsling_batteri_type || ''}
-                    onChange={(e) => setData({ ...data, talevarsling_batteri_type: e.target.value })}
-                    className="input"
-                    placeholder="F.eks. 12V 7Ah..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Batteri alder (år)</label>
-                  <input
-                    type="number"
-                    value={data.talevarsling_batteri_alder || ''}
-                    onChange={(e) => setData({ ...data, talevarsling_batteri_alder: e.target.value })}
-                    className="input"
-                    min="0"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Plassering</label>
-                  <input
-                    type="text"
-                    value={data.talevarsling_plassering || ''}
-                    onChange={(e) => setData({ ...data, talevarsling_plassering: e.target.value })}
-                    className="input"
-                    placeholder="F.eks. Teknisk rom..."
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Kommentar</label>
-                  <textarea
-                    value={data.talevarsling_kommentar || ''}
-                    onChange={(e) => setData({ ...data, talevarsling_kommentar: e.target.value })}
-                    className="input"
-                    rows={2}
-                    placeholder="Legg til kommentar..."
-                  />
-                </div>
+        </div>
+        {data.mottaker.includes('Ekstern') && (
+          <div className="space-y-1.5 p-3 rounded-lg bg-gray-50 dark:bg-dark-100">
+            <span className="block text-sm font-medium text-gray-900 dark:text-white">Eksterne mottakere <span className="text-gray-400 font-normal">– kontaktpersoner på anlegget</span></span>
+            {kontakter.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-400">Ingen kontaktpersoner er knyttet til anlegget. Legg dem til på anleggssiden først.</p> : (
+              <div className="flex flex-wrap gap-2">
+                {kontakter.map(k => { const navn = k.navn ?? ''; const paa = data.ekstern_mottaker.includes(navn); return <button key={k.id} type="button" aria-pressed={paa} onClick={() => lagre({ ekstern_mottaker: paa ? data.ekstern_mottaker.filter(x => x !== navn) : [...data.ekstern_mottaker, navn] })} className={cn('h-9 px-3 rounded-full border text-sm inline-flex items-center gap-1.5', paa ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400')}>{paa && <Check className="w-3.5 h-3.5" strokeWidth={3} />}{navn}{k.telefon && <span className="text-xs text-gray-400 font-normal">{k.telefon}</span>}</button> })}
               </div>
             )}
           </div>
+        )}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <span className="block text-sm font-medium text-gray-900 dark:text-white">Sender</span>
+            <div className="inline-flex rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden h-10" role="radiogroup" aria-label="Sender">
+              {SENDER.map(o => <button key={o} type="button" role="radio" aria-checked={data.sender_2G_4G === o} onClick={() => lagre({ sender_2G_4G: data.sender_2G_4G === o ? '' : o })} className={cn('px-4 text-sm', data.sender_2G_4G === o ? 'bg-primary text-white font-medium' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-100')}>{o}</button>)}
+            </div>
+          </div>
+          <Felt label="GSM-nummer" verdi={data.gsm_nummer} placeholder="+47 …" onLagre={v => lagre({ gsm_nummer: v })} />
+          <Felt label="Plassering" verdi={data.plassering} placeholder="F.eks. Teknisk rom" onLagre={v => lagre({ plassering: v })} />
+          <label className="flex items-center gap-2.5 text-sm text-gray-900 dark:text-white cursor-pointer self-end h-10"><input type="checkbox" checked={data.forsynet_fra_brannsentral} onChange={e => lagre({ forsynet_fra_brannsentral: e.target.checked })} className="w-4 h-4 rounded text-primary focus:ring-primary" />Forsynt fra brannsentralen</label>
+          {!data.forsynet_fra_brannsentral && <>
+            <Felt label="Batteritype" verdi={data.batteritype} placeholder="F.eks. 12V 7Ah" onLagre={v => lagre({ batteritype: v })} />
+            <Felt label="Batterialder (år)" verdi={data.batterialder} placeholder="0" numerisk advarsel={batteriAdvarsel(data.batterialder)} onLagre={v => lagre({ batterialder: v })} />
+          </>}
         </div>
+        <Felt label="Kommentar" verdi={data.mottaker_kommentar} placeholder="Spesielle forhold …" flerlinje onLagre={v => lagre({ mottaker_kommentar: v })} />
+      </Seksjon>
+
+      <Seksjon id="safe" ikon={KeyRound} tittel="Nøkkelsafe" paa={data.nokkelsafe} oppsummering={[data.nokkelsafe_type, data.nokkelsafe_plassering].filter(Boolean).join(' · ')} apen={!lukkede.has('safe')} onToggle={() => toggleSeksjon('safe')} onPaa={v => lagre({ nokkelsafe: v })}>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Felt label="Type" verdi={data.nokkelsafe_type} placeholder="F.eks. KeySafe Pro" onLagre={v => lagre({ nokkelsafe_type: v })} />
+          <Felt label="Plassering" verdi={data.nokkelsafe_plassering} placeholder="F.eks. ved hovedinngang" onLagre={v => lagre({ nokkelsafe_plassering: v })} />
+        </div>
+        <Felt label="Innhold" verdi={data.nokkelsafe_innhold} placeholder="F.eks. hovednøkkel, teknisk rom" onLagre={v => lagre({ nokkelsafe_innhold: v })} />
+        <Felt label="Kommentar" verdi={data.nokkelsafe_kommentar} placeholder="Spesielle forhold …" flerlinje onLagre={v => lagre({ nokkelsafe_kommentar: v })} />
+      </Seksjon>
+    </div>
+  )
+}
+
+function batteriAdvarsel(alder: string): string | undefined {
+  const n = parseInt(alder || '0', 10)
+  if (n >= 5) return 'Over 5 år – bør byttes'
+  if (n >= 4) return 'Nærmer seg 5 år'
+  return undefined
+}
+
+function Seksjon({ id, ikon: Ikon, tittel, paa, oppsummering, apen, onToggle, onPaa, children }: { id: string; ikon: LucideIcon; tittel: string; paa: boolean; oppsummering: string; apen: boolean; onToggle: () => void; onPaa: (v: boolean) => void; children: React.ReactNode }) {
+  const visInnhold = paa && apen
+  return (
+    <section className="card !p-0 overflow-hidden" aria-labelledby={`sek-${id}`}>
+      <div className={cn('flex items-center gap-3 px-3 py-2.5', paa ? 'bg-gray-50 dark:bg-dark-100' : '')}>
+        <button type="button" onClick={onToggle} disabled={!paa} aria-expanded={visInnhold} className="w-5 h-5 rounded border border-gray-300 dark:border-gray-700 text-gray-500 flex items-center justify-center flex-shrink-0 disabled:opacity-30">{visInnhold ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}</button>
+        <span className={cn('w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0', paa ? 'bg-primary/10 text-primary' : 'bg-gray-100 dark:bg-dark-100 text-gray-400')}><Ikon className="w-4 h-4" /></span>
+        <button type="button" onClick={paa ? onToggle : () => onPaa(true)} className="flex-1 min-w-0 text-left">
+          <span id={`sek-${id}`} className="block font-semibold text-gray-900 dark:text-white">{tittel}</span>
+          <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{paa ? (oppsummering || 'Registrert – fyll ut detaljer') : 'Ikke på anlegget'}</span>
+        </button>
+        <label className="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none">
+          <span className="hidden sm:inline">{paa ? 'Finnes' : 'Finnes ikke'}</span>
+          <span role="switch" aria-checked={paa} tabIndex={0} onClick={() => onPaa(!paa)} onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onPaa(!paa) } }} className={cn('w-11 h-6 rounded-full relative transition-colors', paa ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700')}><span className={cn('absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform', paa ? 'translate-x-5' : 'translate-x-0.5')} /></span>
+        </label>
       </div>
+      {visInnhold && <div className="p-4 space-y-4 border-t border-gray-100 dark:border-gray-800">{children}</div>}
+    </section>
+  )
+}
 
-      {/* Alarmsender */}
-      <div className={`card transition-all ${data.alarmsender_i_anlegg ? 'border-orange-500/30 bg-orange-500/5' : ''}`}>
-        <div className="flex items-start gap-4">
-          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-            data.alarmsender_i_anlegg ? 'bg-orange-500/20' : 'bg-gray-100 dark:bg-gray-800'
-          }`}>
-            <Radio className={`w-6 h-6 ${data.alarmsender_i_anlegg ? 'text-orange-400' : 'text-gray-500'}`} />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className={`text-lg font-semibold ${data.alarmsender_i_anlegg ? 'text-orange-400' : 'text-gray-900 dark:text-white'}`}>
-                  Alarmsender
-                </h3>
-                <p className="text-sm text-gray-400">Registrer alarmsender i anlegg</p>
-              </div>
-              <button
-                onClick={() => setData({ ...data, alarmsender_i_anlegg: !data.alarmsender_i_anlegg })}
-                className={`w-14 h-8 rounded-full transition-colors relative ${
-                  data.alarmsender_i_anlegg ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-700'
-                }`}
-              >
-                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
-                  data.alarmsender_i_anlegg ? 'translate-x-7' : 'translate-x-1'
-                }`} />
-              </button>
-            </div>
-
-            {data.alarmsender_i_anlegg && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Mottaker</label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {mottakerOptions.map((option) => (
-                      <button
-                        key={option}
-                        onClick={() => toggleMottaker(option)}
-                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                          data.mottaker?.includes(option)
-                            ? 'bg-orange-500 text-white'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sender 2G/4G</label>
-                    <select
-                      value={data.sender_2G_4G || ''}
-                      onChange={(e) => setData({ ...data, sender_2G_4G: e.target.value })}
-                      className="input"
-                    >
-                      <option value="">Velg type</option>
-                      {sender2G4GOptions.map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">GSM-nummer</label>
-                    <input
-                      type="text"
-                      value={data.gsm_nummer || ''}
-                      onChange={(e) => setData({ ...data, gsm_nummer: e.target.value })}
-                      className="input"
-                      placeholder="F.eks. +47 xxx xx xxx"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Plassering</label>
-                    <input
-                      type="text"
-                      value={data.plassering || ''}
-                      onChange={(e) => setData({ ...data, plassering: e.target.value })}
-                      className="input"
-                      placeholder="F.eks. Teknisk rom..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Batterialder (år)</label>
-                    <input
-                      type="text"
-                      value={data.batterialder || ''}
-                      onChange={(e) => setData({ ...data, batterialder: e.target.value })}
-                      className="input"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Batteritype</label>
-                    <input
-                      type="text"
-                      value={data.batteritype || ''}
-                      onChange={(e) => setData({ ...data, batteritype: e.target.value })}
-                      className="input"
-                      placeholder="F.eks. 12V 7Ah..."
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="forsynt"
-                    checked={data.forsynet_fra_brannsentral || false}
-                    onChange={(e) => setData({ ...data, forsynet_fra_brannsentral: e.target.checked })}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-orange-500 focus:ring-orange-500"
-                  />
-                  <label htmlFor="forsynt" className="text-sm text-gray-700 dark:text-gray-300">
-                    Forsynt fra brannsentral
-                  </label>
-                </div>
-
-                {/* Eksterne mottakere - vises kun hvis "Ekstern" er valgt */}
-                {data.mottaker?.includes('Ekstern') && (
-                  <div className="border border-orange-500/20 rounded-lg p-4 bg-orange-500/5">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Eksterne mottakere</label>
-                    <button
-                      onClick={() => setShowKontaktDialog(true)}
-                      className="btn-secondary mb-3"
-                    >
-                      Velg kontaktperson(er)
-                    </button>
-                    
-                    {selectedKontakter.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {selectedKontakter.map((navn) => {
-                          const person = kontaktpersoner.find(k => k.navn === navn)
-                          return (
-                            <div key={navn} className="flex items-center gap-2 bg-orange-500/20 px-3 py-1.5 rounded-lg">
-                              <div>
-                                <div className="text-sm font-medium text-white">{navn}</div>
-                                {person?.epost && (
-                                  <div className="text-xs text-gray-400">{person.epost}</div>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => setSelectedKontakter(prev => prev.filter(n => n !== navn))}
-                                className="text-gray-400 hover:text-white"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Kommentar</label>
-                  <textarea
-                    value={data.mottaker_kommentar || ''}
-                    onChange={(e) => setData({ ...data, mottaker_kommentar: e.target.value })}
-                    className="input"
-                    rows={2}
-                    placeholder="Legg til kommentar..."
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Kontaktperson Dialog */}
-      {showKontaktDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-gray-800">
-              <h2 className="text-xl font-bold text-white">Velg kontaktperson(er)</h2>
-              <p className="text-sm text-gray-400 mt-1">Velg eksterne mottakere for alarmsender</p>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-6">
-              {kontaktpersoner.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-400">Ingen kontaktpersoner funnet for dette anlegget</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {kontaktpersoner.map((person) => (
-                    <label
-                      key={person.id}
-                      className="flex items-start gap-3 p-4 rounded-lg border border-gray-800 hover:border-orange-500/30 hover:bg-orange-500/5 cursor-pointer transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedKontakter.includes(person.navn)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedKontakter(prev => [...prev, person.navn])
-                          } else {
-                            setSelectedKontakter(prev => prev.filter(n => n !== person.navn))
-                          }
-                        }}
-                        className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-orange-500 focus:ring-orange-500"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-white">{person.navn}</span>
-                          {person.primar && (
-                            <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">
-                              Primær
-                            </span>
-                          )}
-                        </div>
-                        {person.epost && (
-                          <div className="text-sm text-gray-400 mt-1">📧 {person.epost}</div>
-                        )}
-                        {person.telefon && (
-                          <div className="text-sm text-gray-400">📞 {person.telefon}</div>
-                        )}
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            <div className="p-6 border-t border-gray-800 flex justify-end gap-3">
-              <button
-                onClick={() => setShowKontaktDialog(false)}
-                className="btn-secondary"
-              >
-                Avbryt
-              </button>
-              <button
-                onClick={() => setShowKontaktDialog(false)}
-                className="btn-primary"
-              >
-                OK ({selectedKontakter.length} valgt)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Nøkkelsafe */}
-      <div className={`card transition-all ${data.nokkelsafe ? 'border-purple-500/30 bg-purple-500/5' : ''}`}>
-        <div className="flex items-start gap-4">
-          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-            data.nokkelsafe ? 'bg-purple-500/20' : 'bg-gray-100 dark:bg-gray-800'
-          }`}>
-            <Key className={`w-6 h-6 ${data.nokkelsafe ? 'text-purple-400' : 'text-gray-500'}`} />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className={`text-lg font-semibold ${data.nokkelsafe ? 'text-purple-400' : 'text-gray-900 dark:text-white'}`}>
-                  Nøkkelsafe
-                </h3>
-                <p className="text-sm text-gray-400">Registrer nøkkelsafe</p>
-              </div>
-              <button
-                onClick={() => setData({ ...data, nokkelsafe: !data.nokkelsafe })}
-                className={`w-14 h-8 rounded-full transition-colors relative ${
-                  data.nokkelsafe ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-700'
-                }`}
-              >
-                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
-                  data.nokkelsafe ? 'translate-x-7' : 'translate-x-1'
-                }`} />
-              </button>
-            </div>
-
-            {data.nokkelsafe && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
-                  <input
-                    type="text"
-                    value={data.nokkelsafe_type || ''}
-                    onChange={(e) => setData({ ...data, nokkelsafe_type: e.target.value })}
-                    className="input"
-                    placeholder="F.eks. KeySafe Pro..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Plassering</label>
-                  <input
-                    type="text"
-                    value={data.nokkelsafe_plassering || ''}
-                    onChange={(e) => setData({ ...data, nokkelsafe_plassering: e.target.value })}
-                    className="input"
-                    placeholder="F.eks. Ved hovedinngang..."
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Innhold</label>
-                  <input
-                    type="text"
-                    value={data.nokkelsafe_innhold || ''}
-                    onChange={(e) => setData({ ...data, nokkelsafe_innhold: e.target.value })}
-                    className="input"
-                    placeholder="F.eks. Hovedn økkel, teknisk rom..."
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Kommentar</label>
-                  <textarea
-                    value={data.nokkelsafe_kommentar || ''}
-                    onChange={(e) => setData({ ...data, nokkelsafe_kommentar: e.target.value })}
-                    className="input"
-                    rows={2}
-                    placeholder="Legg til kommentar..."
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Floating Save Button - Sticky på mobil/iPad */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white dark:from-dark via-white/95 dark:via-dark/95 to-transparent pointer-events-none z-40">
-        <div className="max-w-4xl mx-auto pointer-events-auto">
-          <button 
-            onClick={handleSave} 
-            disabled={saving || !hasUnsavedChanges} 
-            className={`w-full py-4 px-6 ${hasUnsavedChanges ? 'bg-primary hover:bg-primary/90' : 'bg-gray-400'} disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg ${hasUnsavedChanges ? 'shadow-primary/25' : 'shadow-gray-400/25'}`}
-          >
-            {saving ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                {isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}
-              </>
-            ) : (
-              <>
-                <Save className="w-5 h-5" />
-                Lagre endringer
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+/** Tekstfelt som lagrer når du forlater det (eller Enter). */
+function Felt({ label, verdi, placeholder, numerisk, flerlinje, advarsel, onLagre }: { label: string; verdi: string; placeholder?: string; numerisk?: boolean; flerlinje?: boolean; advarsel?: string; onLagre: (v: string) => void }) {
+  const [v, setV] = useState(verdi)
+  useEffect(() => setV(verdi), [verdi])
+  const id = `tf-${label.replace(/\W/g, '').toLowerCase()}`
+  const lagre = () => { if (v.trim() !== verdi) onLagre(v.trim()) }
+  return (
+    <div className={cn('space-y-1.5', flerlinje && 'sm:col-span-2')}>
+      <label htmlFor={id} className="block text-sm font-medium text-gray-900 dark:text-white">{label}</label>
+      {flerlinje
+        ? <textarea id={id} value={v} onChange={e => setV(e.target.value)} onBlur={lagre} rows={2} placeholder={placeholder} className="input !h-auto" />
+        : <input id={id} value={v} onChange={e => setV(numerisk ? e.target.value.replace(/\D/g, '') : e.target.value)} onBlur={lagre} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} inputMode={numerisk ? 'numeric' : undefined} placeholder={placeholder} className="input" />}
+      {advarsel && <p className="text-xs text-yellow-700 dark:text-yellow-400 inline-flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />{advarsel}</p>}
     </div>
   )
 }
