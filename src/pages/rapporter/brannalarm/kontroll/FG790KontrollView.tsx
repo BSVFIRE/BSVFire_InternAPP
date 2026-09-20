@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Save, CheckCircle, Info, X, Maximize2, Minimize2, WifiOff } from 'lucide-react'
-import { KONTROLLPUNKTER_FG790, AVVIK_TYPER, AG_VERDIER, beregnPoengFraAG, FEILKODER, KONTROLLPUNKT_REFERANSER } from '@/lib/constants/fg790'
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, ClipboardCheck, MessageSquare, Minus, MoreHorizontal, Plus, X } from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { cn } from '@/lib/utils'
+import { Button, IconButton } from '@/components/ui/Button'
+import { DropdownMenu, MenuItem } from '@/components/ui/DropdownMenu'
+import { KONTROLLPUNKTER_FG790, AVVIK_TYPER, AG_VERDIER, FEILKODER, KONTROLLPUNKT_REFERANSER } from '@/lib/constants/fg790'
 import { useOfflineStatus, useOfflineQueue } from '@/hooks/useOffline'
 import { cacheData, getCachedData } from '@/lib/offline'
 
@@ -40,15 +44,11 @@ export function FG790KontrollView({
   const [saving, setSaving] = useState(false)
   const [anleggsNavn, setAnleggsNavn] = useState(initialAnleggsNavn)
   const [currentKontrollId, setCurrentKontrollId] = useState<string | undefined>(kontrollId)
-  const [collapsedPosisjoner, setCollapsedPosisjoner] = useState<Set<string>>(() => {
-    // Start med alle posisjoner lukket
-    return new Set(Object.keys(KONTROLLPUNKTER_FG790))
-  })
-  const [showReferanseDialog, setShowReferanseDialog] = useState<string | null>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [fullscreenPunkt, setFullscreenPunkt] = useState<string | null>(null)
-  const [showKomplettDialog, setShowKomplettDialog] = useState(false)
-  const [anleggsvurderingCollapsed, setAnleggsvurderingCollapsed] = useState(false)
+  const [collapsedPosisjoner, setCollapsedPosisjoner] = useState<Set<string>>(new Set())
+  const [filter, setFilter] = useState<'gjenstar' | 'avvik' | 'alle'>('gjenstar')
+  const [apent, setApent] = useState<string | null>(null)
+  const [visVurdering, setVisVurdering] = useState(false)
+  const [vurderingMangler, setVurderingMangler] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   
@@ -109,16 +109,13 @@ export function FG790KontrollView({
   }, [currentKontrollId, anleggId])
 
   // Autosave every 30 seconds if there are unsaved changes
+  // Autolagring 2,5 s etter siste endring
   useEffect(() => {
-    if (!hasUnsavedChanges || !currentKontrollId) return
-
-    const autoSaveInterval = setInterval(() => {
-      console.log('Autosave triggered')
-      handleSave(true) // true = silent save
-    }, 30000) // 30 seconds
-
-    return () => clearInterval(autoSaveInterval)
-  }, [hasUnsavedChanges, currentKontrollId])
+    if (!hasUnsavedChanges || !currentKontrollId || loading) return
+    const t = setTimeout(() => handleSave(true), 2500)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, kontrollorVurderingSum, kontrollorVurderingKommentar, ingenAnleggsvurdering, ingenAnleggsvurderingKommentar, kritiskFeil, kritiskFeilKommentar, hasUnsavedChanges, currentKontrollId, loading])
 
   async function loadData() {
     if (!anleggId) {
@@ -343,7 +340,7 @@ export function FG790KontrollView({
       
       setHasUnsavedChanges(false)
       setLastSaved(new Date())
-      if (!silent) alert('✓ Lagret lokalt (offline). Synkroniseres når nettilgang er tilgjengelig.')
+      if (!silent) toast.info('Lagret lokalt – synkroniseres når du er på nett igjen')
       setSaving(false)
       return
     }
@@ -378,7 +375,7 @@ export function FG790KontrollView({
 
       if (error) {
         console.error('Feil ved lagring:', error)
-        alert(`Feil ved lagring: ${error.message}`)
+        toast.error('Kunne ikke lagre kontrollen', error)
         return
       }
 
@@ -397,15 +394,15 @@ export function FG790KontrollView({
 
       if (vurderingError) {
         console.error('Feil ved lagring av anleggsvurdering:', vurderingError)
-        if (!silent) alert(`Feil ved lagring av anleggsvurdering: ${vurderingError.message}`)
+        if (!silent) toast.error('Kunne ikke lagre anleggsvurderingen', vurderingError)
       } else {
         setHasUnsavedChanges(false)
         setLastSaved(new Date())
-        if (!silent) alert('Kontroll lagret! ✓')
+        if (!silent) toast.success('Kontroll lagret')
       }
     } catch (error: any) {
       console.error('Feil ved lagring:', error)
-      alert(`Feil ved lagring: ${error.message || 'Ukjent feil'}`)
+      toast.error('Kunne ikke lagre kontrollen', error)
     } finally {
       setSaving(false)
     }
@@ -432,949 +429,257 @@ export function FG790KontrollView({
   }
 
   const totalPunkter = allKontrollpunkter.length
-  const kontrollertePunkter = Object.values(data).filter(p => p.status === 'Kontrollert').length
-  const avvikPunkter = Object.values(data).filter(p => p.avvik_type !== null && p.avvik_type !== '').length
-  const agPunkter = Object.values(data).filter(p => p.ag_verdi && p.ag_verdi !== '').length
+  const vurdertePunkter = Object.values(data).filter(p => p.status !== null).length
+  const avvikPunkter = Object.values(data).filter(p => Boolean(p.avvik_type)).length
   const totalPoengTrekk = Object.values(data).reduce((sum, p) => sum + ((p.poeng_trekk || 0) * (p.antall_avvik || 1)), 0)
-  const sluttScore = Math.max(0, 100 - totalPoengTrekk) // Starter på 100, trekker fra avvik
-  const progress = Math.round((kontrollertePunkter / totalPunkter) * 100)
+  const sluttScore = Math.max(0, 100 - totalPoengTrekk)
+  const progress = Math.round((vurdertePunkter / totalPunkter) * 100)
+  const gjenstar = totalPunkter - vurdertePunkter
+  const vurderingOk = ingenAnleggsvurdering || kontrollorVurderingSum !== null
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+  const erDetektorPunkt = (p: KontrollpunktData) => p.posisjon === 'POS.2 - Visuell kontroll' && p.tittel.toLowerCase().includes('detektor')
+  function visPunkt(p: KontrollpunktData) {
+    if (filter === 'gjenstar') return p.status === null
+    if (filter === 'avvik') return Boolean(p.avvik_type)
+    return true
+  }
+  function settStatus(key: string, status: KontrollpunktData['status']) {
+    const p = data[key]
+    updatePunkt(key, { status: p.status === status ? null : status })
+  }
+  function toggleAvvik(key: string) {
+    const p = data[key]
+    if (p.avvik_type) updatePunkt(key, { avvik_type: null, feilkode: null, poeng_trekk: 0, antall_avvik: 1, ag_verdi: erDetektorPunkt(p) ? p.ag_verdi : null })
+    else { updatePunkt(key, { avvik_type: 'Avvik', status: p.status ?? 'Kontrollert' }); setApent(key) }
+  }
+  function merkAlle(posisjon: string, status: 'Kontrollert' | 'Ikke aktuell') {
+    setData(prev => { const n = { ...prev }; for (const k of Object.keys(n)) if (n[k].posisjon === posisjon && n[k].status === null) n[k] = { ...n[k], status }; return n })
+    setHasUnsavedChanges(true)
+  }
+  async function tilbake() { if (hasUnsavedChanges) await handleSave(true); onBack() }
+  async function fullfor() {
+    if (!vurderingOk) { setVurderingMangler(true); setVisVurdering(true); toast.warning('Fyll ut kontrollørens vurdering (tabell 3.5.2-1) før du fullfører'); document.getElementById('fg-vurdering')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
+    if (gjenstar > 0 && !confirm(`${gjenstar} punkter er ikke vurdert. Fortsette til rapport likevel?`)) return
+    await handleSave(true)
+    if (currentKontrollId && onShowRapport) onShowRapport(currentKontrollId)
   }
 
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div>
+
   return (
-    <div className="min-h-screen pb-20">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800">
-        <div className="p-3 sm:p-4">
-          <div className="flex flex-col gap-3 mb-3 sm:mb-4">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg flex-shrink-0">
-                <ArrowLeft className="w-5 h-5 text-gray-400" />
-              </button>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-lg sm:text-xl font-bold text-white truncate">FG790 Kontroll</h1>
-                <p className="text-xs sm:text-sm text-gray-400 truncate">{anleggsNavn}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Offline/Online indicator */}
-              {!isOnline && (
-                <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs">
-                  <WifiOff className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="hidden xs:inline">Offline</span>
-                </div>
-              )}
-              {isSyncing && (
-                <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs">
-                  <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="hidden xs:inline">Synkroniserer...</span>
-                </div>
-              )}
-              
-              {/* Fullscreen toggle - skjules på iOS som ikke støtter fullscreen API */}
-              {document.documentElement.requestFullscreen && (
-                <button
-                  onClick={() => {
-                    if (!document.fullscreenElement) {
-                      document.documentElement.requestFullscreen?.()
-                      setIsFullscreen(true)
-                    } else {
-                      document.exitFullscreen?.()
-                      setIsFullscreen(false)
-                    }
-                  }}
-                  className="p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0"
-                  title={isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
-                >
-                  {isFullscreen ? (
-                    <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                  ) : (
-                    <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                  )}
-                </button>
-              )}
-            </div>
+    <div className="space-y-4 pb-28">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={tilbake} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Brannalarm</button>
+        <span className="hidden sm:inline">/</span><span className="hidden sm:inline text-gray-900 dark:text-white truncate">{anleggsNavn}</span>
+      </div>
+      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">FG 790-kontroll</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate">{anleggsNavn}</p>
+        </div>
+        <p className="text-xs text-gray-400 sm:text-right whitespace-nowrap">{!isOnline ? 'Offline – lagres lokalt' : saving || isSyncing ? 'Lagrer…' : hasUnsavedChanges ? 'Ulagrede endringer' : lastSaved ? `Lagret ${lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}` : 'Lagres automatisk'}</p>
+      </header>
+
+      {/* Score + fremdrift, klebrig */}
+      <div className="sticky top-0 lg:top-2 z-10 -mx-4 px-4 sm:mx-0 sm:px-0 pt-1 pb-2 bg-white/90 dark:bg-dark/90 backdrop-blur">
+        <div className="card !p-3 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-gray-900 dark:text-white">{vurdertePunkter} av {totalPunkter} vurdert <span className="text-gray-400 font-normal">· {progress} %</span></span>
+            <span className={cn('inline-flex items-baseline gap-1 tabular-nums', sluttScore >= 90 ? 'text-green-700 dark:text-green-400' : sluttScore >= 70 ? 'text-yellow-700 dark:text-yellow-400' : 'text-red-600 dark:text-red-400')} title={`100 − ${totalPoengTrekk.toFixed(1)} poeng trekk`}><span className="text-xl font-bold">{sluttScore.toFixed(sluttScore % 1 ? 1 : 0)}</span><span className="text-xs">/ 100</span></span>
           </div>
-
-          {/* Totalsum Score */}
-          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-lg p-3 sm:p-4 mb-3 border border-gray-700">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <div className="text-xs sm:text-sm text-gray-400 mb-1">Totalsum</div>
-                <div className="text-2xl sm:text-3xl font-bold text-white">
-                  {sluttScore.toFixed(1)}
-                  <span className="text-base sm:text-lg text-gray-400 ml-1">/ 100</span>
-                </div>
-                <div className="text-xs text-gray-500 mt-1 truncate">
-                  100 - {totalPoengTrekk.toFixed(1)} poeng trekk
-                </div>
-              </div>
-              <div className={`text-4xl sm:text-6xl flex-shrink-0 ${
-                sluttScore >= 90 ? 'text-green-500' :
-                sluttScore >= 70 ? 'text-yellow-500' :
-                sluttScore >= 50 ? 'text-orange-500' :
-                'text-red-500'
-              }`}>
-                {sluttScore >= 90 ? '🟢' :
-                 sluttScore >= 70 ? '🟡' :
-                 sluttScore >= 50 ? '🟠' :
-                 '🔴'}
-              </div>
-            </div>
-          </div>
-
-          {/* Progress */}
-          <div className="bg-gray-900 rounded-lg p-3 mb-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs sm:text-sm text-gray-400">Fremdrift</span>
-              <span className="text-sm sm:text-base font-semibold text-white">{progress}%</span>
-            </div>
-            <div className="w-full bg-gray-800 rounded-full h-2 mb-3">
-              <div
-                className="bg-green-500 h-2 rounded-full transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div className="text-center">
-                <div className="text-gray-400">Kontrollert</div>
-                <div className="text-green-400 font-semibold">{kontrollertePunkter}/{totalPunkter}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-gray-400">Avvik</div>
-                <div className="text-orange-400 font-semibold">{avvikPunkter}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-gray-400">AG-verdier</div>
-                <div className="text-blue-400 font-semibold">{agPunkter}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-gray-400">Gjenstår</div>
-                <div className="text-blue-400 font-semibold">{totalPunkter - kontrollertePunkter}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Anleggsvurdering (FG790 Tabell 3.5.2-1) */}
-          <div className="bg-gray-900 rounded-lg border border-blue-500/30">
-            <button
-              onClick={() => setAnleggsvurderingCollapsed(!anleggsvurderingCollapsed)}
-              className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors"
-            >
-              <h3 className="text-sm font-semibold text-blue-400">Anleggsvurdering (Tabell 3.5.2-1)</h3>
-              <div className={`transform transition-transform ${anleggsvurderingCollapsed ? '' : 'rotate-90'}`}>
-                <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </button>
-            
-            {!anleggsvurderingCollapsed && (
-              <div className="px-4 pb-4 space-y-3">
-            
-                {/* Kontrollørens vurdering */}
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">
-                    1. Kontrollørens vurdering <span className="text-red-400">*</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={kontrollorVurderingSum ?? ''}
-                      onChange={(e) => {
-                        setKontrollorVurderingSum(e.target.value ? parseInt(e.target.value) : null)
-                        setHasUnsavedChanges(true)
-                      }}
-                      placeholder="Sum (0-100)"
-                      className="input text-sm"
-                      required
-                    />
-                    <input
-                      type="text"
-                      value={kontrollorVurderingKommentar}
-                      onChange={(e) => {
-                        setKontrollorVurderingKommentar(e.target.value)
-                        setHasUnsavedChanges(true)
-                      }}
-                      placeholder="Kommentar"
-                      className="input text-sm"
-                    />
-                  </div>
-                </div>
-
-                {/* Ingen anleggsvurdering */}
-                <div>
-                  <label className="flex items-center gap-2 text-xs text-gray-400 mb-1">
-                    <input
-                      type="checkbox"
-                      checked={ingenAnleggsvurdering}
-                      onChange={(e) => {
-                        setIngenAnleggsvurdering(e.target.checked)
-                        setHasUnsavedChanges(true)
-                      }}
-                      className="rounded"
-                    />
-                    2. Ingen anleggsvurdering (Se 3.5.3.2)
-                  </label>
-                  {ingenAnleggsvurdering && (
-                    <input
-                      type="text"
-                      value={ingenAnleggsvurderingKommentar}
-                      onChange={(e) => {
-                        setIngenAnleggsvurderingKommentar(e.target.value)
-                        setHasUnsavedChanges(true)
-                      }}
-                      placeholder="Kommentar (f.eks. 'Ikke fulldekkende anlegg. Mangler brannskille.')"
-                      className="input text-sm w-full"
-                      required
-                    />
-                  )}
-                </div>
-
-                {/* Kritisk funksjonsfeil */}
-                <div>
-                  <label className="flex items-center gap-2 text-xs text-gray-400 mb-1">
-                    <input
-                      type="checkbox"
-                      checked={kritiskFeil}
-                      onChange={(e) => {
-                        setKritiskFeil(e.target.checked)
-                        setHasUnsavedChanges(true)
-                      }}
-                      className="rounded"
-                    />
-                    3. Kritisk funksjonsfeil (Se 3.5.3.3)
-                  </label>
-                  {kritiskFeil && (
-                    <input
-                      type="text"
-                      value={kritiskFeilKommentar}
-                      onChange={(e) => {
-                        setKritiskFeilKommentar(e.target.value)
-                        setHasUnsavedChanges(true)
-                      }}
-                      placeholder="Kommentar (f.eks. 'Ikke-funksjonelt anlegg. Feil må utbedres umiddelbart.')"
-                      className="input text-sm w-full bg-red-500/10 border-red-500/30"
-                      required
-                    />
-                  )}
-                </div>
-              </div>
-            )}
+          <div className="h-2 rounded-full bg-gray-200 dark:bg-dark-100 overflow-hidden"><div className={cn('h-full rounded-full transition-all', progress === 100 ? 'bg-green-500' : 'bg-primary')} style={{ width: `${progress}%` }} /></div>
+          <div className="flex gap-2 overflow-x-auto -mx-3 px-3" role="group" aria-label="Filter">
+            <Chip aktiv={filter === 'gjenstar'} onClick={() => setFilter('gjenstar')}>Gjenstår <b>{gjenstar}</b></Chip>
+            <Chip aktiv={filter === 'avvik'} onClick={() => setFilter('avvik')}><span className="w-2 h-2 rounded-full bg-orange-500" />Avvik <b>{avvikPunkter}</b></Chip>
+            <Chip aktiv={filter === 'alle'} onClick={() => setFilter('alle')}>Alle <b>{totalPunkter}</b></Chip>
+            {totalPoengTrekk > 0 && <span className="ml-auto self-center text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">−{totalPoengTrekk.toFixed(1)} poeng</span>}
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-4 space-y-4">
-        {Object.entries(KONTROLLPUNKTER_FG790).map(([posisjon, kategorier]) => {
-          const isPosisjonCollapsed = collapsedPosisjoner.has(posisjon)
-          const posisjonPunkter = Object.values(data).filter(p => p.posisjon === posisjon)
-          const posisjonKontrollerte = posisjonPunkter.filter(p => p.status === 'Kontrollert').length
-          
-          return (
-            <div key={posisjon} className="card">
-              {/* Posisjon Header */}
-              <div className="flex items-center justify-between w-full mb-4">
-                <button
-                  onClick={() => togglePosisjon(posisjon)}
-                  className="flex items-center gap-3 flex-1 group"
-                >
-                  <div className={`transform transition-transform ${isPosisjonCollapsed ? '' : 'rotate-90'}`}>
-                    <svg className="w-6 h-6 text-gray-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                  <div className="text-left">
-                    <h2 className="text-xl font-bold text-primary group-hover:text-primary/80 transition-colors">
-                      {posisjon}
-                    </h2>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-xs text-gray-400">
-                        {posisjonKontrollerte}/{posisjonPunkter.length} kontrollert
-                      </span>
-                      <div className="w-32 bg-gray-800 rounded-full h-1.5">
-                        <div 
-                          className="bg-primary h-1.5 rounded-full transition-all"
-                          style={{ width: `${(posisjonKontrollerte / posisjonPunkter.length) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </button>
-                
-                {/* Fullskjerm knapp for posisjon */}
-                <button
-                  onClick={() => setFullscreenPunkt(posisjon)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  title="Åpne posisjon i fullskjerm"
-                >
-                  <Maximize2 className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-
-              {/* Kategorier og punkter */}
-              {!isPosisjonCollapsed && (
-                <div className="space-y-4 ml-9">
-                  {Object.entries(kategorier).map(([kategori, punkter]) => (
-                    <div key={`${posisjon}|${kategori}`} className="border border-gray-800 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-white mb-3">{kategori}</h3>
-                      
-                      <div className="space-y-3">
-                        {punkter.map(tittel => {
-                          const key = `${posisjon}|${kategori}|${tittel}`
-                          const punktData = data[key]
-                          
-                          return (
-                            <div
-                              key={key}
-                              className={`p-3 rounded-lg border transition-colors ${
-                                punktData.status === 'Kontrollert'
-                                  ? 'border-green-500/30 bg-green-500/5'
-                                  : 'border-gray-800 bg-gray-900/50'
-                              }`}
-                            >
-                              <div className="flex items-start justify-between mb-2">
-                                <p className="text-sm sm:text-base text-white font-medium flex-1">{tittel}</p>
-                                
-                                {/* Info knapp for referanse */}
-                                {KONTROLLPUNKT_REFERANSER[tittel] && (
-                                  <button
-                                    onClick={() => setShowReferanseDialog(tittel)}
-                                    className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-                                    title="Vis referanse NS 3960"
-                                  >
-                                    <Info className="w-4 h-4 text-blue-400" />
-                                  </button>
-                                )}
-                              </div>
-
-                              {/* Status buttons */}
-                              <div className="flex flex-wrap gap-2">
-                                {['Kontrollert', 'Ikke aktuell', 'Ikke tilkomst'].map(status => (
-                                  <button
-                                    key={status}
-                                    onClick={() => updatePunkt(key, { status: status as any })}
-                                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                                      punktData.status === status
-                                        ? 'bg-green-500 text-white'
-                                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                    }`}
-                                  >
-                                    {status}
-                                  </button>
-                                ))}
-                              </div>
-
-                              {/* Avvik type, AG-verdi og poeng trekk */}
-                              {punktData.status === 'Kontrollert' && (
-                                <div className="mt-3 space-y-3">
-                                  {/* AG-verdi (kun for POS.2 detektor-punkter) */}
-                                  {punktData.posisjon === 'POS.2 - Visuell kontroll' && 
-                                   punktData.tittel.toLowerCase().includes('detektor') && (
-                                    <div>
-                                      <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
-                                        AG-verdi
-                                        <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">(Forurensningsgrad)</span>
-                                      </label>
-                                      <div className="grid grid-cols-5 gap-2">
-                                        {AG_VERDIER.map(ag => (
-                                          <button
-                                            key={ag.verdi}
-                                            onClick={() => {
-                                              updatePunkt(key, { 
-                                                ag_verdi: ag.verdi,
-                                                poeng_trekk: ag.poeng,
-                                                avvik_type: ag.poeng > 0 ? 'Avvik' : null
-                                              })
-                                            }}
-                                            className={`px-2 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                                              punktData.ag_verdi === ag.verdi
-                                                ? ag.poeng === 0
-                                                  ? 'bg-green-500 text-white'
-                                                  : ag.poeng < 1
-                                                  ? 'bg-yellow-500 text-white'
-                                                  : 'bg-red-500 text-white'
-                                                : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
-                                            }`}
-                                          >
-                                            <div className="text-xs">{ag.verdi}</div>
-                                            <div className="text-xs opacity-75">({ag.poeng})</div>
-                                          </button>
-                                        ))}
-                                      </div>
-                                      {punktData.ag_verdi && (
-                                        <p className="text-xs text-gray-500 mt-2">
-                                          {AG_VERDIER.find(a => a.verdi === punktData.ag_verdi)?.beskrivelse} - 
-                                          Poeng: {beregnPoengFraAG(punktData.ag_verdi)}
-                                        </p>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  <div>
-                                    <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">Avvik type</label>
-                                    <select
-                                      value={punktData.avvik_type || ''}
-                                      onChange={(e) => updatePunkt(key, { avvik_type: e.target.value || null })}
-                                      className="input text-sm"
-                                    >
-                                      <option value="">Ingen avvik</option>
-                                      {AVVIK_TYPER.map(type => (
-                                        <option key={type} value={type}>{type}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-
-                                  {/* Feilkode - vises kun hvis det er avvik */}
-                                  {punktData.avvik_type && (
-                                    <div>
-                                      <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">Feilkode</label>
-                                      <select
-                                        value={punktData.feilkode || ''}
-                                        onChange={(e) => updatePunkt(key, { feilkode: e.target.value })}
-                                        className="input text-sm"
-                                      >
-                                        <option value="">Velg feilkode</option>
-                                        {FEILKODER.map(kode => (
-                                          <option key={kode} value={kode}>{kode}</option>
-                                        ))}
-                                      </select>
-                                      
-                                      {/* Egendefinert feilkode hvis "Annet" er valgt */}
-                                      {(punktData.feilkode === 'Annet' || punktData.feilkode?.startsWith('Annet:')) && (
-                                        <input
-                                          type="text"
-                                          placeholder="Skriv egendefinert feilkode..."
-                                          value={punktData.feilkode?.startsWith('Annet:') ? punktData.feilkode.substring(7) : ''}
-                                          onChange={(e) => {
-                                            if (e.target.value) {
-                                              updatePunkt(key, { feilkode: `Annet: ${e.target.value}` })
-                                            } else {
-                                              updatePunkt(key, { feilkode: 'Annet' })
-                                            }
-                                          }}
-                                          className="input text-sm mt-2"
-                                        />
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {/* Poeng trekk - vises alltid når det er avvik */}
-                                  {punktData.avvik_type && (
-                                    <div>
-                                      <label className="block text-sm text-gray-400 mb-2">
-                                        Poeng trekk
-                                        <span className="text-xs text-gray-500 ml-2">(Velg AG-verdi)</span>
-                                      </label>
-                                      <div className="grid grid-cols-5 gap-2">
-                                        {AG_VERDIER.map(ag => (
-                                          <button
-                                            key={ag.verdi}
-                                            onClick={() => updatePunkt(key, { 
-                                              ag_verdi: ag.verdi,
-                                              poeng_trekk: ag.poeng 
-                                            })}
-                                            className={`px-2 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                                              punktData.ag_verdi === ag.verdi
-                                                ? ag.poeng === 0
-                                                  ? 'bg-green-500 text-white'
-                                                  : ag.poeng < 1
-                                                  ? 'bg-yellow-500 text-white'
-                                                  : 'bg-red-500 text-white'
-                                                : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
-                                            }`}
-                                          >
-                                            <div className="text-xs">{ag.verdi}</div>
-                                            <div className="text-xs opacity-75">({ag.poeng})</div>
-                                          </button>
-                                        ))}
-                                      </div>
-                                      {punktData.ag_verdi && (
-                                        <div className="mt-2 space-y-2">
-                                          <p className="text-xs text-gray-500">
-                                            {AG_VERDIER.find(a => a.verdi === punktData.ag_verdi)?.beskrivelse} - 
-                                            Poeng per avvik: {beregnPoengFraAG(punktData.ag_verdi)}
-                                          </p>
-                                          
-                                          {/* Antall avvik */}
-                                          <div>
-                                            <label className="block text-xs text-gray-400 mb-1">
-                                              Antall avvik av denne typen
-                                            </label>
-                                            <input
-                                              type="number"
-                                              min="1"
-                                              max="99"
-                                              value={punktData.antall_avvik || 1}
-                                              onChange={(e) => {
-                                                const antall = parseInt(e.target.value) || 1
-                                                updatePunkt(key, { antall_avvik: Math.max(1, Math.min(99, antall)) })
-                                              }}
-                                              className="input text-sm w-24"
-                                            />
-                                            {punktData.antall_avvik > 1 && (
-                                              <p className="text-xs text-orange-400 mt-1">
-                                                Totalt: {punktData.antall_avvik} × {punktData.poeng_trekk} = {(punktData.antall_avvik * punktData.poeng_trekk).toFixed(1)} poeng
-                                              </p>
-                                            )}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {/* Vis total poeng hvis AG-verdi er satt */}
-                                  {punktData.ag_verdi && punktData.poeng_trekk > 0 && (
-                                    <div className="p-2 bg-orange-500/10 border border-orange-500/30 rounded-lg">
-                                      <p className="text-sm text-orange-400">
-                                        ⚠️ Poeng trekk: {(punktData.poeng_trekk * (punktData.antall_avvik || 1)).toFixed(1)} 
-                                        {punktData.antall_avvik > 1 && ` (${punktData.antall_avvik} avvik)`}
-                                      </p>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Kommentar */}
-                              {punktData.status === 'Kontrollert' && (
-                                <textarea
-                                  value={punktData.kommentar || ''}
-                                  onChange={(e) => updatePunkt(key, { kommentar: e.target.value || null })}
-                                  placeholder="Kommentar..."
-                                  className="input text-sm mt-2"
-                                  rows={2}
-                                />
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Fixed Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950 border-t border-gray-800 z-50 md:left-64">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
-            <button
-              onClick={() => handleSave(false)}
-              disabled={saving}
-              className="btn-secondary flex items-center justify-center gap-2"
-            >
-              {saving ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Lagrer...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Lagre
-                </>
-              )}
-            </button>
-            {lastSaved && (
-              <div className="text-xs text-gray-500 text-center">
-                Sist lagret: {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
-              </div>
-            )}
-            {hasUnsavedChanges && !saving && (
-              <div className="text-xs text-yellow-500 text-center">
-                Ulagrede endringer
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => {
-              // Sjekk om alle punkter er kontrollert
-              const alleKontrollert = Object.values(data).every(p => p.status !== null)
-              
-              // Sjekk om anleggsvurdering er utfylt (kun kontrollørens vurdering er påkrevd)
-              const anleggsvurderingUtfylt = 
-                kontrollorVurderingSum !== null
-              
-              if (!anleggsvurderingUtfylt) {
-                alert('⚠️ Du må fylle ut Anleggsvurdering (Tabell 3.5.2-1) før du kan fullføre kontrollen.\n\nPåkrevd:\n• Kontrollørens vurdering (sum)')
-                setAnleggsvurderingCollapsed(false) // Åpne seksjonen
-                return
-              }
-              
-              if (!alleKontrollert) {
-                setShowKomplettDialog(true)
-              } else {
-                handleSave(false)
-                if (currentKontrollId && onShowRapport) {
-                  setTimeout(() => onShowRapport(currentKontrollId), 500)
-                }
-              }
-            }}
-            className="btn-primary flex items-center justify-center gap-2"
-          >
-            <CheckCircle className="w-4 h-4" />
-            Fullfør kontroll
-          </button>
-        </div>
-      </div>
-
-      {/* Komplett dialog */}
-      {showKomplettDialog && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowKomplettDialog(false)}
-        >
-          <div 
-            className="bg-gray-900 rounded-lg border border-gray-700 max-w-md w-full p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-bold text-white mb-4">Ikke alle punkter er kontrollert</h3>
-            <p className="text-gray-400 mb-6">
-              Ikke alle punkter er kontrollert. Vil du fortsette til rapport?
-            </p>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowKomplettDialog(false)}
-                className="btn-secondary flex-1"
-              >
-                Avbryt
-              </button>
-              <button
-                onClick={() => {
-                  // Sjekk om anleggsvurdering er utfylt (kun kontrollørens vurdering er påkrevd)
-                  const anleggsvurderingUtfylt = 
-                    kontrollorVurderingSum !== null
-                  
-                  if (!anleggsvurderingUtfylt) {
-                    alert('⚠️ Du må fylle ut Anleggsvurdering (Tabell 3.5.2-1) før du kan fullføre kontrollen.\n\nPåkrevd:\n• Kontrollørens vurdering (sum)')
-                    setShowKomplettDialog(false)
-                    setAnleggsvurderingCollapsed(false) // Åpne seksjonen
-                    return
-                  }
-                  
-                  setShowKomplettDialog(false)
-                  handleSave(false)
-                  if (currentKontrollId && onShowRapport) {
-                    setTimeout(() => onShowRapport(currentKontrollId), 500)
-                  }
-                }}
-                className="btn-primary flex-1"
-              >
-                OK
-              </button>
-            </div>
-          </div>
+      {gjenstar === 0 && filter === 'gjenstar' && (
+        <div className="card text-center py-8 space-y-2">
+          <p className="text-sm font-medium text-gray-900 dark:text-white">Alle {totalPunkter} punkter er vurdert 🎉</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Fyll ut anleggsvurderingen nederst og trykk «Fullfør og lag rapport». <button type="button" onClick={() => setFilter('alle')} className="text-primary hover:underline">Vis alle punkter</button></p>
         </div>
       )}
 
-      {/* Fullskjerm Posisjon Dialog */}
-      {fullscreenPunkt && (() => {
-        // Vis hele posisjonen i fullskjerm
-        const posisjon = fullscreenPunkt as keyof typeof KONTROLLPUNKTER_FG790
-        const kategorier = KONTROLLPUNKTER_FG790[posisjon]
-        if (!kategorier) return null
-          
-          return (
-            <div className="fixed inset-0 bg-white dark:bg-gray-950 z-50 overflow-auto pb-20">
-              <div className="max-w-6xl mx-auto p-6">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-6 sticky top-0 bg-white dark:bg-gray-950 pb-4 border-b border-gray-200 dark:border-gray-800">
-                  <div className="flex-1">
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{posisjon}</h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Fullskjerm-visning</p>
-                  </div>
-                  <button
-                    onClick={() => setFullscreenPunkt(null)}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
-                    title="Lukk fullskjerm"
-                  >
-                    <X className="w-6 h-6 text-gray-500 dark:text-gray-400" />
-                  </button>
-                </div>
-
-                {/* Alle punkter i posisjonen */}
-                <div className="space-y-6">
-                  {Object.entries(kategorier).map(([kategori, punkter]) => (
-                    <div key={kategori} className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
-                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{kategori}</h3>
-                      
-                      <div className="space-y-4">
-                        {punkter.map(tittel => {
-                          const key = `${posisjon}|${kategori}|${tittel}`
-                          const punktData = data[key]
-                          
-                          return (
-                            <div key={key} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-transparent">
-                              <p className="text-gray-900 dark:text-white font-medium mb-3">{tittel}</p>
-                              
-                              {/* Status buttons */}
-                              <div className="flex flex-wrap gap-2 mb-3">
-                                {['Kontrollert', 'Ikke aktuell', 'Ikke tilkomst'].map(status => (
-                                  <button
-                                    key={status}
-                                    onClick={() => updatePunkt(key, { status: status as any })}
-                                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                                      punktData.status === status
-                                        ? 'bg-green-500 text-white'
-                                        : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
-                                    }`}
-                                  >
-                                    {status}
-                                  </button>
-                                ))}
-                              </div>
-
-                              {/* Vis resten av feltene hvis kontrollert */}
-                              {punktData.status === 'Kontrollert' && (
-                                <div className="space-y-3 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                                  {/* AG-verdi (kun for POS.2 detektor-punkter) */}
-                                  {punktData.posisjon === 'POS.2 - Visuell kontroll' && 
-                                   punktData.tittel.toLowerCase().includes('detektor') && (
-                                    <div>
-                                      <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
-                                        AG-verdi
-                                        <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">(Forurensningsgrad)</span>
-                                      </label>
-                                      <div className="grid grid-cols-5 gap-2">
-                                        {AG_VERDIER.map(ag => (
-                                          <button
-                                            key={ag.verdi}
-                                            onClick={() => {
-                                              updatePunkt(key, { 
-                                                ag_verdi: ag.verdi,
-                                                poeng_trekk: ag.poeng,
-                                                avvik_type: ag.poeng > 0 ? 'Avvik' : null
-                                              })
-                                            }}
-                                            className={`px-2 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                                              punktData.ag_verdi === ag.verdi
-                                                ? ag.poeng === 0
-                                                  ? 'bg-green-500 text-white'
-                                                  : ag.poeng < 1
-                                                  ? 'bg-yellow-500 text-white'
-                                                  : 'bg-red-500 text-white'
-                                                : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
-                                            }`}
-                                          >
-                                            <div className="text-xs">{ag.verdi}</div>
-                                            <div className="text-xs opacity-75">({ag.poeng})</div>
-                                          </button>
-                                        ))}
-                                      </div>
-                                      {punktData.ag_verdi && (
-                                        <p className="text-xs text-gray-500 mt-2">
-                                          {AG_VERDIER.find(a => a.verdi === punktData.ag_verdi)?.beskrivelse} - 
-                                          Poeng: {beregnPoengFraAG(punktData.ag_verdi)}
-                                        </p>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  <div>
-                                    <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">Avvik type</label>
-                                    <select
-                                      value={punktData.avvik_type || ''}
-                                      onChange={(e) => updatePunkt(key, { avvik_type: e.target.value || null })}
-                                      className="input text-sm w-full"
-                                    >
-                                      <option value="">Ingen avvik</option>
-                                      {AVVIK_TYPER.map(type => (
-                                        <option key={type} value={type}>{type}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-
-                                  {/* Feilkode - vises kun hvis det er avvik */}
-                                  {punktData.avvik_type && (
-                                    <div>
-                                      <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">Feilkode</label>
-                                      <select
-                                        value={punktData.feilkode || ''}
-                                        onChange={(e) => updatePunkt(key, { feilkode: e.target.value })}
-                                        className="input text-sm w-full"
-                                      >
-                                        <option value="">Velg feilkode</option>
-                                        {FEILKODER.map(kode => (
-                                          <option key={kode} value={kode}>{kode}</option>
-                                        ))}
-                                      </select>
-                                      
-                                      {/* Egendefinert feilkode hvis "Annet" er valgt */}
-                                      {(punktData.feilkode === 'Annet' || punktData.feilkode?.startsWith('Annet:')) && (
-                                        <input
-                                          type="text"
-                                          placeholder="Skriv egendefinert feilkode..."
-                                          value={punktData.feilkode?.startsWith('Annet:') ? punktData.feilkode.substring(7) : ''}
-                                          onChange={(e) => {
-                                            if (e.target.value) {
-                                              updatePunkt(key, { feilkode: `Annet: ${e.target.value}` })
-                                            } else {
-                                              updatePunkt(key, { feilkode: 'Annet' })
-                                            }
-                                          }}
-                                          className="input text-sm w-full mt-2"
-                                        />
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {/* Poeng trekk - vises alltid når det er avvik */}
-                                  {punktData.avvik_type && (
-                                    <div>
-                                      <label className="block text-sm text-gray-400 mb-2">
-                                        Poeng trekk
-                                        <span className="text-xs text-gray-500 ml-2">(Velg AG-verdi)</span>
-                                      </label>
-                                      <div className="grid grid-cols-5 gap-2">
-                                        {AG_VERDIER.map(ag => (
-                                          <button
-                                            key={ag.verdi}
-                                            onClick={() => updatePunkt(key, { 
-                                              ag_verdi: ag.verdi,
-                                              poeng_trekk: ag.poeng 
-                                            })}
-                                            className={`px-2 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                                              punktData.ag_verdi === ag.verdi
-                                                ? ag.poeng === 0
-                                                  ? 'bg-green-500 text-white'
-                                                  : ag.poeng < 1
-                                                  ? 'bg-yellow-500 text-white'
-                                                  : 'bg-red-500 text-white'
-                                                : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
-                                            }`}
-                                          >
-                                            <div className="text-xs">{ag.verdi}</div>
-                                            <div className="text-xs opacity-75">({ag.poeng})</div>
-                                          </button>
-                                        ))}
-                                      </div>
-                                      {punktData.ag_verdi && (
-                                        <div className="mt-2 space-y-2">
-                                          <p className="text-xs text-gray-500">
-                                            {AG_VERDIER.find(a => a.verdi === punktData.ag_verdi)?.beskrivelse} - 
-                                            Poeng per avvik: {beregnPoengFraAG(punktData.ag_verdi)}
-                                          </p>
-                                          
-                                          {/* Antall avvik */}
-                                          <div>
-                                            <label className="block text-xs text-gray-400 mb-1">
-                                              Antall avvik av denne typen
-                                            </label>
-                                            <input
-                                              type="number"
-                                              min="1"
-                                              max="99"
-                                              value={punktData.antall_avvik || 1}
-                                              onChange={(e) => {
-                                                const antall = parseInt(e.target.value) || 1
-                                                updatePunkt(key, { antall_avvik: Math.max(1, Math.min(99, antall)) })
-                                              }}
-                                              className="input text-sm w-24"
-                                            />
-                                            {punktData.antall_avvik > 1 && (
-                                              <p className="text-xs text-orange-400 mt-1">
-                                                Totalt: {punktData.antall_avvik} × {punktData.poeng_trekk} = {(punktData.antall_avvik * punktData.poeng_trekk).toFixed(1)} poeng
-                                              </p>
-                                            )}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {/* Vis total poeng hvis AG-verdi er satt */}
-                                  {punktData.ag_verdi && punktData.poeng_trekk > 0 && (
-                                    <div className="p-2 bg-orange-500/10 border border-orange-500/30 rounded-lg">
-                                      <p className="text-sm text-orange-400">
-                                        ⚠️ Poeng trekk: {(punktData.poeng_trekk * (punktData.antall_avvik || 1)).toFixed(1)} 
-                                        {punktData.antall_avvik > 1 && ` (${punktData.antall_avvik} avvik)`}
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {/* Kommentar */}
-                                  <div>
-                                    <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">Kommentar</label>
-                                    <textarea
-                                      value={punktData.kommentar || ''}
-                                      onChange={(e) => updatePunkt(key, { kommentar: e.target.value || null })}
-                                      placeholder="Kommentar..."
-                                      className="input text-base w-full"
-                                      rows={4}
-                                    />
-                                  </div>
-                                </div>
-                              )}
+      {Object.entries(KONTROLLPUNKTER_FG790).map(([posisjon, kategorier]) => {
+        const iPos = Object.values(data).filter(p => p.posisjon === posisjon)
+        const synlige = iPos.filter(visPunkt)
+        if (synlige.length === 0) return null
+        const ferdig = iPos.filter(p => p.status !== null).length
+        const lukket = collapsedPosisjoner.has(posisjon)
+        const [posKode, posNavn] = posisjon.split(' - ')
+        return (
+          <section key={posisjon} className="card !p-0 overflow-hidden" aria-label={posisjon}>
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-dark-100">
+              <button type="button" onClick={() => togglePosisjon(posisjon)} aria-expanded={!lukket} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', !lukket && 'rotate-90')} />
+                <span className="text-[11px] font-mono text-gray-400">{posKode}</span>
+                <span className="font-semibold text-gray-900 dark:text-white truncate">{posNavn}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{ferdig} av {iPos.length}</span>
+                {ferdig === iPos.length && <Check className="w-4 h-4 text-green-600 dark:text-green-400" strokeWidth={3} />}
+              </button>
+              <DropdownMenu trigger={open => <IconButton variant="ghost" label="Handlinger" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+                <MenuItem icon={<Check />} onSelect={() => merkAlle(posisjon, 'Kontrollert')}>Merk resten som kontrollert</MenuItem>
+                <MenuItem icon={<X />} onSelect={() => merkAlle(posisjon, 'Ikke aktuell')}>Merk resten som ikke aktuell</MenuItem>
+              </DropdownMenu>
+            </div>
+            {!lukket && Object.entries(kategorier).map(([kategori, titler]) => {
+              const rader = titler.map(t => `${posisjon}|${kategori}|${t}`).filter(k => visPunkt(data[k]))
+              if (rader.length === 0) return null
+              return (
+                <div key={kategori}>
+                  {Object.keys(kategorier).length > 1 && <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{kategori}</div>}
+                  <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {rader.map(key => {
+                      const p = data[key]
+                      const erApen = apent === key
+                      const ref = KONTROLLPUNKT_REFERANSER[p.tittel]
+                      const harAvvik = Boolean(p.avvik_type)
+                      const trekk = (p.poeng_trekk || 0) * (p.antall_avvik || 1)
+                      return (
+                        <div key={key} className={cn('px-3 py-2', harAvvik ? 'bg-orange-50/50 dark:bg-orange-900/10' : p.status && p.status !== 'Kontrollert' ? 'bg-gray-50/60 dark:bg-dark-100/40' : '')}>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <button type="button" onClick={() => setApent(erApen ? null : key)} aria-expanded={erApen} className="flex-1 min-w-0 flex items-start gap-2.5 text-left py-1">
+                              <span className={cn('w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-px', harAvvik ? 'bg-orange-500 border-orange-500 text-white' : p.status === 'Kontrollert' ? 'bg-green-500 border-green-500 text-white' : p.status ? 'bg-gray-400 border-gray-400 text-white' : 'border-gray-300 dark:border-gray-600')}>
+                                {harAvvik ? <AlertTriangle className="w-3 h-3" /> : p.status === 'Kontrollert' ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : p.status ? <X className="w-3 h-3" strokeWidth={3} /> : null}
+                              </span>
+                              <span className="min-w-0">
+                                <span className={cn('block text-sm leading-snug', p.status ? 'text-gray-700 dark:text-gray-300' : 'text-gray-900 dark:text-white font-medium')}>{p.tittel}</span>
+                                <span className="block text-[11px] text-gray-400 mt-0.5 truncate">{ref && ref !== '--' ? `NS 3960: ${ref}` : ''}{!erApen && harAvvik ? `${ref && ref !== '--' ? ' · ' : ''}${p.avvik_type}${p.feilkode ? ` · ${p.feilkode}` : ''}${trekk ? ` · −${trekk.toFixed(1)} p` : ''}` : ''}{!erApen && !harAvvik && p.ag_verdi ? `${ref && ref !== '--' ? ' · ' : ''}${p.ag_verdi}` : ''}{!erApen && p.kommentar ? ' · kommentar' : ''}</span>
+                              </span>
+                            </button>
+                            <div className="flex items-center gap-1.5 flex-shrink-0 pl-8 sm:pl-0">
+                              <button type="button" onClick={() => settStatus(key, 'Kontrollert')} aria-pressed={p.status === 'Kontrollert'} className={cn('h-9 px-3.5 rounded-lg text-sm font-semibold border inline-flex items-center gap-1', p.status === 'Kontrollert' ? 'bg-green-500 border-green-500 text-white' : 'border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20')}><Check className="w-3.5 h-3.5" strokeWidth={3} />OK</button>
+                              <button type="button" onClick={() => settStatus(key, 'Ikke aktuell')} aria-pressed={p.status === 'Ikke aktuell'} title="Ikke aktuell" className={cn('h-9 px-2.5 rounded-lg text-xs border', p.status === 'Ikke aktuell' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>N/A</button>
+                              <button type="button" onClick={() => settStatus(key, 'Ikke tilkomst')} aria-pressed={p.status === 'Ikke tilkomst'} title="Ikke tilkomst" className={cn('h-9 px-2.5 rounded-lg text-xs border whitespace-nowrap', p.status === 'Ikke tilkomst' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>Ikke tilkomst</button>
+                              <button type="button" onClick={() => toggleAvvik(key)} aria-pressed={harAvvik} title="Avvik / merknad" className={cn('h-9 px-2.5 rounded-lg text-xs border inline-flex items-center gap-1', harAvvik ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-orange-400 hover:text-orange-600')}><AlertTriangle className="w-3.5 h-3.5" />{harAvvik ? (p.antall_avvik > 1 ? p.antall_avvik : '') : 'Avvik'}</button>
+                              <IconButton variant="ghost" label={erApen ? 'Skjul detaljer' : 'Detaljer'} icon={p.kommentar ? <MessageSquare className="text-primary" /> : <ChevronDown className={cn('transition-transform', erApen && 'rotate-180')} />} onClick={() => setApent(erApen ? null : key)} className="w-8 h-8" />
                             </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                          </div>
+
+                          {erApen && (
+                            <div className="mt-2 ml-8 space-y-3">
+                              {/* Forurensningsgrad for detektorpunkter – uavhengig av avvik */}
+                              {erDetektorPunkt(p) && (
+                                <Rad label="Forurensningsgrad (AG)">
+                                  <AgVelger verdi={p.ag_verdi} onVelg={ag => updatePunkt(key, { ag_verdi: ag.verdi, poeng_trekk: ag.poeng, avvik_type: ag.poeng > 0 ? (p.avvik_type ?? 'Avvik') : p.avvik_type })} />
+                                </Rad>
+                              )}
+                              {harAvvik && (
+                                <>
+                                  <Rad label="Type">
+                                    <div className="inline-flex rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden h-9" role="radiogroup" aria-label="Avvikstype">
+                                      {AVVIK_TYPER.map(t => <button key={t} type="button" role="radio" aria-checked={p.avvik_type === t} onClick={() => updatePunkt(key, { avvik_type: t })} className={cn('px-3 text-sm', p.avvik_type === t ? (t === 'Avvik' ? 'bg-orange-500 text-white' : 'bg-gray-500 text-white') : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-100')}>{t}</button>)}
+                                    </div>
+                                  </Rad>
+                                  <Rad label="Feilkode">
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {FEILKODER.map(f => { const valgt = p.feilkode === f || (f === 'Annet' && p.feilkode?.startsWith('Annet')); return <button key={f} type="button" onClick={() => updatePunkt(key, { feilkode: valgt && f !== 'Annet' ? null : f })} className={cn('h-8 px-2.5 rounded-full border text-xs', valgt ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400')}>{f}</button> })}
+                                    </div>
+                                    {p.feilkode?.startsWith('Annet') && <input value={p.feilkode.startsWith('Annet:') ? p.feilkode.slice(7) : ''} onChange={e => updatePunkt(key, { feilkode: e.target.value ? `Annet: ${e.target.value}` : 'Annet' })} placeholder="Beskriv feilkoden" autoFocus className="input !h-[36px] !min-h-[36px] !py-0 text-sm mt-2" />}
+                                  </Rad>
+                                  {!erDetektorPunkt(p) && (
+                                    <Rad label="Poengtrekk">
+                                      <AgVelger verdi={p.ag_verdi} onVelg={ag => updatePunkt(key, { ag_verdi: ag.verdi, poeng_trekk: ag.poeng })} />
+                                    </Rad>
+                                  )}
+                                  <Rad label="Antall avvik">
+                                    <div className="flex items-center gap-3">
+                                      <div className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden">
+                                        <button type="button" onClick={() => updatePunkt(key, { antall_avvik: Math.max(1, (p.antall_avvik || 1) - 1) })} aria-label="Ett færre" className="w-9 h-9 text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-100 flex items-center justify-center"><Minus className="w-4 h-4" /></button>
+                                        <span className="w-12 text-center text-sm font-semibold tabular-nums text-gray-900 dark:text-white">{p.antall_avvik || 1}</span>
+                                        <button type="button" onClick={() => updatePunkt(key, { antall_avvik: Math.min(99, (p.antall_avvik || 1) + 1) })} aria-label="Ett til" className="w-9 h-9 text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-100 flex items-center justify-center"><Plus className="w-4 h-4" /></button>
+                                      </div>
+                                      {trekk > 0 && <span className="text-xs text-orange-700 dark:text-orange-400 tabular-nums">{p.antall_avvik > 1 ? `${p.antall_avvik} × ${p.poeng_trekk} = ` : ''}−{trekk.toFixed(1)} poeng</span>}
+                                    </div>
+                                  </Rad>
+                                </>
+                              )}
+                              <div className="flex items-start gap-2">
+                                <MessageSquare className="w-4 h-4 text-gray-400 mt-2.5 flex-shrink-0" />
+                                <textarea value={p.kommentar ?? ''} onChange={e => updatePunkt(key, { kommentar: e.target.value || null })} placeholder="Kommentar (kommer i rapporten)" rows={2} className="input !h-auto text-sm flex-1" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
+              )
+            })}
+          </section>
+        )
+      })}
+
+      {/* Anleggsvurdering */}
+      <section id="fg-vurdering" className={cn('card !p-0 overflow-hidden', vurderingMangler && !vurderingOk && 'border-red-400 dark:border-red-700')} aria-label="Anleggsvurdering">
+        <button type="button" onClick={() => setVisVurdering(v => !v)} aria-expanded={visVurdering} className="w-full flex items-center gap-2 px-3 py-2.5 bg-gray-50 dark:bg-dark-100 text-left">
+          <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', visVurdering && 'rotate-90')} />
+          <span className="font-semibold text-gray-900 dark:text-white">Anleggsvurdering</span>
+          <span className="text-xs text-gray-400">tabell 3.5.2-1</span>
+          <span className={cn('ml-auto text-xs', vurderingOk ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400')}>{ingenAnleggsvurdering ? 'Ingen vurdering' : kontrollorVurderingSum !== null ? `Sum ${kontrollorVurderingSum}` : 'Påkrevd før fullføring'}{kritiskFeil ? ' · kritisk feil' : ''}</span>
+        </button>
+        {visVurdering && (
+          <div className="p-4 space-y-4">
+            <div className="grid sm:grid-cols-[160px_1fr] gap-4">
+              <div className="space-y-1.5">
+                <label htmlFor="fg-sum" className="block text-sm font-medium text-gray-900 dark:text-white">Kontrollørens vurdering <span className="text-red-500">*</span></label>
+                <input id="fg-sum" type="number" min={0} max={100} inputMode="numeric" value={kontrollorVurderingSum ?? ''} onChange={e => { setKontrollorVurderingSum(e.target.value === '' ? null : Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0))); setHasUnsavedChanges(true) }} placeholder="0–100" disabled={ingenAnleggsvurdering} className={cn('input', vurderingMangler && !vurderingOk && '!border-red-400')} />
+                <button type="button" onClick={() => { setKontrollorVurderingSum(Math.round(sluttScore)); setHasUnsavedChanges(true) }} disabled={ingenAnleggsvurdering} className="text-xs text-primary hover:underline disabled:opacity-40">Bruk beregnet {Math.round(sluttScore)}</button>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="fg-vk" className="block text-sm font-medium text-gray-900 dark:text-white">Kommentar til vurderingen</label>
+                <textarea id="fg-vk" value={kontrollorVurderingKommentar} onChange={e => { setKontrollorVurderingKommentar(e.target.value); setHasUnsavedChanges(true) }} rows={3} placeholder="Begrunnelse, helhetsinntrykk …" className="input !h-auto" />
               </div>
             </div>
-          )
-      })()}
-
-      {/* Referanse Dialog */}
-      {showReferanseDialog && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowReferanseDialog(null)}
-        >
-          <div 
-            className="bg-gray-900 rounded-lg border border-gray-700 max-w-lg w-full p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-white mb-1">Referanse NS 3960</h3>
-                <p className="text-sm text-gray-400">{showReferanseDialog}</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2 p-3 rounded-lg border border-gray-200 dark:border-gray-800">
+                <label className="flex items-center gap-2.5 text-sm font-medium text-gray-900 dark:text-white cursor-pointer"><input type="checkbox" checked={ingenAnleggsvurdering} onChange={e => { setIngenAnleggsvurdering(e.target.checked); setHasUnsavedChanges(true) }} className="w-4 h-4 rounded text-primary focus:ring-primary" />Ingen anleggsvurdering</label>
+                {ingenAnleggsvurdering && <textarea value={ingenAnleggsvurderingKommentar} onChange={e => { setIngenAnleggsvurderingKommentar(e.target.value); setHasUnsavedChanges(true) }} rows={2} placeholder="Hvorfor ikke?" className="input !h-auto text-sm" />}
               </div>
-              <button
-                onClick={() => setShowReferanseDialog(null)}
-                className="p-1 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-            
-            <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-              <p className="text-sm text-gray-300 mb-2">
-                <span className="font-semibold text-blue-400">Referanse:</span>
-              </p>
-              <p className="text-white font-mono text-sm">
-                {KONTROLLPUNKT_REFERANSER[showReferanseDialog]}
-              </p>
-            </div>
-
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() => setShowReferanseDialog(null)}
-                className="btn-secondary"
-              >
-                Lukk
-              </button>
+              <div className={cn('space-y-2 p-3 rounded-lg border', kritiskFeil ? 'border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10' : 'border-gray-200 dark:border-gray-800')}>
+                <label className="flex items-center gap-2.5 text-sm font-medium text-gray-900 dark:text-white cursor-pointer"><input type="checkbox" checked={kritiskFeil} onChange={e => { setKritiskFeil(e.target.checked); setHasUnsavedChanges(true) }} className="w-4 h-4 rounded text-red-600 focus:ring-red-500" />Kritisk funksjonsfeil</label>
+                {kritiskFeil && <textarea value={kritiskFeilKommentar} onChange={e => { setKritiskFeilKommentar(e.target.value); setHasUnsavedChanges(true) }} rows={2} placeholder="Beskriv feilen" className="input !h-auto text-sm" />}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </section>
+
+      <div className="fixed bottom-0 left-0 right-0 lg:left-[var(--sidebar-w)] z-20 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-gray-800 px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
+        <span className="text-sm text-gray-500 dark:text-gray-400 mr-auto tabular-nums">{gjenstar > 0 ? `${gjenstar} punkter gjenstår` : 'Alle punkter vurdert'}{avvikPunkter ? ` · ${avvikPunkter} avvik` : ''}{!vurderingOk ? ' · vurdering mangler' : ''}</span>
+        <Button variant="ghost" loading={saving} disabled={!hasUnsavedChanges} onClick={() => handleSave(false)}><span className="hidden sm:inline">Lagre nå</span><span className="sm:hidden">Lagre</span></Button>
+        <Button variant="primary" icon={<ClipboardCheck />} loading={saving} onClick={fullfor}>Fullfør og lag rapport</Button>
+      </div>
     </div>
   )
+}
+
+function Rad({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="grid sm:grid-cols-[150px_1fr] gap-1 sm:gap-3 items-start"><span className="text-xs font-medium text-gray-500 dark:text-gray-400 sm:pt-2">{label}</span><div>{children}</div></div>
+}
+
+/** AG0 0 · AG1 0,5 · AG2 0,8 · AG3 2 · AGIU 0 */
+function AgVelger({ verdi, onVelg }: { verdi: string | null; onVelg: (ag: { verdi: string; poeng: number; beskrivelse: string }) => void }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap gap-1.5">
+        {AG_VERDIER.map(ag => (
+          <button key={ag.verdi} type="button" onClick={() => onVelg(ag)} aria-pressed={verdi === ag.verdi} title={ag.beskrivelse}
+            className={cn('h-9 px-3 rounded-lg border text-sm font-semibold inline-flex items-center gap-1.5', verdi === ag.verdi ? (ag.poeng === 0 ? 'bg-green-500 border-green-500 text-white' : ag.poeng < 1 ? 'bg-yellow-500 border-yellow-500 text-white' : 'bg-red-500 border-red-500 text-white') : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400')}>
+            {ag.verdi}<span className="text-xs font-normal opacity-80">{ag.poeng ? `−${ag.poeng}` : '0'}</span>
+          </button>
+        ))}
+      </div>
+      {verdi && <p className="text-xs text-gray-500 dark:text-gray-400">{AG_VERDIER.find(a => a.verdi === verdi)?.beskrivelse}</p>}
+    </div>
+  )
+}
+
+function Chip({ aktiv, onClick, children }: { aktiv: boolean; onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" onClick={onClick} aria-pressed={aktiv} className={cn('inline-flex items-center gap-2 h-[32px] px-3 rounded-full border text-sm whitespace-nowrap flex-shrink-0 transition-colors [&>b]:font-bold [&>b]:tabular-nums', aktiv ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500')}>{children}</button>
 }
