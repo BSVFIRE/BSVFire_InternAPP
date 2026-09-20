@@ -8,6 +8,8 @@ import { logger } from './logger'
 export function setupErrorTracking() {
   // Catch unhandled errors
   window.addEventListener('error', (event) => {
+    // Ufarlig nettleseradvarsel (kommer ved layout-endringer), ikke en feil i appen
+    if (typeof event.message === 'string' && event.message.includes('ResizeObserver loop')) return
     logger.error('Unhandled error', {
       message: event.message,
       filename: event.filename,

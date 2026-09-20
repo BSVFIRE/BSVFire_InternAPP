@@ -79,17 +79,17 @@ async function saveLogToDatabase(
     // Don't save logs in test mode
     if (isTest) return
 
-    // Get current user info (but don't wait for it to avoid blocking)
+    // Bruk sesjonen som ligger lokalt – aldri getUser() her: det er et nettverkskall mot /auth/v1/user som
+    // svarer 403 uten gyldig sesjon og kan nullstille en innlogging som nettopp er gjort.
     let user_id: string | null = null
     let user_email: string | null = null
-    
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      user_id = user?.id || null
-      user_email = user?.email || null
-    } catch (err) {
-      // If we can't get user info, continue without it
-      originalConsole.debug('Could not get user info for logging:', err)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return // uinnlogget: RLS avviser uansett, ikke støy i konsollen
+      user_id = session.user.id
+      user_email = session.user.email ?? null
+    } catch {
+      return
     }
     
     // Prepare log entry
