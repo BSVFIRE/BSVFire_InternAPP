@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, Edit, Mail, MoreHorizontal, Phone, Plus, Search, Star, Trash2, X } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, Edit, Mail, Merge, MoreHorizontal, Phone, Plus, Search, Star, Trash2, X } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { createLogger } from '@/lib/logger'
@@ -13,14 +13,17 @@ import { DropdownMenu, MenuItem } from '@/components/ui/DropdownMenu'
 import { NyKontaktDialog } from './NyKontaktDialog'
 import { initialer } from './kontaktSkjema'
 import { slettKontaktperson } from './slettKontakt'
+import { SlaSammenDialog, type SammenslaingRad } from './SlaSammenDialog'
 
 const log = createLogger('KontaktListe')
 const SIDE = 25
 
-type Rad = Pick<Tables<'kontaktpersoner'>, 'id' | 'navn' | 'epost' | 'telefon' | 'rolle' | 'created_at'> & {
+type Rad = Pick<Tables<'kontaktpersoner'>, 'id' | 'navn' | 'epost' | 'telefon' | 'rolle' | 'created_at' | 'anlegg_id'> & {
   anlegg: { id: string; navn: string; primar: boolean }[]
   kunder: string[]
   duplikat: boolean
+  /** Nøkkel som samler kort som trolig er samme person */
+  gruppe: string | null
 }
 type Chip = 'alle' | 'uten_anlegg' | 'kundekontakt' | 'mangler' | 'duplikater'
 type SortKey = 'navn' | 'rolle' | 'anlegg'
@@ -34,6 +37,7 @@ export default function KontaktListe() {
   const [feil, setFeil] = useState<string | null>(null)
   const [visAntall, setVisAntall] = useState(SIDE)
   const [visNy, setVisNy] = useState(false)
+  const [slaSammen, setSlaSammen] = useState<Rad[] | null>(null)
   const sokRef = useRef<HTMLInputElement>(null)
 
   const q = params.get('q') ?? ''
@@ -58,7 +62,7 @@ export default function KontaktListe() {
     try {
       setFeil(null)
       const [k, kob, ku] = await Promise.all([
-        db.from('kontaktpersoner').select('id, navn, epost, telefon, rolle, created_at').order('navn'),
+        db.from('kontaktpersoner').select('id, navn, epost, telefon, rolle, created_at, anlegg_id').order('navn'),
         db.from('anlegg_kontaktpersoner').select('kontaktperson_id, primar, anlegg:anlegg_id(id, anleggsnavn, skjult)'),
         db.from('customer').select('navn, kontaktperson_id').not('kontaktperson_id', 'is', null),
       ])
@@ -81,6 +85,7 @@ export default function KontaktListe() {
         anlegg: (anleggMap.get(r.id) ?? []).sort((a, b) => Number(b.primar) - Number(a.primar) || a.navn.localeCompare(b.navn, 'nb-NO')),
         kunder: kundeMap.get(r.id) ?? [],
         duplikat: nokkel(r).some(n => n && (nokler.get(n) ?? 0) > 1),
+        gruppe: nokkel(r).find(n => n && (nokler.get(n) ?? 0) > 1) ?? null,
       })))
     } catch (err) {
       log.error('Kunne ikke laste kontaktpersoner', { error: err })
@@ -161,9 +166,10 @@ export default function KontaktListe() {
         <Chip aktiv={chip === 'kundekontakt'} onClick={() => setParam('f', 'kundekontakt')}>Kundekontakt <b>{teller.kundekontakt}</b></Chip>
         <Chip aktiv={chip === 'uten_anlegg'} onClick={() => setParam('f', 'uten_anlegg')}>Ikke knyttet til noe <b>{teller.uten_anlegg}</b></Chip>
         <Chip aktiv={chip === 'mangler'} onClick={() => setParam('f', 'mangler')}>Mangler telefon/e-post <b>{teller.mangler}</b></Chip>
-        {teller.duplikater > 0 && <Chip aktiv={chip === 'duplikater'} onClick={() => setParam('f', 'duplikater')}>Mulige duplikater <b>{teller.duplikater}</b></Chip>}
+        {teller.duplikater > 0 && <Chip aktiv={chip === 'duplikater'} onClick={() => setParam('f', 'duplikater')}>Samme person, flere kort <b>{teller.duplikater}</b></Chip>}
       </div>
 
+      {chip === 'duplikater' && <p className="text-sm text-gray-600 dark:text-gray-400 -mt-1">Kort med samme navn eller e-post. En person skal ha <b>ett</b> kort som er knyttet til alle sine anlegg – trykk på «n kort» for å slå dem sammen.</p>}
       <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
         <span>{loading ? '' : <>Viser <b className="text-gray-900 dark:text-white tabular-nums">{Math.min(visAntall, filtrert.length)}</b> av {filtrert.length}</>}</span>
         {harFilter && <button type="button" onClick={() => setParams(new URLSearchParams(), { replace: true })} className="text-primary hover:underline inline-flex items-center gap-1"><X className="w-3.5 h-3.5" />Nullstill filtre</button>}
@@ -191,7 +197,7 @@ export default function KontaktListe() {
                     <td className="px-3.5 py-2.5">
                       <div className="flex items-center gap-2.5">
                         <span className="w-8 h-8 rounded-full bg-gray-100 dark:bg-dark-100 text-gray-900 dark:text-white text-[11px] font-semibold flex items-center justify-center flex-shrink-0">{initialer(r.navn)}</span>
-                        <span className="font-semibold text-gray-900 dark:text-white">{r.navn}{r.duplikat && <span className="ml-2 text-[11px] font-medium px-1.5 py-px rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Duplikat?</span>}</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{r.navn}{r.duplikat && <button type="button" onClick={e => { e.stopPropagation(); setSlaSammen(rader.filter(x => x.gruppe && x.gruppe === r.gruppe)) }} title="Flere kort for samme person – slå sammen" className="ml-2 text-[11px] font-medium px-1.5 py-px rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 hover:bg-yellow-200 inline-flex items-center gap-1"><Merge className="w-3 h-3" />{rader.filter(x => x.gruppe && x.gruppe === r.gruppe).length} kort</button>}</span>
                       </div>
                     </td>
                     <td className="px-3.5 py-2.5 text-gray-700 dark:text-gray-300">{r.rolle ?? <span className="text-gray-400">–</span>}</td>
@@ -202,6 +208,7 @@ export default function KontaktListe() {
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
                         <IconButton variant="ghost" label="Rediger" icon={<Edit />} onClick={() => navigate(`/kontaktpersoner/${r.id}/rediger`)} className="w-8 h-8" />
                         <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+                          {r.duplikat && <MenuItem icon={<Merge />} onSelect={() => setSlaSammen(rader.filter(x => x.gruppe && x.gruppe === r.gruppe))}>Slå sammen kortene…</MenuItem>}
                           <MenuItem icon={<Trash2 />} danger onSelect={() => slett(r)}>Slett kontaktperson…</MenuItem>
                         </DropdownMenu>
                       </div>
@@ -230,6 +237,7 @@ export default function KontaktListe() {
       )}
 
       {visNy && <NyKontaktDialog onClose={() => setVisNy(false)} />}
+      {slaSammen && <SlaSammenDialog rader={slaSammen as SammenslaingRad[]} onClose={() => setSlaSammen(null)} onFerdig={last} />}
     </div>
   )
 }
