@@ -1,7 +1,20 @@
-import { useEffect, useState } from 'react'
+/**
+ * Brannalarm – enheter på anlegget.
+ * Viser bare enhetstypene som finnes på anlegget, gruppert. «Legg til enhet» åpner en dialog
+ * med enhetstype → type/modell (forslag fra andre anlegg) → antall. Alt lagres fortløpende.
+ *
+ * Datamodell (én rad i anleggsdata_brannalarm per anlegg): {key}_aktiv, {key}_antall (sum),
+ * {key}_type (JSON-array av {type, antall}), {key}_note.
+ */
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowLeft, Check, Minus, MoreHorizontal, Plus, Search, StickyNote, Trash2, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Check, AlertCircle, Eye, Filter, Wifi, WifiOff, Plus, Minus, Save } from 'lucide-react'
-import { BrannalarmStyring } from '../Brannalarm'
+import { toast } from '@/lib/toast'
+import { cn } from '@/lib/utils'
+import { useOfflineQueue } from '@/hooks/useOffline'
+import { Button, IconButton } from '@/components/ui/Button'
+import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
+import type { BrannalarmStyring } from '../Brannalarm'
 
 interface EnheterViewProps {
   anleggId: string
@@ -11,16 +24,13 @@ interface EnheterViewProps {
   onSave: (anleggId: string) => void
 }
 
-const enhetsTyper = [
-  // Sentral og styring
+export const ENHETSTYPER = [
   { key: 'brannsentral', navn: 'Brannsentral', icon: '🏢', kategori: 'Sentral og styring' },
   { key: 'panel', navn: 'Brannpanel', icon: '🎛️', kategori: 'Sentral og styring' },
   { key: 'kraftforsyning', navn: 'Kraftforsyning', icon: '⚡', kategori: 'Sentral og styring' },
   { key: 'batteri', navn: 'Batteri', icon: '🔋', kategori: 'Sentral og styring' },
   { key: 'sloyfer', navn: 'Sløyfer', icon: '🔗', kategori: 'Sentral og styring' },
   { key: 'io', navn: 'IO-styring', icon: '🔌', kategori: 'Sentral og styring' },
-  
-  // Detektorer
   { key: 'rd', navn: 'Røykdetektor', icon: '🔍', kategori: 'Detektorer' },
   { key: 'vd', navn: 'Varmedetektor', icon: '🌡️', kategori: 'Detektorer' },
   { key: 'multi', navn: 'Multikriteriedetektor', icon: '🔍', kategori: 'Detektorer' },
@@ -29,660 +39,307 @@ const enhetsTyper = [
   { key: 'asp', navn: 'Aspirasjon', icon: '💨', kategori: 'Detektorer' },
   { key: 'mm', navn: 'Manuell melder', icon: '🔔', kategori: 'Detektorer' },
   { key: 'traadlos', navn: 'Trådløse enheter', icon: '📡', kategori: 'Detektorer' },
-  
-  // Styring og slokning
   { key: 'sprinkler', navn: 'Sprinklerkontroll', icon: '💦', kategori: 'Styring og slokning' },
   { key: 'avstiller', navn: 'Avstillingsbryter', icon: '🔘', kategori: 'Styring og slokning' },
-  
-  // Varsling
   { key: 'brannklokke', navn: 'Brannklokke', icon: '🔔', kategori: 'Varsling' },
   { key: 'sirene', navn: 'Sirene', icon: '🔊', kategori: 'Varsling' },
   { key: 'optisk', navn: 'Optisk varsling', icon: '👁️', kategori: 'Varsling' },
   { key: 'annet', navn: 'Annet', icon: '📝', kategori: 'Annet' },
-]
+] as const
+type EnhetKey = typeof ENHETSTYPER[number]['key']
+const KATEGORIER = Array.from(new Set(ENHETSTYPER.map(e => e.kategori)))
+
+interface TypeRad { type: string; antall: number }
+interface Enhet { aktiv: boolean; typer: TypeRad[]; note: string }
+
+/** {key}_type kan være gammelt format (ren tekst) eller JSON-array */
+export function parseTyper(raw: unknown, antall: number): TypeRad[] {
+  if (typeof raw !== 'string' || !raw) return []
+  if (raw.startsWith('[')) { try { return (JSON.parse(raw) as TypeRad[]).map(t => ({ type: t.type ?? '', antall: Number(t.antall) || 0 })) } catch { /* faller gjennom */ } }
+  return [{ type: raw, antall: antall || 1 }]
+}
+
+function lesEnheter(rad: BrannalarmStyring | null): Record<string, Enhet> {
+  const r = (rad ?? {}) as Record<string, unknown>
+  const ut: Record<string, Enhet> = {}
+  for (const { key } of ENHETSTYPER) {
+    const antall = Number(r[`${key}_antall`] ?? 0) || 0
+    ut[key] = { aktiv: Boolean(r[`${key}_aktiv`]), typer: parseTyper(r[`${key}_type`], antall), note: String(r[`${key}_note`] ?? '') }
+  }
+  return ut
+}
+
+function tilKolonner(key: string, e: Enhet): Record<string, unknown> {
+  return {
+    [`${key}_aktiv`]: e.aktiv,
+    [`${key}_antall`]: e.typer.reduce((s, t) => s + (t.antall || 0), 0),
+    [`${key}_type`]: e.typer.length ? JSON.stringify(e.typer) : '',
+    [`${key}_note`]: e.note || '',
+  }
+}
 
 export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: EnheterViewProps) {
-  const [localEnheter, setLocalEnheter] = useState<Record<string, any>>({})
-  const [saving, setSaving] = useState(false)
-  const [filterKategori, setFilterKategori] = useState<string>('all')
-  const [viewMode, setViewMode] = useState<'compact' | 'detailed'>('compact')
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const [pendingChanges, setPendingChanges] = useState(0)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [expandedKey, setExpandedKey] = useState<string | null>(null)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [initialEnheter, setInitialEnheter] = useState<Record<string, any>>({})
-  const localStorageKey = `enheter_offline_${anleggId}`
+  const { isOnline, queueUpdate } = useOfflineQueue()
+  const [data, setData] = useState<Record<string, Enhet>>(() => lesEnheter(enheter))
+  const [radId, setRadId] = useState<string | undefined>(enheter?.id)
+  const [lagrer, setLagrer] = useState<Set<string>>(new Set())
+  const [visDialog, setVisDialog] = useState<{ key?: EnhetKey } | null>(null)
+  const [notatApen, setNotatApen] = useState<Set<string>>(new Set())
 
-  useEffect(() => {
-    const initial: Record<string, any> = {}
-    enhetsTyper.forEach(({ key }) => {
-      const existingType = enheter?.[`${key}_type` as keyof BrannalarmStyring] || ''
-      const existingAntall = enheter?.[`${key}_antall` as keyof BrannalarmStyring] || 0
-      
-      // Parse existing types - støtter både gammelt format (string) og nytt format (JSON array)
-      let typer: { type: string; antall: number }[] = []
-      if (typeof existingType === 'string' && existingType.startsWith('[')) {
-        try {
-          typer = JSON.parse(existingType)
-        } catch {
-          typer = existingType ? [{ type: existingType, antall: existingAntall as number }] : []
-        }
-      } else if (existingType) {
-        typer = [{ type: existingType as string, antall: existingAntall as number }]
-      }
-      
-      initial[key] = {
-        antall: existingAntall,
-        type: existingType,
-        typer: typer,
-        note: enheter?.[`${key}_note` as keyof BrannalarmStyring] || '',
-        aktiv: enheter?.[`${key}_aktiv` as keyof BrannalarmStyring] || false,
-      }
-    })
-    setLocalEnheter(initial)
-    setInitialEnheter(initial)
-  }, [enheter])
+  // Ta inn ny rad-id etter første insert; ellers er lokal state sannheten mens vi er på siden
+  useEffect(() => { if (enheter?.id && enheter.id !== radId) { setRadId(enheter.id); setData(lesEnheter(enheter)) } }, [enheter, radId])
 
-  // Sjekk om det er ulagrede endringer
-  useEffect(() => {
-    const hasChanges = JSON.stringify(localEnheter) !== JSON.stringify(initialEnheter)
-    setHasUnsavedChanges(hasChanges && Object.keys(initialEnheter).length > 0)
-  }, [localEnheter, initialEnheter])
+  const aktive = ENHETSTYPER.filter(e => data[e.key]?.aktiv)
+  const totalt = aktive.reduce((s, e) => s + data[e.key].typer.reduce((x, t) => x + (t.antall || 0), 0), 0)
 
-  // Advarsel ved navigering bort (browser)
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
-        e.preventDefault()
-        e.returnValue = ''
+  /** Lagrer én enhetstype (alle fire kolonner). Oppretter raden hvis anlegget ikke har en. */
+  async function lagre(key: string, ny: Enhet) {
+    const forrige = data[key]
+    setData(prev => ({ ...prev, [key]: ny }))
+    const kolonner = tilKolonner(key, ny)
+    if (!isOnline) { if (radId) queueUpdate('anleggsdata_brannalarm', { id: radId, ...kolonner }); else toast.warning('Offline – kunne ikke opprette anleggsdata. Prøv igjen på nett.'); return }
+    setLagrer(prev => new Set(prev).add(key))
+    const res = radId
+      ? await supabase.from('anleggsdata_brannalarm').update(kolonner).eq('id', radId)
+      : await supabase.from('anleggsdata_brannalarm').insert({ anlegg_id: anleggId, ...kolonner }).select('id').single()
+    setLagrer(prev => { const n = new Set(prev); n.delete(key); return n })
+    if (res.error) { setData(prev => ({ ...prev, [key]: forrige })); toast.error('Kunne ikke lagre', res.error); return }
+    if (!radId && 'data' in res && res.data) setRadId((res.data as { id: string }).id)
+    // Brannsentral/panel: navneendring på type følger med til nettverkslisten
+    if ((key === 'brannsentral' || key === 'panel') && forrige) {
+      for (let i = 0; i < Math.min(forrige.typer.length, ny.typer.length); i++) {
+        const a = forrige.typer[i].type, b = ny.typer[i].type
+        if (a && b && a !== b) await supabase.from('nettverk_brannalarm').update({ type: b }).eq('anlegg_id', anleggId).eq('type', a)
       }
     }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges])
-
-  // Online/offline event listeners
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true)
-      syncOfflineData()
-    }
-    
-    const handleOffline = () => {
-      setIsOnline(false)
-    }
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
-    // Sjekk om det er pending data ved mount
-    const stored = localStorage.getItem(localStorageKey)
-    if (stored && navigator.onLine) {
-      syncOfflineData()
-    }
-
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [anleggId])
-
-  async function syncOfflineData() {
-    const stored = localStorage.getItem(localStorageKey)
-    if (!stored) return
-
-    try {
-      setSaving(true)
-      const data = JSON.parse(stored)
-
-      if (enheter?.id) {
-        await supabase
-          .from('anleggsdata_brannalarm')
-          .update(data)
-          .eq('id', enheter.id)
-      } else {
-        await supabase
-          .from('anleggsdata_brannalarm')
-          .insert(data)
-      }
-
-      localStorage.removeItem(localStorageKey)
-      setPendingChanges(0)
-      setLastSaved(new Date())
-      onSave(anleggId)
-    } catch (error) {
-      console.error('Feil ved synkronisering:', error)
-    } finally {
-      setSaving(false)
-    }
+    onSave(anleggId)
   }
 
-  async function handleSave() {
-    setSaving(true)
-    try {
-      const data: any = { anlegg_id: anleggId }
-      
-      // Samle opp type-endringer for synkronisering til nettverk
-      const typeChanges: { oldType: string; newType: string; category: string }[] = []
-      
-      enhetsTyper.forEach(({ key }) => {
-        const newTyper = localEnheter[key]?.typer || []
-        const oldTyper = initialEnheter[key]?.typer || []
-        
-        // Sjekk om typer har endret seg (for brannsentral og panel)
-        if (key === 'brannsentral' || key === 'panel') {
-          oldTyper.forEach((oldItem: { type: string; antall: number }, index: number) => {
-            const newItem = newTyper[index]
-            if (newItem && oldItem.type && newItem.type && oldItem.type !== newItem.type) {
-              typeChanges.push({
-                oldType: oldItem.type,
-                newType: newItem.type,
-                category: key
-              })
-            }
-          })
-        }
-        
-        data[`${key}_antall`] = localEnheter[key]?.antall || 0
-        data[`${key}_type`] = localEnheter[key]?.type || ''
-        data[`${key}_note`] = localEnheter[key]?.note || ''
-        data[`${key}_aktiv`] = localEnheter[key]?.aktiv || false
-      })
-
-      if (isOnline) {
-        // Online: lagre direkte til database
-        if (enheter?.id) {
-          await supabase
-            .from('anleggsdata_brannalarm')
-            .update(data)
-            .eq('id', enheter.id)
-        } else {
-          await supabase
-            .from('anleggsdata_brannalarm')
-            .insert(data)
-        }
-        
-        // Synkroniser type-endringer til nettverk
-        for (const change of typeChanges) {
-          await supabase
-            .from('nettverk_brannalarm')
-            .update({ type: change.newType })
-            .eq('anlegg_id', anleggId)
-            .eq('type', change.oldType)
-        }
-        
-        setLastSaved(new Date())
-        setInitialEnheter(localEnheter) // Reset ulagrede endringer
-        onSave(anleggId)
-      } else {
-        // Offline: lagre lokalt
-        localStorage.setItem(localStorageKey, JSON.stringify(data))
-        setPendingChanges(1)
-        setInitialEnheter(localEnheter) // Reset ulagrede endringer
-        alert('Offline - data lagret lokalt og vil synkroniseres når du er online igjen')
-      }
-    } catch (error) {
-      console.error('Feil ved lagring:', error)
-      alert('Feil ved lagring av enheter')
-    } finally {
-      setSaving(false)
-    }
+  function oppdaterType(key: string, idx: number, patch: Partial<TypeRad>) {
+    const e = data[key]; const typer = e.typer.map((t, i) => i === idx ? { ...t, ...patch } : t)
+    lagre(key, { ...e, typer })
   }
-
-  const kategorier = ['all', ...Array.from(new Set(enhetsTyper.map(e => e.kategori)))]
-  
-  const filteredEnheter = enhetsTyper.filter(({ kategori }) => {
-    if (filterKategori === 'all') return true
-    return kategori === filterKategori
-  })
-
-  const aktiveEnheter = enhetsTyper.filter(({ key }) => localEnheter[key]?.aktiv).length
-  const totalKomponenter = enhetsTyper.reduce((sum, { key }) => 
-    sum + (localEnheter[key]?.antall || 0), 0
-  )
+  function fjernType(key: string, idx: number) {
+    const e = data[key]; const typer = e.typer.filter((_, i) => i !== idx)
+    lagre(key, { ...e, typer, aktiv: typer.length > 0 })
+  }
+  function fjernEnhet(key: string, navn: string) {
+    if (!confirm(`Fjerne ${navn} fra anlegget? Registrerte typer og antall slettes.`)) return
+    lagre(key, { aktiv: false, typer: [], note: '' })
+  }
+  function leggTil(key: string, type: string, antall: number, note: string) {
+    const e = data[key] ?? { aktiv: false, typer: [], note: '' }
+    const eksisterende = e.typer.findIndex(t => t.type.trim().toLowerCase() === type.trim().toLowerCase())
+    const typer = eksisterende >= 0 ? e.typer.map((t, i) => i === eksisterende ? { ...t, antall: t.antall + antall } : t) : [...e.typer, { type: type.trim(), antall }]
+    lagre(key, { aktiv: true, typer, note: note || e.note })
+    const navn = ENHETSTYPER.find(x => x.key === key)?.navn ?? key
+    toast.success(eksisterende >= 0 ? `${antall} lagt til på ${type}` : `${navn}: ${type || 'uten type'} × ${antall} lagt til`)
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <button 
-            onClick={() => {
-              if (hasUnsavedChanges) {
-                if (!confirm('⚠️ Du har ulagrede endringer!\n\nVil du lagre før du går tilbake?')) {
-                  if (confirm('Er du sikker på at du vil forkaste endringene?')) {
-                    onBack()
-                  }
-                } else {
-                  handleSave()
-                }
-              } else {
-                onBack()
-              }
-            }} 
-            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors flex-shrink-0"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
-          </button>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Brannalarm enheter</h1>
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 truncate">{anleggsNavn}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          {/* Online/Offline status */}
-          <div className="flex items-center gap-2">
-            {isOnline ? (
-              <>
-                <Wifi className="w-4 h-4 text-green-400" />
-                <span className="text-xs sm:text-sm text-green-400">Online</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-4 h-4 text-yellow-400" />
-                <span className="text-xs sm:text-sm text-yellow-400">Offline</span>
-              </>
-            )}
-          </div>
-          
-          {/* Pending changes */}
-          {pendingChanges > 0 && (
-            <span className="text-xs sm:text-sm text-orange-400 flex items-center gap-2">
-              {pendingChanges} endring venter
-            </span>
-          )}
-          
-          {/* Lagringsstatus */}
-          {saving && (
-            <span className="text-xs sm:text-sm text-gray-400 flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-              <span className="hidden sm:inline">{isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}</span>
-            </span>
-          )}
-          {!saving && lastSaved && pendingChanges === 0 && (
-            <span className="text-xs sm:text-sm text-green-400 hidden sm:inline">
-              Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
-          
-          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 text-sm sm:text-base min-w-[44px] justify-center">
-            {saving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span className="hidden sm:inline">Lagrer...</span>
-              </>
-            ) : (
-              <>
-                <Check className="w-5 h-5" />
-                <span className="hidden sm:inline">Lagre</span>
-              </>
-            )}
-          </button>
-        </div>
+    <div className="space-y-4 pb-10">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Brannalarm</button>
+        <span className="hidden sm:inline">/</span><span className="hidden sm:inline text-gray-900 dark:text-white truncate">{anleggsNavn}</span>
       </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <div className="card bg-blue-500/10 border-blue-500/20">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <Check className="w-6 h-6 text-blue-400" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs text-gray-400 truncate">Totalt komponenter</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{totalKomponenter}</div>
-            </div>
-          </div>
+      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Enheter</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{aktive.length ? `${aktive.length} enhetstyper · ${totalt} enheter totalt` : 'Ingen enheter registrert ennå'}{!isOnline ? ' · offline' : ''}</p>
         </div>
+        <Button variant="primary" icon={<Plus />} onClick={() => setVisDialog({})}>Legg til enhet</Button>
+      </header>
 
-        <div className="card bg-green-500/10 border-green-500/20">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
-              <AlertCircle className="w-6 h-6 text-green-400" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs text-gray-400 truncate">Aktive enhetstyper</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{aktiveEnheter}</div>
-            </div>
-          </div>
+      {aktive.length === 0 ? (
+        <div className="card text-center py-12 space-y-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Registrer hva som finnes på anlegget: sentral, detektorer, meldere, varsling …</p>
+          <Button variant="primary" icon={<Plus />} onClick={() => setVisDialog({})}>Legg til første enhet</Button>
         </div>
-
-        <div className="card bg-gray-500/10 border-gray-500/20 col-span-2 sm:col-span-1">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg bg-gray-500/20 flex items-center justify-center flex-shrink-0">
-              <Eye className="w-6 h-6 text-gray-400" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs text-gray-400 truncate">Enhetstyper</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{enhetsTyper.length}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters and View Toggle */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div className="flex items-center gap-2 flex-wrap overflow-x-auto pb-2 sm:pb-0">
-          <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          {kategorier.map((kat) => (
-            <button
-              key={kat}
-              onClick={() => setFilterKategori(kat)}
-              className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors whitespace-nowrap ${
-                filterKategori === kat ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              {kat === 'all' ? 'Alle' : kat}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={() => setViewMode('compact')}
-            className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              viewMode === 'compact' 
-                ? 'bg-primary text-white shadow-sm' 
-                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700'
-            }`}
-          >
-            Kompakt
-          </button>
-          <button
-            onClick={() => setViewMode('detailed')}
-            className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              viewMode === 'detailed' 
-                ? 'bg-primary text-white shadow-sm' 
-                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700'
-            }`}
-          >
-            Detaljert
-          </button>
-        </div>
-      </div>
-
-      {/* Enheter Table/Grid */}
-      {viewMode === 'compact' ? (
-        /* KOMPAKT: Klikk for å ekspandere detaljer */
-        <div className="space-y-2 pb-24">
-          {filteredEnheter.map(({ key, navn, icon }) => {
-            const isActive = localEnheter[key]?.aktiv || false
-            const antall = localEnheter[key]?.antall || 0
-            const isExpanded = expandedKey === key && isActive
-            
-            return (
-              <div 
-                key={key} 
-                className={`rounded-xl border transition-all ${
-                  isActive 
-                    ? 'border-primary/30 bg-primary/5' 
-                    : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-dark-50'
-                }`}
-              >
-                {/* Hovedrad - alltid synlig */}
-                <div className="flex items-center gap-3 p-3">
-                  <span className="text-xl flex-shrink-0">{icon}</span>
-                  
-                  {/* Klikk på navn for å ekspandere */}
-                  <button
-                    onClick={() => {
-                      if (isActive) {
-                        setExpandedKey(expandedKey === key ? null : key)
-                      }
-                    }}
-                    className={`font-medium text-sm flex-1 text-left truncate ${
-                      isActive 
-                        ? 'text-gray-900 dark:text-white cursor-pointer hover:text-primary' 
-                        : 'text-gray-500 dark:text-gray-400 cursor-default'
-                    }`}
-                  >
-                    {navn}
-                    {isActive && <span className="ml-1 text-xs text-gray-400">{isExpanded ? '▲' : '▼'}</span>}
-                  </button>
-                  
-                  {/* Toggle */}
-                  <button
-                    onClick={() => {
-                      const wasActive = localEnheter[key]?.aktiv
-                      const currentTyper = localEnheter[key]?.typer || []
-                      setLocalEnheter(prev => ({
-                        ...prev,
-                        [key]: { 
-                          ...prev[key], 
-                          aktiv: !wasActive,
-                          typer: !wasActive && currentTyper.length === 0 ? [{ type: '', antall: 1 }] : currentTyper,
-                          antall: !wasActive && currentTyper.length === 0 ? 1 : prev[key]?.antall || 0
-                        }
-                      }))
-                      if (!isActive) {
-                        setExpandedKey(key)
-                      }
-                    }}
-                    className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 ${
-                      isActive ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700'
-                    }`}
-                  >
-                    <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
-                      isActive ? 'translate-x-5' : 'translate-x-0.5'
-                    }`} />
-                  </button>
-                  
-                  {/* Antall visning - viser totalt antall fra alle typer */}
-                  <div className="flex items-center gap-2 flex-shrink-0 w-16 justify-end">
-                    {isActive && (
-                      <span className="px-3 py-1.5 bg-primary/10 text-primary font-semibold rounded-lg text-sm whitespace-nowrap">
-                        {antall} stk
-                      </span>
+      ) : KATEGORIER.map(kat => {
+        const iKat = aktive.filter(e => e.kategori === kat)
+        if (iKat.length === 0) return null
+        return (
+          <section key={kat} className="space-y-2" aria-label={kat}>
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-1">{kat}</h2>
+            {iKat.map(e => {
+              const d = data[e.key]
+              const sum = d.typer.reduce((s, t) => s + (t.antall || 0), 0)
+              return (
+                <div key={e.key} className="card !p-0 overflow-hidden">
+                  <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50 dark:bg-dark-100">
+                    <span className="text-lg leading-none" aria-hidden>{e.icon}</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{e.navn}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400 tabular-nums">{sum} stk</span>
+                    {lagrer.has(e.key) && <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-primary" />}
+                    <span className="ml-auto flex items-center gap-1">
+                      <IconButton variant="ghost" label="Legg til type/modell" icon={<Plus />} onClick={() => setVisDialog({ key: e.key })} className="w-8 h-8" />
+                      <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+                        <MenuItem icon={<StickyNote />} onSelect={() => setNotatApen(prev => { const n = new Set(prev); n.add(e.key); return n })}>{d.note ? 'Rediger notat' : 'Legg til notat'}</MenuItem>
+                        <MenuSeparator />
+                        <MenuItem icon={<Trash2 />} danger onSelect={() => fjernEnhet(e.key, e.navn)}>Fjern fra anlegget…</MenuItem>
+                      </DropdownMenu>
+                    </span>
+                  </div>
+                  <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {d.typer.map((t, idx) => (
+                      <div key={idx} className="flex items-center gap-2 px-4 py-2">
+                        <TypeFelt verdi={t.type} onLagre={v => oppdaterType(e.key, idx, { type: v })} />
+                        <Antall verdi={t.antall} onChange={v => oppdaterType(e.key, idx, { antall: v })} />
+                        <IconButton variant="ghost" label="Fjern" icon={<X />} onClick={() => fjernType(e.key, idx)} className="w-8 h-8 hover:!text-red-500" />
+                      </div>
+                    ))}
+                    {d.typer.length === 0 && <p className="px-4 py-2 text-sm text-gray-400">Ingen type/modell registrert – <button type="button" onClick={() => setVisDialog({ key: e.key })} className="text-primary hover:underline">legg til</button></p>}
+                    {(notatApen.has(e.key) || d.note) && (
+                      <div className="px-4 py-2 flex items-center gap-2">
+                        <StickyNote className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <TypeFelt verdi={d.note} placeholder="Notat (plassering, spesielle forhold …)" onLagre={v => lagre(e.key, { ...d, note: v })} autoFocus={notatApen.has(e.key) && !d.note} />
+                      </div>
                     )}
                   </div>
                 </div>
-                
-                {/* Ekspandert detaljer */}
-                {isExpanded && (
-                  <div className="px-3 pb-3 pt-2 border-t border-gray-200 dark:border-gray-800 space-y-3">
-                    {/* Type/modell liste */}
-                    <div className="space-y-2">
-                      {(localEnheter[key]?.typer || []).map((t: { type: string; antall: number }, idx: number) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={t.type}
-                            onChange={(e) => {
-                              const newTyper = [...(localEnheter[key]?.typer || [])]
-                              newTyper[idx] = { ...newTyper[idx], type: e.target.value }
-                              const totalAntall = newTyper.reduce((sum, item) => sum + (item.antall || 0), 0)
-                              setLocalEnheter(prev => ({
-                                ...prev,
-                                [key]: { ...prev[key], typer: newTyper, antall: totalAntall, type: JSON.stringify(newTyper) }
-                              }))
-                            }}
-                            placeholder="Type/modell..."
-                            className="input text-sm flex-1 h-10"
-                          />
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            value={t.antall || 0}
-                            onChange={(e) => {
-                              const newTyper = [...(localEnheter[key]?.typer || [])]
-                              newTyper[idx] = { ...newTyper[idx], antall: parseInt(e.target.value) || 0 }
-                              const totalAntall = newTyper.reduce((sum, item) => sum + (item.antall || 0), 0)
-                              setLocalEnheter(prev => ({
-                                ...prev,
-                                [key]: { ...prev[key], typer: newTyper, antall: totalAntall, type: JSON.stringify(newTyper) }
-                              }))
-                            }}
-                            className="w-14 h-10 text-center font-semibold text-gray-900 dark:text-white bg-white dark:bg-dark-100 border border-gray-200 dark:border-gray-700 rounded-lg"
-                          />
-                          <button
-                            onClick={() => {
-                              const newTyper = (localEnheter[key]?.typer || []).filter((_: any, i: number) => i !== idx)
-                              const totalAntall = newTyper.reduce((sum: number, item: { antall: number }) => sum + (item.antall || 0), 0)
-                              setLocalEnheter(prev => ({
-                                ...prev,
-                                [key]: { ...prev[key], typer: newTyper, antall: totalAntall, type: JSON.stringify(newTyper) }
-                              }))
-                            }}
-                            className="w-10 h-10 flex items-center justify-center text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          >
-                            <Minus className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                      <button
-                        onClick={() => {
-                          const newTyper = [...(localEnheter[key]?.typer || []), { type: '', antall: 1 }]
-                          const totalAntall = newTyper.reduce((sum, item) => sum + (item.antall || 0), 0)
-                          setLocalEnheter(prev => ({
-                            ...prev,
-                            [key]: { ...prev[key], typer: newTyper, antall: totalAntall, type: JSON.stringify(newTyper) }
-                          }))
-                        }}
-                        className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Legg til type/modell
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      value={localEnheter[key]?.note || ''}
-                      onChange={(e) => {
-                        setLocalEnheter(prev => ({
-                          ...prev,
-                          [key]: { ...prev[key], note: e.target.value }
-                        }))
-                      }}
-                      placeholder="Legg til notat..."
-                      className="input text-sm w-full h-11"
-                    />
+              )
+            })}
+          </section>
+        )
+      })}
+
+      {visDialog && <LeggTilDialog forhaandsvalgt={visDialog.key} data={data} onClose={() => setVisDialog(null)} onLeggTil={leggTil} />}
+    </div>
+  )
+}
+
+/** Tekstfelt som lagrer på blur/Enter */
+function TypeFelt({ verdi, onLagre, placeholder, autoFocus }: { verdi: string; onLagre: (v: string) => void; placeholder?: string; autoFocus?: boolean }) {
+  const [v, setV] = useState(verdi)
+  useEffect(() => setV(verdi), [verdi])
+  const lagre = () => { if (v.trim() !== verdi) onLagre(v.trim()) }
+  return <input value={v} onChange={e => setV(e.target.value)} onBlur={lagre} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setV(verdi) }} placeholder={placeholder ?? 'Type/modell'} autoFocus={autoFocus} aria-label={placeholder ?? 'Type/modell'} className="input !h-[36px] !min-h-[36px] !py-0 text-sm flex-1 min-w-0" />
+}
+
+function Antall({ verdi, onChange }: { verdi: number; onChange: (v: number) => void }) {
+  const [v, setV] = useState(String(verdi))
+  useEffect(() => setV(String(verdi)), [verdi])
+  return (
+    <div className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden flex-shrink-0">
+      <button type="button" onClick={() => onChange(Math.max(0, verdi - 1))} aria-label="Én færre" className="w-9 h-9 text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-100 flex items-center justify-center"><Minus className="w-4 h-4" /></button>
+      <input value={v} inputMode="numeric" onChange={e => setV(e.target.value.replace(/\D/g, ''))} onBlur={() => { const n = parseInt(v || '0', 10); if (n !== verdi) onChange(n) }} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} aria-label="Antall" className="w-14 h-9 text-center text-sm font-semibold bg-transparent text-gray-900 dark:text-white tabular-nums focus:outline-none" />
+      <button type="button" onClick={() => onChange(verdi + 1)} aria-label="Én til" className="w-9 h-9 text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-100 flex items-center justify-center"><Plus className="w-4 h-4" /></button>
+    </div>
+  )
+}
+
+/** Dialog: enhetstype → type/modell (forslag fra alle anlegg) → antall */
+function LeggTilDialog({ forhaandsvalgt, data, onClose, onLeggTil }: { forhaandsvalgt?: EnhetKey; data: Record<string, Enhet>; onClose: () => void; onLeggTil: (key: string, type: string, antall: number, note: string) => void }) {
+  const [key, setKey] = useState<EnhetKey | null>(forhaandsvalgt ?? null)
+  const [sok, setSok] = useState('')
+  const [type, setType] = useState('')
+  const [antall, setAntall] = useState(1)
+  const [note, setNote] = useState('')
+  const [forslag, setForslag] = useState<Record<string, string[]>>({})
+
+  // Typer/modeller registrert på alle anlegg – ett kall, gruppert per enhetstype
+  useEffect(() => {
+    const kolonner = ENHETSTYPER.map(e => `${e.key}_type`).join(', ')
+    supabase.from('anleggsdata_brannalarm').select(kolonner).then(({ data: rader }) => {
+      const m: Record<string, Map<string, number>> = {}
+      for (const rad of (rader ?? []) as unknown as Record<string, unknown>[]) {
+        for (const e of ENHETSTYPER) {
+          for (const t of parseTyper(rad[`${e.key}_type`], 0)) {
+            const navn = t.type.trim(); if (!navn) continue
+            m[e.key] ??= new Map(); m[e.key].set(navn, (m[e.key].get(navn) ?? 0) + 1)
+          }
+        }
+      }
+      const ut: Record<string, string[]> = {}
+      for (const k of Object.keys(m)) ut[k] = Array.from(m[k].entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'nb-NO')).map(x => x[0])
+      setForslag(ut)
+    })
+    function esc(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', esc); return () => document.removeEventListener('keydown', esc)
+  }, [onClose])
+
+  const valgt = key ? ENHETSTYPER.find(e => e.key === key) : null
+  const s = sok.trim().toLowerCase()
+  const treff = ENHETSTYPER.filter(e => !s || e.navn.toLowerCase().includes(s) || e.kategori.toLowerCase().includes(s))
+  const typeForslag = useMemo(() => {
+    const liste = key ? (forslag[key] ?? []) : []
+    const t = type.trim().toLowerCase()
+    return liste.filter(x => !t || x.toLowerCase().includes(t)).slice(0, 8)
+  }, [forslag, key, type])
+
+  function bekreft(e: React.FormEvent) {
+    e.preventDefault()
+    if (!key) return
+    onLeggTil(key, type, Math.max(1, antall), note)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" onClick={onClose}>
+      <form onSubmit={bekreft} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="le-tittel" className="card w-full sm:max-w-lg max-h-[92vh] rounded-b-none sm:rounded-lg !p-0 flex flex-col">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div>
+            <h2 id="le-tittel" className="text-lg font-bold text-gray-900 dark:text-white">{valgt ? <span className="inline-flex items-center gap-2"><span aria-hidden>{valgt.icon}</span>{valgt.navn}</span> : 'Legg til enhet'}</h2>
+            {valgt && !forhaandsvalgt && <button type="button" onClick={() => setKey(null)} className="text-xs text-primary hover:underline">Velg en annen enhetstype</button>}
+          </div>
+          <IconButton variant="ghost" label="Lukk" icon={<X />} onClick={onClose} />
+        </div>
+
+        {!valgt ? (
+          <div className="px-5 pb-5 space-y-3 overflow-y-auto">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input value={sok} onChange={e => setSok(e.target.value)} placeholder="Søk enhetstype…" autoFocus aria-label="Søk enhetstype" className="input pl-9" />
+            </div>
+            {KATEGORIER.map(kat => {
+              const iKat = treff.filter(e => e.kategori === kat)
+              if (!iKat.length) return null
+              return (
+                <div key={kat} className="space-y-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{kat}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {iKat.map(e => {
+                      const finnes = data[e.key]?.aktiv
+                      return <button key={e.key} type="button" onClick={() => setKey(e.key)} className={cn('h-9 px-3 rounded-full border text-sm inline-flex items-center gap-1.5 transition-colors', finnes ? 'border-primary/60 bg-primary/5 text-gray-900 dark:text-white' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-primary hover:text-primary')}><span aria-hidden>{e.icon}</span>{e.navn}{finnes && <Check className="w-3.5 h-3.5 text-primary" strokeWidth={3} />}</button>
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+            <p className="text-xs text-gray-500 dark:text-gray-400">Enhetstyper med hake finnes allerede på anlegget – du legger da til en ny type/modell under den.</p>
+          </div>
+        ) : (
+          <>
+            <div className="px-5 pb-4 space-y-4 overflow-y-auto">
+              <div className="space-y-1.5">
+                <label htmlFor="le-type" className="block text-sm font-medium text-gray-900 dark:text-white">Type / modell</label>
+                <input id="le-type" value={type} onChange={e => setType(e.target.value)} placeholder={key === 'brannsentral' ? 'F.eks. Autrosafe BS-420' : 'F.eks. produsent og modell'} autoFocus className="input" autoComplete="off" />
+                {typeForslag.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {typeForslag.map(t => <button key={t} type="button" onClick={() => setType(t)} className={cn('h-8 px-2.5 rounded-full border text-xs', type === t ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-primary')}>{t}</button>)}
                   </div>
                 )}
+                <p className="text-xs text-gray-500 dark:text-gray-400">{typeForslag.length ? 'Forslag fra andre anlegg. Skriv inn selv hvis modellen ikke finnes.' : 'Kan stå tomt hvis type ikke er kjent.'}</p>
               </div>
-            )
-          })}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredEnheter.map(({ key, navn, icon, kategori }) => {
-            const isActive = localEnheter[key]?.aktiv || false
-            
-            return (
-              <div key={key} className={`card ${isActive ? 'border-primary/30 bg-primary/5' : ''}`}>
-                <div className="flex items-start gap-4">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${
-                    isActive ? 'bg-primary/20' : 'bg-gray-100 dark:bg-gray-800'
-                  }`}>
-                    {icon}
-                  </div>
-                  <div className="flex-1 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className={`font-semibold ${isActive ? 'text-primary' : 'text-gray-900 dark:text-white'}`}>
-                          {navn}
-                        </h3>
-                        <p className="text-xs text-gray-500">{kategori}</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setLocalEnheter(prev => ({
-                            ...prev,
-                            [key]: { ...prev[key], aktiv: !prev[key]?.aktiv }
-                          }))
-                        }}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${
-                          isActive ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700'
-                        }`}
-                      >
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                          isActive ? 'translate-x-7' : 'translate-x-1'
-                        }`} />
-                      </button>
-                    </div>
-
-                    {isActive && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Antall</label>
-                          <input
-                            type="number"
-                            value={localEnheter[key]?.antall || 0}
-                            onChange={(e) => {
-                              setLocalEnheter(prev => ({
-                                ...prev,
-                                [key]: { ...prev[key], antall: parseInt(e.target.value) || 0 }
-                              }))
-                            }}
-                            className="input"
-                            min="0"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type/Modell</label>
-                          <input
-                            type="text"
-                            value={localEnheter[key]?.type || ''}
-                            onChange={(e) => {
-                              setLocalEnheter(prev => ({
-                                ...prev,
-                                [key]: { ...prev[key], type: e.target.value }
-                              }))
-                            }}
-                            className="input"
-                            placeholder="F.eks. Siemens FDO181..."
-                          />
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notat</label>
-                          <textarea
-                            value={localEnheter[key]?.note || ''}
-                            onChange={(e) => {
-                              setLocalEnheter(prev => ({
-                                ...prev,
-                                [key]: { ...prev[key], note: e.target.value }
-                              }))
-                            }}
-                            className="input"
-                            rows={2}
-                            placeholder="Legg til notat..."
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
+              <div className="grid grid-cols-[auto_1fr] gap-4 items-end">
+                <div className="space-y-1.5">
+                  <span className="block text-sm font-medium text-gray-900 dark:text-white">Antall</span>
+                  <Antall verdi={antall} onChange={v => setAntall(Math.max(1, v))} />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="le-note" className="block text-sm font-medium text-gray-900 dark:text-white">Notat <span className="text-gray-400 font-normal">(valgfritt)</span></label>
+                  <input id="le-note" value={note} onChange={e => setNote(e.target.value)} placeholder="Plassering, spesielle forhold …" className="input" />
                 </div>
               </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Floating Save Button - Sticky på mobil/iPad */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white dark:from-dark via-white/95 dark:via-dark/95 to-transparent pointer-events-none z-40">
-        <div className="max-w-4xl mx-auto pointer-events-auto">
-          <button 
-            onClick={handleSave} 
-            disabled={saving || !hasUnsavedChanges} 
-            className={`w-full py-4 px-6 ${hasUnsavedChanges ? 'bg-primary hover:bg-primary/90' : 'bg-gray-400'} disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg ${hasUnsavedChanges ? 'shadow-primary/25' : 'shadow-gray-400/25'}`}
-          >
-            {saving ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                {isOnline ? 'Lagrer...' : 'Lagrer lokalt...'}
-              </>
-            ) : (
-              <>
-                <Save className="w-5 h-5" />
-                Lagre endringer
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+              {data[key!]?.typer.length ? <p className="text-xs text-gray-500 dark:text-gray-400">Finnes fra før: {data[key!].typer.map(t => `${t.type || 'uten type'} × ${t.antall}`).join(', ')}. Samme type slås sammen.</p> : null}
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-800 mt-auto">
+              <Button variant="ghost" onClick={onClose}>Avbryt</Button>
+              <Button variant="primary" type="submit" icon={<Plus />}>Legg til</Button>
+            </div>
+          </>
+        )}
+      </form>
     </div>
   )
 }
