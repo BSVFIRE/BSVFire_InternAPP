@@ -437,7 +437,7 @@ export default function AnleggDetaljer() {
             <DetaljerPanel anlegg={anlegg} kundeNummer={kundeNummer} adresse={adresse} />
             <KontaktPanel anleggId={anlegg.id} kontakter={kontakter} onChanged={loadAll} onLeggTil={() => setVisKontaktModal(true)} />
             <QrEtikettPanel anleggId={anlegg.id} anleggsnavn={anlegg.anleggsnavn ?? ''} />
-            <PriserPanel priser={priser} onRediger={() => navigate('/priser', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })} />
+            <PriserPanel priser={priser} onRediger={() => navigate(`/priser?anlegg=${anlegg.id}`)} />
           </aside>
         </div>
       ) : tab === 'avvik' ? (
@@ -601,7 +601,7 @@ function MerMeny({ anlegg, onChanged }: { anlegg: AnleggRow; onChanged: () => vo
 
   return (
     <DropdownMenu trigger={open => <IconButton variant="ghost" label="Flere valg" icon={<MoreHorizontal />} aria-haspopup="menu" aria-expanded={open} />}>
-      <MenuItem icon={<DollarSign />} onSelect={() => navigate('/priser', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}>Kontrollpriser</MenuItem>
+      <MenuItem icon={<DollarSign />} onSelect={() => navigate(`/priser?anlegg=${anlegg.id}`)}>Kontrollpriser</MenuItem>
       {anlegg.kontrollportal_url && <MenuItem icon={<ExternalLink />} href={anlegg.kontrollportal_url}>Åpne kontrollportal</MenuItem>}
       <MenuItem icon={<Layers />} onSelect={() => navigate('/teknisk', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}>Teknisk dokumentasjon</MenuItem>
       <MenuSeparator />
