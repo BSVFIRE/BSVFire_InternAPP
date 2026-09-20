@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Flame, Settings, Network, Cpu, Package, ClipboardCheck, Play, Plus, ChevronRight, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Flame, Network, Cpu, Package, ClipboardCheck, Play, Plus, ChevronRight, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { formatDate } from '@/lib/utils'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { cacheData } from '@/lib/offline'
-import { StyringerView } from './brannalarm/StyringerViewNew.tsx'
 import { NettverkView } from './brannalarm/NettverkView.tsx'
 import { EnheterView } from './brannalarm/EnheterView.tsx'
 import { TilleggsutstyrView } from './brannalarm/TilleggsutstyrView.tsx'
@@ -113,7 +112,7 @@ interface BrannalarmProps {
   fromAnlegg?: boolean
 }
 
-type ViewMode = 'list' | 'styringer' | 'nettverk' | 'enheter' | 'tilleggsutstyr' | 'ny-kontroll'
+type ViewMode = 'list' | 'nettverk' | 'enheter' | 'tilleggsutstyr' | 'ny-kontroll'
 
 export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
   const location = useLocation()
@@ -247,18 +246,6 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
 
   const selectedKundeData = kunder.find(k => k.id === selectedKunde)
   const selectedAnleggData = anlegg.find(a => a.id === selectedAnlegg)
-
-  if (viewMode === 'styringer' && selectedAnlegg) {
-    return (
-      <StyringerView
-        anleggId={selectedAnlegg}
-        anleggsNavn={selectedAnleggData?.anleggsnavn || ''}
-        styringer={styringer}
-        onBack={() => setViewMode('list')}
-        onSave={loadStyringer}
-      />
-    )
-  }
 
   if (viewMode === 'nettverk' && selectedAnlegg) {
     // Hent sentralenheter fra styringer-data for å vise i NettverkView
@@ -420,9 +407,8 @@ export function Brannalarm({ onBack, fromAnlegg }: BrannalarmProps) {
           </section>
 
           {/* Anleggsdata */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <Kort ikon={<Cpu className="w-5 h-5" />} farge="bg-purple-500/10 text-purple-500" tittel="Enheter" tekst={sentraler || detektorer ? [sentraler ? `${sentraler} sentral${sentraler === 1 ? '' : 'er'}/panel` : null, detektorer ? `${detektorer} detektorer/meldere` : null].filter(Boolean).join(' · ') : 'Ingen registrert'} tom={!sentraler && !detektorer} onClick={() => setViewMode('enheter')} />
-            <Kort ikon={<Settings className="w-5 h-5" />} farge="bg-orange-500/10 text-orange-500" tittel="Styringer" tekst={styringerAktive ? `${styringerAktive} aktive styringer` : 'Ingen registrert'} tom={!styringerAktive} onClick={() => setViewMode('styringer')} />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Kort ikon={<Cpu className="w-5 h-5" />} farge="bg-purple-500/10 text-purple-500" tittel="Enheter og styringer" tekst={sentraler || detektorer || styringerAktive ? [sentraler ? `${sentraler} sentral${sentraler === 1 ? '' : 'er'}/panel` : null, detektorer ? `${detektorer} detektorer/meldere` : null, styringerAktive ? `${styringerAktive} styringer` : null].filter(Boolean).join(' · ') : 'Ingen registrert'} tom={!sentraler && !detektorer && !styringerAktive} onClick={() => setViewMode('enheter')} />
             <Kort ikon={<Network className="w-5 h-5" />} farge="bg-blue-500/10 text-blue-500" tittel="Nettverk" tekst={nettverkListe.length ? `${nettverkListe.length} ${nettverkListe.length === 1 ? 'system' : 'systemer'}` : 'Ingen registrert'} tom={!nettverkListe.length} onClick={() => setViewMode('nettverk')} />
             <Kort ikon={<Package className="w-5 h-5" />} farge="bg-green-500/10 text-green-500" tittel="Tilleggsutstyr" tekst="Talevarsling, alarmsender, nøkkelsafe" onClick={() => setViewMode('tilleggsutstyr')} />
           </div>
