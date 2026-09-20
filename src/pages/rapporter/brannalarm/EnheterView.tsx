@@ -252,15 +252,20 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                 const Ikon = e.icon
                 return (
                   <div key={e.key} className="px-4 py-2.5">
-                    <div className="flex items-start gap-3">
-                      <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-300 flex items-center justify-center flex-shrink-0 mt-0.5"><Ikon className="w-4 h-4" /></span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-gray-900 dark:text-white">{e.navn}</span>
-                          <span className="text-sm text-gray-500 dark:text-gray-400 tabular-nums">{sum}</span>
-                          {lagrer.has(e.key) && <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary" />}
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    <div className="grid grid-cols-[2rem_minmax(0,1fr)_auto] lg:grid-cols-[2rem_minmax(160px,220px)_minmax(0,1fr)_3rem_2rem] items-start gap-x-3 gap-y-2">
+                      <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-300 flex items-center justify-center"><Ikon className="w-4 h-4" /></span>
+                      <span className="min-w-0 flex items-center gap-2 h-8">
+                        <span className="font-semibold text-gray-900 dark:text-white truncate">{e.navn}</span>
+                        {lagrer.has(e.key) && <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary flex-shrink-0" />}
+                      </span>
+                      <span className="lg:hidden justify-self-end"><DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+                        <MenuItem icon={<Plus />} onSelect={() => setVisDialog({ key: e.key })}>Legg til type/modell</MenuItem>
+                        <MenuItem icon={<StickyNote />} onSelect={() => setNotatApen(prev => { const n = new Set(prev); n.add(e.key); return n })}>{d.note ? 'Rediger notat' : 'Legg til notat'}</MenuItem>
+                        <MenuSeparator />
+                        <MenuItem icon={<Trash2 />} danger onSelect={() => fjernEnhet(e.key, e.navn)}>Fjern {e.navn.toLowerCase()} fra anlegget…</MenuItem>
+                      </DropdownMenu></span>
+                      <div className="col-start-2 col-span-2 lg:col-start-auto lg:col-span-1 min-w-0">
+                        <div className="flex flex-wrap gap-1.5">
                           {d.typer.map((t, idx) => {
                             const aktivRed = redigerer?.key === e.key && redigerer.idx === idx
                             return (
@@ -288,12 +293,13 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                           </div>
                         )}
                       </div>
-                      <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8 -mr-1" />}>
+                      <span className="hidden lg:flex h-8 items-center justify-end font-semibold text-gray-900 dark:text-white tabular-nums">{sum}</span>
+                      <span className="hidden lg:block justify-self-end"><DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
                         <MenuItem icon={<Plus />} onSelect={() => setVisDialog({ key: e.key })}>Legg til type/modell</MenuItem>
                         <MenuItem icon={<StickyNote />} onSelect={() => setNotatApen(prev => { const n = new Set(prev); n.add(e.key); return n })}>{d.note ? 'Rediger notat' : 'Legg til notat'}</MenuItem>
                         <MenuSeparator />
                         <MenuItem icon={<Trash2 />} danger onSelect={() => fjernEnhet(e.key, e.navn)}>Fjern {e.navn.toLowerCase()} fra anlegget…</MenuItem>
-                      </DropdownMenu>
+                      </DropdownMenu></span>
                     </div>
                   </div>
                 )
@@ -310,20 +316,36 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {aktiveStyringer.map(x => {
                 const st = styr[x.key]; const Ikon = x.icon
+                const harAvvik = st.avvik.length > 0
                 return (
-                  <div key={x.key} className="px-4 py-2.5">
-                    <div className="flex items-start gap-3">
-                      <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-300 flex items-center justify-center flex-shrink-0 mt-0.5"><Ikon className="w-4 h-4" /></span>
-                      <div className="flex-1 min-w-0 space-y-2">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                          <span className="font-semibold text-gray-900 dark:text-white">{x.navn}</span>
-                          {lagrer.has(`s:${x.key}`) && <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary" />}
-                          <Antall verdi={st.antall} onChange={v => lagreStyring(x.key, { ...st, antall: v })} />
-                          <div className="inline-flex rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden h-9" role="radiogroup" aria-label="Status">
-                            {STYRING_STATUSER.map(o => <button key={o} type="button" role="radio" aria-checked={st.status === o} onClick={() => lagreStyring(x.key, { ...st, status: st.status === o ? '' : o })} className={cn('px-2.5 text-xs whitespace-nowrap', st.status === o ? (o === 'Kontrollert' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white') : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-100')}>{o}</button>)}
-                          </div>
-                          <button type="button" onClick={() => lagreStyring(x.key, { ...st, avvik: [...st.avvik, ''] })} className={cn('inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border text-xs', st.avvik.length ? 'border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-red-400 hover:text-red-600')}><AlertTriangle className="w-3.5 h-3.5" />{st.avvik.length ? `${st.avvik.length} avvik · legg til` : 'Avvik'}</button>
-                        </div>
+                  <div key={x.key} className="px-4 py-2">
+                    {/* Faste kolonner: ikon · navn · antall · status · avvik · meny */}
+                    <div className="grid grid-cols-[2rem_minmax(0,1fr)_auto] lg:grid-cols-[2rem_minmax(160px,1fr)_auto_auto_auto_2rem] items-center gap-x-3 gap-y-2">
+                      <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-300 flex items-center justify-center"><Ikon className="w-4 h-4" /></span>
+                      <span className="min-w-0 flex items-center gap-2">
+                        <span className="font-semibold text-gray-900 dark:text-white truncate">{x.navn}</span>
+                        {lagrer.has(`s:${x.key}`) && <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary flex-shrink-0" />}
+                      </span>
+                      <span className="lg:hidden justify-self-end"><DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+                        <MenuItem icon={<StickyNote />} onSelect={() => setNotatApen(prev => { const n = new Set(prev); n.add(`s:${x.key}`); return n })}>{st.note ? 'Rediger notat' : 'Legg til notat'}</MenuItem>
+                        <MenuSeparator />
+                        <MenuItem icon={<Trash2 />} danger onSelect={() => fjernStyring(x.key, x.navn)}>Fjern {x.navn.toLowerCase()} fra anlegget…</MenuItem>
+                      </DropdownMenu></span>
+                      <span className="col-start-2 lg:col-start-auto"><Antall verdi={st.antall} onChange={v => lagreStyring(x.key, { ...st, antall: v })} /></span>
+                      <span className="col-start-2 lg:col-start-auto inline-flex rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden h-9 w-fit" role="radiogroup" aria-label="Status">
+                        {STYRING_STATUSER.map(o => <button key={o} type="button" role="radio" aria-checked={st.status === o} onClick={() => lagreStyring(x.key, { ...st, status: st.status === o ? '' : o })} className={cn('px-2.5 text-xs whitespace-nowrap', st.status === o ? (o === 'Kontrollert' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white') : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-100')}>{o}</button>)}
+                      </span>
+                      <span className="col-start-2 lg:col-start-auto">
+                        <button type="button" onClick={() => lagreStyring(x.key, { ...st, avvik: [...st.avvik, ''] })} title="Registrer avvik" className={cn('inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border text-xs whitespace-nowrap', harAvvik ? 'border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400' : 'border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-red-400 hover:text-red-600')}><AlertTriangle className="w-3.5 h-3.5" />{harAvvik ? st.avvik.length : ''}<span className={harAvvik ? 'sr-only' : ''}>Avvik</span></button>
+                      </span>
+                      <span className="hidden lg:block justify-self-end"><DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+                        <MenuItem icon={<StickyNote />} onSelect={() => setNotatApen(prev => { const n = new Set(prev); n.add(`s:${x.key}`); return n })}>{st.note ? 'Rediger notat' : 'Legg til notat'}</MenuItem>
+                        <MenuSeparator />
+                        <MenuItem icon={<Trash2 />} danger onSelect={() => fjernStyring(x.key, x.navn)}>Fjern {x.navn.toLowerCase()} fra anlegget…</MenuItem>
+                      </DropdownMenu></span>
+                    </div>
+                    {(st.avvik.length > 0 || notatApen.has(`s:${x.key}`) || st.note) && (
+                      <div className="mt-2 ml-11 space-y-1.5">
                         {st.avvik.map((a, i) => (
                           <div key={i} className="flex items-center gap-2">
                             <span className="w-5 h-5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[11px] font-semibold flex items-center justify-center flex-shrink-0">{i + 1}</span>
@@ -338,12 +360,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                           </div>
                         )}
                       </div>
-                      <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8 -mr-1" />}>
-                        <MenuItem icon={<StickyNote />} onSelect={() => setNotatApen(prev => { const n = new Set(prev); n.add(`s:${x.key}`); return n })}>{st.note ? 'Rediger notat' : 'Legg til notat'}</MenuItem>
-                        <MenuSeparator />
-                        <MenuItem icon={<Trash2 />} danger onSelect={() => fjernStyring(x.key, x.navn)}>Fjern {x.navn.toLowerCase()} fra anlegget…</MenuItem>
-                      </DropdownMenu>
-                    </div>
+                    )}
                   </div>
                 )
               })}
