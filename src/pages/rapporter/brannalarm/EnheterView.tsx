@@ -7,7 +7,7 @@
  * {key}_type (JSON-array av {type, antall}), {key}_note.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Check, Minus, MoreHorizontal, Plus, Search, StickyNote, Trash2, X } from 'lucide-react'
+import { ArrowLeft, BatteryCharging, BellRing, Check, CircleDot, Cpu, Droplets, Eye, FileText, Flame, Hand, LayoutPanelTop, Link2, Minus, MoreHorizontal, Plug, Plus, Radio, Ruler, ScanSearch, Search, StickyNote, Thermometer, Trash2, Volume2, Wind, X, Zap, type LucideIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
@@ -24,29 +24,29 @@ interface EnheterViewProps {
   onSave: (anleggId: string) => void
 }
 
-export const ENHETSTYPER = [
-  { key: 'brannsentral', navn: 'Brannsentral', icon: '🏢', kategori: 'Sentral og styring' },
-  { key: 'panel', navn: 'Brannpanel', icon: '🎛️', kategori: 'Sentral og styring' },
-  { key: 'kraftforsyning', navn: 'Kraftforsyning', icon: '⚡', kategori: 'Sentral og styring' },
-  { key: 'batteri', navn: 'Batteri', icon: '🔋', kategori: 'Sentral og styring' },
-  { key: 'sloyfer', navn: 'Sløyfer', icon: '🔗', kategori: 'Sentral og styring' },
-  { key: 'io', navn: 'IO-styring', icon: '🔌', kategori: 'Sentral og styring' },
-  { key: 'rd', navn: 'Røykdetektor', icon: '🔍', kategori: 'Detektorer' },
-  { key: 'vd', navn: 'Varmedetektor', icon: '🌡️', kategori: 'Detektorer' },
-  { key: 'multi', navn: 'Multikriteriedetektor', icon: '🔍', kategori: 'Detektorer' },
-  { key: 'flame', navn: 'Flammedetektor', icon: '🔥', kategori: 'Detektorer' },
-  { key: 'linje', navn: 'Linjedetektor', icon: '📏', kategori: 'Detektorer' },
-  { key: 'asp', navn: 'Aspirasjon', icon: '💨', kategori: 'Detektorer' },
-  { key: 'mm', navn: 'Manuell melder', icon: '🔔', kategori: 'Detektorer' },
-  { key: 'traadlos', navn: 'Trådløse enheter', icon: '📡', kategori: 'Detektorer' },
-  { key: 'sprinkler', navn: 'Sprinklerkontroll', icon: '💦', kategori: 'Styring og slokning' },
-  { key: 'avstiller', navn: 'Avstillingsbryter', icon: '🔘', kategori: 'Styring og slokning' },
-  { key: 'brannklokke', navn: 'Brannklokke', icon: '🔔', kategori: 'Varsling' },
-  { key: 'sirene', navn: 'Sirene', icon: '🔊', kategori: 'Varsling' },
-  { key: 'optisk', navn: 'Optisk varsling', icon: '👁️', kategori: 'Varsling' },
-  { key: 'annet', navn: 'Annet', icon: '📝', kategori: 'Annet' },
-] as const
-type EnhetKey = typeof ENHETSTYPER[number]['key']
+export const ENHETSTYPER: { key: string; navn: string; icon: LucideIcon; kategori: string }[] = [
+  { key: 'brannsentral', navn: 'Brannsentral', icon: Cpu, kategori: 'Sentral og styring' },
+  { key: 'panel', navn: 'Brannpanel', icon: LayoutPanelTop, kategori: 'Sentral og styring' },
+  { key: 'kraftforsyning', navn: 'Kraftforsyning', icon: Zap, kategori: 'Sentral og styring' },
+  { key: 'batteri', navn: 'Batteri', icon: BatteryCharging, kategori: 'Sentral og styring' },
+  { key: 'sloyfer', navn: 'Sløyfer', icon: Link2, kategori: 'Sentral og styring' },
+  { key: 'io', navn: 'IO-styring', icon: Plug, kategori: 'Sentral og styring' },
+  { key: 'rd', navn: 'Røykdetektor', icon: ScanSearch, kategori: 'Detektorer' },
+  { key: 'vd', navn: 'Varmedetektor', icon: Thermometer, kategori: 'Detektorer' },
+  { key: 'multi', navn: 'Multikriteriedetektor', icon: ScanSearch, kategori: 'Detektorer' },
+  { key: 'flame', navn: 'Flammedetektor', icon: Flame, kategori: 'Detektorer' },
+  { key: 'linje', navn: 'Linjedetektor', icon: Ruler, kategori: 'Detektorer' },
+  { key: 'asp', navn: 'Aspirasjon', icon: Wind, kategori: 'Detektorer' },
+  { key: 'mm', navn: 'Manuell melder', icon: Hand, kategori: 'Detektorer' },
+  { key: 'traadlos', navn: 'Trådløse enheter', icon: Radio, kategori: 'Detektorer' },
+  { key: 'sprinkler', navn: 'Sprinklerkontroll', icon: Droplets, kategori: 'Styring og slokning' },
+  { key: 'avstiller', navn: 'Avstillingsbryter', icon: CircleDot, kategori: 'Styring og slokning' },
+  { key: 'brannklokke', navn: 'Brannklokke', icon: BellRing, kategori: 'Varsling' },
+  { key: 'sirene', navn: 'Sirene', icon: Volume2, kategori: 'Varsling' },
+  { key: 'optisk', navn: 'Optisk varsling', icon: Eye, kategori: 'Varsling' },
+  { key: 'annet', navn: 'Annet', icon: FileText, kategori: 'Annet' },
+]
+type EnhetKey = string
 const KATEGORIER = Array.from(new Set(ENHETSTYPER.map(e => e.kategori)))
 
 interface TypeRad { type: string; antall: number }
@@ -83,8 +83,9 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
   const [data, setData] = useState<Record<string, Enhet>>(() => lesEnheter(enheter))
   const [radId, setRadId] = useState<string | undefined>(enheter?.id)
   const [lagrer, setLagrer] = useState<Set<string>>(new Set())
-  const [visDialog, setVisDialog] = useState<{ key?: EnhetKey } | null>(null)
+  const [visDialog, setVisDialog] = useState<{ key?: EnhetKey; kategori?: string } | null>(null)
   const [notatApen, setNotatApen] = useState<Set<string>>(new Set())
+  const [redigerer, setRedigerer] = useState<{ key: string; idx: number } | null>(null)
 
   // Ta inn ny rad-id etter første insert; ellers er lokal state sannheten mens vi er på siden
   useEffect(() => { if (enheter?.id && enheter.id !== radId) { setRadId(enheter.id); setData(lesEnheter(enheter)) } }, [enheter, radId])
@@ -145,10 +146,20 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
       <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Enheter</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{aktive.length ? `${aktive.length} enhetstyper · ${totalt} enheter totalt` : 'Ingen enheter registrert ennå'}{!isOnline ? ' · offline' : ''}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{anleggsNavn}{!isOnline ? ' · offline' : ''}</p>
         </div>
         <Button variant="primary" icon={<Plus />} onClick={() => setVisDialog({})}>Legg til enhet</Button>
       </header>
+
+      {aktive.length > 0 && (
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="px-2.5 py-1 rounded-full bg-primary/10 text-primary font-semibold tabular-nums">{totalt} enheter</span>
+          {KATEGORIER.map(kat => {
+            const sum = aktive.filter(e => e.kategori === kat).reduce((s, e) => s + data[e.key].typer.reduce((x, t) => x + (t.antall || 0), 0), 0)
+            return sum > 0 ? <span key={kat} className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300 tabular-nums">{kat} <b>{sum}</b></span> : null
+          })}
+        </div>
+      )}
 
       {aktive.length === 0 ? (
         <div className="card text-center py-12 space-y-3">
@@ -158,62 +169,83 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
       ) : KATEGORIER.map(kat => {
         const iKat = aktive.filter(e => e.kategori === kat)
         if (iKat.length === 0) return null
+        const katSum = iKat.reduce((s, e) => s + data[e.key].typer.reduce((x, t) => x + (t.antall || 0), 0), 0)
         return (
-          <section key={kat} className="space-y-2" aria-label={kat}>
-            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-1">{kat}</h2>
-            {iKat.map(e => {
-              const d = data[e.key]
-              const sum = d.typer.reduce((s, t) => s + (t.antall || 0), 0)
-              return (
-                <div key={e.key} className="card !p-0 overflow-hidden">
-                  <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50 dark:bg-dark-100">
-                    <span className="text-lg leading-none" aria-hidden>{e.icon}</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">{e.navn}</span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400 tabular-nums">{sum} stk</span>
-                    {lagrer.has(e.key) && <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-primary" />}
-                    <span className="ml-auto flex items-center gap-1">
-                      <IconButton variant="ghost" label="Legg til type/modell" icon={<Plus />} onClick={() => setVisDialog({ key: e.key })} className="w-8 h-8" />
-                      <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+          <section key={kat} className="card !p-0 overflow-hidden" aria-label={kat}>
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-dark-100">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{kat}</h2>
+              <span className="text-xs text-gray-400 tabular-nums">{katSum} stk</span>
+              <button type="button" onClick={() => setVisDialog({ kategori: kat })} className="ml-auto text-xs text-primary hover:underline inline-flex items-center gap-0.5"><Plus className="w-3.5 h-3.5" />Legg til</button>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              {iKat.map(e => {
+                const d = data[e.key]
+                const sum = d.typer.reduce((s, t) => s + (t.antall || 0), 0)
+                const Ikon = e.icon
+                return (
+                  <div key={e.key} className="px-4 py-2.5">
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-300 flex items-center justify-center flex-shrink-0 mt-0.5"><Ikon className="w-4 h-4" /></span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-900 dark:text-white">{e.navn}</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400 tabular-nums">{sum}</span>
+                          {lagrer.has(e.key) && <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary" />}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {d.typer.map((t, idx) => {
+                            const aktivRed = redigerer?.key === e.key && redigerer.idx === idx
+                            return (
+                              <button key={idx} type="button" onClick={() => setRedigerer(aktivRed ? null : { key: e.key, idx })} aria-expanded={aktivRed}
+                                className={cn('inline-flex items-center gap-1.5 h-8 pl-2.5 pr-2 rounded-lg border text-sm transition-colors', aktivRed ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 hover:border-primary')}>
+                                <span className="truncate max-w-[220px]">{t.type || <span className="text-gray-400 italic">uten type</span>}</span>
+                                <span className="font-semibold tabular-nums text-gray-900 dark:text-white">×{t.antall}</span>
+                              </button>
+                            )
+                          })}
+                          <button type="button" onClick={() => setVisDialog({ key: e.key })} title="Legg til type/modell" className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-gray-400 hover:border-primary hover:text-primary"><Plus className="w-4 h-4" /></button>
+                        </div>
+                        {redigerer?.key === e.key && d.typer[redigerer.idx] && (
+                          <div className="mt-2 p-2.5 rounded-lg bg-gray-50 dark:bg-dark-100 flex flex-wrap items-center gap-2">
+                            <TypeFelt verdi={d.typer[redigerer.idx].type} onLagre={v => oppdaterType(e.key, redigerer.idx, { type: v })} autoFocus />
+                            <Antall verdi={d.typer[redigerer.idx].antall} onChange={v => oppdaterType(e.key, redigerer.idx, { antall: v })} />
+                            <IconButton variant="ghost" label="Fjern denne modellen" icon={<Trash2 />} onClick={() => { fjernType(e.key, redigerer.idx); setRedigerer(null) }} className="w-8 h-8 hover:!text-red-500" />
+                            <Button variant="outline" icon={<Check />} onClick={() => setRedigerer(null)}>Ferdig</Button>
+                          </div>
+                        )}
+                        {(notatApen.has(e.key) || d.note) && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <StickyNote className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                            <TypeFelt verdi={d.note} placeholder="Notat (plassering, spesielle forhold …)" onLagre={v => lagre(e.key, { ...d, note: v })} autoFocus={notatApen.has(e.key) && !d.note} liten />
+                          </div>
+                        )}
+                      </div>
+                      <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8 -mr-1" />}>
+                        <MenuItem icon={<Plus />} onSelect={() => setVisDialog({ key: e.key })}>Legg til type/modell</MenuItem>
                         <MenuItem icon={<StickyNote />} onSelect={() => setNotatApen(prev => { const n = new Set(prev); n.add(e.key); return n })}>{d.note ? 'Rediger notat' : 'Legg til notat'}</MenuItem>
                         <MenuSeparator />
-                        <MenuItem icon={<Trash2 />} danger onSelect={() => fjernEnhet(e.key, e.navn)}>Fjern fra anlegget…</MenuItem>
+                        <MenuItem icon={<Trash2 />} danger onSelect={() => fjernEnhet(e.key, e.navn)}>Fjern {e.navn.toLowerCase()} fra anlegget…</MenuItem>
                       </DropdownMenu>
-                    </span>
+                    </div>
                   </div>
-                  <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {d.typer.map((t, idx) => (
-                      <div key={idx} className="flex items-center gap-2 px-4 py-2">
-                        <TypeFelt verdi={t.type} onLagre={v => oppdaterType(e.key, idx, { type: v })} />
-                        <Antall verdi={t.antall} onChange={v => oppdaterType(e.key, idx, { antall: v })} />
-                        <IconButton variant="ghost" label="Fjern" icon={<X />} onClick={() => fjernType(e.key, idx)} className="w-8 h-8 hover:!text-red-500" />
-                      </div>
-                    ))}
-                    {d.typer.length === 0 && <p className="px-4 py-2 text-sm text-gray-400">Ingen type/modell registrert – <button type="button" onClick={() => setVisDialog({ key: e.key })} className="text-primary hover:underline">legg til</button></p>}
-                    {(notatApen.has(e.key) || d.note) && (
-                      <div className="px-4 py-2 flex items-center gap-2">
-                        <StickyNote className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        <TypeFelt verdi={d.note} placeholder="Notat (plassering, spesielle forhold …)" onLagre={v => lagre(e.key, { ...d, note: v })} autoFocus={notatApen.has(e.key) && !d.note} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </section>
         )
       })}
 
-      {visDialog && <LeggTilDialog forhaandsvalgt={visDialog.key} data={data} onClose={() => setVisDialog(null)} onLeggTil={leggTil} />}
+      {visDialog && <LeggTilDialog forhaandsvalgt={visDialog.key} kategori={visDialog.kategori} data={data} onClose={() => setVisDialog(null)} onLeggTil={leggTil} />}
     </div>
   )
 }
 
 /** Tekstfelt som lagrer på blur/Enter */
-function TypeFelt({ verdi, onLagre, placeholder, autoFocus }: { verdi: string; onLagre: (v: string) => void; placeholder?: string; autoFocus?: boolean }) {
+function TypeFelt({ verdi, onLagre, placeholder, autoFocus, liten }: { verdi: string; onLagre: (v: string) => void; placeholder?: string; autoFocus?: boolean; liten?: boolean }) {
   const [v, setV] = useState(verdi)
   useEffect(() => setV(verdi), [verdi])
   const lagre = () => { if (v.trim() !== verdi) onLagre(v.trim()) }
-  return <input value={v} onChange={e => setV(e.target.value)} onBlur={lagre} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setV(verdi) }} placeholder={placeholder ?? 'Type/modell'} autoFocus={autoFocus} aria-label={placeholder ?? 'Type/modell'} className="input !h-[36px] !min-h-[36px] !py-0 text-sm flex-1 min-w-0" />
+  return <input value={v} onChange={e => setV(e.target.value)} onBlur={lagre} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setV(verdi) }} placeholder={placeholder ?? 'Type/modell'} autoFocus={autoFocus} aria-label={placeholder ?? 'Type/modell'} className={cn('input !py-0 flex-1 min-w-[160px]', liten ? '!h-[32px] !min-h-[32px] text-xs' : '!h-[36px] !min-h-[36px] text-sm')} />
 }
 
 function Antall({ verdi, onChange }: { verdi: number; onChange: (v: number) => void }) {
@@ -229,9 +261,9 @@ function Antall({ verdi, onChange }: { verdi: number; onChange: (v: number) => v
 }
 
 /** Dialog: enhetstype → type/modell (forslag fra alle anlegg) → antall */
-function LeggTilDialog({ forhaandsvalgt, data, onClose, onLeggTil }: { forhaandsvalgt?: EnhetKey; data: Record<string, Enhet>; onClose: () => void; onLeggTil: (key: string, type: string, antall: number, note: string) => void }) {
+function LeggTilDialog({ forhaandsvalgt, kategori, data, onClose, onLeggTil }: { forhaandsvalgt?: EnhetKey; kategori?: string; data: Record<string, Enhet>; onClose: () => void; onLeggTil: (key: string, type: string, antall: number, note: string) => void }) {
   const [key, setKey] = useState<EnhetKey | null>(forhaandsvalgt ?? null)
-  const [sok, setSok] = useState('')
+  const [sok, setSok] = useState(kategori ?? '')
   const [type, setType] = useState('')
   const [antall, setAntall] = useState(1)
   const [note, setNote] = useState('')
@@ -279,7 +311,7 @@ function LeggTilDialog({ forhaandsvalgt, data, onClose, onLeggTil }: { forhaands
       <form onSubmit={bekreft} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="le-tittel" className="card w-full sm:max-w-lg max-h-[92vh] rounded-b-none sm:rounded-lg !p-0 flex flex-col">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div>
-            <h2 id="le-tittel" className="text-lg font-bold text-gray-900 dark:text-white">{valgt ? <span className="inline-flex items-center gap-2"><span aria-hidden>{valgt.icon}</span>{valgt.navn}</span> : 'Legg til enhet'}</h2>
+            <h2 id="le-tittel" className="text-lg font-bold text-gray-900 dark:text-white">{valgt ? <span className="inline-flex items-center gap-2"><valgt.icon className="w-5 h-5 text-primary" />{valgt.navn}</span> : 'Legg til enhet'}</h2>
             {valgt && !forhaandsvalgt && <button type="button" onClick={() => setKey(null)} className="text-xs text-primary hover:underline">Velg en annen enhetstype</button>}
           </div>
           <IconButton variant="ghost" label="Lukk" icon={<X />} onClick={onClose} />
@@ -300,7 +332,7 @@ function LeggTilDialog({ forhaandsvalgt, data, onClose, onLeggTil }: { forhaands
                   <div className="flex flex-wrap gap-2">
                     {iKat.map(e => {
                       const finnes = data[e.key]?.aktiv
-                      return <button key={e.key} type="button" onClick={() => setKey(e.key)} className={cn('h-9 px-3 rounded-full border text-sm inline-flex items-center gap-1.5 transition-colors', finnes ? 'border-primary/60 bg-primary/5 text-gray-900 dark:text-white' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-primary hover:text-primary')}><span aria-hidden>{e.icon}</span>{e.navn}{finnes && <Check className="w-3.5 h-3.5 text-primary" strokeWidth={3} />}</button>
+                      return <button key={e.key} type="button" onClick={() => setKey(e.key)} className={cn('h-9 px-3 rounded-full border text-sm inline-flex items-center gap-1.5 transition-colors', finnes ? 'border-primary/60 bg-primary/5 text-gray-900 dark:text-white' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-primary hover:text-primary')}><e.icon className="w-4 h-4 text-gray-400" />{e.navn}{finnes && <Check className="w-3.5 h-3.5 text-primary" strokeWidth={3} />}</button>
                     })}
                   </div>
                 </div>
