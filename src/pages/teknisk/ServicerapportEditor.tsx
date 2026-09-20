@@ -77,6 +77,7 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
   const [showPreview, setShowPreview] = useState(false)
   const [loading, setLoading] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
+  const [aiForslag, setAiForslag] = useState<{ tekst: string; modus: 'sprak' | 'stikkord' } | null>(null)
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
   const [savedRapportData, setSavedRapportData] = useState<{ kundeId: string; anleggId: string } | null>(null)
   const [selectedImages, setSelectedImages] = useState<File[]>([])
@@ -244,50 +245,24 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  async function handleAiImprove() {
+  async function handleAiImprove(modus: 'sprak' | 'stikkord' = 'sprak') {
     if (!formData.rapport_innhold.trim()) {
-      toast.warning('Skriv inn stikkord eller en kort beskrivelse først')
+      toast.warning(modus === 'sprak' ? 'Skriv teksten først – så språkvasker AI den' : 'Skriv inn stikkord først')
       return
     }
-
     setAiLoading(true)
     try {
       const { data, error } = await supabase.functions.invoke('ai-improve-servicerapport', {
-        body: {
-          keywords: formData.rapport_innhold,
-          anleggType: anlegg.find(a => a.id === formData.anlegg_id)?.anleggsnavn,
-          tekniker: formData.tekniker_navn
-        }
+        body: { keywords: formData.rapport_innhold, anleggType: anlegg.find(a => a.id === formData.anlegg_id)?.anleggsnavn, tekniker: formData.tekniker_navn, mode: modus }
       })
-
-      if (error) {
-        console.error('Supabase function error:', error)
-        throw error
-      }
-
-      if (data?.error) {
-        console.error('Function returned error:', data.error)
-        toast.error('AI-forbedring feilet', data.details || data.error)
-        return
-      }
-
-      if (data?.improvedReport) {
-        // Vis forbedret rapport i en dialog for godkjenning
-        const userApproved = confirm(
-          'AI har generert en forbedret rapport. Vil du erstatte den nåværende teksten?\n\n' +
-          'Klikk OK for å godkjenne, eller Avbryt for å beholde den nåværende teksten.'
-        )
-
-        if (userApproved) {
-          handleChange('rapport_innhold', data.improvedReport)
-          toast.success('Rapporten er oppdatert med AI-forbedret innhold')
-        }
-      } else {
-        toast.warning('Ingen forbedret rapport mottatt fra AI')
-      }
+      if (error) throw error
+      if (data?.error) { toast.error('AI-hjelpen feilet', data.details || data.error); return }
+      const tekst = String(data?.improvedReport ?? '').trim()
+      if (!tekst) { toast.warning('Fikk ingen tekst tilbake fra AI'); return }
+      if (tekst === formData.rapport_innhold.trim()) { toast.info('AI fant ingenting å endre'); return }
+      setAiForslag({ tekst, modus })
     } catch (error) {
-      console.error('Feil ved AI-forbedring:', error)
-      toast.error('Kunne ikke forbedre rapporten med AI')
+      toast.error('Kunne ikke hente AI-hjelp', error)
     } finally {
       setAiLoading(false)
     }
@@ -663,27 +638,33 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
               </div>
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Rapportinnhold</h2>
-                <p className="text-sm text-gray-500">Skriv stikkord og la AI generere rapporten</p>
+                <p className="text-sm text-gray-500">Skriv med egne ord – AI kan rette språk og setningsbygning etterpå</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleAiImprove}
-              disabled={aiLoading || !formData.rapport_innhold.trim()}
-              className="btn-primary flex items-center gap-2 whitespace-nowrap"
-              title="Bruk AI til å forbedre rapporten"
-            >
-              <Sparkles className="w-4 h-4" />
-              {aiLoading ? 'Genererer...' : 'Forbedre med AI'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => handleAiImprove('sprak')} disabled={aiLoading || !formData.rapport_innhold.trim()} className="btn-primary flex items-center gap-2 whitespace-nowrap" title="Retter skrivefeil og setningsbygning – beholder innhold og lengde">
+                <Sparkles className="w-4 h-4" />{aiLoading ? 'Jobber…' : 'Språkvask'}
+              </button>
+              <button type="button" onClick={() => handleAiImprove('stikkord')} disabled={aiLoading || !formData.rapport_innhold.trim()} className="btn-secondary text-sm whitespace-nowrap" title="Skriver stikkordene dine ut til hele setninger og avsnitt">
+                Skriv ut fra stikkord
+              </button>
+            </div>
           </div>
-          
-          {/* AI Tips boks */}
-          <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-4 mb-4">
-            <p className="text-sm text-gray-300">
-              <strong className="text-purple-400">💡 Tips:</strong> Skriv stikkord som "service brannalarm, testet detektorer, byttet batteri i sentral" og klikk "Forbedre med AI" for å få en profesjonell rapport.
-            </p>
-          </div>
+          {aiForslag && (
+            <div className="mb-4 rounded-lg border border-purple-300 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-900/10 overflow-hidden">
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-purple-200 dark:border-purple-900/60">
+                <p className="text-sm font-medium text-gray-900 dark:text-white inline-flex items-center gap-2"><Sparkles className="w-4 h-4 text-purple-500" />{aiForslag.modus === 'sprak' ? 'Forslag til språkvask' : 'Forslag skrevet ut fra stikkordene'}<span className="text-xs font-normal text-gray-500">· {formData.rapport_innhold.split(/\s+/).filter(Boolean).length} → {aiForslag.tekst.split(/\s+/).filter(Boolean).length} ord</span></p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setAiForslag(null)} className="btn-secondary text-sm">Forkast</button>
+                  <button type="button" onClick={() => { handleChange('rapport_innhold', aiForslag.tekst); setAiForslag(null); toast.success('Teksten er oppdatert') }} className="btn-primary text-sm">Bruk forslaget</button>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-purple-200 dark:divide-purple-900/60">
+                <div className="p-3"><p className="text-[11px] uppercase tracking-wider text-gray-400 mb-1">Din tekst</p><pre className="whitespace-pre-wrap font-sans text-sm text-gray-600 dark:text-gray-400 max-h-72 overflow-y-auto">{formData.rapport_innhold}</pre></div>
+                <div className="p-3"><p className="text-[11px] uppercase tracking-wider text-purple-500 mb-1">Forslag</p><pre className="whitespace-pre-wrap font-sans text-sm text-gray-900 dark:text-white max-h-72 overflow-y-auto">{aiForslag.tekst}</pre></div>
+              </div>
+            </div>
+          )}
           
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -692,16 +673,9 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
             <textarea
               value={formData.rapport_innhold}
               onChange={(e) => handleChange('rapport_innhold', e.target.value)}
-              className="input w-full font-mono text-sm leading-relaxed"
-              rows={16}
-              placeholder="Skriv stikkord eller rapportinnhold her...
-
-Eksempler på stikkord:
-- Årlig service brannalarm
-- Testet alle detektorer
-- Byttet batteri i sentral
-- Rengjort optiske detektorer
-- Alt OK, ingen avvik"
+              className="input w-full !h-auto text-base leading-relaxed"
+              rows={14}
+              placeholder={"Beskriv hva som er gjort, hva som ble funnet og hva som eventuelt gjenstår.\n\nEksempel:\nÅrlig kontroll av brannalarmanlegget. Alle detektorer testet med testgass, manuelle meldere utløst. Byttet batteri i sentralen (2 × 12 V 7 Ah). Detektor i lager B ga ikke alarm og er byttet. Anlegget er i normal drift."}
               required
             />
             <div className="flex items-center justify-between mt-2 text-xs text-gray-500">

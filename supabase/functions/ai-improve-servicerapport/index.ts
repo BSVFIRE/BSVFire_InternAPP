@@ -17,7 +17,7 @@ serve(async (req) => {
   if (auth instanceof Response) return auth
 
   try {
-    const { keywords, anleggType, tekniker } = await req.json()
+    const { keywords, anleggType, tekniker, mode = 'sprak' } = await req.json()
 
     console.log('Received request:', { keywords: keywords?.substring(0, 100), anleggType, tekniker })
 
@@ -50,40 +50,27 @@ serve(async (req) => {
     // Azure OpenAI Chat Completions endpoint
     const apiUrl = `${azureEndpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=2024-06-01`
 
-    const systemPrompt = `Du er en profesjonell tekniker som skriver servicerapporter for brannalarmanlegg og sikkerhetssystemer.
-Din oppgave er å ta imot stikkord og lage en strukturert, profesjonell servicerapport.
+    // To modus:
+    //  'sprak'    (standard) – lett språkvask: rett skrivefeil, bedre setningsbygning, profesjonell tone. Samme innhold og lengde.
+    //  'stikkord'           – skriv ut en full rapport fra stikkord (den gamle oppførselen).
+    const systemPrompt = mode === 'stikkord'
+      ? `Du er en erfaren servicetekniker på brannalarm og sikkerhetsanlegg som skriver servicerapporter til kunder.
+Du får stikkord og skriver dem ut til en ryddig rapport med avsnittene Utført arbeid, Funn og Konklusjon.
+Hold deg strengt til det stikkordene sier – ikke finn på målinger, komponenter eller anbefalinger som ikke er nevnt.
+Skriv kort og konkret på norsk bokmål. Ingen innledning om dato og formål med mindre det står i stikkordene.`
+      : `Du er språkvasker for servicerapporter fra en brannteknisk servicebedrift.
+Du får teknikerens egen tekst. Oppgaven din er BARE å gjøre teksten lettere å lese for kunden:
+- rett skrivefeil og grammatikk
+- del opp lange setninger, rydd i setningsbygning
+- gjør tonen profesjonell og nøytral (fjern muntlige uttrykk)
+- behold avsnittene, rekkefølgen og teknikerens formuleringer der de er gode
+Du skal IKKE: legge til nye avsnitt eller overskrifter, legge til innhold, målinger eller anbefalinger som ikke står der,
+gjøre teksten vesentlig lengre, eller endre fakta, tall, komponentnavn og adresser.
+Svar kun med den ferdige teksten, uten forklaring, uten anførselstegn og uten overskrifter du selv har laget.`
 
-Rapporten skal følge denne strukturen:
-
-1. INNLEDNING
-   - Kort beskrivelse av formålet med servicebesøket
-   - Dato og tidspunkt for utførelse
-
-2. UTFØRT ARBEID
-   - Detaljert beskrivelse av utførte arbeider
-   - Komponenter og systemer som er kontrollert
-   - Målinger og tester som er gjennomført
-
-3. FUNN OG OBSERVASJONER
-   - Eventuelle avvik eller feil som er funnet
-   - Tilstand på utstyr og komponenter
-   - Anbefalinger for utbedringer
-
-4. KONKLUSJON
-   - Oppsummering av servicebesøket
-   - Status på anlegget
-   - Anbefaling for neste service
-
-Skriv på profesjonelt norsk, vær presis og teknisk korrekt. Bruk fagterminologi der det er relevant.`
-
-    const userPrompt = `Lag en servicerapport basert på følgende stikkord:
-
-${keywords}
-
-${anleggType ? `Type anlegg: ${anleggType}` : ''}
-${tekniker ? `Tekniker: ${tekniker}` : ''}
-
-Skriv en komplett, profesjonell servicerapport basert på informasjonen over.`
+    const userPrompt = mode === 'stikkord'
+      ? `Skriv ut en servicerapport fra disse stikkordene:\n\n${keywords}\n\n${anleggType ? `Anlegg: ${anleggType}\n` : ''}${tekniker ? `Tekniker: ${tekniker}` : ''}`
+      : `Språkvask denne teksten. Behold innhold og lengde:\n\n${keywords}`
 
     // Call Azure OpenAI API
     const azureResponse = await fetch(apiUrl, {
@@ -103,7 +90,7 @@ Skriv en komplett, profesjonell servicerapport basert på informasjonen over.`
             content: userPrompt
           }
         ],
-        temperature: 0.7,
+        temperature: mode === 'stikkord' ? 0.5 : 0.2,
         max_tokens: 2000,
       }),
     })
