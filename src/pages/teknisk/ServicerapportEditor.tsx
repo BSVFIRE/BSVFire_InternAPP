@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Save, Eye, Sparkles, Upload, X, Cloud, FileText } from 'lucide-react'
+import { ArrowLeft, Save, Eye, Sparkles, Upload, X, Cloud, Camera, Check, User, Phone, Mail } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { BSV_LOGO } from '@/assets/logoBase64'
@@ -8,7 +8,8 @@ import { checkDropboxStatus } from '@/services/dropboxServiceV2'
 import { Combobox } from '@/components/ui/Combobox'
 import { toast } from '@/lib/toast'
 import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
-import { Camera } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { Felt } from '@/pages/anlegg/anleggSkjema'
 
 interface Servicerapport {
   id: string
@@ -268,8 +269,8 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault()
     setLoading(true)
     try {
       // Last opp bilder først hvis det finnes noen
@@ -404,90 +405,59 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
     return uploadedUrls
   }
 
+  const valgtAnlegg = anlegg.find(a => a.id === formData.anlegg_id)
+  const antallOrd = formData.rapport_innhold.split(/\s+/).filter(Boolean).length
+  const kanLagre = !!formData.header.trim() && !!formData.anlegg_id && !!formData.rapport_innhold.trim() && !!formData.tekniker_navn
+
   if (showPreview) {
     return (
-      <div className="space-y-6">
-        {/* Preview Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowPreview(false)}
-              className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-            </button>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Forhåndsvisning</h1>
-              <p className="text-gray-600 dark:text-gray-400">Slik vil rapporten se ut</p>
-            </div>
-          </div>
+      <div className="space-y-5 pb-28">
+        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+          <button type="button" onClick={() => setShowPreview(false)} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Tilbake til redigering</button>
         </div>
+        <header>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Forhåndsvisning</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Slik blir side 1 i PDF-en. Bilder legges på side 2.</p>
+        </header>
 
-        {/* Preview Content */}
-        <div className="card max-w-4xl mx-auto !bg-white text-black p-8">
-          {/* Logo */}
+        <div className="card max-w-4xl !bg-white text-black p-6 sm:p-8">
           <div className="mb-6">
-            <img src={BSV_LOGO} alt="BSV Logo" className="w-48 h-auto mb-4" />
-            <h1 className="text-3xl font-bold text-blue-600 uppercase mb-2">SERVICERAPPORT</h1>
+            <img src={BSV_LOGO} alt="BSV Logo" className="w-40 sm:w-48 h-auto mb-4" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-blue-600 uppercase">SERVICERAPPORT</h1>
           </div>
-          
-          {/* Header */}
           <div className="border-b-2 border-blue-600 pb-4 mb-6">
-            <h2 className="text-2xl font-bold mb-4">{formData.header || 'Servicerapport'}</h2>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="font-semibold">Anlegg:</span>{' '}
-                {anlegg.find(a => a.id === formData.anlegg_id)?.anleggsnavn || 'Ikke valgt'}
-              </div>
-              <div>
-                <span className="font-semibold">Dato:</span>{' '}
-                {new Date(formData.rapport_dato).toLocaleDateString('nb-NO')}
-              </div>
-              <div>
-                <span className="font-semibold">Tekniker:</span> {formData.tekniker_navn || 'Ikke angitt'}
-              </div>
+            <h2 className="text-xl sm:text-2xl font-bold mb-3">{formData.header || 'Servicerapport'}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+              <div><span className="font-semibold">Anlegg:</span> {valgtAnlegg?.anleggsnavn || 'Ikke valgt'}</div>
+              <div><span className="font-semibold">Dato:</span> {new Date(formData.rapport_dato).toLocaleDateString('nb-NO')}</div>
+              <div><span className="font-semibold">Tekniker:</span> {formData.tekniker_navn || 'Ikke angitt'}</div>
             </div>
           </div>
-
-          {/* Report Content */}
-          <div className="prose prose-sm max-w-none">
-            <div className="whitespace-pre-wrap">{formData.rapport_innhold || 'Ingen innhold ennå...'}</div>
-          </div>
-
-          {/* Images Preview */}
+          <div className="whitespace-pre-wrap text-sm leading-relaxed">{formData.rapport_innhold || 'Ingen innhold ennå…'}</div>
           {imagePreviewUrls.length > 0 && (
             <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-4">Bilder</h3>
+              <h3 className="text-lg font-semibold mb-3">Bilder</h3>
               <div className="grid grid-cols-2 gap-4">
                 {imagePreviewUrls.map((url, index) => (
                   <div key={index} className="border border-gray-300 rounded-lg overflow-hidden">
-                    <img
-                      src={url}
-                      alt={`Bilde ${index + 1}`}
-                      className="w-full h-48 object-contain bg-gray-50"
-                    />
-                    <div className="p-2 bg-gray-100 text-center">
-                      <p className="text-xs text-gray-600">Bilde {index + 1}</p>
-                    </div>
+                    <img src={url} alt={`Bilde ${index + 1}`} className="w-full h-48 object-contain bg-gray-50" />
+                    <div className="p-2 bg-gray-100 text-center"><p className="text-xs text-gray-600">Bilde {index + 1}</p></div>
                   </div>
                 ))}
               </div>
             </div>
           )}
-          
-          {/* Footer */}
           <div className="mt-12 pt-6 border-t border-gray-300">
             <p className="text-sm font-bold text-blue-600 mb-2">Brannteknisk Service og Vedlikehold AS</p>
-            <p className="text-xs text-gray-600">
-              Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600
-            </p>
-            <p className="text-xs text-gray-600">
-              Adresse: Sælenveien 44, 5151 Straumsgrend
-            </p>
-            <p className="text-xs text-gray-500 mt-2">
-              Generert: {new Date().toLocaleDateString('nb-NO')} {new Date().toLocaleTimeString('nb-NO')}
-            </p>
+            <p className="text-xs text-gray-600">Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600</p>
+            <p className="text-xs text-gray-600">Adresse: Sælenveien 44, 5151 Straumsgrend</p>
+            <p className="text-xs text-gray-500 mt-2">Generert: {new Date().toLocaleDateString('nb-NO')} {new Date().toLocaleTimeString('nb-NO')}</p>
           </div>
+        </div>
+
+        <div className="fixed bottom-0 left-0 right-0 lg:left-[var(--sidebar-w)] z-20 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-gray-800 px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
+          <Button variant="ghost" onClick={() => setShowPreview(false)} icon={<ArrowLeft />} className="mr-auto">Rediger</Button>
+          <Button variant="primary" onClick={() => handleSubmit()} loading={loading || uploadingImages} disabled={!kanLagre} icon={<Save />}>Lagre og lag PDF</Button>
         </div>
       </div>
     )
@@ -495,329 +465,147 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
 
   return (
     <>
-      {/* Dialog */}
-      <SendRapportDialog
-        onConfirm={handleSendRapportConfirm}
-        onCancel={handleSendRapportCancel}
-        isOpen={showSendRapportDialog}
-      />
+      <SendRapportDialog onConfirm={handleSendRapportConfirm} onCancel={handleSendRapportCancel} isOpen={showSendRapportDialog} />
 
-      <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-        <button type="button" onClick={onCancel} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Servicerapporter</button>
-      </div>
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{rapport.id ? 'Rediger servicerapport' : 'Ny servicerapport'}</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{rapport.id ? formData.header : kladdKey && (formData.header || formData.rapport_innhold) ? 'Kladden lagres automatisk på denne enheten til rapporten er lagret.' : 'Fyll ut, legg ved bilder, og lagre – PDF-en lages automatisk.'}</p>
-      </div>
+      <form onSubmit={handleSubmit} className="pb-28">
+        <div className="space-y-5 max-w-3xl">
+          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+            <button type="button" onClick={onCancel} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Servicerapporter</button>
+          </div>
+          <header>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{rapport.id ? 'Rediger servicerapport' : 'Ny servicerapport'}</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{rapport.id ? formData.header : kladdKey && (formData.header || formData.rapport_innhold) ? 'Kladden lagres automatisk på denne enheten til rapporten er lagret.' : 'Fyll ut, legg ved bilder og lagre – PDF-en lages automatisk.'}</p>
+          </header>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Header Section */}
-        <div className="card">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-              <FileText className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Grunnleggende informasjon</h2>
-              <p className="text-sm text-gray-500">Fyll ut tittel, anlegg, dato og tekniker</p>
-            </div>
-          </div>
-          
-          {/* Første rad: Tittel (full bredde) */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Rapporttittel <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.header}
-              onChange={(e) => handleChange('header', e.target.value)}
-              className="input w-full text-lg"
-              placeholder="F.eks. Årlig service brannalarmanlegg"
-              required
-            />
-          </div>
-          
-          {/* Andre rad: Anlegg (full bredde) */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Anlegg <span className="text-red-500">*</span>
-            </label>
-            <Combobox
-              options={anlegg.map(a => ({ id: a.id, value: a.id, label: a.anleggsnavn }))}
-              value={formData.anlegg_id}
-              onChange={(val) => handleChange('anlegg_id', val)}
-              placeholder="Søk og velg anlegg..."
-              searchPlaceholder="Skriv for å søke..."
-              emptyMessage="Ingen anlegg funnet"
-            />
-          </div>
-
-          {/* Tredje rad: Dato og Tekniker */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Dato <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                value={formData.rapport_dato}
-                onChange={(e) => handleChange('rapport_dato', e.target.value)}
-                className="input w-full"
-                required
+          {/* Grunnleggende */}
+          <section className="card space-y-4">
+            <Felt id="sr-tittel" label="Rapporttittel" pakrevd>
+              <input id="sr-tittel" type="text" value={formData.header} onChange={(e) => handleChange('header', e.target.value)} className="input w-full" placeholder="F.eks. Årlig service brannalarmanlegg" required />
+            </Felt>
+            <Felt label="Anlegg" pakrevd hint={anleggDetails ? [anleggDetails.kunde_navn, [anleggDetails.adresse, anleggDetails.postnr && anleggDetails.poststed ? `${anleggDetails.postnr} ${anleggDetails.poststed}` : anleggDetails.poststed].filter(Boolean).join(', ')].filter(Boolean).join(' · ') : 'Søk på anleggsnavn.'}>
+              <Combobox
+                options={anlegg.map(a => ({ id: a.id, value: a.id, label: a.anleggsnavn }))}
+                value={formData.anlegg_id}
+                onChange={(val) => handleChange('anlegg_id', val)}
+                placeholder="Velg anlegg…"
+                searchPlaceholder="Søk anlegg…"
+                emptyMessage="Ingen anlegg funnet"
               />
+            </Felt>
+            {anleggDetails?.kontaktperson_navn && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2 inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="inline-flex items-center gap-1"><User className="w-3.5 h-3.5" />{anleggDetails.kontaktperson_navn}</span>
+                {anleggDetails.kontaktperson_telefon && <a href={`tel:${anleggDetails.kontaktperson_telefon}`} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white"><Phone className="w-3.5 h-3.5" />{anleggDetails.kontaktperson_telefon}</a>}
+                {anleggDetails.kontaktperson_epost && <a href={`mailto:${anleggDetails.kontaktperson_epost}`} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white"><Mail className="w-3.5 h-3.5" />{anleggDetails.kontaktperson_epost}</a>}
+              </p>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Felt id="sr-dato" label="Dato" pakrevd>
+                <input id="sr-dato" type="date" value={formData.rapport_dato} onChange={(e) => handleChange('rapport_dato', e.target.value)} className="input w-full" required />
+              </Felt>
+              <Felt id="sr-tekniker" label="Tekniker" pakrevd>
+                <select id="sr-tekniker" value={formData.tekniker_navn} onChange={(e) => handleChange('tekniker_navn', e.target.value)} className="input w-full" required>
+                  <option value="">Velg tekniker</option>
+                  {ansatte.map((ansatt) => <option key={ansatt.id} value={ansatt.navn}>{ansatt.navn}</option>)}
+                </select>
+              </Felt>
             </div>
+          </section>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Tekniker <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.tekniker_navn}
-                onChange={(e) => handleChange('tekniker_navn', e.target.value)}
-                className="input w-full"
-                required
-              >
-                <option value="">Velg tekniker</option>
-                {ansatte.map((ansatt) => (
-                  <option key={ansatt.id} value={ansatt.navn}>
-                    {ansatt.navn}
-                  </option>
-                ))}
-              </select>
+          {/* Rapporttekst */}
+          <section className="card space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Rapporttekst <span className="text-red-500">*</span></h2>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => handleAiImprove('sprak')} loading={aiLoading} disabled={!formData.rapport_innhold.trim()} icon={<Sparkles className="text-purple-500" />} title="Retter skrivefeil og setningsbygning – beholder innhold og lengde">Språkvask</Button>
+                <Button variant="ghost" onClick={() => handleAiImprove('stikkord')} disabled={aiLoading || !formData.rapport_innhold.trim()} title="Skriver stikkordene dine ut til hele setninger og avsnitt">Skriv ut fra stikkord</Button>
+              </div>
             </div>
-          </div>
-        </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1">Skriv med egne ord – hva som er gjort, hva som ble funnet og hva som gjenstår. Språkvask retter språket etterpå uten å endre innholdet.</p>
 
-        {/* Anleggsdetaljer */}
-        {anleggDetails && (
-          <div className="card bg-blue-500/5 border-blue-500/20">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Anleggsdetaljer</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Kunde</label>
-                <p className="text-gray-900 dark:text-white">{anleggDetails.kunde_navn || 'Ikke angitt'}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Anlegg</label>
-                <p className="text-gray-900 dark:text-white">{anleggDetails.anleggsnavn}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Adresse</label>
-                <p className="text-gray-900 dark:text-white">
-                  {anleggDetails.adresse || 'Ikke angitt'}
-                  {anleggDetails.postnr && anleggDetails.poststed && (
-                    <><br />{anleggDetails.postnr} {anleggDetails.poststed}</>
-                  )}
-                </p>
-              </div>
-              {anleggDetails.kontaktperson_navn && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Kontaktperson</label>
-                  <p className="text-gray-900 dark:text-white">{anleggDetails.kontaktperson_navn}</p>
-                  {anleggDetails.kontaktperson_telefon && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{anleggDetails.kontaktperson_telefon}</p>
-                  )}
-                  {anleggDetails.kontaktperson_epost && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{anleggDetails.kontaktperson_epost}</p>
-                  )}
+            {aiForslag && (
+              <div className="rounded-lg border border-purple-300 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-900/10 overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-purple-200 dark:border-purple-900/60">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white inline-flex items-center gap-2"><Sparkles className="w-4 h-4 text-purple-500" />{aiForslag.modus === 'sprak' ? 'Forslag til språkvask' : 'Skrevet ut fra stikkordene'}<span className="text-xs font-normal text-gray-500">· {antallOrd} → {aiForslag.tekst.split(/\s+/).filter(Boolean).length} ord</span></p>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" onClick={() => setAiForslag(null)}>Forkast</Button>
+                    <Button variant="primary" icon={<Check />} onClick={() => { handleChange('rapport_innhold', aiForslag.tekst); setAiForslag(null); toast.success('Teksten er oppdatert') }}>Bruk forslaget</Button>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Report Content Section */}
-        <div className="card">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-purple-500" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Rapportinnhold</h2>
-                <p className="text-sm text-gray-500">Skriv med egne ord – AI kan rette språk og setningsbygning etterpå</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => handleAiImprove('sprak')} disabled={aiLoading || !formData.rapport_innhold.trim()} className="btn-primary flex items-center gap-2 whitespace-nowrap" title="Retter skrivefeil og setningsbygning – beholder innhold og lengde">
-                <Sparkles className="w-4 h-4" />{aiLoading ? 'Jobber…' : 'Språkvask'}
-              </button>
-              <button type="button" onClick={() => handleAiImprove('stikkord')} disabled={aiLoading || !formData.rapport_innhold.trim()} className="btn-secondary text-sm whitespace-nowrap" title="Skriver stikkordene dine ut til hele setninger og avsnitt">
-                Skriv ut fra stikkord
-              </button>
-            </div>
-          </div>
-          {aiForslag && (
-            <div className="mb-4 rounded-lg border border-purple-300 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-900/10 overflow-hidden">
-              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-purple-200 dark:border-purple-900/60">
-                <p className="text-sm font-medium text-gray-900 dark:text-white inline-flex items-center gap-2"><Sparkles className="w-4 h-4 text-purple-500" />{aiForslag.modus === 'sprak' ? 'Forslag til språkvask' : 'Forslag skrevet ut fra stikkordene'}<span className="text-xs font-normal text-gray-500">· {formData.rapport_innhold.split(/\s+/).filter(Boolean).length} → {aiForslag.tekst.split(/\s+/).filter(Boolean).length} ord</span></p>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setAiForslag(null)} className="btn-secondary text-sm">Forkast</button>
-                  <button type="button" onClick={() => { handleChange('rapport_innhold', aiForslag.tekst); setAiForslag(null); toast.success('Teksten er oppdatert') }} className="btn-primary text-sm">Bruk forslaget</button>
+                <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-purple-200 dark:divide-purple-900/60">
+                  <div className="p-3"><p className="text-[11px] uppercase tracking-wider text-gray-400 mb-1">Din tekst</p><pre className="whitespace-pre-wrap font-sans text-sm text-gray-600 dark:text-gray-400 max-h-72 overflow-y-auto">{formData.rapport_innhold}</pre></div>
+                  <div className="p-3"><p className="text-[11px] uppercase tracking-wider text-purple-500 mb-1">Forslag</p><pre className="whitespace-pre-wrap font-sans text-sm text-gray-900 dark:text-white max-h-72 overflow-y-auto">{aiForslag.tekst}</pre></div>
                 </div>
               </div>
-              <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-purple-200 dark:divide-purple-900/60">
-                <div className="p-3"><p className="text-[11px] uppercase tracking-wider text-gray-400 mb-1">Din tekst</p><pre className="whitespace-pre-wrap font-sans text-sm text-gray-600 dark:text-gray-400 max-h-72 overflow-y-auto">{formData.rapport_innhold}</pre></div>
-                <div className="p-3"><p className="text-[11px] uppercase tracking-wider text-purple-500 mb-1">Forslag</p><pre className="whitespace-pre-wrap font-sans text-sm text-gray-900 dark:text-white max-h-72 overflow-y-auto">{aiForslag.tekst}</pre></div>
-              </div>
-            </div>
-          )}
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Rapport tekst <span className="text-red-500">*</span>
-            </label>
+            )}
+
             <textarea
+              id="sr-innhold"
               value={formData.rapport_innhold}
               onChange={(e) => handleChange('rapport_innhold', e.target.value)}
               className="input w-full !h-auto text-base leading-relaxed"
               rows={14}
-              placeholder={"Beskriv hva som er gjort, hva som ble funnet og hva som eventuelt gjenstår.\n\nEksempel:\nÅrlig kontroll av brannalarmanlegget. Alle detektorer testet med testgass, manuelle meldere utløst. Byttet batteri i sentralen (2 × 12 V 7 Ah). Detektor i lager B ga ikke alarm og er byttet. Anlegget er i normal drift."}
+              placeholder={"Eksempel:\nÅrlig kontroll av brannalarmanlegget. Alle detektorer testet med testgass, manuelle meldere utløst. Byttet batteri i sentralen (2 × 12 V 7 Ah). Detektor i lager B ga ikke alarm og er byttet. Anlegget er i normal drift."}
               required
             />
-            <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-              <span>{formData.rapport_innhold.length} tegn</span>
-              <span>{formData.rapport_innhold.split(/\s+/).filter(w => w).length} ord</span>
-            </div>
-          </div>
-        </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 text-right">{antallOrd} ord · {formData.rapport_innhold.length} tegn</p>
+          </section>
 
-        {/* Image Upload Section */}
-        <div className="card">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
-              <Upload className="w-5 h-5 text-green-500" />
+          {/* Bilder */}
+          <section className="card space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Bilder {imagePreviewUrls.length > 0 && <span className="text-gray-400 font-normal">({imagePreviewUrls.length})</span>}</h2>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Legges på side 2 i PDF-en</span>
             </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Bilder</h2>
-              <p className="text-sm text-gray-500">Legg til bilder som vises på side 2 i PDF</p>
-            </div>
-            {imagePreviewUrls.length > 0 && (
-              <span className="px-2 py-1 bg-green-500/10 text-green-400 text-sm rounded-lg">
-                {imagePreviewUrls.length} bilde{imagePreviewUrls.length !== 1 ? 'r' : ''}
-              </span>
-            )}
-          </div>
-          
-          <div className="space-y-4">
-            {/* File input */}
-            <label className="block">
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleImageSelect}
-                className="hidden"
-                id="image-upload"
-              />
-              <input type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="hidden" id="image-camera" />
-              <div className="grid grid-cols-2 gap-2">
-                <label htmlFor="image-camera" className="sm:hidden flex flex-col items-center justify-center h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-primary transition-colors">
-                  <Camera className="w-7 h-7 text-gray-400 mb-1" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Ta bilde</span>
-                </label>
-                <label htmlFor="image-upload" className="col-span-2 sm:col-span-2 flex flex-col items-center justify-center h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-primary transition-colors max-sm:col-span-1">
-                  <Upload className="w-7 h-7 text-gray-400 mb-1" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Velg bilder</span>
-                  <span className="text-xs text-gray-500 mt-0.5 hidden sm:inline">eller dra og slipp her</span>
-                </label>
-              </div>
-            </label>
-
-            {/* Image previews */}
-            {imagePreviewUrls.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Bilder ({imagePreviewUrls.length})
-                  {existingImagePaths.length > 0 && (
-                    <span className="text-xs text-gray-500 ml-2">
-                      ({existingImagePaths.length} eksisterende, {selectedImages.length} nye)
-                    </span>
-                  )}
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {imagePreviewUrls.map((url, index) => {
-                    const isExisting = index < existingImagePaths.length
-                    const fileName = isExisting 
-                      ? existingImagePaths[index].split('/').pop() 
-                      : selectedImages[index - existingImagePaths.length]?.name
-                    
-                    return (
-                      <div key={index} className="relative group">
-                        <img
-                          src={url}
-                          alt={`Preview ${index + 1}`}
-                          className="w-full h-32 object-cover rounded-lg"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeImage(index)}
-                          className="absolute top-2 right-2 p-1 bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-4 h-4 text-white" />
-                        </button>
-                        <div className="absolute bottom-2 left-2 right-2 bg-black/50 rounded px-2 py-1">
-                          <p className="text-xs text-white truncate">{fileName}</p>
-                          {isExisting && (
-                            <p className="text-xs text-green-400">Eksisterende</p>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="btn-secondary"
-          >
-            Avbryt
-          </button>
-          <div className="flex items-center gap-3">
-            {/* Dropbox toggle eller koble til-knapp */}
-            {/* Dropbox toggle - vises kun hvis Dropbox er tilkoblet */}
-            {dropboxAvailable && (
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={saveToDropbox}
-                  onChange={(e) => setSaveToDropbox(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-primary focus:ring-primary"
-                />
-                <Cloud className={`w-5 h-5 ${saveToDropbox ? 'text-blue-400' : 'text-gray-500'}`} />
-                <span className="text-sm text-gray-300">Dropbox</span>
+            <input type="file" accept="image/*" multiple onChange={handleImageSelect} className="hidden" id="image-upload" />
+            <input type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="hidden" id="image-camera" />
+            <div className="grid grid-cols-2 gap-2">
+              <label htmlFor="image-camera" className="sm:hidden flex flex-col items-center justify-center h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary transition-colors">
+                <Camera className="w-6 h-6 text-gray-400 mb-1" />
+                <span className="text-sm text-gray-600 dark:text-gray-400">Ta bilde</span>
               </label>
+              <label htmlFor="image-upload" className="col-span-1 sm:col-span-2 flex flex-col items-center justify-center h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary transition-colors">
+                <Upload className="w-6 h-6 text-gray-400 mb-1" />
+                <span className="text-sm text-gray-600 dark:text-gray-400">Velg bilder</span>
+                <span className="text-xs text-gray-500 mt-0.5 hidden sm:inline">eller dra og slipp her</span>
+              </label>
+            </div>
+            {imagePreviewUrls.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {imagePreviewUrls.map((url, index) => {
+                  const isExisting = index < existingImagePaths.length
+                  const fileName = isExisting ? existingImagePaths[index].split('/').pop() : selectedImages[index - existingImagePaths.length]?.name
+                  return (
+                    <div key={index} className="relative group rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
+                      <img src={url} alt={`Bilde ${index + 1}`} className="w-full h-32 object-cover" />
+                      <button type="button" onClick={() => removeImage(index)} aria-label="Fjern bilde" className="absolute top-1.5 right-1.5 w-8 h-8 inline-flex items-center justify-center bg-black/60 hover:bg-red-600 text-white rounded-full sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        <X className="w-4 h-4" />
+                      </button>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1">
+                        <p className="text-[11px] text-white truncate">{fileName}{isExisting && <span className="text-green-300"> · lagret</span>}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             )}
-            <button
-              type="button"
-              onClick={() => setShowPreview(true)}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <Eye className="w-5 h-5" />
-              Forhåndsvisning
-            </button>
-            <button
-              type="submit"
-              disabled={loading || uploadingImages}
-              className="btn-primary flex items-center gap-2"
-            >
-              <Save className="w-5 h-5" />
-              {uploadingImages ? 'Laster opp bilder...' : loading ? 'Lagrer og genererer...' : 'Lagre og generer rapport'}
-            </button>
-          </div>
+          </section>
+        </div>
+
+        <div className="fixed bottom-0 left-0 right-0 lg:left-[var(--sidebar-w)] z-20 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-gray-800 px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
+          {dropboxAvailable && (
+            <label className="inline-flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300 mr-auto select-none">
+              <input type="checkbox" checked={saveToDropbox} onChange={(e) => setSaveToDropbox(e.target.checked)} className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary" />
+              <Cloud className={`w-4 h-4 ${saveToDropbox ? 'text-blue-500' : 'text-gray-400'}`} />
+              <span className="hidden sm:inline">Lagre PDF i Dropbox</span><span className="sm:hidden">Dropbox</span>
+            </label>
+          )}
+          {!dropboxAvailable && <span className="mr-auto" />}
+          <Button variant="ghost" onClick={onCancel}>Avbryt</Button>
+          <Button onClick={() => setShowPreview(true)} icon={<Eye />}><span className="hidden sm:inline">Forhåndsvis</span><span className="sm:hidden">Vis</span></Button>
+          <Button variant="primary" type="submit" loading={loading || uploadingImages} disabled={!kanLagre} icon={<Save />}>{uploadingImages ? 'Laster opp…' : loading ? 'Lagrer…' : 'Lagre og lag PDF'}</Button>
         </div>
       </form>
-    </div>
     </>
   )
 }
