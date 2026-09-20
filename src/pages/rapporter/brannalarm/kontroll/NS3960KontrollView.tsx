@@ -815,7 +815,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
       })}
 
       {/* Styringer på anlegget */}
-      {styringerTotalt > 0 && (filter === 'alle' || (filter === 'gjenstar' && styringerVurdert < styringerTotalt) || (filter === 'avvik' && styringerAvvik > 0)) && (
+      {styringerTotalt > 0 && (
         <section className="card !p-0 overflow-hidden" aria-label="Styringer">
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-dark-100">
             <button type="button" onClick={() => toggleCategory('__styringer')} aria-expanded={!collapsedCategories.has('__styringer')} className="flex items-center gap-2 flex-1 min-w-0 text-left">
@@ -829,6 +829,9 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
               <MenuItem icon={<Check />} onSelect={() => { aktiveStyringer.forEach(x => { if (!styr[x.key].status) lagreStyring(x.key, { ...styr[x.key], status: 'Kontrollert' }) }); egneStyringer.forEach(x => { if (!x.status) lagreEgenStyring(x.id, { aktiv: true, antall: x.antall, status: 'Kontrollert', note: x.note, avvik: x.avvik }) }) }}>Merk resten som kontrollert</MenuItem>
             </DropdownMenu>
           </div>
+          {!collapsedCategories.has('__styringer') && filter !== 'alle' && aktiveStyringer.filter(x => filter === 'gjenstar' ? !styr[x.key].status : styr[x.key].avvik.length > 0).length + egneStyringer.filter(x => filter === 'gjenstar' ? !x.status : x.avvik.length > 0).length === 0 && (
+            <p className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{filter === 'gjenstar' ? 'Alle styringer har fått status.' : 'Ingen styringer med avvik.'} <button type="button" onClick={() => setFilter('alle')} className="text-primary hover:underline">Vis alle</button></p>
+          )}
           {!collapsedCategories.has('__styringer') && (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {aktiveStyringer.filter(x => filter === 'alle' || (filter === 'gjenstar' ? !styr[x.key].status : styr[x.key].avvik.length > 0)).map(x => (

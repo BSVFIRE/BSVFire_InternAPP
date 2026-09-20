@@ -661,7 +661,7 @@ export function FG790KontrollView({
       })}
 
       {/* Styringer på anlegget */}
-      {styringerTotalt > 0 && (filter === 'alle' || (filter === 'gjenstar' && styringerVurdert < styringerTotalt) || (filter === 'avvik' && styringerAvvik > 0)) && (
+      {styringerTotalt > 0 && (
         <section className="card !p-0 overflow-hidden" aria-label="Styringer">
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-dark-100">
             <button type="button" onClick={() => setStyringerLukket(v => !v)} aria-expanded={!styringerLukket} className="flex items-center gap-2 flex-1 min-w-0 text-left">
@@ -675,6 +675,9 @@ export function FG790KontrollView({
               <MenuItem icon={<Check />} onSelect={() => { aktiveStyringer.forEach(x => { if (!styr[x.key].status) lagreStyring(x.key, { ...styr[x.key], status: 'Kontrollert' }) }); egneStyringer.forEach(x => { if (!x.status) lagreEgenStyring(x.id, { aktiv: true, antall: x.antall, status: 'Kontrollert', note: x.note, avvik: x.avvik }) }) }}>Merk resten som kontrollert</MenuItem>
             </DropdownMenu>
           </div>
+          {!styringerLukket && filter !== 'alle' && aktiveStyringer.filter(x => filter === 'gjenstar' ? !styr[x.key].status : styr[x.key].avvik.length > 0).length + egneStyringer.filter(x => filter === 'gjenstar' ? !x.status : x.avvik.length > 0).length === 0 && (
+            <p className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{filter === 'gjenstar' ? 'Alle styringer har fått status.' : 'Ingen styringer med avvik.'} <button type="button" onClick={() => setFilter('alle')} className="text-primary hover:underline">Vis alle</button></p>
+          )}
           {!styringerLukket && (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {aktiveStyringer.filter(x => filter === 'alle' || (filter === 'gjenstar' ? !styr[x.key].status : styr[x.key].avvik.length > 0)).map(x => (
