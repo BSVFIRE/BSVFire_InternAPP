@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { batteriInfo } from '@/lib/batteri'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Download, Eye, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -924,13 +925,13 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
             n.sw_id || '-',
             batterIkkeAktuelt ? 'N/A' : (n.spenning ? `${n.spenning}V` : '-'),
             batterIkkeAktuelt ? 'N/A' : (n.ah ? `${n.ah}Ah` : '-'),
-            batterIkkeAktuelt ? 'N/A' : (n.batterialder ? n.batterialder.toString() : '-')
+            batterIkkeAktuelt ? 'N/A' : (batteriInfo(n.batterialder).tekst || '-')
           ]
         })
 
         autoTable(doc, {
           startY: yPos,
-          head: [['Nettverk', 'Plassering', 'Type', 'SW-versjon', 'Spenning', 'Ah', 'Batterialder']],
+          head: [['Nettverk', 'Plassering', 'Type', 'SW-versjon', 'Spenning', 'Ah', 'Batteri montert']],
           body: nettverkRows,
           theme: 'grid',
           headStyles: { fillColor: [41, 128, 185] },
@@ -1138,7 +1139,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
             talevarslingData.push(['Batteritype', brannalarmData.talevarsling_batteri_type])
           }
           if (brannalarmData.talevarsling_batteri_alder) {
-            talevarslingData.push(['Batterialder', `${brannalarmData.talevarsling_batteri_alder} år`])
+            talevarslingData.push(['Batteri montert', batteriInfo(brannalarmData.talevarsling_batteri_alder).tekst])
           }
           if (brannalarmData.talevarsling_plassering) {
             talevarslingData.push(['Plassering', brannalarmData.talevarsling_plassering])
@@ -1233,7 +1234,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
             alarmsenderData.push(['Plassering', brannalarmData.plassering])
           }
           if (brannalarmData.batterialder) {
-            alarmsenderData.push(['Batterialder', `${brannalarmData.batterialder} år`])
+            alarmsenderData.push(['Batteri montert', batteriInfo(brannalarmData.batterialder).tekst])
           }
           if (brannalarmData.batteritype) {
             alarmsenderData.push(['Batteritype', brannalarmData.batteritype])

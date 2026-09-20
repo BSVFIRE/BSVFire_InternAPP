@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useOfflineQueue } from '@/hooks/useOffline'
+import { batteriAdvarsel } from '@/lib/batteri'
 
 interface Kontakt { id: string; navn: string | null; epost: string | null; telefon: string | null }
 interface Data {
@@ -99,7 +100,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: { anleggId
           <Felt label="Leverandør" verdi={data.talevarsling_leverandor} placeholder="F.eks. Bosch, Siemens" onLagre={v => lagre({ talevarsling_leverandor: v })} />
           <Felt label="Plassering" verdi={data.talevarsling_plassering} placeholder="F.eks. Teknisk rom" onLagre={v => lagre({ talevarsling_plassering: v })} />
           <Felt label="Batteritype" verdi={data.talevarsling_batteri_type} placeholder="F.eks. 12V 7Ah" onLagre={v => lagre({ talevarsling_batteri_type: v })} />
-          <Felt label="Batterialder (år)" verdi={data.talevarsling_batteri_alder} placeholder="0" numerisk advarsel={batteriAdvarsel(data.talevarsling_batteri_alder)} onLagre={v => lagre({ talevarsling_batteri_alder: v })} />
+          <Felt label="Batteri montert (år)" verdi={data.talevarsling_batteri_alder} placeholder={String(new Date().getFullYear())} numerisk advarsel={batteriAdvarsel(data.talevarsling_batteri_alder)} onLagre={v => lagre({ talevarsling_batteri_alder: v })} />
         </div>
         <Felt label="Kommentar" verdi={data.talevarsling_kommentar} placeholder="Spesielle forhold …" flerlinje onLagre={v => lagre({ talevarsling_kommentar: v })} />
       </Seksjon>
@@ -133,7 +134,7 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: { anleggId
           <label className="flex items-center gap-2.5 text-sm text-gray-900 dark:text-white cursor-pointer self-end h-10"><input type="checkbox" checked={data.forsynet_fra_brannsentral} onChange={e => lagre({ forsynet_fra_brannsentral: e.target.checked })} className="w-4 h-4 rounded text-primary focus:ring-primary" />Forsynt fra brannsentralen</label>
           {!data.forsynet_fra_brannsentral && <>
             <Felt label="Batteritype" verdi={data.batteritype} placeholder="F.eks. 12V 7Ah" onLagre={v => lagre({ batteritype: v })} />
-            <Felt label="Batterialder (år)" verdi={data.batterialder} placeholder="0" numerisk advarsel={batteriAdvarsel(data.batterialder)} onLagre={v => lagre({ batterialder: v })} />
+            <Felt label="Batteri montert (år)" verdi={data.batterialder} placeholder={String(new Date().getFullYear())} numerisk advarsel={batteriAdvarsel(data.batterialder)} onLagre={v => lagre({ batterialder: v })} />
           </>}
         </div>
         <Felt label="Kommentar" verdi={data.mottaker_kommentar} placeholder="Spesielle forhold …" flerlinje onLagre={v => lagre({ mottaker_kommentar: v })} />
@@ -149,13 +150,6 @@ export function TilleggsutstyrView({ anleggId, anleggsNavn, onBack }: { anleggId
       </Seksjon>
     </div>
   )
-}
-
-function batteriAdvarsel(alder: string): string | undefined {
-  const n = parseInt(alder || '0', 10)
-  if (n >= 5) return 'Over 5 år – bør byttes'
-  if (n >= 4) return 'Nærmer seg 5 år'
-  return undefined
 }
 
 function Seksjon({ id, ikon: Ikon, tittel, paa, oppsummering, apen, onToggle, onPaa, children }: { id: string; ikon: LucideIcon; tittel: string; paa: boolean; oppsummering: string; apen: boolean; onToggle: () => void; onPaa: (v: boolean) => void; children: React.ReactNode }) {
@@ -190,7 +184,7 @@ function Felt({ label, verdi, placeholder, numerisk, flerlinje, advarsel, onLagr
       <label htmlFor={id} className="block text-sm font-medium text-gray-900 dark:text-white">{label}</label>
       {flerlinje
         ? <textarea id={id} value={v} onChange={e => setV(e.target.value)} onBlur={lagre} rows={2} placeholder={placeholder} className="input !h-auto" />
-        : <input id={id} value={v} onChange={e => setV(numerisk ? e.target.value.replace(/\D/g, '') : e.target.value)} onBlur={lagre} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} inputMode={numerisk ? 'numeric' : undefined} placeholder={placeholder} className="input" />}
+        : <input id={id} value={v} onChange={e => setV(numerisk ? e.target.value.replace(/\D/g, '').slice(0, 4) : e.target.value)} onBlur={lagre} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} inputMode={numerisk ? 'numeric' : undefined} placeholder={placeholder} className="input" />}
       {advarsel && <p className="text-xs text-yellow-700 dark:text-yellow-400 inline-flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />{advarsel}</p>}
     </div>
   )

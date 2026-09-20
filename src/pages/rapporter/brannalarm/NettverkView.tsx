@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useOfflineQueue } from '@/hooks/useOffline'
+import { batteriInfo } from '@/lib/batteri'
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem } from '@/components/ui/DropdownMenu'
 import type { NettverkEnhet } from '../Brannalarm'
@@ -33,13 +34,6 @@ type Node = NettverkEnhet & { batteri_ikke_aktuelt?: boolean | null }
 interface Skjema { nettverk_id: string; plassering: string; type: string; sw_id: string; spenning: string; ah: string; batterialder: string; batteri_ikke_aktuelt: boolean }
 const TOMT: Skjema = { nettverk_id: '', plassering: '', type: '', sw_id: '', spenning: '24', ah: '', batterialder: '', batteri_ikke_aktuelt: false }
 
-/** Batterialder: gult fra 4 år, rødt fra 5 (vanlig bytteintervall) */
-function batteriTone(alder: number | null | undefined): 'r' | 'y' | null {
-  if (alder == null) return null
-  if (alder >= 5) return 'r'
-  if (alder >= 4) return 'y'
-  return null
-}
 
 export function NettverkView({ anleggId, anleggsNavn, nettverkListe, enheterData, onBack, onRefresh }: NettverkViewProps) {
   const { isOnline, queueInsert, queueUpdate, queueDelete } = useOfflineQueue()
@@ -59,7 +53,7 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, enheterData
     return grupper.flatMap(g => g.typer.filter(t => t.type).map(t => ({ gruppe: g.navn, type: t.type, forventet: t.antall, registrert: noder.filter(n => n.type === t.type).length })))
   }, [enheterData, noder])
   const mangler = dekning.reduce((s, d) => s + Math.max(0, d.forventet - d.registrert), 0)
-  const batteriVarsler = noder.filter(n => !n.batteri_ikke_aktuelt && batteriTone(n.batterialder) === 'r').length
+  const batteriVarsler = noder.filter(n => !n.batteri_ikke_aktuelt && batteriInfo(n.batterialder).tone === 'r').length
 
   const treff = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -198,13 +192,13 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, enheterData
 
 function Batteri({ n }: { n: Node }) {
   if (n.batteri_ikke_aktuelt) return <span className="text-xs text-gray-400">Ikke aktuelt</span>
-  const tone = batteriTone(n.batterialder)
+  const b = batteriInfo(n.batterialder)
   const deler = [n.spenning ? `${n.spenning} V` : null, n.ah ? `${n.ah} Ah` : null].filter(Boolean).join(' · ')
   return (
     <span className="inline-flex items-center gap-2 text-xs">
       <BatteryCharging className="w-3.5 h-3.5 text-gray-400" />
-      <span className="text-gray-700 dark:text-gray-300">{deler || <span className="text-gray-400">–</span>}</span>
-      {n.batterialder != null && <span className={cn('px-1.5 py-px rounded font-semibold tabular-nums', tone === 'r' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : tone === 'y' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-400')}>{n.batterialder} år{tone === 'r' ? ' · bytt' : ''}</span>}
+      <span className="text-gray-700 dark:text-gray-300 whitespace-nowrap">{deler || <span className="text-gray-400">–</span>}</span>
+      {b.montertAar != null && <span className={cn('px-1.5 py-px rounded font-semibold tabular-nums whitespace-nowrap', b.tone === 'r' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : b.tone === 'y' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-400')}>{b.tekst}</span>}
     </span>
   )
 }
@@ -287,10 +281,10 @@ function NodeDialog({ node, forvalgtType, dekning, nesteNummer, eksisterendePlas
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1"><label htmlFor="n-v" className="block text-xs text-gray-500 dark:text-gray-400">Spenning (V)</label><input id="n-v" value={s.spenning} onChange={e => setS({ ...s, spenning: e.target.value })} inputMode="decimal" className="input" placeholder="24" /></div>
                 <div className="space-y-1"><label htmlFor="n-ah" className="block text-xs text-gray-500 dark:text-gray-400">Kapasitet (Ah)</label><input id="n-ah" value={s.ah} onChange={e => setS({ ...s, ah: e.target.value })} inputMode="decimal" className="input" placeholder="7" /></div>
-                <div className="space-y-1"><label htmlFor="n-alder" className="block text-xs text-gray-500 dark:text-gray-400">Alder (år)</label><input id="n-alder" value={s.batterialder} onChange={e => setS({ ...s, batterialder: e.target.value.replace(/\D/g, '') })} inputMode="numeric" className="input" placeholder="0" /></div>
+                <div className="space-y-1"><label htmlFor="n-alder" className="block text-xs text-gray-500 dark:text-gray-400">Montert (år)</label><input id="n-alder" value={s.batterialder} onChange={e => setS({ ...s, batterialder: e.target.value.replace(/\D/g, '').slice(0, 4) })} inputMode="numeric" className="input" placeholder={String(new Date().getFullYear())} /></div>
               </div>
             )}
-            {!s.batteri_ikke_aktuelt && Number(s.batterialder) >= 4 && <p className="text-xs text-yellow-700 dark:text-yellow-400 inline-flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />{Number(s.batterialder) >= 5 ? 'Batteriet er over 5 år – bør byttes.' : 'Batteriet nærmer seg 5 år.'}</p>}
+            {!s.batteri_ikke_aktuelt && batteriInfo(s.batterialder).montertAar != null && <p className={cn('text-xs inline-flex items-center gap-1', batteriInfo(s.batterialder).tone ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-500 dark:text-gray-400')}>{batteriInfo(s.batterialder).tone && <AlertTriangle className="w-3.5 h-3.5" />}{batteriInfo(s.batterialder).alder} år gammelt{batteriInfo(s.batterialder).tone === 'r' ? ' – bør byttes' : batteriInfo(s.batterialder).tone === 'y' ? ' – nærmer seg bytte' : ''}</p>}
           </div>
         </div>
         <div className="flex items-center gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-800">
