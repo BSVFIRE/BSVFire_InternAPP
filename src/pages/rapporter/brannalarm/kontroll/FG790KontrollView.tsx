@@ -526,7 +526,7 @@ export function FG790KontrollView({
       </header>
 
       {/* Score + fremdrift, klebrig */}
-      <div className="sticky top-0 lg:top-2 z-10 -mx-4 px-4 sm:mx-0 sm:px-0 pt-1 pb-2 bg-white/90 dark:bg-dark/90 backdrop-blur">
+      <div className="sticky top-16 lg:top-2 z-10 -mx-4 px-4 sm:mx-0 sm:px-0 pt-1 pb-2 bg-white/90 dark:bg-dark/90 backdrop-blur">
         <div className="card !p-3 space-y-2">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-semibold text-gray-900 dark:text-white">{vurdertePunkter} av {totalPunkter} vurdert <span className="text-gray-400 font-normal">· {progress} %</span></span>

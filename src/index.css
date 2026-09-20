@@ -136,3 +136,24 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-500 dark:bg-gray-600;
 }
+
+/* ---------- Mobil og nettbrett ---------- */
+@layer base {
+  /* iOS zoomer inn på felt med skrift under 16px. På touch-skjermer tvinger vi 16px i alle felt,
+     også de kompakte cellene i lister (de er 14px på PC). */
+  @media (pointer: coarse) and (max-width: 1023px) {
+    input:not([type='checkbox']):not([type='radio']), select, textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Faste bunnlinjer (Lagre, Fullfør, «n valgt») må klare hjem-indikatoren på iPhone/iPad */
+  .fixed.bottom-0 {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
+  .fixed.bottom-4 {
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+}

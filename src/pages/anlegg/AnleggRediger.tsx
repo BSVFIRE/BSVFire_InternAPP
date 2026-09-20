@@ -163,7 +163,7 @@ export default function AnleggRediger() {
   const harEkstern = verdier.kontroll_type.includes('Ekstern')
 
   return (
-    <form onSubmit={e => { e.preventDefault(); lagre() }} className="pb-24">
+    <form onSubmit={e => { e.preventDefault(); lagre() }} className="pb-28">
       <div className="space-y-5">
         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
           <Link to="/anlegg" className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ChevronLeft className="w-4 h-4 sm:hidden" />Anlegg</Link>
