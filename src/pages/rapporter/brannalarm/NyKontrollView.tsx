@@ -11,14 +11,18 @@ interface NyKontrollViewProps {
   anleggsNavn: string
   kundeNavn?: string
   onBack: () => void
+  /** Åpne en bestemt kontroll direkte (f.eks. «fortsett utkast») */
+  startKontroll?: { id: string; type: 'FG790' | 'NS3960' }
+  /** Hopp rett til valg av kontrolltype */
+  startNy?: boolean
 }
 
 type ViewState = 'oversikt' | 'valg' | 'fg790' | 'ns3960' | 'rapport' | 'fg790rapport'
 
-export function NyKontrollView({ anleggId, anleggsNavn, kundeNavn, onBack }: NyKontrollViewProps) {
-  const [viewState, setViewState] = useState<ViewState>('oversikt')
-  const [selectedType, setSelectedType] = useState<'FG790' | 'NS3960' | null>(null)
-  const [selectedKontrollId, setSelectedKontrollId] = useState<string | undefined>(undefined)
+export function NyKontrollView({ anleggId, anleggsNavn, kundeNavn, onBack, startKontroll, startNy }: NyKontrollViewProps) {
+  const [viewState, setViewState] = useState<ViewState>(startKontroll ? (startKontroll.type === 'FG790' ? 'fg790' : 'ns3960') : startNy ? 'valg' : 'oversikt')
+  const [selectedType, setSelectedType] = useState<'FG790' | 'NS3960' | null>(startKontroll?.type ?? null)
+  const [selectedKontrollId, setSelectedKontrollId] = useState<string | undefined>(startKontroll?.id)
   const [refreshKey, setRefreshKey] = useState(0)
 
   function handleStart() {
