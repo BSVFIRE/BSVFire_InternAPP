@@ -6,6 +6,9 @@ import { BSV_LOGO } from '@/assets/logoBase64'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
 import { checkDropboxStatus } from '@/services/dropboxServiceV2'
 import { Combobox } from '@/components/ui/Combobox'
+import { toast } from '@/lib/toast'
+import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
+import { Camera } from 'lucide-react'
 
 interface Servicerapport {
   id: string
@@ -57,7 +60,17 @@ interface ServicerapportEditorProps {
 
 export function ServicerapportEditor({ rapport, onSave, onCancel }: ServicerapportEditorProps) {
   const navigate = useNavigate()
-  const [formData, setFormData] = useState<Servicerapport>(rapport)
+  const { ansatt: meg } = useCurrentAnsatt()
+  // Kladd for nye rapporter: overlever at fanen lukkes eller telefonen låses midt i skrivingen
+  const kladdKey = rapport.id ? null : `servicerapport_kladd_${rapport.ordre_id ?? rapport.anlegg_id ?? 'ny'}`
+  const [formData, setFormData] = useState<Servicerapport>(() => {
+    if (!kladdKey) return rapport
+    try { const k = localStorage.getItem(kladdKey); if (k) { const p = JSON.parse(k) as Partial<Servicerapport>; if (p.header || p.rapport_innhold) return { ...rapport, ...p } } } catch { /* ignorer */ }
+    return rapport
+  })
+  useEffect(() => { if (!kladdKey) return; try { if (formData.header || formData.rapport_innhold) localStorage.setItem(kladdKey, JSON.stringify({ header: formData.header, rapport_innhold: formData.rapport_innhold, anlegg_id: formData.anlegg_id, tekniker_navn: formData.tekniker_navn, rapport_dato: formData.rapport_dato })) } catch { /* ignorer */ } }, [formData, kladdKey])
+  // Tekniker = deg på nye rapporter
+  useEffect(() => { if (!rapport.id && meg?.navn && !formData.tekniker_navn) setFormData(prev => ({ ...prev, tekniker_navn: meg.navn ?? '' })) }, [meg, rapport.id, formData.tekniker_navn])
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
   const [ansatte, setAnsatte] = useState<Ansatt[]>([])
   const [anleggDetails, setAnleggDetails] = useState<AnleggDetails | null>(null)
@@ -233,7 +246,7 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
 
   async function handleAiImprove() {
     if (!formData.rapport_innhold.trim()) {
-      alert('Skriv inn stikkord eller en kort beskrivelse først')
+      toast.warning('Skriv inn stikkord eller en kort beskrivelse først')
       return
     }
 
@@ -254,7 +267,7 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
 
       if (data?.error) {
         console.error('Function returned error:', data.error)
-        alert(`❌ Feil: ${data.error}\n\n${data.details || 'Sjekk at Azure OpenAI er konfigurert i Supabase.'}`)
+        toast.error('AI-forbedring feilet', data.details || data.error)
         return
       }
 
@@ -267,14 +280,14 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
 
         if (userApproved) {
           handleChange('rapport_innhold', data.improvedReport)
-          alert('✅ Rapporten er oppdatert med AI-forbedret innhold!')
+          toast.success('Rapporten er oppdatert med AI-forbedret innhold')
         }
       } else {
-        alert('⚠️ Ingen forbedret rapport mottatt fra AI.')
+        toast.warning('Ingen forbedret rapport mottatt fra AI')
       }
     } catch (error) {
       console.error('Feil ved AI-forbedring:', error)
-      alert('❌ Kunne ikke forbedre rapporten med AI.\n\nSjekk at Azure OpenAI er konfigurert i Supabase Dashboard → Edge Functions → Secrets.')
+      toast.error('Kunne ikke forbedre rapporten med AI')
     } finally {
       setAiLoading(false)
     }
@@ -328,7 +341,7 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
       }
     } catch (error) {
       console.error('Feil ved lagring/generering:', error)
-      alert('Kunne ikke lagre servicerapport')
+      toast.error('Kunne ikke lagre servicerapport', error)
       setLoading(false)
     }
   }
@@ -359,7 +372,7 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
     const imageFiles = files.filter(file => file.type.startsWith('image/'))
     
     if (imageFiles.length !== files.length) {
-      alert('Kun bildefiler er tillatt (JPG, PNG, etc.)')
+      toast.warning('Kun bildefiler er tillatt (JPG, PNG osv.)')
     }
     
     // Opprett preview URLs
@@ -516,21 +529,12 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
 
       <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onCancel}
-            className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              {rapport.id ? 'Rediger servicerapport' : 'Ny servicerapport'}
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">Fyll ut informasjon og rapportinnhold</p>
-          </div>
-        </div>
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={onCancel} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Servicerapporter</button>
+      </div>
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{rapport.id ? 'Rediger servicerapport' : 'Ny servicerapport'}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{rapport.id ? formData.header : kladdKey && (formData.header || formData.rapport_innhold) ? 'Kladden lagres automatisk på denne enheten til rapporten er lagret.' : 'Fyll ut, legg ved bilder, og lagre – PDF-en lages automatisk.'}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -735,14 +739,18 @@ Eksempler på stikkord:
                 className="hidden"
                 id="image-upload"
               />
-              <label
-                htmlFor="image-upload"
-                className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 dark:border-gray-600 rounded-lg cursor-pointer hover:border-primary transition-colors"
-              >
-                <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">Klikk for å velge bilder</span>
-                <span className="text-xs text-gray-500 mt-1">eller dra og slipp her</span>
-              </label>
+              <input type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="hidden" id="image-camera" />
+              <div className="grid grid-cols-2 gap-2">
+                <label htmlFor="image-camera" className="sm:hidden flex flex-col items-center justify-center h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-primary transition-colors">
+                  <Camera className="w-7 h-7 text-gray-400 mb-1" />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Ta bilde</span>
+                </label>
+                <label htmlFor="image-upload" className="col-span-2 sm:col-span-2 flex flex-col items-center justify-center h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-primary transition-colors max-sm:col-span-1">
+                  <Upload className="w-7 h-7 text-gray-400 mb-1" />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Velg bilder</span>
+                  <span className="text-xs text-gray-500 mt-0.5 hidden sm:inline">eller dra og slipp her</span>
+                </label>
+              </div>
             </label>
 
             {/* Image previews */}
