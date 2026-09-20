@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react'
 import { RefreshCw, X, Sparkles } from 'lucide-react'
 import { CURRENT_VERSION } from '@/lib/changelog'
 
+/** «3.0.1» > «3.0.0» – sammenligner tall for tall */
+function erNyere(a: string, b: string): boolean {
+  const pa = a.split('.').map(n => parseInt(n, 10) || 0), pb = b.split('.').map(n => parseInt(n, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const x = pa[i] ?? 0, y = pb[i] ?? 0; if (x !== y) return x > y }
+  return false
+}
+
 const CHECK_INTERVAL = 5 * 60 * 1000 // Sjekk hvert 5. minutt
 
 export function UpdateChecker() {
@@ -19,8 +26,9 @@ export function UpdateChecker() {
         const data = await response.json()
         const serverVersion = data.version
         
-        // Sammenlign med nåværende versjon i appen
-        if (serverVersion && serverVersion !== CURRENT_VERSION) {
+        // Varsle bare når serveren har en NYERE versjon enn den som kjører (ikke bare ulik – ellers maser vi
+        // for evig hvis version.json ligger etter koden)
+        if (serverVersion && erNyere(serverVersion, CURRENT_VERSION)) {
           setNewVersion(serverVersion)
           setUpdateAvailable(true)
         }
