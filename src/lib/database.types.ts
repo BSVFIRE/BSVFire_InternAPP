@@ -841,6 +841,7 @@ export type Database = {
           dorstyring_aktiv: boolean | null
           dorstyring_antall: number | null
           dorstyring_avvik: string | null
+          egendefinerte: Json
           dorstyring_har_avvik: boolean | null
           dorstyring_note: string | null
           dorstyring_status: string | null
@@ -1052,6 +1053,7 @@ export type Database = {
           dorstyring_aktiv?: boolean | null
           dorstyring_antall?: number | null
           dorstyring_avvik?: string | null
+          egendefinerte?: Json
           dorstyring_har_avvik?: boolean | null
           dorstyring_note?: string | null
           dorstyring_status?: string | null
@@ -1263,6 +1265,7 @@ export type Database = {
           dorstyring_aktiv?: boolean | null
           dorstyring_antall?: number | null
           dorstyring_avvik?: string | null
+          egendefinerte?: Json
           dorstyring_har_avvik?: boolean | null
           dorstyring_note?: string | null
           dorstyring_status?: string | null

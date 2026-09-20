@@ -91,6 +91,15 @@ function styringTilKolonner(key: string, s: Styring): Record<string, unknown> {
 
 const LUKKET_KEY = 'brannalarm_enheter_lukkede'
 
+/** Egendefinert enhetstype eller styring – lagres i anleggsdata_brannalarm.egendefinerte (jsonb) */
+interface Egendefinert { id: string; navn: string; slag: 'enhet' | 'styring'; kategori: string; typer: TypeRad[]; antall: number; status: string; note: string; avvik: string[] }
+function lesEgendefinerte(rad: BrannalarmStyring | null): Egendefinert[] {
+  const raw = (rad as unknown as { egendefinerte?: unknown } | null)?.egendefinerte
+  if (!Array.isArray(raw)) return []
+  return raw.map(x => ({ id: String(x.id), navn: String(x.navn ?? ''), slag: x.slag === 'styring' ? 'styring' : 'enhet', kategori: String(x.kategori ?? 'Annet'), typer: Array.isArray(x.typer) ? x.typer : [], antall: Number(x.antall ?? 0) || 0, status: String(x.status ?? ''), note: String(x.note ?? ''), avvik: Array.isArray(x.avvik) ? x.avvik : [] }))
+}
+const nyId = () => Math.random().toString(36).slice(2, 10)
+
 interface TypeRad { type: string; antall: number }
 interface Enhet { aktiv: boolean; typer: TypeRad[]; note: string }
 
@@ -124,6 +133,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
   const { isOnline, queueUpdate } = useOfflineQueue()
   const [data, setData] = useState<Record<string, Enhet>>(() => lesEnheter(enheter))
   const [styr, setStyr] = useState<Record<string, Styring>>(() => lesStyringer(enheter))
+  const [egne, setEgne] = useState<Egendefinert[]>(() => lesEgendefinerte(enheter))
   const [radId, setRadId] = useState<string | undefined>(enheter?.id)
   const [lukkede, setLukkede] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem(LUKKET_KEY) ?? '[]')) } catch { return new Set() } })
   function toggleSeksjon(k: string) { setLukkede(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); try { localStorage.setItem(LUKKET_KEY, JSON.stringify(Array.from(n))) } catch { /* ignorer */ } return n }) }
@@ -133,12 +143,15 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
   const [redigerer, setRedigerer] = useState<{ key: string; idx: number } | null>(null)
 
   // Ta inn ny rad-id etter første insert; ellers er lokal state sannheten mens vi er på siden
-  useEffect(() => { if (enheter?.id && enheter.id !== radId) { setRadId(enheter.id); setData(lesEnheter(enheter)); setStyr(lesStyringer(enheter)) } }, [enheter, radId])
+  useEffect(() => { if (enheter?.id && enheter.id !== radId) { setRadId(enheter.id); setData(lesEnheter(enheter)); setStyr(lesStyringer(enheter)); setEgne(lesEgendefinerte(enheter)) } }, [enheter, radId])
 
   const aktive = ENHETSTYPER.filter(e => data[e.key]?.aktiv)
   const totalt = aktive.reduce((s, e) => s + data[e.key].typer.reduce((x, t) => x + (t.antall || 0), 0), 0)
   const aktiveStyringer = STYRINGER.filter(x => styr[x.key]?.aktiv)
-  const styringAvvik = aktiveStyringer.filter(x => styr[x.key].avvik.length > 0).length
+  const egneEnheter = egne.filter(x => x.slag === 'enhet')
+  const egneStyringer = egne.filter(x => x.slag === 'styring')
+  const styringAvvik = aktiveStyringer.filter(x => styr[x.key].avvik.length > 0).length + egneStyringer.filter(x => x.avvik.length > 0).length
+  const egneSum = egneEnheter.reduce((s, x) => s + x.typer.reduce((y, t) => y + (t.antall || 0), 0), 0)
 
   /** Skriver kolonner til anleggets rad (oppretter raden hvis den mangler). Returnerer om det gikk bra. */
   async function skriv(merke: string, kolonner: Record<string, unknown>): Promise<boolean> {
@@ -175,6 +188,20 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
     const ok = await skriv(`s:${key}`, styringTilKolonner(key, ny))
     if (!ok) setStyr(prev => ({ ...prev, [key]: forrige }))
   }
+  async function lagreEgne(ny: Egendefinert[]) {
+    const forrige = egne
+    setEgne(ny)
+    const ok = await skriv('egne', { egendefinerte: ny })
+    if (!ok) setEgne(forrige)
+  }
+  function oppdaterEgen(id: string, patch: Partial<Egendefinert>) { lagreEgne(egne.map(x => x.id === id ? { ...x, ...patch } : x)) }
+  function fjernEgen(x: Egendefinert) { if (!confirm(`Fjerne «${x.navn}» fra anlegget?`)) return; lagreEgne(egne.filter(y => y.id !== x.id)) }
+  function nyEgen(navn: string, slag: 'enhet' | 'styring', kategori: string): string {
+    const id = nyId()
+    lagreEgne([...egne, { id, navn, slag, kategori: slag === 'styring' ? STYRING_KAT : kategori, typer: [], antall: 0, status: '', note: '', avvik: [] }])
+    return id
+  }
+
   function fjernStyring(key: string, navn: string) {
     if (!confirm(`Fjerne ${navn} fra anlegget?`)) return
     lagreStyring(key, { aktiv: false, antall: 0, status: '', note: '', avvik: [] })
@@ -193,6 +220,15 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
     lagre(key, { aktiv: false, typer: [], note: '' })
   }
   function leggTil(key: string, type: string, antall: number, note: string) {
+    if (key.startsWith('e:')) {
+      const id = key.slice(2); const x = egne.find(y => y.id === id); if (!x) return
+      if (x.slag === 'styring') { oppdaterEgen(id, { antall: x.antall + antall, note: note || x.note }); toast.success(`${x.navn}: ${antall} lagt til`); return }
+      const i = x.typer.findIndex(t => t.type.trim().toLowerCase() === type.trim().toLowerCase())
+      const typer = i >= 0 ? x.typer.map((t, j) => j === i ? { ...t, antall: t.antall + antall } : t) : [...x.typer, { type: type.trim(), antall }]
+      oppdaterEgen(id, { typer, antall: typer.reduce((s, t) => s + t.antall, 0), note: note || x.note })
+      toast.success(`${x.navn}: ${type || 'uten type'} × ${antall} lagt til`)
+      return
+    }
     if (key.startsWith('s:')) {
       const sk = key.slice(2); const st = styr[sk] ?? { aktiv: false, antall: 0, status: '', note: '', avvik: [] }
       lagreStyring(sk, { ...st, aktiv: true, antall: st.antall + antall, note: note || st.note })
@@ -223,7 +259,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
 
       {(aktive.length > 0 || aktiveStyringer.length > 0) && (
         <div className="flex flex-wrap gap-2 text-xs">
-          <span className="px-2.5 py-1 rounded-full bg-primary/10 text-primary font-semibold tabular-nums">{totalt} enheter</span>
+          <span className="px-2.5 py-1 rounded-full bg-primary/10 text-primary font-semibold tabular-nums">{totalt + egneSum} enheter</span>
           {KATEGORIER.map(kat => {
             const sum = aktive.filter(e => e.kategori === kat).reduce((s, e) => s + data[e.key].typer.reduce((x, t) => x + (t.antall || 0), 0), 0)
             return sum > 0 ? <span key={kat} className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300 tabular-nums">{kat} <b>{sum}</b></span> : null
@@ -233,19 +269,22 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
         </div>
       )}
 
-      {aktive.length === 0 && aktiveStyringer.length === 0 ? (
+      {aktive.length === 0 && aktiveStyringer.length === 0 && egne.length === 0 ? (
         <div className="card text-center py-12 space-y-3">
           <p className="text-sm text-gray-500 dark:text-gray-400">Registrer hva som finnes på anlegget: sentral, detektorer, meldere, varsling og styringer.</p>
           <Button variant="primary" icon={<Plus />} onClick={() => setVisDialog({})}>Legg til</Button>
         </div>
       ) : KATEGORIER.map(kat => {
         const iKat = aktive.filter(e => e.kategori === kat)
-        if (iKat.length === 0) return null
-        const katSum = iKat.reduce((s, e) => s + data[e.key].typer.reduce((x, t) => x + (t.antall || 0), 0), 0)
+        const egneIKat = egneEnheter.filter(x => x.kategori === kat)
+        if (iKat.length === 0 && egneIKat.length === 0) return null
+        const katSum = iKat.reduce((s, e) => s + data[e.key].typer.reduce((x, t) => x + (t.antall || 0), 0), 0) + egneIKat.reduce((s, x) => s + x.typer.reduce((y, t) => y + (t.antall || 0), 0), 0)
+        const antallTyper = iKat.length + egneIKat.length
         return (
           <section key={kat} className="card !p-0 overflow-hidden" aria-label={kat}>
-            <SeksjonHode tittel={kat} info={`${katSum} stk · ${iKat.length} ${iKat.length === 1 ? 'type' : 'typer'}`} apen={!lukkede.has(kat)} onToggle={() => toggleSeksjon(kat)} onLeggTil={() => setVisDialog({ kategori: kat })} />
+            <SeksjonHode tittel={kat} info={`${katSum} stk · ${antallTyper} ${antallTyper === 1 ? 'type' : 'typer'}`} apen={!lukkede.has(kat)} onToggle={() => toggleSeksjon(kat)} onLeggTil={() => setVisDialog({ kategori: kat })} />
             {!lukkede.has(kat) && <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              {egneIKat.map(x => <EgenEnhetRad key={x.id} x={x} redigerer={redigerer} setRedigerer={setRedigerer} onOppdater={p => oppdaterEgen(x.id, p)} onFjern={() => fjernEgen(x)} onLeggTil={() => setVisDialog({ key: `e:${x.id}` })} />)}
               {iKat.map(e => {
                 const d = data[e.key]
                 const sum = d.typer.reduce((s, t) => s + (t.antall || 0), 0)
@@ -309,11 +348,12 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
         )
       })}
 
-      {aktiveStyringer.length > 0 && (
+      {(aktiveStyringer.length > 0 || egneStyringer.length > 0) && (
         <section className="card !p-0 overflow-hidden" aria-label="Styringer">
-          <SeksjonHode tittel="Styringer" info={`${aktiveStyringer.length} aktive${styringAvvik ? ` · ${styringAvvik} med avvik` : ''}`} apen={!lukkede.has(STYRING_KAT)} onToggle={() => toggleSeksjon(STYRING_KAT)} onLeggTil={() => setVisDialog({ kategori: STYRING_KAT })} />
+          <SeksjonHode tittel="Styringer" info={`${aktiveStyringer.length + egneStyringer.length} aktive${styringAvvik ? ` · ${styringAvvik} med avvik` : ''}`} apen={!lukkede.has(STYRING_KAT)} onToggle={() => toggleSeksjon(STYRING_KAT)} onLeggTil={() => setVisDialog({ kategori: STYRING_KAT })} />
           {!lukkede.has(STYRING_KAT) && (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              {egneStyringer.map(x => <StyringRad key={x.id} navn={x.navn} Ikon={FileText} egen st={{ aktiv: true, antall: x.antall, status: x.status, note: x.note, avvik: x.avvik }} lagrer={lagrer.has('egne')} notatApen={notatApen.has(`e:${x.id}`)} onNotat={() => setNotatApen(prev => { const n = new Set(prev); n.add(`e:${x.id}`); return n })} onLagre={ny => oppdaterEgen(x.id, { antall: ny.antall, status: ny.status, note: ny.note, avvik: ny.avvik })} onFjern={() => fjernEgen(x)} onGiNyttNavn={() => { const n = prompt('Nytt navn', x.navn); if (n?.trim()) oppdaterEgen(x.id, { navn: n.trim() }) }} />)}
               {aktiveStyringer.map(x => {
                 const st = styr[x.key]; const Ikon = x.icon
                 const harAvvik = st.avvik.length > 0
@@ -369,7 +409,106 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
         </section>
       )}
 
-      {visDialog && <LeggTilDialog forhaandsvalgt={visDialog.key} kategori={visDialog.kategori} data={data} styr={styr} onClose={() => setVisDialog(null)} onLeggTil={leggTil} />}
+      {visDialog && <LeggTilDialog forhaandsvalgt={visDialog.key} kategori={visDialog.kategori} data={data} styr={styr} egne={egne} onClose={() => setVisDialog(null)} onLeggTil={leggTil} onNyEgen={nyEgen} />}
+    </div>
+  )
+}
+
+/** Én styringsrad: antall · status · avvik · meny, med avvikslinjer og notat under. */
+function StyringRad({ navn, Ikon, egen, st, lagrer, notatApen, onNotat, onLagre, onFjern, onGiNyttNavn }: {
+  navn: string; Ikon: LucideIcon; egen?: boolean; st: Styring; lagrer: boolean; notatApen: boolean; onNotat: () => void; onLagre: (ny: Styring) => void; onFjern: () => void; onGiNyttNavn?: () => void
+}) {
+  const harAvvik = st.avvik.length > 0
+  const meny = (
+    <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+      <MenuItem icon={<StickyNote />} onSelect={onNotat}>{st.note ? 'Rediger notat' : 'Legg til notat'}</MenuItem>
+      {onGiNyttNavn && <MenuItem icon={<FileText />} onSelect={onGiNyttNavn}>Gi nytt navn</MenuItem>}
+      <MenuSeparator />
+      <MenuItem icon={<Trash2 />} danger onSelect={onFjern}>Fjern {navn.toLowerCase()} fra anlegget…</MenuItem>
+    </DropdownMenu>
+  )
+  return (
+    <div className="px-4 py-2">
+      <div className="grid grid-cols-[2rem_minmax(0,1fr)_auto] lg:grid-cols-[2rem_minmax(160px,1fr)_auto_auto_auto_2rem] items-center gap-x-3 gap-y-2">
+        <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-300 flex items-center justify-center"><Ikon className="w-4 h-4" /></span>
+        <span className="min-w-0 flex items-center gap-2">
+          <span className="font-semibold text-gray-900 dark:text-white truncate">{navn}</span>
+          {egen && <span className="text-[10px] uppercase tracking-wider px-1.5 py-px rounded bg-gray-100 dark:bg-dark-100 text-gray-500">Egen</span>}
+          {lagrer && <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary flex-shrink-0" />}
+        </span>
+        <span className="lg:hidden justify-self-end">{meny}</span>
+        <span className="col-start-2 lg:col-start-auto"><Antall verdi={st.antall} onChange={v => onLagre({ ...st, antall: v })} /></span>
+        <span className="col-start-2 lg:col-start-auto inline-flex rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden h-9 w-fit" role="radiogroup" aria-label="Status">
+          {STYRING_STATUSER.map(o => <button key={o} type="button" role="radio" aria-checked={st.status === o} onClick={() => onLagre({ ...st, status: st.status === o ? '' : o })} className={cn('px-2.5 text-xs whitespace-nowrap', st.status === o ? (o === 'Kontrollert' ? 'bg-green-600 text-white' : 'bg-gray-500 text-white') : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-100')}>{o}</button>)}
+        </span>
+        <span className="col-start-2 lg:col-start-auto">
+          <button type="button" onClick={() => onLagre({ ...st, avvik: [...st.avvik, ''] })} title="Registrer avvik" className={cn('inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border text-xs whitespace-nowrap', harAvvik ? 'border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400' : 'border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-red-400 hover:text-red-600')}><AlertTriangle className="w-3.5 h-3.5" />{harAvvik ? st.avvik.length : ''}<span className={harAvvik ? 'sr-only' : ''}>Avvik</span></button>
+        </span>
+        <span className="hidden lg:block justify-self-end">{meny}</span>
+      </div>
+      {(st.avvik.length > 0 || notatApen || st.note) && (
+        <div className="mt-2 ml-11 space-y-1.5">
+          {st.avvik.map((a, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[11px] font-semibold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+              <TypeFelt verdi={a} placeholder={`Avvik ${i + 1} – hva er feil?`} autoFocus={!a} liten onLagre={v => onLagre({ ...st, avvik: st.avvik.map((y, j) => j === i ? v : y) })} />
+              <IconButton variant="ghost" label="Fjern avvik" icon={<X />} onClick={() => onLagre({ ...st, avvik: st.avvik.filter((_, j) => j !== i) })} className="w-7 h-7 hover:!text-red-500" />
+            </div>
+          ))}
+          {(notatApen || st.note) && (
+            <div className="flex items-center gap-2">
+              <StickyNote className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+              <TypeFelt verdi={st.note} placeholder="Notat" onLagre={v => onLagre({ ...st, note: v })} autoFocus={notatApen && !st.note} liten />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Egendefinert enhetstype: navn, modell-brikker, sum – samme oppsett som de faste. */
+function EgenEnhetRad({ x, redigerer, setRedigerer, onOppdater, onFjern, onLeggTil }: {
+  x: Egendefinert; redigerer: { key: string; idx: number } | null; setRedigerer: (r: { key: string; idx: number } | null) => void
+  onOppdater: (p: Partial<Egendefinert>) => void; onFjern: () => void; onLeggTil: () => void
+}) {
+  const key = `e:${x.id}`
+  const sum = x.typer.reduce((s, t) => s + (t.antall || 0), 0)
+  const settTyper = (typer: TypeRad[]) => onOppdater({ typer, antall: typer.reduce((s, t) => s + (t.antall || 0), 0) })
+  const meny = (
+    <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+      <MenuItem icon={<Plus />} onSelect={onLeggTil}>Legg til type/modell</MenuItem>
+      <MenuItem icon={<FileText />} onSelect={() => { const n = prompt('Nytt navn', x.navn); if (n?.trim()) onOppdater({ navn: n.trim() }) }}>Gi nytt navn</MenuItem>
+      <MenuSeparator />
+      <MenuItem icon={<Trash2 />} danger onSelect={onFjern}>Fjern {x.navn.toLowerCase()} fra anlegget…</MenuItem>
+    </DropdownMenu>
+  )
+  return (
+    <div className="px-4 py-2.5">
+      <div className="grid grid-cols-[2rem_minmax(0,1fr)_auto] lg:grid-cols-[2rem_minmax(160px,220px)_minmax(0,1fr)_3rem_2rem] items-start gap-x-3 gap-y-2">
+        <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-300 flex items-center justify-center"><FileText className="w-4 h-4" /></span>
+        <span className="min-w-0 flex items-center gap-2 h-8"><span className="font-semibold text-gray-900 dark:text-white truncate">{x.navn}</span><span className="text-[10px] uppercase tracking-wider px-1.5 py-px rounded bg-gray-100 dark:bg-dark-100 text-gray-500">Egen</span></span>
+        <span className="lg:hidden justify-self-end">{meny}</span>
+        <div className="col-start-2 col-span-2 lg:col-start-auto lg:col-span-1 min-w-0">
+          <div className="flex flex-wrap gap-1.5">
+            {x.typer.map((t, idx) => {
+              const aktivRed = redigerer?.key === key && redigerer.idx === idx
+              return <button key={idx} type="button" onClick={() => setRedigerer(aktivRed ? null : { key, idx })} className={cn('inline-flex items-center gap-1.5 h-8 pl-2.5 pr-2 rounded-lg border text-sm', aktivRed ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 hover:border-primary')}><span className="truncate max-w-[220px]">{t.type || <span className="text-gray-400 italic">uten type</span>}</span><span className="font-semibold tabular-nums text-gray-900 dark:text-white">×{t.antall}</span></button>
+            })}
+            <button type="button" onClick={onLeggTil} title="Legg til type/modell" className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-gray-400 hover:border-primary hover:text-primary"><Plus className="w-4 h-4" /></button>
+          </div>
+          {redigerer?.key === key && x.typer[redigerer.idx] && (
+            <div className="mt-2 p-2.5 rounded-lg bg-gray-50 dark:bg-dark-100 flex flex-wrap items-center gap-2">
+              <TypeFelt verdi={x.typer[redigerer.idx].type} onLagre={v => settTyper(x.typer.map((t, i) => i === redigerer.idx ? { ...t, type: v } : t))} autoFocus />
+              <Antall verdi={x.typer[redigerer.idx].antall} onChange={v => settTyper(x.typer.map((t, i) => i === redigerer.idx ? { ...t, antall: v } : t))} />
+              <IconButton variant="ghost" label="Fjern denne modellen" icon={<Trash2 />} onClick={() => { settTyper(x.typer.filter((_, i) => i !== redigerer.idx)); setRedigerer(null) }} className="w-8 h-8 hover:!text-red-500" />
+              <Button variant="outline" icon={<Check />} onClick={() => setRedigerer(null)}>Ferdig</Button>
+            </div>
+          )}
+        </div>
+        <span className="hidden lg:flex h-8 items-center justify-end font-semibold text-gray-900 dark:text-white tabular-nums">{sum}</span>
+        <span className="hidden lg:block justify-self-end">{meny}</span>
+      </div>
     </div>
   )
 }
@@ -408,14 +547,19 @@ function Antall({ verdi, onChange }: { verdi: number; onChange: (v: number) => v
   )
 }
 
-/** Dialog: enhetstype → type/modell (forslag fra alle anlegg) → antall */
-function LeggTilDialog({ forhaandsvalgt, kategori, data, styr, onClose, onLeggTil }: { forhaandsvalgt?: EnhetKey; kategori?: string; data: Record<string, Enhet>; styr: Record<string, Styring>; onClose: () => void; onLeggTil: (key: string, type: string, antall: number, note: string) => void }) {
+/** Dialog: enhetstype/styring (faner per kategori, søk, egendefinert) → type/modell (forslag fra alle anlegg) → antall */
+function LeggTilDialog({ forhaandsvalgt, kategori, data, styr, egne, onClose, onLeggTil, onNyEgen }: {
+  forhaandsvalgt?: EnhetKey; kategori?: string; data: Record<string, Enhet>; styr: Record<string, Styring>; egne: Egendefinert[]
+  onClose: () => void; onLeggTil: (key: string, type: string, antall: number, note: string) => void; onNyEgen: (navn: string, slag: 'enhet' | 'styring', kategori: string) => string
+}) {
   const [key, setKey] = useState<EnhetKey | null>(forhaandsvalgt ?? null)
-  const [sok, setSok] = useState(kategori ?? '')
+  const [fane, setFane] = useState<string>(kategori ?? 'alle')
+  const [sok, setSok] = useState('')
   const [type, setType] = useState('')
   const [antall, setAntall] = useState(1)
   const [note, setNote] = useState('')
   const [forslag, setForslag] = useState<Record<string, string[]>>({})
+  const [egenSkjema, setEgenSkjema] = useState<{ navn: string; slag: 'enhet' | 'styring'; kategori: string } | null>(null)
 
   // Typer/modeller registrert på alle anlegg – ett kall, gruppert per enhetstype
   useEffect(() => {
@@ -438,11 +582,18 @@ function LeggTilDialog({ forhaandsvalgt, kategori, data, styr, onClose, onLeggTi
     document.addEventListener('keydown', esc); return () => document.removeEventListener('keydown', esc)
   }, [onClose])
 
-  const alleValg = [...ENHETSTYPER, ...STYRINGER.map(x => ({ key: `s:${x.key}`, navn: x.navn, icon: x.icon, kategori: STYRING_KAT }))]
+  interface Valg { key: string; navn: string; icon: LucideIcon; kategori: string; finnes: boolean; info: string; egen?: boolean }
+  const alleValg: Valg[] = [
+    ...ENHETSTYPER.map(e => { const d = data[e.key]; const sum = d?.typer.reduce((s, t) => s + (t.antall || 0), 0) ?? 0; return { key: e.key, navn: e.navn, icon: e.icon, kategori: e.kategori, finnes: Boolean(d?.aktiv), info: d?.aktiv ? `${sum} stk · ${d.typer.length} ${d.typer.length === 1 ? 'modell' : 'modeller'}` : '' } }),
+    ...egne.filter(x => x.slag === 'enhet').map(x => ({ key: `e:${x.id}`, navn: x.navn, icon: FileText, kategori: x.kategori, finnes: true, info: `${x.typer.reduce((s, t) => s + (t.antall || 0), 0)} stk`, egen: true })),
+    ...STYRINGER.map(x => { const st = styr[x.key]; return { key: `s:${x.key}`, navn: x.navn, icon: x.icon, kategori: STYRING_KAT, finnes: Boolean(st?.aktiv), info: st?.aktiv ? `${st.antall} stk${st.status ? ` · ${st.status}` : ''}` : '' } }),
+    ...egne.filter(x => x.slag === 'styring').map(x => ({ key: `e:${x.id}`, navn: x.navn, icon: FileText, kategori: STYRING_KAT, finnes: true, info: `${x.antall} stk`, egen: true })),
+  ]
   const valgt = key ? alleValg.find(e => e.key === key) : null
-  const erStyring = Boolean(key?.startsWith('s:'))
+  const erStyring = valgt?.kategori === STYRING_KAT
   const s = sok.trim().toLowerCase()
-  const treff = alleValg.filter(e => !s || e.navn.toLowerCase().includes(s) || e.kategori.toLowerCase().includes(s))
+  const treff = alleValg.filter(e => (fane === 'alle' || e.kategori === fane) && (!s || e.navn.toLowerCase().includes(s)))
+  const faner = ['alle', ...KATEGORIER, STYRING_KAT]
   const typeForslag = useMemo(() => {
     const liste = key ? (forslag[key] ?? []) : []
     const t = type.trim().toLowerCase()
@@ -455,44 +606,91 @@ function LeggTilDialog({ forhaandsvalgt, kategori, data, styr, onClose, onLeggTi
     onLeggTil(key, type, Math.max(1, antall), note)
     onClose()
   }
+  function opprettEgen(e: React.FormEvent) {
+    e.preventDefault()
+    if (!egenSkjema?.navn.trim()) return
+    const id = onNyEgen(egenSkjema.navn.trim(), egenSkjema.slag, egenSkjema.kategori)
+    setEgenSkjema(null)
+    setKey(`e:${id}`)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" onClick={onClose}>
-      <form onSubmit={bekreft} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="le-tittel" className="card w-full sm:max-w-lg max-h-[92vh] rounded-b-none sm:rounded-lg !p-0 flex flex-col">
+      <form onSubmit={egenSkjema ? opprettEgen : bekreft} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="le-tittel" className="card w-full sm:max-w-lg h-[92vh] sm:h-[640px] rounded-b-none sm:rounded-lg !p-0 flex flex-col">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div>
-            <h2 id="le-tittel" className="text-lg font-bold text-gray-900 dark:text-white">{valgt ? <span className="inline-flex items-center gap-2"><valgt.icon className="w-5 h-5 text-primary" />{valgt.navn}</span> : 'Legg til enhet'}</h2>
-            {valgt && !forhaandsvalgt && <button type="button" onClick={() => setKey(null)} className="text-xs text-primary hover:underline">Velg en annen enhetstype</button>}
+            <h2 id="le-tittel" className="text-lg font-bold text-gray-900 dark:text-white">{valgt && !egenSkjema ? <span className="inline-flex items-center gap-2"><valgt.icon className="w-5 h-5 text-primary" />{valgt.navn}</span> : egenSkjema ? 'Ny egendefinert' : 'Legg til'}</h2>
+            {(valgt || egenSkjema) && !forhaandsvalgt && <button type="button" onClick={() => { setKey(null); setEgenSkjema(null) }} className="text-xs text-primary hover:underline">‹ Tilbake til listen</button>}
           </div>
           <IconButton variant="ghost" label="Lukk" icon={<X />} onClick={onClose} />
         </div>
 
-        {!valgt ? (
-          <div className="px-5 pb-5 space-y-3 overflow-y-auto">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input value={sok} onChange={e => setSok(e.target.value)} placeholder="Søk enhetstype…" autoFocus aria-label="Søk enhetstype" className="input pl-9" />
+        {egenSkjema ? (
+          <div className="px-5 pb-5 space-y-4 flex-1 overflow-y-auto">
+            <p className="text-sm text-gray-600 dark:text-gray-400">For utstyr som ikke finnes i listen. Egendefinerte vises på dette anlegget med merket «Egen».</p>
+            <div className="space-y-1.5">
+              <label htmlFor="egen-navn" className="block text-sm font-medium text-gray-900 dark:text-white">Navn</label>
+              <input id="egen-navn" value={egenSkjema.navn} onChange={e => setEgenSkjema({ ...egenSkjema, navn: e.target.value })} placeholder="F.eks. Gassdetektor, Talevarslingspanel" autoFocus className="input" />
             </div>
-            {[...KATEGORIER, STYRING_KAT].map(kat => {
-              const iKat = treff.filter(e => e.kategori === kat)
-              if (!iKat.length) return null
-              return (
-                <div key={kat} className="space-y-1.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{kat}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {iKat.map(e => {
-                      const finnes = e.key.startsWith('s:') ? styr[e.key.slice(2)]?.aktiv : data[e.key]?.aktiv
-                      return <button key={e.key} type="button" onClick={() => setKey(e.key)} className={cn('h-9 px-3 rounded-full border text-sm inline-flex items-center gap-1.5 transition-colors', finnes ? 'border-primary/60 bg-primary/5 text-gray-900 dark:text-white' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-primary hover:text-primary')}><e.icon className="w-4 h-4 text-gray-400" />{e.navn}{finnes && <Check className="w-3.5 h-3.5 text-primary" strokeWidth={3} />}</button>
-                    })}
-                  </div>
-                </div>
-              )
-            })}
-            <p className="text-xs text-gray-500 dark:text-gray-400">Hake = finnes allerede på anlegget; da legger du til en ny modell (enheter) eller øker antallet (styringer).</p>
+            <div className="space-y-1.5">
+              <span className="block text-sm font-medium text-gray-900 dark:text-white">Hva er det?</span>
+              <div className="grid grid-cols-2 gap-2">
+                {([['enhet', 'Enhet', 'Har modell og antall (som detektorer)'], ['styring', 'Styring', 'Har antall, status og avvik']] as const).map(([v, t, u]) => (
+                  <button key={v} type="button" onClick={() => setEgenSkjema({ ...egenSkjema, slag: v })} className={cn('p-3 rounded-lg border text-left', egenSkjema.slag === v ? 'border-primary bg-primary/10' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400')}><span className="block text-sm font-semibold text-gray-900 dark:text-white">{t}</span><span className="block text-xs text-gray-500 dark:text-gray-400">{u}</span></button>
+                ))}
+              </div>
+            </div>
+            {egenSkjema.slag === 'enhet' && (
+              <div className="space-y-1.5">
+                <label htmlFor="egen-kat" className="block text-sm font-medium text-gray-900 dark:text-white">Vises under</label>
+                <select id="egen-kat" value={egenSkjema.kategori} onChange={e => setEgenSkjema({ ...egenSkjema, kategori: e.target.value })} className="input">{KATEGORIER.map(k => <option key={k} value={k}>{k}</option>)}</select>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setEgenSkjema(null)}>Avbryt</Button>
+              <Button variant="primary" type="submit" icon={<Plus />} disabled={!egenSkjema.navn.trim()}>Opprett og legg til</Button>
+            </div>
           </div>
+        ) : !valgt ? (
+          <>
+            <div className="px-5 space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input value={sok} onChange={e => setSok(e.target.value)} placeholder="Søk…" autoFocus aria-label="Søk" className="input pl-9" />
+              </div>
+              <div className="flex gap-1.5 overflow-x-auto -mx-5 px-5 pb-1" role="tablist">
+                {faner.map(f => <button key={f} type="button" role="tab" aria-selected={fane === f} onClick={() => setFane(f)} className={cn('h-8 px-3 rounded-full border text-xs whitespace-nowrap flex-shrink-0', fane === f ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400')}>{f === 'alle' ? 'Alle' : f}</button>)}
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 py-2">
+              {(fane === 'alle' ? [...KATEGORIER, STYRING_KAT] : [fane]).map(kat => {
+                const iKat = treff.filter(e => e.kategori === kat)
+                if (!iKat.length) return null
+                return (
+                  <div key={kat} className="mb-2">
+                    {fane === 'alle' && <p className="px-2 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{kat}</p>}
+                    {iKat.map(e => (
+                      <button key={e.key} type="button" onClick={() => setKey(e.key)} className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left hover:bg-gray-100 dark:hover:bg-dark-100">
+                        <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', e.finnes ? 'bg-primary/10 text-primary' : 'bg-gray-100 dark:bg-dark-100 text-gray-500')}><e.icon className="w-4 h-4" /></span>
+                        <span className="flex-1 min-w-0"><span className="block text-sm font-medium text-gray-900 dark:text-white truncate">{e.navn}{e.egen && <span className="ml-1.5 text-[10px] uppercase tracking-wider px-1.5 py-px rounded bg-gray-100 dark:bg-dark-100 text-gray-500">Egen</span>}</span>{e.info && <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">På anlegget: {e.info}</span>}</span>
+                        {e.finnes ? <Check className="w-4 h-4 text-primary flex-shrink-0" strokeWidth={3} /> : <Plus className="w-4 h-4 text-gray-300 dark:text-gray-600 flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })}
+              {treff.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">Ingen treff på «{sok}».</p>}
+            </div>
+            <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-800">
+              <button type="button" onClick={() => setEgenSkjema({ navn: sok.trim(), slag: fane === STYRING_KAT ? 'styring' : 'enhet', kategori: KATEGORIER.includes(fane) ? fane : 'Annet' })} className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left hover:bg-gray-100 dark:hover:bg-dark-100">
+                <span className="w-8 h-8 rounded-lg border border-dashed border-gray-400 text-gray-500 flex items-center justify-center"><Plus className="w-4 h-4" /></span>
+                <span className="flex-1"><span className="block text-sm font-medium text-gray-900 dark:text-white">Egendefinert enhet eller styring…</span><span className="block text-xs text-gray-500 dark:text-gray-400">Finnes ikke i listen? Lag din egen{sok.trim() ? ` («${sok.trim()}»)` : ''}.</span></span>
+              </button>
+            </div>
+          </>
         ) : (
           <>
-            <div className="px-5 pb-4 space-y-4 overflow-y-auto">
+            <div className="px-5 pb-4 space-y-4 flex-1 overflow-y-auto">
               {!erStyring && <div className="space-y-1.5">
                 <label htmlFor="le-type" className="block text-sm font-medium text-gray-900 dark:text-white">Type / modell</label>
                 <input id="le-type" value={type} onChange={e => setType(e.target.value)} placeholder={key === 'brannsentral' ? 'F.eks. Autrosafe BS-420' : 'F.eks. produsent og modell'} autoFocus className="input" autoComplete="off" />
@@ -510,13 +708,12 @@ function LeggTilDialog({ forhaandsvalgt, kategori, data, styr, onClose, onLeggTi
                 </div>
                 <div className="space-y-1.5">
                   <label htmlFor="le-note" className="block text-sm font-medium text-gray-900 dark:text-white">Notat <span className="text-gray-400 font-normal">(valgfritt)</span></label>
-                  <input id="le-note" value={note} onChange={e => setNote(e.target.value)} placeholder="Plassering, spesielle forhold …" className="input" />
+                  <input id="le-note" value={note} onChange={e => setNote(e.target.value)} placeholder="Plassering, spesielle forhold …" autoFocus={Boolean(erStyring)} className="input" />
                 </div>
               </div>
-              {!erStyring && data[key!]?.typer.length ? <p className="text-xs text-gray-500 dark:text-gray-400">Finnes fra før: {data[key!].typer.map(t => `${t.type || 'uten type'} × ${t.antall}`).join(', ')}. Samme type slås sammen.</p> : null}
-              {erStyring && styr[key!.slice(2)]?.aktiv ? <p className="text-xs text-gray-500 dark:text-gray-400">Finnes fra før med {styr[key!.slice(2)].antall} stk – antallet legges til.</p> : null}
+              {valgt.finnes && valgt.info && <p className="text-xs text-gray-500 dark:text-gray-400">Finnes fra før: {valgt.info}. {erStyring ? 'Antallet legges til.' : 'Samme modell slås sammen.'}</p>}
             </div>
-            <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-800 mt-auto">
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-800">
               <Button variant="ghost" onClick={onClose}>Avbryt</Button>
               <Button variant="primary" type="submit" icon={<Plus />}>Legg til</Button>
             </div>
