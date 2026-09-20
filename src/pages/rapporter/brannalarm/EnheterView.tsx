@@ -9,11 +9,14 @@
  *              {key}_har_avvik, {key}_avvik (JSON-array av tekster)
  */
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowLeft, ArrowUpDown, BatteryCharging, BellRing, Blinds, Camera, Check, ChevronDown, CircleDot, Cpu, DoorOpen, Droplets, Eye, Fan, FileText, Flame, Hand, KeyRound, LayoutPanelTop, Link2, ListChecks, Lock, Minus, MoreHorizontal, Music, Plug, Plus, Radio, Ruler, ScanSearch, Search, StickyNote, Thermometer, Timer, Trash2, Volume2, Wind, X, Zap, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, ListChecks as ListIkon, ArrowUpDown, BatteryCharging, BellRing, Blinds, Camera, Check, ChevronDown, CircleDot, Cpu, DoorOpen, Droplets, Eye, Fan, FileText, Flame, Hand, KeyRound, LayoutPanelTop, Link2, ListChecks, Lock, Minus, MoreHorizontal, Music, Plug, Plus, Radio, Ruler, ScanSearch, Search, StickyNote, Thermometer, Timer, Trash2, Volume2, Wind, X, Zap, type LucideIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useOfflineQueue } from '@/hooks/useOffline'
+import { useNavigate } from 'react-router-dom'
+import { tellDetektorliste, type DetektorlisteTelling } from '@/lib/detektorliste'
+import { formatDate } from '@/lib/utils'
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import type { BrannalarmStyring } from '../Brannalarm'
@@ -141,6 +144,10 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
   const [visDialog, setVisDialog] = useState<{ key?: EnhetKey; kategori?: string } | null>(null)
   const [notatApen, setNotatApen] = useState<Set<string>>(new Set())
   const [redigerer, setRedigerer] = useState<{ key: string; idx: number } | null>(null)
+  const navigate = useNavigate()
+  const [detektorliste, setDetektorliste] = useState<DetektorlisteTelling | null | undefined>(undefined)
+  const [visAvstemming, setVisAvstemming] = useState(false)
+  useEffect(() => { tellDetektorliste(anleggId).then(setDetektorliste) }, [anleggId])
 
   // Ta inn ny rad-id etter første insert; ellers er lokal state sannheten mens vi er på siden
   useEffect(() => { if (enheter?.id && enheter.id !== radId) { setRadId(enheter.id); setData(lesEnheter(enheter)); setStyr(lesStyringer(enheter)); setEgne(lesEgendefinerte(enheter)) } }, [enheter, radId])
@@ -207,6 +214,20 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
     lagreStyring(key, { aktiv: false, antall: 0, status: '', note: '', avvik: [] })
   }
 
+  /** Setter totalt antall for en enhetstype ved å justere modellradene (én rad: sett; ingen: opprett; flere: juster den største). */
+  function settTotalt(key: string, totalt: number) {
+    const e = data[key] ?? { aktiv: false, typer: [], note: '' }
+    let typer: TypeRad[]
+    if (e.typer.length === 0) typer = totalt > 0 ? [{ type: '', antall: totalt }] : []
+    else if (e.typer.length === 1) typer = [{ ...e.typer[0], antall: totalt }]
+    else {
+      const sum = e.typer.reduce((s, t) => s + (t.antall || 0), 0)
+      const i = e.typer.reduce((best, t, j) => (t.antall > e.typer[best].antall ? j : best), 0)
+      typer = e.typer.map((t, j) => j === i ? { ...t, antall: Math.max(0, t.antall + (totalt - sum)) } : t)
+    }
+    lagre(key, { ...e, typer, aktiv: typer.length > 0 })
+  }
+
   function oppdaterType(key: string, idx: number, patch: Partial<TypeRad>) {
     const e = data[key]; const typer = e.typer.map((t, i) => i === idx ? { ...t, ...patch } : t)
     lagre(key, { ...e, typer })
@@ -243,6 +264,13 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
     toast.success(eksisterende >= 0 ? `${antall} lagt til på ${type}` : `${navn}: ${type || 'uten type'} × ${antall} lagt til`)
   }
 
+  const avstemming = detektorliste ? ENHETSTYPER.filter(e => ['rd', 'vd', 'multi', 'flame', 'mm', 'sirene', 'optisk'].includes(e.key)).map(e => {
+    const iListe = detektorliste.perEnhet[e.key] ?? 0
+    const iEnheter = (data[e.key]?.typer ?? []).reduce((s, t) => s + (t.antall || 0), 0)
+    return { key: e.key, navn: e.navn, iListe, iEnheter, diff: iListe - iEnheter }
+  }).filter(x => x.iListe > 0 || x.iEnheter > 0) : []
+  const avvikTeller = avstemming.filter(x => x.diff !== 0).length
+
   return (
     <div className="space-y-4 pb-10">
       <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
@@ -267,6 +295,44 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
           {aktiveStyringer.length > 0 && <span className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300 tabular-nums">Styringer <b>{aktiveStyringer.length}</b></span>}
           {styringAvvik > 0 && <span className="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 tabular-nums">{styringAvvik} styringer med avvik</span>}
         </div>
+      )}
+
+      {/* Avstemming mot detektorliste */}
+      {detektorliste !== undefined && (
+        <section className={cn('card !p-0 overflow-hidden', detektorliste && avvikTeller > 0 && 'border-yellow-300 dark:border-yellow-800')} aria-label="Detektorliste">
+          <div className="flex items-center gap-2 px-3 py-2.5">
+            <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', !detektorliste ? 'bg-gray-100 dark:bg-dark-100 text-gray-400' : avvikTeller ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400')}><ListIkon className="w-4 h-4" /></span>
+            <button type="button" onClick={() => detektorliste && setVisAvstemming(v => !v)} className="flex-1 min-w-0 text-left" aria-expanded={visAvstemming}>
+              <span className="block text-sm font-semibold text-gray-900 dark:text-white">Detektorliste</span>
+              <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">
+                {!detektorliste ? 'Ingen detektorliste registrert på anlegget' : avvikTeller === 0 ? `Stemmer med enhetene · ${detektorliste.totalt} enheter i listen (${formatDate(detektorliste.sisteDato)})` : `${avvikTeller} ${avvikTeller === 1 ? 'type' : 'typer'} avviker fra detektorlisten (${formatDate(detektorliste.sisteDato)}) – trykk for å avstemme`}
+              </span>
+            </button>
+            <button type="button" onClick={() => navigate('/teknisk', { state: { tab: 'detektorliste', anleggId } })} className="text-xs text-primary hover:underline whitespace-nowrap">{detektorliste ? 'Åpne listen' : 'Opprett liste'}</button>
+          </div>
+          {detektorliste && visAvstemming && (
+            <div className="border-t border-gray-100 dark:border-gray-800">
+              <table className="w-full text-sm">
+                <thead className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400"><tr><th className="px-3 py-1.5 text-left font-semibold">Type</th><th className="px-3 py-1.5 text-right font-semibold">Detektorliste</th><th className="px-3 py-1.5 text-right font-semibold">Enheter</th><th className="px-3 py-1.5 text-right font-semibold">Diff</th><th className="w-px"></th></tr></thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {avstemming.map(x => (
+                    <tr key={x.key} className={x.diff !== 0 ? 'bg-yellow-50/50 dark:bg-yellow-900/10' : ''}>
+                      <td className="px-3 py-2 text-gray-900 dark:text-white">{x.navn}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{x.iListe}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{x.iEnheter}</td>
+                      <td className={cn('px-3 py-2 text-right tabular-nums font-semibold', x.diff === 0 ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400')}>{x.diff === 0 ? <Check className="w-4 h-4 inline" strokeWidth={3} /> : (x.diff > 0 ? `+${x.diff}` : x.diff)}</td>
+                      <td className="px-2 py-1.5 text-right">{x.diff !== 0 && <button type="button" onClick={() => settTotalt(x.key, x.iListe)} title={`Sett ${x.navn} til ${x.iListe}`} className="text-xs text-primary hover:underline whitespace-nowrap inline-flex items-center gap-1"><ArrowRightLeft className="w-3 h-3" />Bruk {x.iListe}</button>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
+                <span>{Object.keys(detektorliste.ukjenteTyper).length ? `Ikke telt: ${Object.entries(detektorliste.ukjenteTyper).map(([t, n]) => `${t} (${n})`).join(', ')}. ` : ''}Diff = detektorliste − enheter. Tallene i Enheter settes på modellraden; har typen flere modeller justeres den største.</span>
+                {avvikTeller > 0 && <button type="button" onClick={() => { if (confirm(`Sette ${avvikTeller} ${avvikTeller === 1 ? 'type' : 'typer'} til tallene fra detektorlisten?`)) avstemming.filter(x => x.diff !== 0).forEach(x => settTotalt(x.key, x.iListe)) }} className="text-primary font-medium hover:underline">Bruk alle tall fra detektorlisten</button>}
+              </div>
+            </div>
+          )}
+        </section>
       )}
 
       {aktive.length === 0 && aktiveStyringer.length === 0 && egne.length === 0 ? (
