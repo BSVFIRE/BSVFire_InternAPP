@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Save, Search, CheckCircle, AlertTriangle, WifiOff, Wifi, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, ClipboardCheck, MessageSquare, MoreHorizontal, Plus, X } from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { cn } from '@/lib/utils'
+import { Button, IconButton } from '@/components/ui/Button'
+import { DropdownMenu, MenuItem } from '@/components/ui/DropdownMenu'
 import { useOfflineStatus, useOfflineQueue } from '@/hooks/useOffline'
 import { cacheData, getCachedData } from '@/lib/offline'
 
@@ -70,10 +74,10 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
   const [saving, setSaving] = useState(false)
   const [autoSaving, setAutoSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [showSearch, setShowSearch] = useState(false)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
-  const [showOnlyUnchecked, setShowOnlyUnchecked] = useState(false)
+  const [filter, setFilter] = useState<'gjenstar' | 'avvik' | 'alle'>('gjenstar')
+  const [apent, setApent] = useState<string | null>(null)
+  const [visOm, setVisOm] = useState(false)
   const [anleggsNavn, setAnleggsNavn] = useState(initialAnleggsNavn)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [currentKontrollId, setCurrentKontrollId] = useState<string | undefined>(kontrollId)
@@ -354,7 +358,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
   async function handleSave() {
     if (!anleggId || !currentKontrollId) {
       console.error('Mangler anleggId eller kontrollId:', { anleggId, currentKontrollId })
-      alert('Kan ikke lagre: Kontroll er ikke initialisert ennå. Vent litt og prøv igjen.')
+      toast.warning('Kontrollen er ikke klar ennå – vent litt og prøv igjen.')
       return
     }
 
@@ -410,7 +414,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
       
       setLastSaved(new Date())
       setHasUnsavedChanges(false)
-      alert('✓ Lagret lokalt (offline). Synkroniseres når nettilgang er tilgjengelig.')
+      toast.info('Lagret lokalt – synkroniseres når du er på nett igjen')
       setSaving(false)
       return
     }
@@ -489,7 +493,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
       console.log('Kontroll lagret!')
     } catch (error: any) {
       console.error('Feil ved lagring:', error)
-      alert(`Feil ved lagring: ${error.message || 'Ukjent feil'}`)
+      toast.error('Kunne ikke lagre kontrollen', error)
     } finally {
       setSaving(false)
     }
@@ -513,12 +517,12 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
       if (onShowRapport && currentKontrollId) {
         onShowRapport(currentKontrollId)
       } else {
-        alert('Kontroll klar for rapport-generering! ✓')
+        toast.success('Kontrollen er lagret')
         onBack()
       }
     } catch (error) {
       console.error('Feil ved fullføring:', error)
-      alert('Feil ved fullføring')
+      toast.error('Kunne ikke fullføre kontrollen', error)
     } finally {
       setSaving(false)
     }
@@ -630,468 +634,185 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
     setHasUnsavedChanges(true)
   }
 
-  const filteredCategories = searchQuery
-    ? Object.entries(KONTROLLPUNKTER_BY_CATEGORY).reduce((acc, [category, punkter]) => {
-        const filtered = punkter.filter(p =>
-          p.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        if (filtered.length > 0) {
-          acc[category] = filtered
-        }
-        return acc
-      }, {} as Record<string, string[]>)
-    : KONTROLLPUNKTER_BY_CATEGORY
-
   const totalPunkter = allKontrollpunkter.length
-  // Teller alle punkter som har en status (Kontrollert, Ikke aktuell, eller Ikke tilkomst)
   const ferdigVurdertePunkter = Object.values(data).filter(p => p.status !== null).length
   const avvikPunkter = Object.values(data).filter(p => p.avvik).length
   const progress = Math.round((ferdigVurdertePunkter / totalPunkter) * 100)
+  const gjenstar = totalPunkter - ferdigVurdertePunkter
+
+  function visPunkt(navn: string) {
+    const p = data[navn]
+    if (filter === 'gjenstar') return p.status === null
+    if (filter === 'avvik') return p.avvik
+    return true
+  }
+  function settStatus(navn: string, status: KontrollpunktData['status']) {
+    const p = data[navn]
+    updatePunkt(navn, { status: p.status === status ? null : status })
+  }
+  function toggleAvvik(navn: string) {
+    const p = data[navn]
+    if (p.avvik) updatePunkt(navn, { avvik: false, avvikListe: [] })
+    else { updatePunkt(navn, { avvik: true, avvikListe: p.avvikListe.length ? p.avvikListe : [{ id: crypto.randomUUID(), beskrivelse: '' }], status: p.status ?? 'Kontrollert' }); setApent(navn) }
+  }
+  async function tilbake() {
+    if (hasUnsavedChanges) await autoSave()
+    onBack()
+  }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+    return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div>
   }
 
   return (
-    <div className="min-h-screen pb-20">
-      {/* Fixed Header */}
-      <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">
-        <div className="p-3 sm:p-4">
-          <div className="flex flex-col gap-3 mb-3 sm:mb-4">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-lg flex-shrink-0">
-                <ArrowLeft className="w-5 h-5 text-gray-400" />
-              </button>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">NS3960 Kontroll</h1>
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{anleggsNavn}</p>
-              </div>
-              <button
-                onClick={() => setShowSearch(!showSearch)}
-                className="p-2 hover:bg-white/5 rounded-lg flex-shrink-0 sm:hidden">
-                <Search className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Offline/Online indicator */}
-              {!isOnline && (
-                <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs">
-                  <WifiOff className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="hidden xs:inline">Offline</span>
-                </div>
-              )}
-              {isSyncing && (
-                <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs">
-                  <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="hidden xs:inline">Synkroniserer...</span>
-                </div>
-              )}
-              {/* Auto-save indicator */}
-              {autoSaving && (
-                <div className="flex items-center gap-1 sm:gap-2 text-xs text-blue-400">
-                  <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="hidden xs:inline">Lagrer...</span>
-                </div>
-              )}
-              {lastSaved && !autoSaving && (
-                <div className="flex items-center gap-1 sm:gap-2 text-xs text-green-400">
-                  {isOnline && <Wifi className="w-3 h-3" />}
-                  <span className="hidden sm:inline">Lagret {lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
-              )}
-              <button
-                onClick={() => setShowSearch(!showSearch)}
-                className="p-2 hover:bg-white/5 rounded-lg hidden sm:block"
-              >
-                <Search className="w-5 h-5 text-gray-400" />
-              </button>
-              <button 
-                onClick={() => setShowOnlyUnchecked(!showOnlyUnchecked)}
-                className={`btn-secondary text-xs sm:text-sm px-2 sm:px-3 ${showOnlyUnchecked ? 'bg-primary text-white' : ''}`}
-              >
-                {showOnlyUnchecked ? 'Vis alle' : 'Kun ukontrollerte'}
-              </button>
-              <button onClick={loadData} className="btn-secondary text-xs sm:text-sm px-2 sm:px-3">
-                Oppdater
-              </button>
-            </div>
+    <div className="space-y-4 pb-28">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={tilbake} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Brannalarm</button>
+        <span className="hidden sm:inline">/</span><span className="hidden sm:inline text-gray-900 dark:text-white truncate">{anleggsNavn}</span>
+      </div>
+      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">NS 3960-kontroll</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate">{anleggsNavn}{leverandor || sentraltype ? ` · ${[leverandor, sentraltype].filter(Boolean).join(' ')}` : ''}</p>
+        </div>
+        <p className="text-xs text-gray-400 sm:text-right whitespace-nowrap">{!isOnline ? 'Offline – lagres lokalt' : autoSaving || isSyncing ? 'Lagrer…' : hasUnsavedChanges ? 'Ulagrede endringer' : lastSaved ? `Lagret ${lastSaved.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}` : 'Lagres automatisk'}</p>
+      </header>
+
+      {/* Fremdrift – henger igjen øverst mens du scroller */}
+      <div className="sticky top-0 lg:top-2 z-10 -mx-4 px-4 sm:mx-0 sm:px-0 pt-1 pb-2 bg-white/90 dark:bg-dark/90 backdrop-blur">
+        <div className="card !p-3 space-y-2">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-semibold text-gray-900 dark:text-white">{ferdigVurdertePunkter} av {totalPunkter} vurdert <span className="text-gray-400 font-normal">· {progress} %</span></span>
+            {avvikPunkter > 0 && <span className="inline-flex items-center gap-1 font-medium text-orange-600 dark:text-orange-400"><AlertTriangle className="w-4 h-4" />{avvikPunkter} med avvik</span>}
           </div>
-
-          {showSearch && (
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Søk i kontrollpunkter..."
-              className="input mb-4"
-              autoFocus
-            />
-          )}
-
-          {/* Progress */}
-          <div className="bg-gray-100 dark:bg-gray-900 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs sm:text-sm text-gray-400">Fremdrift</span>
-              <span className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">{progress}%</span>
-            </div>
-            <div className="w-full bg-gray-300 dark:bg-gray-800 rounded-full h-2 mb-3">
-              <div 
-                className="bg-green-500 h-2 rounded-full transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 text-xs">
-              <div className="text-center">
-                <div className="text-gray-400 truncate">Vurdert</div>
-                <div className="text-green-400 font-semibold">{ferdigVurdertePunkter}/{totalPunkter}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-gray-400 truncate">Avvik</div>
-                <div className="text-orange-400 font-semibold">{avvikPunkter}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-gray-400 truncate">Gjenstår</div>
-                <div className="text-blue-400 font-semibold">{totalPunkter - ferdigVurdertePunkter}</div>
-              </div>
-            </div>
+          <div className="h-2 rounded-full bg-gray-200 dark:bg-dark-100 overflow-hidden"><div className={cn('h-full rounded-full transition-all', progress === 100 ? 'bg-green-500' : 'bg-primary')} style={{ width: `${progress}%` }} /></div>
+          <div className="flex gap-2 overflow-x-auto -mx-3 px-3" role="group" aria-label="Filter">
+            <Chip aktiv={filter === 'gjenstar'} onClick={() => setFilter('gjenstar')}>Gjenstår <b>{gjenstar}</b></Chip>
+            <Chip aktiv={filter === 'avvik'} onClick={() => setFilter('avvik')}><span className="w-2 h-2 rounded-full bg-orange-500" />Avvik <b>{avvikPunkter}</b></Chip>
+            <Chip aktiv={filter === 'alle'} onClick={() => setFilter('alle')}>Alle <b>{totalPunkter}</b></Chip>
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-4 space-y-4">
-        {Object.entries(filteredCategories).map(([category, punkter]) => {
-          const isCollapsed = collapsedCategories.has(category)
-          const categoryPunkter = showOnlyUnchecked 
-            ? punkter.filter(p => data[p].status === null)
-            : punkter
-          const completedCount = punkter.filter(p => data[p].status !== null).length
-          
-          if (showOnlyUnchecked && categoryPunkter.length === 0) return null
-          
-          return (
-          <div key={category} className="card">
-            {/* Category Header */}
-            <div className="flex items-center justify-between mb-4">
-              <button
-                onClick={() => toggleCategory(category)}
-                className="flex items-center gap-3 flex-1 text-left group"
-              >
-                <div className={`transform transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>
-                  <svg className="w-5 h-5 text-gray-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-primary transition-colors">
-                    {category}
-                  </h3>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs text-gray-400">
-                      {completedCount}/{punkter.length} vurdert
-                    </span>
-                    <div className="flex-1 max-w-xs bg-gray-300 dark:bg-gray-800 rounded-full h-1.5">
-                      <div 
-                        className="bg-green-500 h-1.5 rounded-full transition-all"
-                        style={{ width: `${(completedCount / punkter.length) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </button>
-              
-              {/* Quick actions */}
-              {!isCollapsed && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => markAllInCategory(category, 'Kontrollert')}
-                    className="text-xs px-3 py-1.5 bg-green-500/10 text-green-400 hover:bg-green-500/20 rounded-lg transition-colors"
-                  >
-                    ✓ Marker alle
-                  </button>
-                  <button
-                    onClick={() => markAllInCategory(category, 'Ikke aktuell')}
-                    className="text-xs px-3 py-1.5 bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-lg transition-colors"
-                  >
-                    Ikke aktuell
-                  </button>
-                </div>
-              )}
-            </div>
-            
-            {!isCollapsed && (
-            <div className="space-y-3">
-              {punkter.map(punkt => {
-                const punktData = data[punkt]
-                return (
-                  <div
-                    key={punkt}
-                    className={`p-4 rounded-lg border transition-colors ${
-                      punktData.avvik
-                        ? 'border-orange-500/30 bg-orange-500/5'
-                        : punktData.status === 'Kontrollert'
-                        ? 'border-green-500/30 bg-green-500/5'
-                        : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3 mb-3">
-                      {punktData.status === 'Kontrollert' && !punktData.avvik && (
-                        <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                      )}
-                      {punktData.avvik && (
-                        <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
-                      )}
-                      <div className="flex-1">
-                        <p className="text-gray-900 dark:text-white font-medium mb-3">{punkt}</p>
+      {gjenstar === 0 && filter === 'gjenstar' && (
+        <div className="card text-center py-8 space-y-2">
+          <p className="text-sm font-medium text-gray-900 dark:text-white">Alle {totalPunkter} punkter er vurdert 🎉</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Fyll ut «Om kontrollen» nederst og trykk «Fullfør og lag rapport». <button type="button" onClick={() => setFilter('alle')} className="text-primary hover:underline">Vis alle punkter</button></p>
+        </div>
+      )}
 
-                        {/* Status buttons */}
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {['Kontrollert', 'Ikke aktuell', 'Ikke tilkomst'].map(status => (
-                            <button
-                              key={status}
-                              onClick={() => updatePunkt(punkt, { status: status as any })}
-                              className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                                punktData.status === status
-                                  ? 'bg-green-500 text-white'
-                                  : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
-                              }`}
-                            >
-                              {status}
-                            </button>
-                          ))}
+      {Object.entries(KONTROLLPUNKTER_BY_CATEGORY).map(([kategori, punkter]) => {
+        const synlige = punkter.filter(visPunkt)
+        if (synlige.length === 0) return null
+        const ferdig = punkter.filter(n => data[n].status !== null).length
+        const lukket = collapsedCategories.has(kategori)
+        return (
+          <section key={kategori} className="card !p-0 overflow-hidden" aria-label={kategori}>
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-dark-100">
+              <button type="button" onClick={() => toggleCategory(kategori)} aria-expanded={!lukket} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', !lukket && 'rotate-90')} />
+                <span className="font-semibold text-gray-900 dark:text-white truncate">{kategori}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{ferdig} av {punkter.length}</span>
+                {ferdig === punkter.length && <Check className="w-4 h-4 text-green-600 dark:text-green-400" strokeWidth={3} />}
+              </button>
+              <DropdownMenu trigger={open => <IconButton variant="ghost" label="Handlinger for kategorien" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
+                <MenuItem icon={<Check />} onSelect={() => markAllInCategory(kategori, 'Kontrollert')}>Merk alle som kontrollert</MenuItem>
+                <MenuItem icon={<X />} onSelect={() => markAllInCategory(kategori, 'Ikke aktuell')}>Merk alle som ikke aktuell</MenuItem>
+              </DropdownMenu>
+            </div>
+            {!lukket && (
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {synlige.map(navn => {
+                  const p = data[navn]
+                  const erApen = apent === navn
+                  const harDetaljer = p.avvik || Boolean(p.kommentar)
+                  return (
+                    <div key={navn} className={cn('px-3 py-2', p.avvik ? 'bg-orange-50/50 dark:bg-orange-900/10' : p.status === 'Kontrollert' ? '' : p.status ? 'bg-gray-50/60 dark:bg-dark-100/40' : '')}>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <button type="button" onClick={() => setApent(erApen ? null : navn)} aria-expanded={erApen} className="flex-1 min-w-0 flex items-start gap-2.5 text-left py-1">
+                          <span className={cn('w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-px', p.avvik ? 'bg-orange-500 border-orange-500 text-white' : p.status === 'Kontrollert' ? 'bg-green-500 border-green-500 text-white' : p.status ? 'bg-gray-400 border-gray-400 text-white' : 'border-gray-300 dark:border-gray-600')}>
+                            {p.avvik ? <AlertTriangle className="w-3 h-3" /> : p.status === 'Kontrollert' ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : p.status ? <X className="w-3 h-3" strokeWidth={3} /> : null}
+                          </span>
+                          <span className="min-w-0">
+                            <span className={cn('block text-sm leading-snug', p.status ? 'text-gray-700 dark:text-gray-300' : 'text-gray-900 dark:text-white font-medium')}>{navn}</span>
+                            {(harDetaljer && !erApen) && <span className="block text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{p.avvik ? `${p.avvikListe.filter(a => a.beskrivelse.trim()).length || p.avvikListe.length} avvik${p.avvikListe[0]?.beskrivelse ? `: ${p.avvikListe[0].beskrivelse}` : ''}` : ''}{p.avvik && p.kommentar ? ' · ' : ''}{p.kommentar ? `Kommentar: ${p.kommentar}` : ''}</span>}
+                          </span>
+                        </button>
+                        <div className="flex items-center gap-1.5 flex-shrink-0 pl-8 sm:pl-0">
+                          <button type="button" onClick={() => settStatus(navn, 'Kontrollert')} aria-pressed={p.status === 'Kontrollert'} className={cn('h-9 px-3.5 rounded-lg text-sm font-semibold border inline-flex items-center gap-1', p.status === 'Kontrollert' ? 'bg-green-500 border-green-500 text-white' : 'border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20')}><Check className="w-3.5 h-3.5" strokeWidth={3} />OK</button>
+                          <button type="button" onClick={() => settStatus(navn, 'Ikke aktuell')} aria-pressed={p.status === 'Ikke aktuell'} title="Ikke aktuell" className={cn('h-9 px-2.5 rounded-lg text-xs border', p.status === 'Ikke aktuell' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>N/A</button>
+                          <button type="button" onClick={() => settStatus(navn, 'Ikke tilkomst')} aria-pressed={p.status === 'Ikke tilkomst'} title="Ikke tilkomst" className={cn('h-9 px-2.5 rounded-lg text-xs border whitespace-nowrap', p.status === 'Ikke tilkomst' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>Ikke tilkomst</button>
+                          <button type="button" onClick={() => toggleAvvik(navn)} aria-pressed={p.avvik} title="Avvik" className={cn('h-9 px-2.5 rounded-lg text-xs border inline-flex items-center gap-1', p.avvik ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-orange-400 hover:text-orange-600')}><AlertTriangle className="w-3.5 h-3.5" />{p.avvik ? p.avvikListe.length : 'Avvik'}</button>
+                          <IconButton variant="ghost" label={erApen ? 'Skjul detaljer' : 'Kommentar og detaljer'} icon={p.kommentar ? <MessageSquare className="text-primary" /> : <ChevronDown className={cn('transition-transform', erApen && 'rotate-180')} />} onClick={() => setApent(erApen ? null : navn)} className="w-8 h-8" />
                         </div>
-
-                        {/* Avvik checkbox */}
-                        <label className="flex items-center gap-2 mb-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={punktData.avvik}
-                            onChange={(e) => {
-                              const newAvvikListe = e.target.checked && punktData.avvikListe.length === 0
-                                ? [{ id: crypto.randomUUID(), beskrivelse: '' }]
-                                : punktData.avvikListe
-                              updatePunkt(punkt, { 
-                                avvik: e.target.checked,
-                                avvikListe: e.target.checked ? newAvvikListe : []
-                              })
-                            }}
-                            className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-orange-500"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">Avvik</span>
-                        </label>
-
-                        {/* Avviksliste */}
-                        {punktData.avvik && (
-                          <div className="mb-3 space-y-2">
-                            {punktData.avvikListe.map((avvik, idx) => (
-                              <div key={avvik.id} className="flex items-start gap-2">
-                                <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-orange-500/20 text-orange-400 rounded-lg text-sm font-semibold">
-                                  {idx + 1}
-                                </span>
-                                <input
-                                  type="text"
-                                  value={avvik.beskrivelse}
-                                  onChange={(e) => {
-                                    const newListe = [...punktData.avvikListe]
-                                    newListe[idx] = { ...newListe[idx], beskrivelse: e.target.value }
-                                    updatePunkt(punkt, { avvikListe: newListe })
-                                  }}
-                                  placeholder="Beskriv avviket..."
-                                  className="input text-sm flex-1"
-                                />
-                                <button
-                                  onClick={() => {
-                                    const newListe = punktData.avvikListe.filter((_, i) => i !== idx)
-                                    updatePunkt(punkt, { 
-                                      avvikListe: newListe,
-                                      avvik: newListe.length > 0
-                                    })
-                                  }}
-                                  className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ))}
-                            <button
-                              onClick={() => {
-                                const newListe = [...punktData.avvikListe, { id: crypto.randomUUID(), beskrivelse: '' }]
-                                updatePunkt(punkt, { avvikListe: newListe })
-                              }}
-                              className="flex items-center gap-2 text-sm text-orange-400 hover:text-orange-300 transition-colors"
-                            >
-                              <Plus className="w-4 h-4" />
-                              Legg til avvik
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Kommentar */}
-                        <textarea
-                          value={punktData.kommentar}
-                          onChange={(e) => updatePunkt(punkt, { kommentar: e.target.value })}
-                          placeholder="Kommentar..."
-                          className="input text-sm"
-                          rows={2}
-                        />
                       </div>
+                      {erApen && (
+                        <div className="mt-2 ml-8 space-y-2">
+                          {p.avvik && (
+                            <div className="space-y-1.5">
+                              {p.avvikListe.map((a, idx) => (
+                                <div key={a.id} className="flex items-center gap-2">
+                                  <span className="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-semibold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                                  <input value={a.beskrivelse} onChange={e => updatePunkt(navn, { avvikListe: p.avvikListe.map((x, i) => i === idx ? { ...x, beskrivelse: e.target.value } : x) })} placeholder="Beskriv avviket …" autoFocus={!a.beskrivelse && idx === p.avvikListe.length - 1} className="input !h-[36px] !min-h-[36px] !py-0 text-sm flex-1" />
+                                  <IconButton variant="ghost" label="Fjern avvik" icon={<X />} onClick={() => { const l = p.avvikListe.filter((_, i) => i !== idx); updatePunkt(navn, { avvikListe: l, avvik: l.length > 0 }) }} className="w-8 h-8 hover:!text-red-500" />
+                                </div>
+                              ))}
+                              <button type="button" onClick={() => updatePunkt(navn, { avvikListe: [...p.avvikListe, { id: crypto.randomUUID(), beskrivelse: '' }] })} className="text-xs text-orange-600 dark:text-orange-400 hover:underline inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Ett avvik til</button>
+                            </div>
+                          )}
+                          <div className="flex items-start gap-2">
+                            <MessageSquare className="w-4 h-4 text-gray-400 mt-2.5 flex-shrink-0" />
+                            <textarea value={p.kommentar} onChange={e => updatePunkt(navn, { kommentar: e.target.value })} placeholder="Kommentar til punktet (valgfritt)" rows={2} className="input !h-auto text-sm flex-1" />
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
+            )}
+          </section>
+        )
+      })}
+
+      {/* Om kontrollen */}
+      <section className="card !p-0 overflow-hidden" aria-label="Om kontrollen">
+        <button type="button" onClick={() => setVisOm(v => !v)} aria-expanded={visOm} className="w-full flex items-center gap-2 px-3 py-2.5 bg-gray-50 dark:bg-dark-100 text-left">
+          <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', visOm && 'rotate-90')} />
+          <span className="font-semibold text-gray-900 dark:text-white">Om kontrollen</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{[leverandor && `${leverandor}${sentraltype ? ` ${sentraltype}` : ''}`, harFeil ? 'Feil i anlegget' : null, harUtkoblinger ? 'Utkoblinger' : null, merknader ? 'Merknader' : null].filter(Boolean).join(' · ') || 'Leverandør, merknader, feil og utkoblinger'}</span>
+        </button>
+        {visOm && (
+          <div className="p-4 space-y-4">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5"><label htmlFor="k-lev" className="block text-sm font-medium text-gray-900 dark:text-white">Leverandør</label><input id="k-lev" value={leverandor} onChange={e => { setLeverandor(e.target.value); setHasUnsavedChanges(true) }} placeholder="F.eks. Autronica" className="input" /></div>
+              <div className="space-y-1.5"><label htmlFor="k-sen" className="block text-sm font-medium text-gray-900 dark:text-white">Sentraltype</label><input id="k-sen" value={sentraltype} onChange={e => { setSentraltype(e.target.value); setHasUnsavedChanges(true) }} placeholder="F.eks. Autrosafe" className="input" /></div>
             </div>
-            )}
+            <div className="space-y-1.5"><label htmlFor="k-merk" className="block text-sm font-medium text-gray-900 dark:text-white">Merknader til kontrollen</label><textarea id="k-merk" value={merknader} onChange={e => { setMerknader(e.target.value); setHasUnsavedChanges(true) }} rows={3} placeholder="Generelle merknader som skal med i rapporten" className="input !h-auto" /></div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2 p-3 rounded-lg border border-gray-200 dark:border-gray-800">
+                <label className="flex items-center gap-2.5 text-sm font-medium text-gray-900 dark:text-white cursor-pointer"><input type="checkbox" checked={harFeil} onChange={e => { setHarFeil(e.target.checked); setHasUnsavedChanges(true) }} className="w-4 h-4 rounded text-primary focus:ring-primary" />Feil i anlegget</label>
+                {harFeil && <textarea value={feilKommentar} onChange={e => { setFeilKommentar(e.target.value); setHasUnsavedChanges(true) }} rows={2} placeholder="Beskriv feilene" className="input !h-auto text-sm" />}
+              </div>
+              <div className="space-y-2 p-3 rounded-lg border border-gray-200 dark:border-gray-800">
+                <label className="flex items-center gap-2.5 text-sm font-medium text-gray-900 dark:text-white cursor-pointer"><input type="checkbox" checked={harUtkoblinger} onChange={e => { setHarUtkoblinger(e.target.checked); setHasUnsavedChanges(true) }} className="w-4 h-4 rounded text-primary focus:ring-primary" />Utkoblinger</label>
+                {harUtkoblinger && <textarea value={utkoblingKommentar} onChange={e => { setUtkoblingKommentar(e.target.value); setHasUnsavedChanges(true) }} rows={2} placeholder="Beskriv utkoblingene" className="input !h-auto text-sm" />}
+              </div>
+            </div>
           </div>
-          )
-        })}
-      </div>
+        )}
+      </section>
 
-      {/* Ekstra informasjon */}
-      <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tilleggsinformasjon</h3>
-        
-        {/* Anleggsinfo */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Leverandør
-            </label>
-            <input
-              type="text"
-              value={leverandor}
-              onChange={(e) => {
-                setLeverandor(e.target.value)
-                setHasUnsavedChanges(true)
-              }}
-              placeholder="Leverandør..."
-              className="input"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Sentraltype
-            </label>
-            <input
-              type="text"
-              value={sentraltype}
-              onChange={(e) => {
-                setSentraltype(e.target.value)
-                setHasUnsavedChanges(true)
-              }}
-              placeholder="Sentraltype..."
-              className="input"
-            />
-          </div>
-        </div>
-        
-        {/* Merknader */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Merknader
-          </label>
-          <textarea
-            value={merknader}
-            onChange={(e) => {
-              setMerknader(e.target.value)
-              setHasUnsavedChanges(true)
-            }}
-            placeholder="Generelle merknader til kontrollen..."
-            className="input"
-            rows={3}
-          />
-        </div>
-
-        {/* Har feil */}
-        <div className="mb-4">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={harFeil}
-              onChange={(e) => {
-                setHarFeil(e.target.checked)
-                setHasUnsavedChanges(true)
-              }}
-              className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-red-500 focus:ring-red-500"
-            />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Har feil</span>
-          </label>
-          {harFeil && (
-            <textarea
-              value={feilKommentar}
-              onChange={(e) => {
-                setFeilKommentar(e.target.value)
-                setHasUnsavedChanges(true)
-              }}
-              placeholder="Beskriv feilene..."
-              className="input mt-2"
-              rows={2}
-            />
-          )}
-        </div>
-
-        {/* Har utkoblinger */}
-        <div className="mb-4">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={harUtkoblinger}
-              onChange={(e) => {
-                setHarUtkoblinger(e.target.checked)
-                setHasUnsavedChanges(true)
-              }}
-              className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-yellow-500 focus:ring-yellow-500"
-            />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Har utkoblinger</span>
-          </label>
-          {harUtkoblinger && (
-            <textarea
-              value={utkoblingKommentar}
-              onChange={(e) => {
-                setUtkoblingKommentar(e.target.value)
-                setHasUnsavedChanges(true)
-              }}
-              placeholder="Beskriv utkoblingene..."
-              className="input mt-2"
-              rows={2}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Fixed Action Buttons */}
-      <div className="fixed bottom-0 left-0 md:left-64 right-0 p-4 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 z-40">
-        <div className="flex gap-3">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="btn-secondary flex-1 flex items-center justify-center gap-2"
-          >
-            {saving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Lagrer...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                Lagre
-              </>
-            )}
-          </button>
-          <button
-            onClick={handleComplete}
-            disabled={saving}
-            className="btn-primary flex-1 flex items-center justify-center gap-2"
-          >
-            <CheckCircle className="w-4 h-4" />
-            Fullfør kontroll
-          </button>
-        </div>
+      {/* Bunnlinje */}
+      <div className="fixed bottom-0 left-0 right-0 lg:left-[var(--sidebar-w)] z-20 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-gray-800 px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
+        <span className="text-sm text-gray-500 dark:text-gray-400 mr-auto tabular-nums">{gjenstar > 0 ? `${gjenstar} punkter gjenstår` : 'Alle punkter vurdert'}{avvikPunkter ? ` · ${avvikPunkter} avvik` : ''}</span>
+        <Button variant="ghost" loading={saving} disabled={!hasUnsavedChanges} onClick={handleSave}><span className="hidden sm:inline">Lagre nå</span><span className="sm:hidden">Lagre</span></Button>
+        <Button variant="primary" icon={<ClipboardCheck />} loading={saving} onClick={handleComplete}>Fullfør og lag rapport</Button>
       </div>
     </div>
   )
+}
+
+function Chip({ aktiv, onClick, children }: { aktiv: boolean; onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" onClick={onClick} aria-pressed={aktiv} className={cn('inline-flex items-center gap-2 h-[32px] px-3 rounded-full border text-sm whitespace-nowrap flex-shrink-0 transition-colors [&>b]:font-bold [&>b]:tabular-nums', aktiv ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500')}>{children}</button>
 }
