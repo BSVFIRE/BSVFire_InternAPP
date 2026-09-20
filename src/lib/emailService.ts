@@ -11,6 +11,8 @@ export interface SendEmailParams {
   subject: string
   body: string
   attachments?: EmailAttachment[]
+  /** Vedlegg som edge-funksjonen henter fra Storage selv – bruk dette i stedet for base64 for PDF-er fra anlegg.dokumenter */
+  attachmentPaths?: { path: string; filename: string; bucket?: string }[]
   replyTo?: string
   cc?: string
   bcc?: string
@@ -36,6 +38,7 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
         fromName: SENDER_NAME,
         reply_to: params.replyTo || 'mail@bsvfire.no',
         attachments: params.attachments,
+        attachment_paths: params.attachmentPaths,
       },
     })
 

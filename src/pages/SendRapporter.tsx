@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Mail, Building2, User, FileText, Send, Loader2, ArrowLeft } from 'lucide-react'
-import { sendEmail, getDocumentAsBase64, EmailAttachment, getKundeEmailTemplate, getTeknikerEmailTemplate, generateEmailSubject } from '@/lib/emailService'
+import { sendEmail, getKundeEmailTemplate, getTeknikerEmailTemplate, generateEmailSubject } from '@/lib/emailService'
+import { toast } from '@/lib/toast'
+import { AlertCircle, CheckCircle2, RotateCcw } from 'lucide-react'
+
+interface SendeResultat { epost: string; navn: string | null; type: 'kunde' | 'tekniker' | 'ekstra'; ok: boolean; feil: string | null }
 
 interface Kunde {
   id: string
@@ -61,6 +65,7 @@ export function SendRapporter() {
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(false)
   const [teknikerInfo, setTeknikerInfo] = useState<{ navn: string; epost: string; telefon: string } | null>(null)
+  const [sendeResultat, setSendeResultat] = useState<SendeResultat[] | null>(null)
 
   useEffect(() => {
     loadKunder()
@@ -295,214 +300,67 @@ export function SendRapporter() {
     }
   }
 
-  async function handleSend() {
-    if (valgteKontakter.size === 0 && !sendTilTekniker && ekstraEposter.length === 0) {
-      alert('Velg minst én mottaker')
-      return
-    }
+  async function handleSend(kunTil?: string[]) {
+    const totalMottakere = valgteKontakter.size + (sendTilTekniker ? 1 : 0) + ekstraEposter.length
+    if (totalMottakere === 0) { toast.error('Velg minst én mottaker'); return }
+    if (valgteDokumenter.size === 0) { toast.error('Velg minst ett dokument'); return }
+    if (!selectedAnlegg) { toast.error('Velg et anlegg'); return }
 
-    if (valgteDokumenter.size === 0) {
-      alert('Velg minst ett dokument')
-      return
-    }
-
-    if (!selectedAnlegg) {
-      alert('Velg et anlegg')
-      return
-    }
+    const anleggData = anlegg.find(a => a.id === selectedAnlegg)
+    if (!anleggData) { toast.error('Fant ikke anleggsdata'); return }
 
     setLoading(true)
-
     try {
-      const anleggData = anlegg.find(a => a.id === selectedAnlegg)
-      if (!anleggData) throw new Error('Fant ikke anleggsdata')
-
-      // Forbered vedlegg
-      const attachments: EmailAttachment[] = []
       const valgteDokListe = dokumenter.filter(d => valgteDokumenter.has(d.id))
+      // Edge-funksjonen henter PDF-ene fra Storage selv – ingen base64-opplasting fra mobilen
+      const attachmentPaths = valgteDokListe.map(d => ({ path: d.storage_path, filename: d.filnavn }))
+      const teknikerFelter = { teknikerNavn: teknikerInfo?.navn || '', teknikerTelefon: teknikerInfo?.telefon || '', teknikerEpost: teknikerInfo?.epost || '' }
 
-      for (const dok of valgteDokListe) {
-        const base64Content = await getDocumentAsBase64(dok.storage_path)
-        attachments.push({
-          content: base64Content,
-          filename: dok.filnavn,
-          contentType: 'application/pdf'
-        })
-      }
-
-      // Send til valgte kontaktpersoner
+      // Alle mottakere samles først, så sendes de én og én – en feil stopper ikke de andre
+      const mottakere: { epost: string; navn: string | null; type: 'kunde' | 'tekniker' | 'ekstra' }[] = []
       for (const kontaktId of valgteKontakter) {
-        const kontakt = kontaktpersoner.find(k => k.id === kontaktId)
-        if (!kontakt?.epost) continue
+        const k = kontaktpersoner.find(x => x.id === kontaktId)
+        if (k?.epost) mottakere.push({ epost: k.epost, navn: k.navn, type: 'kunde' })
+      }
+      if (sendTilTekniker && teknikerInfo?.epost) mottakere.push({ epost: teknikerInfo.epost, navn: teknikerInfo.navn, type: 'tekniker' })
+      for (const epost of ekstraEposter) mottakere.push({ epost, navn: null, type: 'ekstra' })
 
-        const subject = generateEmailSubject({
-          anleggsnavn: anleggData.anleggsnavn,
-          rapportType: 'Rapport',
-          type: 'kunde',
-          date: new Date()
-        })
+      const skalSendes = kunTil ? mottakere.filter(m => kunTil.includes(m.epost)) : mottakere
+      const resultat: SendeResultat[] = []
 
+      for (const m of skalSendes) {
+        const subject = generateEmailSubject({ anleggsnavn: anleggData.anleggsnavn, rapportType: 'Rapport', type: m.type === 'tekniker' ? 'intern' : m.type, date: new Date() })
+        const body = m.type === 'tekniker'
+          ? getTeknikerEmailTemplate({ anleggsnavn: anleggData.anleggsnavn, rapportType: 'Rapport', ...teknikerFelter })
+          : getKundeEmailTemplate({ anleggsnavn: anleggData.anleggsnavn, rapportType: 'Rapport', ...teknikerFelter })
+        let feil: string | null = null
         try {
-          await sendEmail({
-            to: kontakt.epost,
-            subject: subject,
-            body: getKundeEmailTemplate({
-              anleggsnavn: anleggData.anleggsnavn,
-              rapportType: 'Rapport',
-              teknikerNavn: teknikerInfo?.navn || '',
-              teknikerTelefon: teknikerInfo?.telefon || '',
-              teknikerEpost: teknikerInfo?.epost || ''
-            }),
-            attachments
-          })
-
-          // Logg hver sendte dokument
-          for (const dok of valgteDokListe) {
-            await loggEpostUtsendelse(
-              selectedAnlegg,
-              dok.filnavn,
-              dok.storage_path,
-              kontakt.epost,
-              kontakt.navn,
-              'kunde',
-              subject,
-              'sendt'
-            )
-          }
-        } catch (error) {
-          for (const dok of valgteDokListe) {
-            await loggEpostUtsendelse(
-              selectedAnlegg,
-              dok.filnavn,
-              dok.storage_path,
-              kontakt.epost,
-              kontakt.navn,
-              'kunde',
-              subject,
-              'feilet',
-              error instanceof Error ? error.message : 'Ukjent feil'
-            )
-          }
-          throw error
+          await sendEmail({ to: m.epost, subject, body, attachmentPaths })
+        } catch (e) {
+          feil = e instanceof Error ? e.message : 'Ukjent feil'
+        }
+        resultat.push({ epost: m.epost, navn: m.navn, type: m.type, ok: !feil, feil })
+        for (const dok of valgteDokListe) {
+          await loggEpostUtsendelse(selectedAnlegg, dok.filnavn, dok.storage_path, m.epost, m.navn, m.type, subject, feil ? 'feilet' : 'sendt', feil ?? undefined)
         }
       }
 
-      // Send til tekniker
-      if (sendTilTekniker && teknikerInfo?.epost) {
-        const subject = generateEmailSubject({
-          anleggsnavn: anleggData.anleggsnavn,
-          rapportType: 'Rapport',
-          type: 'intern',
-          date: new Date()
-        })
+      // Slå sammen med tidligere resultat ved «prøv igjen»
+      const samlet = kunTil && sendeResultat
+        ? sendeResultat.map(r => resultat.find(n => n.epost === r.epost) ?? r)
+        : resultat
+      setSendeResultat(samlet)
 
-        try {
-          await sendEmail({
-            to: teknikerInfo.epost,
-            subject: subject,
-            body: getTeknikerEmailTemplate({
-              anleggsnavn: anleggData.anleggsnavn,
-              rapportType: 'Rapport',
-              teknikerNavn: teknikerInfo.navn,
-              teknikerTelefon: teknikerInfo.telefon,
-              teknikerEpost: teknikerInfo.epost
-            }),
-            attachments
-          })
-
-          for (const dok of valgteDokListe) {
-            await loggEpostUtsendelse(
-              selectedAnlegg,
-              dok.filnavn,
-              dok.storage_path,
-              teknikerInfo.epost,
-              teknikerInfo.navn,
-              'tekniker',
-              subject,
-              'sendt'
-            )
-          }
-        } catch (error) {
-          for (const dok of valgteDokListe) {
-            await loggEpostUtsendelse(
-              selectedAnlegg,
-              dok.filnavn,
-              dok.storage_path,
-              teknikerInfo.epost,
-              teknikerInfo.navn,
-              'tekniker',
-              subject,
-              'feilet',
-              error instanceof Error ? error.message : 'Ukjent feil'
-            )
-          }
-          throw error
-        }
+      const feilet = samlet.filter(r => !r.ok)
+      if (feilet.length === 0) {
+        toast.success(`E-post sendt til ${samlet.length} ${samlet.length === 1 ? 'mottaker' : 'mottakere'}`)
+        setValgteKontakter(new Set())
+        setValgteDokumenter(new Set())
+        setEkstraEposter([])
+        setSendTilTekniker(false)
+      } else {
+        toast.error(`${feilet.length} av ${samlet.length} e-poster ble ikke sendt`, 'Se hvem under, og prøv igjen.')
       }
-
-      // Send til ekstra e-poster
-      for (const epost of ekstraEposter) {
-        const subject = generateEmailSubject({
-          anleggsnavn: anleggData.anleggsnavn,
-          rapportType: 'Rapport',
-          type: 'ekstra',
-          date: new Date()
-        })
-
-        try {
-          await sendEmail({
-            to: epost,
-            subject: subject,
-            body: getKundeEmailTemplate({
-              anleggsnavn: anleggData.anleggsnavn,
-              rapportType: 'Rapport',
-              teknikerNavn: teknikerInfo?.navn || '',
-              teknikerTelefon: teknikerInfo?.telefon || '',
-              teknikerEpost: teknikerInfo?.epost || ''
-            }),
-            attachments
-          })
-
-          for (const dok of valgteDokListe) {
-            await loggEpostUtsendelse(
-              selectedAnlegg,
-              dok.filnavn,
-              dok.storage_path,
-              epost,
-              null,
-              'ekstra',
-              subject,
-              'sendt'
-            )
-          }
-        } catch (error) {
-          for (const dok of valgteDokListe) {
-            await loggEpostUtsendelse(
-              selectedAnlegg,
-              dok.filnavn,
-              dok.storage_path,
-              epost,
-              null,
-              'ekstra',
-              subject,
-              'feilet',
-              error instanceof Error ? error.message : 'Ukjent feil'
-            )
-          }
-          throw error
-        }
-      }
-
-      alert('✅ E-post sendt til alle mottakere!')
-      
-      // Reset valg
-      setValgteKontakter(new Set())
-      setValgteDokumenter(new Set())
-      setEkstraEposter([])
-      setSendTilTekniker(false)
-    } catch (error) {
-      console.error('Feil ved sending av e-post:', error)
-      alert('❌ Kunne ikke sende e-post. Se konsoll for detaljer.')
     } finally {
       setLoading(false)
     }
@@ -770,6 +628,37 @@ export function SendRapporter() {
             </div>
           )}
 
+          {/* Resultat av siste sending */}
+          {sendeResultat && (
+            <div className={`card space-y-2 ${sendeResultat.some(r => !r.ok) ? 'border-red-300 dark:border-red-800' : 'border-green-300 dark:border-green-800'}`}>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {sendeResultat.every(r => r.ok) ? 'Alle e-poster er sendt' : `${sendeResultat.filter(r => !r.ok).length} av ${sendeResultat.length} e-poster ble ikke sendt`}
+                </h3>
+                <div className="flex items-center gap-2">
+                  {sendeResultat.some(r => !r.ok) && (
+                    <button type="button" onClick={() => handleSend(sendeResultat.filter(r => !r.ok).map(r => r.epost))} disabled={loading} className="btn-primary text-sm inline-flex items-center gap-1.5">
+                      <RotateCcw className="w-4 h-4" />Prøv igjen for de som feilet
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setSendeResultat(null)} className="btn-secondary text-sm">Lukk</button>
+                </div>
+              </div>
+              <ul className="divide-y divide-gray-200 dark:divide-gray-800">
+                {sendeResultat.map(r => (
+                  <li key={r.epost} className="py-2 flex items-start gap-2 text-sm">
+                    {r.ok ? <CheckCircle2 className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 mt-0.5 text-red-500 flex-shrink-0" />}
+                    <div className="min-w-0">
+                      <p className="text-gray-900 dark:text-white">{r.navn ? `${r.navn} · ` : ''}{r.epost}<span className="text-xs text-gray-500 ml-2">{r.type === 'kunde' ? 'Kontaktperson' : r.type === 'tekniker' ? 'Tekniker' : 'Ekstra'}</span></p>
+                      {r.feil && <p className="text-xs text-red-600 dark:text-red-400 break-words">{r.feil}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {sendeResultat.some(r => !r.ok) && <p className="text-xs text-gray-500">Feilede sendinger er også logget under Nedlastinger → E-postlogg.</p>}
+            </div>
+          )}
+
           {/* Send knapp */}
           <div className="flex items-center justify-between card bg-primary/5 border-primary/20">
             <div>
@@ -781,7 +670,7 @@ export function SendRapporter() {
               </p>
             </div>
             <button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={loading || totalMottakere === 0 || valgteDokumenter.size === 0}
               className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
