@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, CheckSquare, History, MoreHorizontal, Percent, Search, Trash2, X } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronLeft, CheckSquare, History, MoreHorizontal, Percent, Search, Trash2, X } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn, formatDate } from '@/lib/utils'
@@ -157,6 +157,13 @@ export function Priser() {
 
   return (
     <div className="space-y-4 pb-24">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        {anleggFilter ? (
+          <Link to={`/anlegg/${anleggFilter}`} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ChevronLeft className="w-4 h-4" />{anleggNavn ?? 'Anlegg'}</Link>
+        ) : (
+          <Link to="/anlegg" className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ChevronLeft className="w-4 h-4" />Anlegg</Link>
+        )}
+      </div>
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Kontrollpriser</h1>
