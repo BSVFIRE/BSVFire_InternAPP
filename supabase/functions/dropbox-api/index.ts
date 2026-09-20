@@ -297,38 +297,60 @@ serve(async (req) => {
       }
 
       case 'create_folder': {
-        // Opprett mappe (rekursivt - oppretter alle parent-mapper)
+        // Opprett én mappe. Dropbox lager overordnede mapper automatisk, så ett kall holder.
         const config = await getDropboxConfig(supabase)
         if (!config) {
           throw new Error('Dropbox ikke konfigurert')
         }
-
         const accessToken = await refreshAccessToken(supabase, config)
-        
-        // Splitt stien og opprett hver mappe i hierarkiet
-        const pathParts = params.path.split('/').filter((p: string) => p)
-        let currentPath = ''
-        
-        for (const part of pathParts) {
-          currentPath += '/' + part
-          
-          const response = await callDropboxAPI(
-            '/files/create_folder_v2',
-            accessToken,
-            config.root_namespace_id,
-            { path: currentPath, autorename: false }
-          )
-
-          const data = await response.json()
-          
-          // Ignorer feil hvis mappen allerede eksisterer
-          if (!response.ok && !data.error_summary?.includes('path/conflict/folder')) {
-            console.error(`Feil ved opprettelse av mappe ${currentPath}:`, data.error_summary)
-            throw new Error(data.error_summary || `Kunne ikke opprette mappe: ${currentPath}`)
-          }
+        const response = await callDropboxAPI('/files/create_folder_v2', accessToken, config.root_namespace_id, { path: params.path, autorename: false })
+        const data = await response.json()
+        if (!response.ok && !data.error_summary?.includes('path/conflict/folder')) {
+          console.error(`Feil ved opprettelse av mappe ${params.path}:`, data.error_summary)
+          throw new Error(data.error_summary || `Kunne ikke opprette mappe: ${params.path}`)
         }
-
         return new Response(JSON.stringify({ success: true, path: params.path }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      case 'create_folders': {
+        // Opprett mange mapper i ett kall (files/create_folder_batch). Ett token, ett kall, Dropbox lager
+        // overordnede mapper selv. Mapper som finnes fra før regnes som opprettet.
+        const config = await getDropboxConfig(supabase)
+        if (!config) {
+          throw new Error('Dropbox ikke konfigurert')
+        }
+        const paths: string[] = Array.from(new Set((params.paths ?? []) as string[])).filter(Boolean)
+        if (paths.length === 0) {
+          return new Response(JSON.stringify({ success: true, created: [], failed: [] }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        }
+        const accessToken = await refreshAccessToken(supabase, config)
+        const created: string[] = []
+        const failed: { path: string; error: string }[] = []
+
+        // Dropbox tar inntil 1000 stier per batch
+        for (let i = 0; i < paths.length; i += 500) {
+          const del = paths.slice(i, i + 500)
+          const start = await callDropboxAPI('/files/create_folder_batch', accessToken, config.root_namespace_id, { paths: del, autorename: false, force_async: false })
+          let result = await start.json()
+          if (!start.ok) throw new Error(result.error_summary || 'create_folder_batch feilet')
+          // Ved store batcher svarer Dropbox med en jobb-id vi må polle
+          let forsok = 0
+          while (result['.tag'] === 'async_job_id' && forsok < 30) {
+            await new Promise(r => setTimeout(r, 1000))
+            const check = await callDropboxAPI('/files/create_folder_batch/check', accessToken, config.root_namespace_id, { async_job_id: result.async_job_id })
+            result = await check.json()
+            forsok++
+          }
+          if (result['.tag'] !== 'complete') throw new Error(`Batch ble ikke ferdig: ${result['.tag'] ?? 'ukjent'}`)
+          result.entries.forEach((e: any, j: number) => {
+            const path = del[j]
+            if (e['.tag'] === 'success' || e.failure?.['.tag'] === 'path' && JSON.stringify(e.failure).includes('conflict')) created.push(path)
+            else failed.push({ path, error: JSON.stringify(e.failure ?? e) })
+          })
+        }
+        return new Response(JSON.stringify({ success: failed.length === 0, created, failed }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }

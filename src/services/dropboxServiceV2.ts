@@ -160,6 +160,16 @@ export async function createDropboxFolder(path: string): Promise<boolean> {
 }
 
 /**
+ * Oppretter mange mapper i ett kall (create_folder_batch). Returnerer hvilke som feilet.
+ */
+export async function createDropboxFolders(paths: string[]): Promise<{ created: string[]; failed: { path: string; error: string }[] }> {
+  const unike = Array.from(new Set(paths.filter(Boolean)))
+  if (unike.length === 0) return { created: [], failed: [] }
+  const res = await callDropboxFunction('create_folders', { paths: unike })
+  return { created: res.created ?? [], failed: res.failed ?? [] }
+}
+
+/**
  * Laster opp fil til Dropbox
  */
 export async function uploadToDropbox(

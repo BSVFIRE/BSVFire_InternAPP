@@ -8,7 +8,7 @@ import {
   checkDropboxStatus, 
   startDropboxAuth, 
   disconnectDropbox,
-  createDropboxFolder 
+  createDropboxFolders 
 } from '@/services/dropboxServiceV2'
 import { Cloud, FolderPlus, Building2, Loader2, CheckCircle, XCircle, AlertCircle, Unplug } from 'lucide-react'
 
@@ -122,29 +122,16 @@ export function AdminDropboxFolders() {
   }
 
   // Hjelpefunksjon for å opprette mapper via Edge Function
+  /** Oppretter alle mappene i én batch (ett funksjonskall, ett Dropbox-kall) i stedet for én og én. */
   async function createFoldersViaEdgeFunction(
     basePath: string,
     folders: string[],
     onProgress: (message: string, current: number, total: number) => void
   ): Promise<{ created: number; errors: string[] }> {
-    let created = 0
-    const errors: string[] = []
-
-    for (let i = 0; i < folders.length; i++) {
-      const folder = folders[i]
-      const fullPath = `${basePath}/${folder}`
-      
-      onProgress(`Oppretter ${folder}...`, i + 1, folders.length)
-      
-      const success = await createDropboxFolder(fullPath)
-      if (success) {
-        created++
-      } else {
-        errors.push(folder)
-      }
-    }
-
-    return { created, errors }
+    onProgress(`Oppretter ${folders.length} mapper…`, 0, folders.length)
+    const { created, failed } = await createDropboxFolders(folders.map(f => `${basePath}/${f}`))
+    onProgress('Ferdig', folders.length, folders.length)
+    return { created: created.length, errors: failed.map(f => f.path.slice(basePath.length + 1)) }
   }
 
   async function handleCreateKundeStructure() {
@@ -472,11 +459,6 @@ export function AdminDropboxFolders() {
         }
 
         processedKunder++
-        
-        // Liten pause mellom kunder for å unngå rate limiting
-        if (processedKunder < kundeData.length) {
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
       }
 
       const totalAnlegg = kundeData.reduce((sum, k) => sum + k.anleggList.length, 0)
