@@ -107,12 +107,12 @@ export function AlarmorganiseringEditor({ existingData, onClose, initialAnleggId
   }, [])
 
   const loadCustomers = async () => {
-    const { data } = await supabase.from('customer').select('id, navn').order('navn')
+    const { data } = await supabase.from('customer').select('id, navn').or('skjult.is.null,skjult.eq.false').order('navn')
     setCustomers(data || [])
   }
 
   const loadFacilities = async (customerId: string) => {
-    const { data } = await supabase.from('anlegg').select('id, anleggsnavn, adresse').eq('kundenr', customerId).order('anleggsnavn')
+    const { data } = await supabase.from('anlegg').select('id, anleggsnavn, adresse').or('skjult.is.null,skjult.eq.false').eq('kundenr', customerId).order('anleggsnavn')
     setFacilities(data || [])
   }
 

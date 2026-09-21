@@ -70,7 +70,7 @@ export function RapportOversikt() {
     try {
       const { data, error } = await supabase
         .from('customer')
-        .select('id, navn')
+        .select('id, navn').or('skjult.is.null,skjult.eq.false')
         .order('navn')
 
       if (error) throw error
@@ -85,7 +85,7 @@ export function RapportOversikt() {
       setLoadingData(true)
       const { data, error } = await supabase
         .from('anlegg')
-        .select('*')
+        .select('*').or('skjult.is.null,skjult.eq.false')
         .eq('kundenr', kundeId)
         .order('anleggsnavn')
 

@@ -515,7 +515,7 @@ function ProsjektForm({
       // Last kunder
       const { data: kundeData, error: kundeError } = await supabase
         .from('customer')
-        .select('id, navn')
+        .select('id, navn').or('skjult.is.null,skjult.eq.false')
         .order('navn')
       
       if (kundeError) {
@@ -538,7 +538,7 @@ function ProsjektForm({
   async function loadAnlegg(kundeId: string) {
     const { data } = await supabase
       .from('anlegg')
-      .select('id, anleggsnavn, adresse, kundenr')
+      .select('id, anleggsnavn, adresse, kundenr').or('skjult.is.null,skjult.eq.false')
       .eq('kundenr', kundeId)
       .order('anleggsnavn')
     

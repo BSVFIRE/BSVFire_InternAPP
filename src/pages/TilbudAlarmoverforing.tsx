@@ -602,7 +602,7 @@ function AlarmoverforingForm({ tilbud, onSave, onCancel }: AlarmoverforingFormPr
             id,
             navn
           )
-        `)
+        `).or('skjult.is.null,skjult.eq.false')
         .order('anleggsnavn')
 
       if (error) throw error

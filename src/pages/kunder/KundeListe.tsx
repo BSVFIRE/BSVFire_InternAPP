@@ -60,7 +60,7 @@ export default function KundeListe() {
       setFeil(null)
       const [k, a] = await Promise.all([
         db.from('customer').select('id, navn, kunde_nummer, organisasjonsnummer, type, opprettet, skjult, status, kontaktperson:kontaktpersoner!customer_kontaktperson_id_fkey(navn)').order('navn'),
-        db.from('anlegg').select('kundenr'),
+        db.from('anlegg').select('kundenr').or('skjult.is.null,skjult.eq.false'),
       ])
       if (k.error) throw k.error
       const antall = new Map<string, number>()

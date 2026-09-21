@@ -62,7 +62,7 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
     try {
       const { data, error } = await supabase
         .from('customer')
-        .select('id, navn, organisasjonsnummer')
+        .select('id, navn, organisasjonsnummer').or('skjult.is.null,skjult.eq.false')
         .order('navn', { ascending: true })
 
       if (error) throw error
@@ -76,7 +76,7 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
     try {
       const { data, error } = await supabase
         .from('anlegg')
-        .select('id, anleggsnavn, kundenr')
+        .select('id, anleggsnavn, kundenr').or('skjult.is.null,skjult.eq.false')
         .eq('kundenr', kundeId)
         .order('anleggsnavn', { ascending: true })
 

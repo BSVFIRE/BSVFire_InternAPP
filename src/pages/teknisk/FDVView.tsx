@@ -117,7 +117,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
         supabase.from('fdv_leverandorer').select('*').order('navn'),
         supabase.from('fdv_produkttyper').select('*').order('navn'),
         supabase.from('fdv_datablader').select(`*, leverandor:fdv_leverandorer(id, navn), produkttype:fdv_produkttyper(id, navn)`).order('tittel'),
-        supabase.from('anlegg').select(`id, anleggsnavn, adresse, kunde:customer(navn)`).order('anleggsnavn')
+        supabase.from('anlegg').select(`id, anleggsnavn, adresse, kunde:customer(navn)`).or('skjult.is.null,skjult.eq.false').order('anleggsnavn')
       ])
       if (leverandorRes.data) setLeverandorer(leverandorRes.data)
       if (produkttypeRes.data) setProdukttyper(produkttypeRes.data)

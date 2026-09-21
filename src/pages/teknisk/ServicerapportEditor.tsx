@@ -133,7 +133,7 @@ export function ServicerapportEditor({ rapport, onSave, onCancel }: Servicerappo
     try {
       const { data, error } = await supabase
         .from('anlegg')
-        .select('id, anleggsnavn, kundenr')
+        .select('id, anleggsnavn, kundenr').or('skjult.is.null,skjult.eq.false')
         .order('anleggsnavn')
 
       if (error) throw error

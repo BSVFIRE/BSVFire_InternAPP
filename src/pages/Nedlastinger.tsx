@@ -78,6 +78,7 @@ export function Nedlastinger() {
       const { data: anleggData, error: anleggError } = await supabase
         .from('anlegg')
         .select('id, anleggsnavn')
+        .or('skjult.is.null,skjult.eq.false')
 
       if (anleggError) throw anleggError
 

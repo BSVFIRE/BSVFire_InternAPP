@@ -134,7 +134,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
     try {
       const { data, error } = await supabase
         .from('customer')
-        .select('id, navn')
+        .select('id, navn').or('skjult.is.null,skjult.eq.false')
         .order('navn')
 
       if (error) throw error
@@ -148,7 +148,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
     try {
       const { data, error } = await supabase
         .from('anlegg')
-        .select('id, anleggsnavn, kundenr, adresse, postnummer, poststed')
+        .select('id, anleggsnavn, kundenr, adresse, postnummer, poststed').or('skjult.is.null,skjult.eq.false')
         .eq('kundenr', kundeId)
         .order('anleggsnavn')
 

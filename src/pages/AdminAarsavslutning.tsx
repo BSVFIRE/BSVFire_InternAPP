@@ -490,7 +490,7 @@ export function AdminAarsavslutning() {
       setError(null)
 
       const [anleggResponse, kunderResponse] = await Promise.all([
-        supabase.from('anlegg').select('*').order('anleggsnavn', { ascending: true }),
+        supabase.from('anlegg').select('*').or('skjult.is.null,skjult.eq.false').order('anleggsnavn', { ascending: true }),
         supabase.from('customer').select('id, navn')
       ])
 

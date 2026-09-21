@@ -152,7 +152,7 @@ export function KsHmsHendelser() {
   async function loadKunder() {
     const { data } = await supabase
       .from('customer')
-      .select('id, navn')
+      .select('id, navn').or('skjult.is.null,skjult.eq.false')
       .order('navn')
     setKunder(data || [])
   }
@@ -160,7 +160,7 @@ export function KsHmsHendelser() {
   async function loadAnlegg() {
     const { data } = await supabase
       .from('anlegg')
-      .select('id, anleggsnavn, kundenr')
+      .select('id, anleggsnavn, kundenr').or('skjult.is.null,skjult.eq.false')
       .order('anleggsnavn')
     setAnlegg(data || [])
   }

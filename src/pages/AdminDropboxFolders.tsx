@@ -94,7 +94,7 @@ export function AdminDropboxFolders() {
   async function loadAnleggForKunde(kundeId: string) {
     const { data, error } = await supabase
       .from('anlegg')
-      .select('id, anleggsnavn, kundenr, dropbox_synced')
+      .select('id, anleggsnavn, kundenr, dropbox_synced').or('skjult.is.null,skjult.eq.false')
       .eq('kundenr', kundeId)
       .order('anleggsnavn')
 
@@ -107,7 +107,7 @@ export function AdminDropboxFolders() {
   async function loadAnleggForMultipleKunder(kundeIds: string[]) {
     const { data, error } = await supabase
       .from('anlegg')
-      .select('id, anleggsnavn, kundenr, dropbox_synced')
+      .select('id, anleggsnavn, kundenr, dropbox_synced').or('skjult.is.null,skjult.eq.false')
       .in('kundenr', kundeIds)
       .order('anleggsnavn')
 
