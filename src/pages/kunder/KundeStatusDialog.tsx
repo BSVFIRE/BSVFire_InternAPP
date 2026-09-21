@@ -7,6 +7,7 @@
  * som fulgte kunden ned aktiveres igjen.
  */
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertTriangle, Loader2, X } from 'lucide-react'
 import { db } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -102,7 +103,8 @@ export function KundeStatusDialog({ kundeId, kundeNavn, status, onClose, onEndre
     </label>
   )
 
-  return (
+  // Portal: dialogen kan ellers arve høyde/avrunding fra f.eks. IconButtonGroup der menyen som åpner den ligger
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-labelledby="kunde-status-tittel" onClick={e => e.stopPropagation()} className="card w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-b-none sm:rounded-lg !p-0 flex flex-col">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
@@ -168,6 +170,7 @@ export function KundeStatusDialog({ kundeId, kundeNavn, status, onClose, onEndre
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

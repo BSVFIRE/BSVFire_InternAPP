@@ -3,6 +3,7 @@
  * Et anlegg kan ikke aktiveres når kunden er pauset/deaktivert – databasen nekter, og meldingen vises her.
  */
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertTriangle, X } from 'lucide-react'
 import { db } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -45,7 +46,8 @@ export function AnleggStatusDialog({ anleggId, anleggsnavn, status, kundeStatus,
     }
   }
 
-  return (
+  // Portal: dialogen kan ellers arve høyde/avrunding fra f.eks. IconButtonGroup der menyen som åpner den ligger
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-labelledby="anlegg-status-tittel" onClick={e => e.stopPropagation()} className="card w-full sm:max-w-md rounded-b-none sm:rounded-lg !p-0 flex flex-col">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
@@ -78,6 +80,7 @@ export function AnleggStatusDialog({ anleggId, anleggsnavn, status, kundeStatus,
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
