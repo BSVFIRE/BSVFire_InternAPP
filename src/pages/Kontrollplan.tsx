@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
-import { AlertCircle, Ban, Building2, CalendarDays, Check, ChevronRight, Clock, Plus, Search, User, Users, X } from 'lucide-react'
+import { AlertCircle, Ban, Building2, CalendarDays, Check, ChevronRight, Clock, Plus, Search, Trash2, User, Users, X } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn, isoUke, isoUkeAar, ukeDatoer } from '@/lib/utils'
@@ -103,6 +103,24 @@ export function Kontrollplan() {
     } finally { setLoading(false) }
   }, [])
   useEffect(() => { last() }, [last])
+
+  async function slettUkesplan(p: Ukesplan) {
+    if (!confirm(`Slette ukesplanen for ${p.kunde}, uke ${p.uke_nummer} ${p.aar}${p.antallAnlegg ? ` (${p.antallAnlegg} anlegg)` : ''}? Dette kan ikke angres.`)) return
+    try {
+      // Dager og teknikere peker på planen og må bort først
+      const d = await db.from('ukesplan_dager').delete().eq('ukesplan_id', p.id)
+      if (d.error) throw d.error
+      const t = await db.from('ukesplan_teknikere').delete().eq('ukesplan_id', p.id)
+      if (t.error) throw t.error
+      const u = await db.from('ukesplaner').delete().eq('id', p.id)
+      if (u.error) throw u.error
+      setUkesplaner(prev => prev.filter(x => x.id !== p.id))
+      toast.success('Ukesplanen er slettet')
+    } catch (err) {
+      log.error('Kunne ikke slette ukesplan', { error: err })
+      toast.error('Kunne ikke slette ukesplanen', err)
+    }
+  }
 
   useEffect(() => {
     function tast(e: KeyboardEvent) {
@@ -226,7 +244,7 @@ export function Kontrollplan() {
           <p className="text-sm text-gray-500 dark:text-gray-400">Ingen ukesplaner fremover. Grupper på kunde nedenfor og trykk «Lag ukesplan» på en rammeavtalekunde.</p>
         ) : (
           <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1">
-            {(visEldrePlaner ? [...kommende, ...eldre] : kommende).map(p => <UkesplanKort key={p.id} plan={p} naa={naa} onClick={() => setEditor({ kundeId: p.kunde_id, planId: p.id })} />)}
+            {(visEldrePlaner ? [...kommende, ...eldre] : kommende).map(p => <UkesplanKort key={p.id} plan={p} naa={naa} onClick={() => setEditor({ kundeId: p.kunde_id, planId: p.id })} onSlett={() => slettUkesplan(p)} />)}
           </div>
         )}
       </section>
@@ -353,20 +371,25 @@ function StatusVelger({ verdi, onChange }: { verdi: string | null; onChange: (v:
   )
 }
 
-function UkesplanKort({ plan, naa, onClick }: { plan: Ukesplan; naa: Date; onClick: () => void }) {
+function UkesplanKort({ plan, naa, onClick, onSlett }: { plan: Ukesplan; naa: Date; onClick: () => void; onSlett: () => void }) {
   const erDenneUken = plan.aar === isoUkeAar(naa) && plan.uke_nummer === isoUke(naa)
   const d = ukeDatoer(plan.aar, plan.uke_nummer)
   const periode = `${d[0].getDate()}.–${d[4].getDate()}. ${d[4].toLocaleDateString('nb-NO', { month: 'short' }).replace('.', '')}`
   return (
-    <button type="button" onClick={onClick} className={cn('flex-shrink-0 w-[220px] text-left rounded-lg border p-3 transition-colors hover:border-primary/60', erDenneUken ? 'border-primary/60 bg-primary/5' : 'border-gray-200 dark:border-gray-800')}>
-      <div className="flex items-center justify-between gap-2">
-        <span className={cn('text-xs font-semibold', erDenneUken ? 'text-primary' : 'text-gray-500 dark:text-gray-400')}>Uke {plan.uke_nummer}{plan.aar !== naa.getFullYear() ? ` · ${plan.aar}` : ''}</span>
-        <span className="text-[11px] text-gray-400 tabular-nums">{periode}</span>
-      </div>
-      <div className="mt-1 font-semibold text-gray-900 dark:text-white truncate">{plan.kunde}</div>
-      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{[plan.navn, `${plan.antallAnlegg} anlegg`].filter(Boolean).join(' · ')}</div>
-      <div className="mt-2 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 truncate"><Users className="w-3.5 h-3.5 flex-shrink-0" />{plan.teknikere.length ? plan.teknikere.map(n => n.split(' ')[0]).join(', ') : 'Ingen teknikere'}</div>
-    </button>
+    <div className={cn('relative group flex-shrink-0 w-[220px] rounded-lg border transition-colors hover:border-primary/60', erDenneUken ? 'border-primary/60 bg-primary/5' : 'border-gray-200 dark:border-gray-800')}>
+      <button type="button" onClick={onClick} className="w-full text-left p-3">
+        <div className="flex items-center justify-between gap-2 pr-6">
+          <span className={cn('text-xs font-semibold', erDenneUken ? 'text-primary' : 'text-gray-500 dark:text-gray-400')}>Uke {plan.uke_nummer}{plan.aar !== naa.getFullYear() ? ` · ${plan.aar}` : ''}</span>
+          <span className="text-[11px] text-gray-400 tabular-nums">{periode}</span>
+        </div>
+        <div className="mt-1 font-semibold text-gray-900 dark:text-white truncate">{plan.kunde}</div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{[plan.navn, `${plan.antallAnlegg} anlegg`].filter(Boolean).join(' · ')}</div>
+        <div className="mt-2 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 truncate"><Users className="w-3.5 h-3.5 flex-shrink-0" />{plan.teknikere.length ? plan.teknikere.map(n => n.split(' ')[0]).join(', ') : 'Ingen teknikere'}</div>
+      </button>
+      <button type="button" onClick={onSlett} aria-label="Slett ukesplan" title="Slett ukesplan" className="absolute top-2 right-2 w-7 h-7 rounded-md inline-flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity">
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </div>
   )
 }
 

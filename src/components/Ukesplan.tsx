@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { 
   Calendar, X, FileText,
@@ -138,16 +138,23 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
     setWeekDates(getWeekDates(year, week))
   }, [year, week])
 
+  // Kunden som planen vi redigerer tilhører – bytte til denne skal ikke nullstille planen
+  const planKundeRef = useRef<string | null>(kundeId || null)
+
   useEffect(() => {
     if (selectedKundeId) {
       loadKundeAnlegg(selectedKundeId)
-      // Reset plan når kunde endres (kan ha flere planer per uke nå)
-      setExistingPlanId(null)
-      setDagPlaner({})
-      setNotater('')
-      setSelectedTeknikere([])
-      setPlanNavn('')
       setAnleggPage(1)
+      // Nullstill bare når brukeren faktisk bytter kunde – ikke ved første lasting eller når en eksisterende
+      // plan setter sin kunde (det gjorde at hver lagring ble en ny plan i stedet for en oppdatering)
+      if (planKundeRef.current && planKundeRef.current !== selectedKundeId) {
+        setExistingPlanId(null)
+        setDagPlaner({})
+        setNotater('')
+        setSelectedTeknikere([])
+        setPlanNavn('')
+      }
+      planKundeRef.current = selectedKundeId
     }
   }, [selectedKundeId])
   
@@ -250,6 +257,7 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
       if (error) throw error
       
       if (plan) {
+        planKundeRef.current = plan.kunde_id
         setSelectedKundeId(plan.kunde_id)
         setYear(plan.aar)
         setWeek(plan.uke_nummer)
@@ -438,6 +446,8 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
           .update({
             navn: planNavn || null,
             notater,
+            uke_nummer: week,
+            aar: year,
             status: 'utkast'
           })
           .eq('id', existingPlanId)
