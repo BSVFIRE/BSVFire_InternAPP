@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { 
   Calendar, X, FileText,
   ChevronLeft, ChevronRight, Save,
-  GripVertical, ChevronUp, ChevronDown
+  GripVertical, ChevronUp, ChevronDown, Trash2
 } from 'lucide-react'
 import { createDropboxFolder, uploadToDropbox } from '@/services/dropboxServiceV2'
 import { toast } from '@/lib/toast'
@@ -397,6 +397,30 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
     if (anleggIndex !== undefined && anleggIndex >= 0) {
       newDagPlaner[dag][anleggIndex][field] = value || null
       setDagPlaner(newDagPlaner)
+    }
+  }
+
+  async function slettPlan() {
+    if (!existingPlanId) return
+    const antall = Object.values(dagPlaner).reduce((sum, l) => sum + l.length, 0)
+    if (!confirm(`Slette ukesplanen for uke ${week}, ${year}${antall ? ` med ${antall} anlegg` : ''}? Dette kan ikke angres.`)) return
+    setSaving(true)
+    try {
+      // Dager og teknikere først – tabellene peker på ukesplanen
+      const { error: dagFeil } = await supabase.from('ukesplan_dager').delete().eq('ukesplan_id', existingPlanId)
+      if (dagFeil) throw dagFeil
+      const { error: tekFeil } = await supabase.from('ukesplan_teknikere').delete().eq('ukesplan_id', existingPlanId)
+      if (tekFeil) throw tekFeil
+      const { error } = await supabase.from('ukesplaner').delete().eq('id', existingPlanId)
+      if (error) throw error
+      toast.success('Ukesplanen er slettet')
+      onSave?.()
+      onClose()
+    } catch (err) {
+      console.error('Feil ved sletting av ukesplan:', err)
+      toast.error('Kunne ikke slette ukesplanen', err)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1115,12 +1139,26 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
 
         {/* Footer */}
         <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            onClick={onClose}
-            className="btn-secondary"
-          >
-            Avbryt
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="btn-secondary"
+            >
+              Avbryt
+            </button>
+            {existingPlanId && (
+              <button
+                type="button"
+                onClick={slettPlan}
+                disabled={saving}
+                className="btn-secondary text-red-600 dark:text-red-400 inline-flex items-center gap-2"
+                title="Slett hele ukesplanen"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Slett ukesplan</span>
+              </button>
+            )}
+          </div>
           
           <div className="flex items-center gap-3">
             <button
