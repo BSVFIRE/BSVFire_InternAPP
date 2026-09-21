@@ -107,6 +107,9 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
   
   // Vis utførte anlegg
   const [showUtforte, setShowUtforte] = useState(false)
+  // Anlegg som allerede ligger i andre ukesplaner for samme kunde og uke (f.eks. hos en annen tekniker)
+  const [planlagtAndre, setPlanlagtAndre] = useState<Record<string, { planNavn: string; teknikere: string[]; dager: number[] }[]>>({})
+  const [showPlanlagte, setShowPlanlagte] = useState(true)
   
   // Paginering for anlegg
   const [anleggPage, setAnleggPage] = useState(1)
@@ -154,6 +157,34 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
       loadKundeAnlegg(selectedKundeId)
     }
   }, [year, week])
+
+  // Hent hva andre ukesplaner (samme kunde, samme uke) allerede har lagt inn
+  useEffect(() => {
+    if (!selectedKundeId) { setPlanlagtAndre({}); return }
+    let avbrutt = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('ukesplaner')
+        .select('id, navn, ukesplan_dager(anlegg_id, dag), ukesplan_teknikere(ansatt_id)')
+        .eq('kunde_id', selectedKundeId)
+        .eq('aar', year)
+        .eq('uke_nummer', week)
+      if (avbrutt) return
+      const map: Record<string, { planNavn: string; teknikere: string[]; dager: number[] }[]> = {}
+      for (const plan of (data || []) as { id: string; navn: string | null; ukesplan_dager: { anlegg_id: string; dag: number }[]; ukesplan_teknikere: { ansatt_id: string }[] }[]) {
+        if (plan.id === existingPlanId) continue
+        const teknikere = plan.ukesplan_teknikere.map(t => t.ansatt_id)
+        for (const d of plan.ukesplan_dager) {
+          const liste = (map[d.anlegg_id] ||= [])
+          const eksisterende = liste.find(x => x.planNavn === (plan.navn || ''))
+          if (eksisterende) eksisterende.dager.push(d.dag)
+          else liste.push({ planNavn: plan.navn || '', teknikere, dager: [d.dag] })
+        }
+      }
+      setPlanlagtAndre(map)
+    })()
+    return () => { avbrutt = true }
+  }, [selectedKundeId, year, week, existingPlanId])
 
   async function loadKunder() {
     try {
@@ -819,7 +850,9 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
 
             {/* Midt: Tilgjengelige anlegg */}
             {selectedKundeId && (() => {
-              const filteredAnlegg = unassignedAnlegg.filter(a => showUtforte || a.kontroll_status !== 'Utført')
+              const filteredAnlegg = unassignedAnlegg.filter(a => (showUtforte || a.kontroll_status !== 'Utført') && (showPlanlagte || !planlagtAndre[a.id]))
+              const antallPlanlagte = unassignedAnlegg.filter(a => planlagtAndre[a.id]).length
+              const initialerFor = (ansattId: string) => { const n = ansatte.find(x => x.id === ansattId)?.navn || ''; return n.split(' ').filter(Boolean).map(x => x[0]).join('').slice(0, 2) || '?' }
               const totalPages = Math.ceil(filteredAnlegg.length / ANLEGG_PER_PAGE)
               const startIdx = (anleggPage - 1) * ANLEGG_PER_PAGE
               const paginatedAnlegg = filteredAnlegg.slice(startIdx, startIdx + ANLEGG_PER_PAGE)
@@ -830,15 +863,28 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Anlegg ({filteredAnlegg.length})
                   </label>
-                  <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={showUtforte}
-                      onChange={(e) => setShowUtforte(e.target.checked)}
-                      className="w-3.5 h-3.5 text-primary rounded"
-                    />
-                    <span className="text-gray-500">Utførte</span>
-                  </label>
+                  <div className="flex items-center gap-3">
+                    {antallPlanlagte > 0 && (
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer" title="Anlegg som allerede ligger i en annen ukesplan for denne kunden samme uke">
+                        <input
+                          type="checkbox"
+                          checked={showPlanlagte}
+                          onChange={(e) => setShowPlanlagte(e.target.checked)}
+                          className="w-3.5 h-3.5 text-primary rounded"
+                        />
+                        <span className="text-amber-600 dark:text-amber-400">Planlagte ({antallPlanlagte})</span>
+                      </label>
+                    )}
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showUtforte}
+                        onChange={(e) => setShowUtforte(e.target.checked)}
+                        className="w-3.5 h-3.5 text-primary rounded"
+                      />
+                      <span className="text-gray-500">Utførte</span>
+                    </label>
+                  </div>
                 </div>
                 
                 <div className="space-y-1.5 flex-1">
@@ -871,6 +917,11 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
                             <div className={`text-sm font-medium truncate ${isUtfort ? 'text-green-700 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
                               {anlegg.anleggsnavn}
                             </div>
+                            {planlagtAndre[anlegg.id] && (
+                              <div className="text-[11px] text-amber-600 dark:text-amber-400 truncate" title={planlagtAndre[anlegg.id].map(p => `${p.planNavn || 'Ukesplan'}: ${p.teknikere.map(t => ansatte.find(a => a.id === t)?.navn).filter(Boolean).join(', ') || 'ingen tekniker'} – ${p.dager.map(d => UKEDAGER[d - 1]).join(', ')}`).join('\n')}>
+                                {planlagtAndre[anlegg.id].map(p => `${p.teknikere.length ? p.teknikere.map(initialerFor).join('+') : (p.planNavn || 'plan')} · ${p.dager.map(d => UKEDAGER[d - 1].slice(0, 3)).join(', ')}`).join(' | ')}
+                              </div>
+                            )}
                           </div>
                           {!isUtfort && (
                             <select
