@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { startPowerSync, stoppPowerSync } from '@/lib/powersync/db'
 import { supabase } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
 import type { User } from '@supabase/supabase-js'
@@ -43,9 +44,13 @@ export const useAuthStore = create<AuthState>((set) => ({
         logger.error('Failed to get session', { error: error.message })
       }
       set({ user: session?.user ?? null, loading: false })
+      if (session) startPowerSync()
       
-      supabase.auth.onAuthStateChange((_event, session) => {
+      supabase.auth.onAuthStateChange((event, session) => {
         set({ user: session?.user ?? null })
+        // Lokal database følger innloggingen: start ved innlogging, tøm ved utlogging
+        if (event === 'SIGNED_IN' && session) startPowerSync()
+        if (event === 'SIGNED_OUT') stoppPowerSync()
       })
     } catch (error) {
       logger.error('Auth initialization failed', { error })

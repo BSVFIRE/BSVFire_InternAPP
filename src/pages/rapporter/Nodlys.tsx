@@ -20,6 +20,8 @@ import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { NodlysListe } from './nodlys/NodlysListe'
 import { BATTERITYPER, type NodlysEnhet } from './nodlys/typer'
+import { powersyncAktiv } from '@/lib/powersync/db'
+import { leggTilNodlysLokalt, oppdaterNodlysLokalt, slettNodlysLokalt, useNodlysLokal } from '@/lib/powersync/nodlys'
 
 interface Kunde {
   id: string
@@ -98,6 +100,14 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     }
   }, [selectedKunde])
 
+  // PowerSync (pilot): listen leses reaktivt fra den lokale databasen
+  const lokal = useNodlysLokal(powersyncAktiv ? selectedAnlegg || null : null)
+  useEffect(() => {
+    if (!powersyncAktiv || !selectedAnlegg) return
+    setNodlysListe(lokal.data)
+    setLoading(lokal.laster)
+  }, [lokal.data, lokal.laster, selectedAnlegg]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (selectedAnlegg) {
       loadNodlys(selectedAnlegg)
@@ -141,6 +151,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   }
 
   async function loadNodlys(anleggId: string) {
+    if (powersyncAktiv) return // lokal database holder listen oppdatert
     try {
       setLoading(true)
       
@@ -234,9 +245,13 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     const enhet = nodlysListe.find(n => n.id === id)
     if (!confirm(`Slette armatur ${enhet?.internnummer ?? ''}${enhet?.plassering ? ` (${enhet.plassering})` : ''}?`)) return
     try {
-      const { error } = await supabase.from('anleggsdata_nodlys').delete().eq('id', id)
-      if (error) throw error
-      setNodlysListe(prev => prev.filter(n => n.id !== id))
+      if (powersyncAktiv) {
+        await slettNodlysLokalt([id])
+      } else {
+        const { error } = await supabase.from('anleggsdata_nodlys').delete().eq('id', id)
+        if (error) throw error
+        setNodlysListe(prev => prev.filter(n => n.id !== id))
+      }
       toast.success('Armatur slettet')
     } catch (error) {
       console.error('Feil ved sletting:', error)
@@ -248,9 +263,13 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   async function deleteNodlysFlere(ids: string[]) {
     if (ids.length === 0) return
     try {
-      const { error } = await supabase.from('anleggsdata_nodlys').delete().in('id', ids)
-      if (error) throw error
-      setNodlysListe(prev => { const ny = prev.filter(n => !ids.includes(n.id)); cacheData(`nodlys_${selectedAnlegg}`, ny); return ny })
+      if (powersyncAktiv) {
+        await slettNodlysLokalt(ids)
+      } else {
+        const { error } = await supabase.from('anleggsdata_nodlys').delete().in('id', ids)
+        if (error) throw error
+        setNodlysListe(prev => { const ny = prev.filter(n => !ids.includes(n.id)); cacheData(`nodlys_${selectedAnlegg}`, ny); return ny })
+      }
       toast.success(`${ids.length} ${ids.length === 1 ? 'armatur' : 'armaturer'} slettet`)
     } catch (error) {
       console.error('Feil ved sletting:', error)
@@ -263,6 +282,10 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   async function lagreEndring(id: string, patch: Partial<NodlysEnhet>) {
     const forrige = nodlysListe.find(n => n.id === id)
     if (!forrige) return
+    if (powersyncAktiv) {
+      try { await oppdaterNodlysLokalt([id], patch) } catch (e) { toast.error('Kunne ikke lagre endringen', e) }
+      return
+    }
     setNodlysListe(prev => { const ny = prev.map(n => n.id === id ? { ...n, ...patch } : n); cacheData(`nodlys_${selectedAnlegg}`, ny); return ny })
     if (!isOnline) { queueUpdate('anleggsdata_nodlys', { id, ...patch }); return }
     setLagrer(prev => new Set(prev).add(id))
@@ -279,6 +302,10 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   /** Samme endring på flere armaturer (velg flere → sett bygg/etasje/…) */
   async function lagreEndringFlere(ids: string[], patch: Partial<NodlysEnhet>) {
     if (ids.length === 0) return
+    if (powersyncAktiv) {
+      try { await oppdaterNodlysLokalt(ids, patch); toast.success(`${ids.length} armaturer oppdatert`) } catch (e) { toast.error('Kunne ikke oppdatere', e) }
+      return
+    }
     if (!isOnline) { ids.forEach(id => queueUpdate('anleggsdata_nodlys', { id, ...patch })); setNodlysListe(prev => prev.map(n => ids.includes(n.id) ? { ...n, ...patch } : n)); return }
     const { error } = await supabase.from('anleggsdata_nodlys').update(patch).in('id', ids)
     if (error) { toast.error('Kunne ikke oppdatere', error); return }
@@ -290,9 +317,13 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     const ids = nodlysListe.filter(n => !n.kontrollert).map(n => n.id)
     if (ids.length === 0) return
     if (!confirm(`Merke ${ids.length} armaturer som kontrollert?`)) return
-    const { error } = await supabase.from('anleggsdata_nodlys').update({ kontrollert: true }).in('id', ids)
-    if (error) { toast.error('Kunne ikke oppdatere', error); return }
-    setNodlysListe(prev => prev.map(n => ({ ...n, kontrollert: true })))
+    if (powersyncAktiv) {
+      try { await oppdaterNodlysLokalt(ids, { kontrollert: true }) } catch (e) { toast.error('Kunne ikke oppdatere', e); return }
+    } else {
+      const { error } = await supabase.from('anleggsdata_nodlys').update({ kontrollert: true }).in('id', ids)
+      if (error) { toast.error('Kunne ikke oppdatere', error); return }
+      setNodlysListe(prev => prev.map(n => ({ ...n, kontrollert: true })))
+    }
     toast.success(`${ids.length} armaturer merket som kontrollert`)
   }
 
@@ -1363,7 +1394,11 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
         kontrollert: formData.kontrollert,
       }
 
-      if (nodlys) {
+      if (powersyncAktiv) {
+        // Lokal database – synkroniseres av PowerSync
+        if (nodlys) await oppdaterNodlysLokalt([nodlys.id], dataToSave)
+        else await leggTilNodlysLokalt([dataToSave])
+      } else if (nodlys) {
         // Update
         if (isOnline) {
           const { error } = await supabase
@@ -1991,7 +2026,9 @@ function BulkAddForm({ anleggId, onSave, onCancel }: BulkAddFormProps) {
         kontrollert: false,
       }))
 
-      if (isOnline) {
+      if (powersyncAktiv) {
+        await leggTilNodlysLokalt(nyeEnheter)
+      } else if (isOnline) {
         const { error } = await supabase
           .from('anleggsdata_nodlys')
           .insert(nyeEnheter)

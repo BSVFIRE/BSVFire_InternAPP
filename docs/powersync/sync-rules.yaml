@@ -1,0 +1,11 @@
+# PowerSync sync-regler for FireCtrl. Limes inn i PowerSync-dashboardet → Sync Rules → Deploy.
+#
+# Alle innloggede ansatte ser alt (som i dag med RLS), så én global bucket holder.
+# Pausede/deaktiverte kunder og anlegg holdes utenfor – de skal ikke ligge på enhetene.
+# Bare tabellene som er i publikasjonen (docs/powersync/supabase.sql) kan brukes her.
+bucket_definitions:
+  alle_ansatte:
+    data:
+      - select * from customer where status = 'aktiv'
+      - select * from anlegg where status = 'aktiv'
+      - select * from anleggsdata_nodlys
