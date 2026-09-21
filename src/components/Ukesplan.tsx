@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { createDropboxFolder, uploadToDropbox } from '@/services/dropboxServiceV2'
 import { toast } from '@/lib/toast'
+import { Combobox } from '@/components/ui/Combobox'
 
 interface Kunde {
   id: string
@@ -690,17 +691,15 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Kunde
                 </label>
-                <select
+                <Combobox
+                  options={kunder.map(k => ({ id: k.id, value: k.id, label: k.navn, sublabel: k.kunde_nummer ? `Kundenr. ${k.kunde_nummer}` : undefined }))}
                   value={selectedKundeId}
-                  onChange={(e) => setSelectedKundeId(e.target.value)}
-                  className="input"
+                  onChange={setSelectedKundeId}
+                  placeholder="Velg kunde…"
+                  searchPlaceholder="Søk på navn eller kundenummer…"
+                  emptyMessage="Ingen kunder funnet"
                   disabled={!!kundeId}
-                >
-                  <option value="">Velg kunde...</option>
-                  {kunder.map(k => (
-                    <option key={k.id} value={k.id}>{k.navn}</option>
-                  ))}
-                </select>
+                />
               </div>
 
               {/* Plan-navn (for flere planer per uke) */}
