@@ -136,12 +136,13 @@ export function NodlysImport({ anleggId, onClose, onImportComplete }: NodlysImpo
   async function parseFile(file: File): Promise<ImportData[]> {
     const fileExtension = file.name.split('.').pop()?.toLowerCase()
 
-    if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+    // .numbers (Apple Numbers) leses av samme bibliotek som Excel
+    if (fileExtension === 'xlsx' || fileExtension === 'xls' || fileExtension === 'numbers') {
       return parseExcel(file)
     } else if (fileExtension === 'csv') {
       return parseCSV(file)
     } else {
-      throw new Error('Ugyldig filformat. Støttede formater: .xlsx, .xls, .csv')
+      throw new Error('Ugyldig filformat. Støttede formater: .xlsx, .xls, .numbers, .csv')
     }
   }
 
@@ -170,7 +171,8 @@ export function NodlysImport({ anleggId, onClose, onImportComplete }: NodlysImpo
           const parsedData: ImportData[] = []
           for (let i = 1; i < jsonData.length; i++) {
             const row = jsonData[i]
-            if (!row || row.length === 0) continue
+            // Numbers fyller tabellen med tomme rader – hopp over rader uten innhold
+            if (!row || row.length === 0 || row.every((c: unknown) => c === undefined || c === null || String(c).trim() === '')) continue
 
             const item: ImportData = {}
             headers.forEach((header: string, index: number) => {
@@ -410,7 +412,7 @@ export function NodlysImport({ anleggId, onClose, onImportComplete }: NodlysImpo
             </div>
             <div>
               <h2 className="text-xl font-semibold text-white">Importer Nødlys</h2>
-              <p className="text-sm text-gray-400">Last opp Excel eller CSV-fil med nødlysdata</p>
+              <p className="text-sm text-gray-400">Last opp Excel-, Numbers- eller CSV-fil med nødlysdata</p>
             </div>
           </div>
           <button
@@ -452,7 +454,7 @@ export function NodlysImport({ anleggId, onClose, onImportComplete }: NodlysImpo
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".xlsx,.xls,.csv"
+                accept=".xlsx,.xls,.numbers,.csv"
                 onChange={handleFileSelect}
                 className="hidden"
               />
@@ -461,7 +463,7 @@ export function NodlysImport({ anleggId, onClose, onImportComplete }: NodlysImpo
                 {file ? file.name : 'Dra og slipp fil her, eller klikk for å velge'}
               </p>
               <p className="text-sm text-gray-500 mb-4">
-                Støttede formater: .xlsx, .xls, .csv
+                Støttede formater: Excel (.xlsx, .xls), Numbers (.numbers) og .csv
               </p>
               <button
                 onClick={() => fileInputRef.current?.click()}

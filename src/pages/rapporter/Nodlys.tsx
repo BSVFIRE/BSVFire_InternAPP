@@ -1179,7 +1179,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           <div className="flex items-center gap-2 flex-shrink-0">
             <DropdownMenu trigger={open => <IconButton variant="outline" label="Flere valg" icon={<MoreHorizontal />} aria-expanded={open} />}>
               <MenuItem icon={<Plus />} onSelect={() => setViewMode('bulk')}>Legg til flere (nummerert)</MenuItem>
-              <MenuItem icon={<Upload />} onSelect={() => setViewMode('import')}>Importer fra Excel/CSV</MenuItem>
+              <MenuItem icon={<Upload />} onSelect={() => setViewMode('import')}>Importer fra Excel/Numbers/CSV</MenuItem>
               <MenuItem icon={<FileSpreadsheet />} onSelect={eksporterTilExcel}>Eksporter til Excel</MenuItem>
               <MenuSeparator />
               <MenuItem icon={<Building2 />} onSelect={() => setViewMode('nettverk')}>{harNettverk ? `Sentralisert anlegg (${nettverkListe.length})` : 'Legg til sentralisert anlegg'}</MenuItem>
