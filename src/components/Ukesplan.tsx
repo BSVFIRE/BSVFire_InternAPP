@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { 
   Calendar, X, FileText,
   ChevronLeft, ChevronRight, Save,
-  GripVertical
+  GripVertical, ChevronUp, ChevronDown
 } from 'lucide-react'
 import { createDropboxFolder, uploadToDropbox } from '@/services/dropboxServiceV2'
 import { toast } from '@/lib/toast'
@@ -118,6 +118,8 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
   // Drag and drop state
   const [draggedAnlegg, setDraggedAnlegg] = useState<Anlegg | null>(null)
   const [dragOverDay, setDragOverDay] = useState<number | null>(null)
+  // Et anlegg som allerede ligger i planen og dras for å endre rekkefølge eller flyttes til en annen dag
+  const [draggedPlanItem, setDraggedPlanItem] = useState<{ dag: number; anleggId: string } | null>(null)
 
   useEffect(() => {
     loadKunder()
@@ -333,6 +335,30 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
     setDagPlaner(newDagPlaner)
   }
 
+  /** Flytt et anlegg opp/ned innen dagen, eller til en bestemt posisjon */
+  function moveAnlegg(dag: number, anleggId: string, tilIndex: number) {
+    const liste = [...(dagPlaner[dag] || [])]
+    const fra = liste.findIndex(d => d.anlegg_id === anleggId)
+    if (fra < 0) return
+    const mal = Math.max(0, Math.min(liste.length - 1, tilIndex))
+    if (fra === mal) return
+    const [item] = liste.splice(fra, 1)
+    liste.splice(mal, 0, item)
+    setDagPlaner({ ...dagPlaner, [dag]: liste.map((d, i) => ({ ...d, rekkefolge: i })) })
+  }
+
+  /** Flytt et anlegg fra én dag til en annen (legges sist) */
+  function moveAnleggToDay(fraDag: number, anleggId: string, tilDag: number) {
+    if (fraDag === tilDag) return
+    const item = dagPlaner[fraDag]?.find(d => d.anlegg_id === anleggId)
+    if (!item || dagPlaner[tilDag]?.some(d => d.anlegg_id === anleggId)) return
+    const ny = { ...dagPlaner }
+    ny[fraDag] = ny[fraDag].filter(d => d.anlegg_id !== anleggId)
+    if (ny[fraDag].length === 0) delete ny[fraDag]
+    ny[tilDag] = [...(ny[tilDag] || []), { ...item, dag: tilDag, rekkefolge: (ny[tilDag] || []).length }]
+    setDagPlaner(ny)
+  }
+
   function updateAnleggTime(dag: number, anleggId: string, field: 'estimert_oppstart' | 'alarmprove_tid', value: string) {
     const newDagPlaner = { ...dagPlaner }
     const anleggIndex = newDagPlaner[dag]?.findIndex(d => d.anlegg_id === anleggId)
@@ -528,10 +554,10 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
               <span style="color: #6b7280; font-size: 13px;">${a.anlegg?.adresse || ''} ${a.anlegg?.postnummer || ''} ${a.anlegg?.poststed || ''}</span>
             </td>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">
-              ${a.estimert_oppstart || '-'}
+              ${a.estimert_oppstart?.slice(0, 5) || '-'}
             </td>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">
-              ${a.alarmprove_tid || '-'}
+              ${a.alarmprove_tid?.slice(0, 5) || '-'}
             </td>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
               ${kontrollTyper}
@@ -940,6 +966,9 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
                         if (draggedAnlegg) {
                           addAnleggToDay(dag, draggedAnlegg.id)
                           setDraggedAnlegg(null)
+                        } else if (draggedPlanItem && draggedPlanItem.dag !== dag) {
+                          moveAnleggToDay(draggedPlanItem.dag, draggedPlanItem.anleggId, dag)
+                          setDraggedPlanItem(null)
                         }
                       }}
                     >
@@ -953,11 +982,28 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
                       </div>
                       
                       <div className={`p-2 space-y-1 min-h-[60px] ${dragOverDay === dag ? 'bg-primary/5' : ''}`}>
-                        {anleggListe.map((item) => (
+                        {anleggListe.map((item, index) => (
                           <div
                             key={item.anlegg_id}
-                            className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-dark-100 rounded text-sm"
+                            draggable
+                            onDragStart={(e) => {
+                              setDraggedPlanItem({ dag, anleggId: item.anlegg_id })
+                              e.dataTransfer.effectAllowed = 'move'
+                              e.dataTransfer.setData('text/plain', item.anlegg_id)
+                            }}
+                            onDragEnd={() => { setDraggedPlanItem(null); setDragOverDay(null) }}
+                            onDragOver={(e) => {
+                              // Dra innen samme dag: bytt plass fortløpende mens en drar over
+                              if (draggedPlanItem && draggedPlanItem.dag === dag && draggedPlanItem.anleggId !== item.anlegg_id) {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                moveAnlegg(dag, draggedPlanItem.anleggId, index)
+                              }
+                            }}
+                            className={`flex items-center gap-2 p-2 bg-gray-50 dark:bg-dark-100 rounded text-sm ${draggedPlanItem?.anleggId === item.anlegg_id ? 'opacity-40' : ''}`}
                           >
+                            <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0 cursor-grab active:cursor-grabbing hidden sm:block" />
+                            <span className="text-xs text-gray-400 tabular-nums w-4 text-right flex-shrink-0">{index + 1}</span>
                             <div className="flex-1 min-w-0">
                               <span className="font-medium text-gray-900 dark:text-white truncate block">
                                 {item.anlegg?.anleggsnavn}
@@ -965,19 +1011,21 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
                             </div>
                             
                             <div className="flex items-center gap-1">
-                              <input
-                                type="time"
-                                value={item.estimert_oppstart || ''}
-                                onChange={(e) => updateAnleggTime(dag, item.anlegg_id, 'estimert_oppstart', e.target.value)}
-                                className="text-xs px-1 py-0.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-200 w-16"
-                                title="Oppstart"
+                              <div className="flex flex-col -my-1">
+                                <button type="button" onClick={() => moveAnlegg(dag, item.anlegg_id, index - 1)} disabled={index === 0} title="Flytt opp" className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-dark-200 disabled:opacity-25 text-gray-500"><ChevronUp className="w-3.5 h-3.5" /></button>
+                                <button type="button" onClick={() => moveAnlegg(dag, item.anlegg_id, index + 1)} disabled={index === anleggListe.length - 1} title="Flytt ned" className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-dark-200 disabled:opacity-25 text-gray-500"><ChevronDown className="w-3.5 h-3.5" /></button>
+                              </div>
+                              <TidInput
+                                value={item.estimert_oppstart}
+                                onChange={(v) => updateAnleggTime(dag, item.anlegg_id, 'estimert_oppstart', v)}
+                                title="Oppstart (24-timers, f.eks. 08:00)"
+                                placeholder="08:00"
                               />
-                              <input
-                                type="time"
-                                value={item.alarmprove_tid || ''}
-                                onChange={(e) => updateAnleggTime(dag, item.anlegg_id, 'alarmprove_tid', e.target.value)}
-                                className="text-xs px-1 py-0.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-200 w-16"
-                                title="Alarm"
+                              <TidInput
+                                value={item.alarmprove_tid}
+                                onChange={(v) => updateAnleggTime(dag, item.anlegg_id, 'alarmprove_tid', v)}
+                                title="Alarmprøve (24-timers, f.eks. 12:30)"
+                                placeholder="12:30"
                               />
                               <button
                                 onClick={() => removeAnleggFromDay(dag, item.anlegg_id)}
@@ -1108,5 +1156,49 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
         </div>
       )}
     </div>
+  )
+}
+
+/** Tolker det brukeren skriver til HH:MM (24-timers): «8» → 08:00, «830» → 08:30, «8.30» → 08:30, «1245» → 12:45 */
+function normaliserTid(tekst: string): string | null {
+  const t = tekst.trim()
+  if (!t) return null
+  const m = t.match(/^(\d{1,2})(?:[:.,h ]?(\d{2}))?$/)
+  if (!m) return null
+  let timer = Number(m[1])
+  let min = m[2] ? Number(m[2]) : 0
+  if (!m[2] && m[1].length === 4) { timer = Number(m[1].slice(0, 2)); min = Number(m[1].slice(2)) }
+  if (!m[2] && m[1].length === 3) { timer = Number(m[1].slice(0, 1)); min = Number(m[1].slice(1)) }
+  if (timer > 23 || min > 59) return null
+  return `${String(timer).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
+/**
+ * Klokkeslett som tekstfelt i 24-timers format. <input type="time"> følger nettleserens/OS-ets
+ * innstilling og viser AM/PM på mange Mac-er og iPhoner – dette feltet er alltid HH:MM.
+ */
+function TidInput({ value, onChange, title, placeholder }: { value: string | null; onChange: (v: string) => void; title?: string; placeholder?: string }) {
+  const [tekst, setTekst] = useState(value?.slice(0, 5) ?? '')
+  const [ugyldig, setUgyldig] = useState(false)
+  useEffect(() => { setTekst(value?.slice(0, 5) ?? '') }, [value])
+  function ferdig() {
+    if (!tekst.trim()) { setUgyldig(false); onChange(''); return }
+    const n = normaliserTid(tekst)
+    if (n) { setUgyldig(false); setTekst(n); onChange(n) } else { setUgyldig(true) }
+  }
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={tekst}
+      onChange={(e) => setTekst(e.target.value.replace(/[^\d:., h]/g, '').slice(0, 5))}
+      onBlur={ferdig}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+      onFocus={(e) => e.target.select()}
+      title={title}
+      placeholder={placeholder}
+      aria-invalid={ugyldig || undefined}
+      className={`text-xs px-1 py-0.5 rounded border bg-white dark:bg-dark-200 w-14 text-center tabular-nums ${ugyldig ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+    />
   )
 }
