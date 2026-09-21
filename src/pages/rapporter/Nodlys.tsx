@@ -244,6 +244,21 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
     }
   }
 
+  /** Sletter flere armaturer på én gang – bekreftelsen skjer i listen */
+  async function deleteNodlysFlere(ids: string[]) {
+    if (ids.length === 0) return
+    try {
+      const { error } = await supabase.from('anleggsdata_nodlys').delete().in('id', ids)
+      if (error) throw error
+      setNodlysListe(prev => { const ny = prev.filter(n => !ids.includes(n.id)); cacheData(`nodlys_${selectedAnlegg}`, ny); return ny })
+      toast.success(`${ids.length} ${ids.length === 1 ? 'armatur' : 'armaturer'} slettet`)
+    } catch (error) {
+      console.error('Feil ved sletting:', error)
+      toast.error('Kunne ikke slette armaturene', error)
+      throw error
+    }
+  }
+
   /** Lagrer én endring med en gang (offline: legges i kø). Ruller tilbake hvis lagringen feiler. */
   async function lagreEndring(id: string, patch: Partial<NodlysEnhet>) {
     const forrige = nodlysListe.find(n => n.id === id)
@@ -1197,6 +1212,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
               onEndre={lagreEndring}
               onEndreFlere={lagreEndringFlere}
               onSlett={e => deleteNodlys(e.id)}
+              onSlettFlere={deleteNodlysFlere}
               onRediger={e => { setSelectedNodlys(e); setViewMode('edit') }}
             />
           )}

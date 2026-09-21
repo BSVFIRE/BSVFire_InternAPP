@@ -28,13 +28,14 @@ const FELTER: { key: Felt; navn: string; bredde: string }[] = [
   { key: 'notat', navn: 'Notat', bredde: 'w-40' },
 ]
 
-export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, onRediger }: {
+export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, onSlettFlere, onRediger }: {
   enheter: NodlysEnhet[]
   /** id-er som lagres akkurat nå */
   lagrer: Set<string>
   onEndre: (id: string, patch: Partial<NodlysEnhet>) => void
   onEndreFlere: (ids: string[], patch: Partial<NodlysEnhet>) => Promise<void>
   onSlett: (enhet: NodlysEnhet) => void
+  onSlettFlere: (ids: string[]) => Promise<void>
   onRediger: (enhet: NodlysEnhet) => void
 }) {
   const [chip, setChip] = useState<Chip>('gjenstar')
@@ -43,6 +44,8 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
   const [redigerer, setRedigerer] = useState<{ id: string; felt: Felt } | null>(null)
   const [velgModus, setVelgModus] = useState(false)
   const [valgte, setValgte] = useState<Set<string>>(new Set())
+  const [bekreftSlett, setBekreftSlett] = useState(false)
+  const [sletter, setSletter] = useState(false)
 
   const teller = useMemo(() => ({
     gjenstar: enheter.filter(e => !e.kontrollert).length,
@@ -117,6 +120,10 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
   function toggleValgteIds(ids: string[]) { setValgte(prev => { const n = new Set(prev); const alle = ids.every(i => n.has(i)); for (const i of ids) alle ? n.delete(i) : n.add(i); return n }) }
   function avsluttValg() { setVelgModus(false); setValgte(new Set()) }
   async function settPaaValgte(patch: Partial<NodlysEnhet>) { await onEndreFlere(Array.from(valgte), patch); setValgte(new Set()) }
+  async function slettValgte() {
+    setSletter(true)
+    try { await onSlettFlere(Array.from(valgte)); setValgte(new Set()); setBekreftSlett(false) } finally { setSletter(false) }
+  }
 
   /** Enter → samme felt i neste rad, Tab → neste felt (håndteres av nettleseren via rekkefølge) */
   function nesteRad(id: string, felt: Felt) {
@@ -259,10 +266,43 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
               {forslag.batteritype.map(x => <option key={x} value={x}>{x}</option>)}
             </select>
             <Button variant="outline" icon={<Check />} disabled={valgte.size === 0} onClick={() => settPaaValgte({ kontrollert: true })} className="!h-[34px]">Kontrollert</Button>
+            <Button variant="outline" icon={<Trash2 />} disabled={valgte.size === 0} onClick={() => setBekreftSlett(true)} className="!h-[34px] text-red-600 dark:text-red-400 hover:!bg-red-50 dark:hover:!bg-red-900/20">Slett</Button>
             <Button variant="ghost" icon={<X />} onClick={avsluttValg} className="!h-[34px]">Ferdig</Button>
           </div>
         </div>
       )}
+
+      {/* Bekreft sletting av flere */}
+      {bekreftSlett && (() => {
+        const liste = enheter.filter(e => valgte.has(e.id))
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center sm:p-4" onClick={() => !sletter && setBekreftSlett(false)}>
+            <div role="alertdialog" aria-labelledby="slett-tittel" className="bg-white dark:bg-dark-50 w-full sm:max-w-md rounded-t-xl sm:rounded-xl shadow-xl p-5 space-y-4" onClick={ev => ev.stopPropagation()}>
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0"><Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" /></div>
+                <div className="min-w-0">
+                  <h2 id="slett-tittel" className="text-base font-semibold text-gray-900 dark:text-white">Slette {liste.length} {liste.length === 1 ? 'armatur' : 'armaturer'}?</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Armaturene fjernes fra nødlyslisten for anlegget. Dette kan ikke angres.</p>
+                </div>
+              </div>
+              <ul className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-200 dark:divide-gray-800 text-sm">
+                {liste.slice(0, 50).map(e => (
+                  <li key={e.id} className="px-3 py-1.5 flex items-center gap-2">
+                    <span className="font-mono text-xs text-gray-500 w-10 flex-shrink-0">{e.internnummer || '–'}</span>
+                    <span className="truncate text-gray-900 dark:text-white">{e.plassering || e.type || 'Uten plassering'}</span>
+                    <span className="ml-auto text-xs text-gray-500 flex-shrink-0">{[e.bygg, e.etasje].filter(Boolean).join(' · ')}</span>
+                  </li>
+                ))}
+                {liste.length > 50 && <li className="px-3 py-1.5 text-xs text-gray-500">+ {liste.length - 50} til</li>}
+              </ul>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setBekreftSlett(false)} disabled={sletter}>Avbryt</Button>
+                <Button variant="danger" icon={<Trash2 />} onClick={slettValgte} loading={sletter} className="!bg-red-600 !text-white hover:!bg-red-700">Slett {liste.length} {liste.length === 1 ? 'armatur' : 'armaturer'}</Button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
