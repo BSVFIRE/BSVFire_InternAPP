@@ -8,9 +8,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  AlertCircle, AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Calendar, Edit, Eye, EyeOff,
-  MoreHorizontal, Plus, Search, Trash2, Upload, X,
+  AlertCircle, AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Calendar, Edit,
+  MoreHorizontal, PauseCircle, Plus, Search, Trash2, Upload, X,
 } from 'lucide-react'
+import { AnleggStatusDialog } from './AnleggStatusDialog'
+import { StatusBadge } from '@/lib/status'
 import { db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
@@ -26,11 +28,11 @@ const log = createLogger('AnleggListe')
 const SIDE = 25
 
 type Rad = Pick<Tables<'anlegg'>,
-  'id' | 'anleggsnavn' | 'adresse' | 'postnummer' | 'poststed' | 'kontroll_maaned' | 'kontroll_status' | 'kontroll_type' | 'skjult'
+  'id' | 'anleggsnavn' | 'adresse' | 'postnummer' | 'poststed' | 'kontroll_maaned' | 'kontroll_status' | 'kontroll_type' | 'skjult' | 'status'
   | 'ansvarlig_tekniker_id' | 'kundenr' | 'unik_kode'
   | 'brannalarm_fullfort' | 'nodlys_fullfort' | 'slukkeutstyr_fullfort' | 'roykluker_fullfort' | 'forstehjelp_fullfort' | 'ekstern_fullfort'
 > & {
-  customer: { navn: string | null; kunde_nummer: string | null } | null
+  customer: { navn: string | null; kunde_nummer: string | null; status: string | null } | null
   ansvarlig_tekniker: { navn: string | null } | null
   avvik: number
 }
@@ -77,6 +79,7 @@ export default function AnleggListe() {
   const [feil, setFeil] = useState<string | null>(null)
   const [visAntall, setVisAntall] = useState(SIDE)
   const [visImport, setVisImport] = useState(false)
+  const [statusFor, setStatusFor] = useState<Rad | null>(null)
   const [kunderForImport, setKunderForImport] = useState<{ id: string; navn: string; kunde_nummer: string | null; organisasjonsnummer: string | null }[] | null>(null)
   const [nyttAnlegg, setNyttAnlegg] = useState<{ kundeId: string | null } | null>(null)
   const sokRef = useRef<HTMLInputElement>(null)
@@ -112,7 +115,7 @@ export default function AnleggListe() {
       setFeil(null)
       const [res, avvikRes] = await Promise.all([
         db.from('anlegg')
-          .select('id, anleggsnavn, adresse, postnummer, poststed, kontroll_maaned, kontroll_status, kontroll_type, skjult, ansvarlig_tekniker_id, kundenr, unik_kode, brannalarm_fullfort, nodlys_fullfort, slukkeutstyr_fullfort, roykluker_fullfort, forstehjelp_fullfort, ekstern_fullfort, customer:kundenr(navn, kunde_nummer), ansvarlig_tekniker:ansatte!anlegg_ansvarlig_tekniker_id_fkey(navn)')
+          .select('id, anleggsnavn, adresse, postnummer, poststed, kontroll_maaned, kontroll_status, kontroll_type, skjult, status, ansvarlig_tekniker_id, kundenr, unik_kode, brannalarm_fullfort, nodlys_fullfort, slukkeutstyr_fullfort, roykluker_fullfort, forstehjelp_fullfort, ekstern_fullfort, customer:kundenr(navn, kunde_nummer, status), ansvarlig_tekniker:ansatte!anlegg_ansvarlig_tekniker_id_fkey(navn)')
           .order('anleggsnavn'),
         db.rpc('avvik_per_anlegg'),
       ])
@@ -200,12 +203,6 @@ export default function AnleggListe() {
     setVisImport(true)
   }
 
-  async function toggleSkjult(a: Rad) {
-    const { error } = await db.from('anlegg').update({ skjult: !a.skjult }).eq('id', a.id)
-    if (error) { toast.error('Kunne ikke endre synlighet', error); return }
-    toast.success(a.skjult ? `${a.anleggsnavn} vises igjen` : `${a.anleggsnavn} er skjult`)
-    last()
-  }
   async function slett(a: Rad) {
     if (!confirm(`Slette «${a.anleggsnavn}»? Kontrolldata, notater og dokumentkoblinger slettes. Dette kan ikke angres.`)) return
     const { error } = await db.from('anlegg').delete().eq('id', a.id)
@@ -253,7 +250,7 @@ export default function AnleggListe() {
           <option value="">Alle typer</option>{KONTROLLTYPER.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
         <Toggle checked={mine} onChange={v => setParam('mine', v ? '1' : null)}>Mine anlegg</Toggle>
-        <Toggle checked={skjulte} onChange={v => setParam('skjulte', v ? '1' : null)}>Vis skjulte</Toggle>
+        <Toggle checked={skjulte} onChange={v => setParam('skjulte', v ? '1' : null)}>Vis pausede og deaktiverte</Toggle>
       </div>
 
       {/* Tallene er filtre */}
@@ -296,7 +293,7 @@ export default function AnleggListe() {
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {synlig.map(a => (
                   <tr key={a.id} onClick={() => navigate(`/anlegg/${a.id}`)} className={cn('group cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors', a.skjult && 'opacity-50')}>
-                    <td className="px-3.5 py-2.5"><div className="font-semibold text-gray-900 dark:text-white">{a.anleggsnavn}</div><div className="text-xs text-gray-500 dark:text-gray-400">{a.adresse}</div></td>
+                    <td className="px-3.5 py-2.5"><div className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">{a.anleggsnavn}<StatusBadge status={a.status} /></div><div className="text-xs text-gray-500 dark:text-gray-400">{a.adresse}</div></td>
                     <td className="px-3.5 py-2.5 text-gray-700 dark:text-gray-300">{a.customer?.navn ?? <span className="text-gray-400">–</span>}</td>
                     <td className="px-3.5 py-2.5 text-gray-700 dark:text-gray-300">{a.poststed ?? ''}</td>
                     <td className="px-3.5 py-2.5"><TypeChips a={a} /></td>
@@ -306,7 +303,7 @@ export default function AnleggListe() {
                     <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
                         <IconButton variant="ghost" label="Rediger" icon={<Edit />} onClick={() => navigate(`/anlegg/${a.id}/rediger`)} className="w-8 h-8" />
-                        <RadMeny a={a} onSkjul={() => toggleSkjult(a)} onSlett={() => slett(a)} />
+                        <RadMeny onStatus={() => setStatusFor(a)} onSlett={() => slett(a)} />
                       </div>
                     </td>
                   </tr>
@@ -323,7 +320,7 @@ export default function AnleggListe() {
                 <button key={a.id} type="button" onClick={() => navigate(`/anlegg/${a.id}`)} className={cn('card !p-3 w-full flex gap-3 items-center text-left', a.skjult && 'opacity-50')}>
                   <span className={cn('w-1 self-stretch rounded-full', DOT[t])} />
                   <span className="flex-1 min-w-0 space-y-1">
-                    <span className="block font-semibold text-gray-900 dark:text-white truncate">{a.anleggsnavn}</span>
+                    <span className="flex items-center gap-2 min-w-0"><span className="font-semibold text-gray-900 dark:text-white truncate">{a.anleggsnavn}</span><StatusBadge status={a.status} /></span>
                     <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[a.customer?.navn, a.poststed].filter(Boolean).join(' · ')}</span>
                     <TypeChips a={a} kort />
                   </span>
@@ -346,6 +343,7 @@ export default function AnleggListe() {
 
       {visImport && kunderForImport && <AnleggImport kunder={kunderForImport} onClose={() => setVisImport(false)} onImportComplete={last} />}
       {nyttAnlegg && <NyttAnleggDialog kundeId={nyttAnlegg.kundeId} onClose={() => setNyttAnlegg(null)} />}
+      {statusFor && <AnleggStatusDialog anleggId={statusFor.id} anleggsnavn={statusFor.anleggsnavn ?? ''} status={statusFor.status} kundeStatus={statusFor.customer?.status} onClose={() => setStatusFor(null)} onEndret={() => { setStatusFor(null); last() }} />}
     </div>
   )
 }
@@ -405,10 +403,10 @@ function StatusCelle({ a }: { a: Rad }) {
   )
 }
 
-function RadMeny({ a, onSkjul, onSlett }: { a: Rad; onSkjul: () => void; onSlett: () => void }) {
+function RadMeny({ onStatus, onSlett }: { onStatus: () => void; onSlett: () => void }) {
   return (
     <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
-      <MenuItem icon={a.skjult ? <Eye /> : <EyeOff />} onSelect={onSkjul}>{a.skjult ? 'Vis i listen' : 'Skjul fra listen'}</MenuItem>
+      <MenuItem icon={<PauseCircle />} onSelect={onStatus}>Endre status…</MenuItem>
       <MenuSeparator />
       <MenuItem icon={<Trash2 />} danger onSelect={onSlett}>Slett anlegg</MenuItem>
     </DropdownMenu>

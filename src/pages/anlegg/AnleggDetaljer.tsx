@@ -13,7 +13,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle, Building2, Check, CheckSquare, ChevronLeft, ClipboardList, Clock, Cloud,
-  DollarSign, Edit, ExternalLink, EyeOff, Eye, FileText, Loader2, Mail, MapPin,
+  DollarSign, Edit, ExternalLink, EyeOff, FileText, Loader2, Mail, MapPin, PauseCircle,
   MessageSquare, Mic, MicOff, MoreHorizontal, Navigation, Phone, Plus, Search,
   Send, Sparkles, Star, Upload, X, Home, Layers, AlertTriangle, ChevronDown, Share2,
 } from 'lucide-react'
@@ -28,6 +28,8 @@ import { AnleggTodoList } from '@/components/AnleggTodoList'
 import { LeilighetsOversikt } from '@/components/LeilighetsOversikt'
 import { DropboxFileBrowser } from '@/components/DropboxFileBrowser'
 import { QrEtikettPanel } from '@/components/QrEtikettPanel'
+import { AnleggStatusDialog } from './AnleggStatusDialog'
+import { StatusBadge, STATUS_TEKST, somStatus } from '@/lib/status'
 import { Button, IconButton, IconButtonGroup } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuLabel, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { hentAvvikForAnlegg, AVVIK_REKKEFOLGE, type Avvik, type AvvikKontrolltype } from '@/lib/anleggAvvik'
@@ -37,7 +39,7 @@ const log = createLogger('AnleggDetaljer')
 // ---------- Typer ----------
 
 type AnleggRow = Tables<'anlegg'> & {
-  customer: { navn: string | null; kunde_nummer: string | null; organisasjonsnummer: string | null } | null
+  customer: { navn: string | null; kunde_nummer: string | null; organisasjonsnummer: string | null; status: string | null } | null
   ansvarlig_tekniker: { navn: string | null } | null
 }
 
@@ -157,7 +159,7 @@ export default function AnleggDetaljer() {
       setFeil(null)
       const [anleggRes, kontRes, notRes, ordreRes, oppgRes, todoRes, dokRes, prisRes] = await Promise.all([
         db.from('anlegg')
-          .select('*, customer:kundenr(navn, kunde_nummer, organisasjonsnummer), ansvarlig_tekniker:ansatte!anlegg_ansvarlig_tekniker_id_fkey(navn)')
+          .select('*, customer:kundenr(navn, kunde_nummer, organisasjonsnummer, status), ansvarlig_tekniker:ansatte!anlegg_ansvarlig_tekniker_id_fkey(navn)')
           .eq('id', id).single(),
         db.from('kontaktpersoner')
           .select('id, navn, epost, telefon, rolle, anlegg_kontaktpersoner!inner(primar, anlegg_id)')
@@ -317,6 +319,7 @@ export default function AnleggDetaljer() {
         <div className="min-w-0 space-y-1.5">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{anlegg.anleggsnavn}</h1>
+            <StatusBadge status={anlegg.status} />
             <StatusVelger anlegg={anlegg} onChanged={loadAll} />
           </div>
           <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-sm text-gray-500 dark:text-gray-400">
@@ -592,21 +595,19 @@ function StatusVelger({ anlegg, onChanged }: { anlegg: AnleggRow; onChanged: () 
 function MerMeny({ anlegg, onChanged }: { anlegg: AnleggRow; onChanged: () => void }) {
   const navigate = useNavigate()
 
-  async function toggleSkjult() {
-    const { error } = await db.from('anlegg').update({ skjult: !anlegg.skjult }).eq('id', anlegg.id)
-    if (error) { toast.error('Kunne ikke endre synlighet', error); return }
-    toast.success(anlegg.skjult ? 'Anlegget vises igjen i listen' : 'Anlegget er skjult fra listen')
-    onChanged()
-  }
+  const [visStatus, setVisStatus] = useState(false)
 
   return (
+    <>
     <DropdownMenu trigger={open => <IconButton variant="ghost" label="Flere valg" icon={<MoreHorizontal />} aria-haspopup="menu" aria-expanded={open} />}>
       <MenuItem icon={<DollarSign />} onSelect={() => navigate(`/priser?anlegg=${anlegg.id}`)}>Kontrollpriser</MenuItem>
       {anlegg.kontrollportal_url && <MenuItem icon={<ExternalLink />} href={anlegg.kontrollportal_url}>Åpne kontrollportal</MenuItem>}
       <MenuItem icon={<Layers />} onSelect={() => navigate('/teknisk', { state: { anleggId: anlegg.id, kundeId: anlegg.kundenr } })}>Teknisk dokumentasjon</MenuItem>
       <MenuSeparator />
-      <MenuItem icon={anlegg.skjult ? <Eye /> : <EyeOff />} onSelect={toggleSkjult}>{anlegg.skjult ? 'Vis anlegget i listen' : 'Skjul anlegget fra listen'}</MenuItem>
+      <MenuItem icon={<PauseCircle />} onSelect={() => setVisStatus(true)}>Endre status… <span className="text-xs text-gray-400 ml-1">{STATUS_TEKST[somStatus(anlegg.status)]}</span></MenuItem>
     </DropdownMenu>
+    {visStatus && <AnleggStatusDialog anleggId={anlegg.id} anleggsnavn={anlegg.anleggsnavn ?? ''} status={anlegg.status} kundeStatus={anlegg.customer?.status} onClose={() => setVisStatus(false)} onEndret={() => { setVisStatus(false); onChanged() }} />}
+    </>
   )
 }
 

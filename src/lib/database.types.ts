@@ -496,6 +496,7 @@ export type Database = {
           roykluker_fullfort: boolean | null
           sist_oppdatert: string | null
           skjult: boolean | null
+          status: string
           slukkeutstyr_fullfort: boolean | null
           status_oppdatert_av: string | null
           status_oppdatert_av_navn: string | null
@@ -536,6 +537,7 @@ export type Database = {
           roykluker_fullfort?: boolean | null
           sist_oppdatert?: string | null
           skjult?: boolean | null
+          status?: string
           slukkeutstyr_fullfort?: boolean | null
           status_oppdatert_av?: string | null
           status_oppdatert_av_navn?: string | null
@@ -576,6 +578,7 @@ export type Database = {
           roykluker_fullfort?: boolean | null
           sist_oppdatert?: string | null
           skjult?: boolean | null
+          status?: string
           slukkeutstyr_fullfort?: boolean | null
           status_oppdatert_av?: string | null
           status_oppdatert_av_navn?: string | null
@@ -2245,6 +2248,7 @@ export type Database = {
           primaer_kontaktperson_id: string | null
           sist_oppdatert: string | null
           skjult: boolean | null
+          status: string
           type: string | null
         }
         Insert: {
@@ -2257,6 +2261,7 @@ export type Database = {
           primaer_kontaktperson_id?: string | null
           sist_oppdatert?: string | null
           skjult?: boolean | null
+          status?: string
           type?: string | null
         }
         Update: {
@@ -2269,6 +2274,7 @@ export type Database = {
           primaer_kontaktperson_id?: string | null
           sist_oppdatert?: string | null
           skjult?: boolean | null
+          status?: string
           type?: string | null
         }
         Relationships: [

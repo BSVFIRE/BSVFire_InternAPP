@@ -6,8 +6,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
-  AlertCircle, AlertTriangle, Building2, Calendar, ChevronDown, ChevronLeft, Check, Edit, EyeOff, Eye, Mail,
-  MoreHorizontal, Phone, Plus, Share2, Trash2, X,
+  AlertCircle, AlertTriangle, Building2, Calendar, ChevronDown, ChevronLeft, Check, Edit, Mail,
+  MoreHorizontal, PauseCircle, Phone, PlayCircle, Plus, Share2, X,
 } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -17,12 +17,13 @@ import { ANLEGG_STATUSER } from '@/lib/constants'
 import { Button, IconButton, IconButtonGroup } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { NyttAnleggDialog } from '@/pages/anlegg/NyttAnleggDialog'
-import { SkjulKundeDialog } from './SkjulKundeDialog'
+import { KundeStatusDialog } from './KundeStatusDialog'
+import { StatusBadge, somStatus } from '@/lib/status'
 
 const log = createLogger('KundeDetaljer')
 
 type Kunde = Tables<'customer'> & { kontaktperson: { id: string; navn: string | null; epost: string | null; telefon: string | null; rolle: string | null } | null }
-type AnleggRad = Pick<Tables<'anlegg'>, 'id' | 'anleggsnavn' | 'adresse' | 'poststed' | 'kontroll_status' | 'kontroll_maaned' | 'kontroll_type' | 'skjult'> & { avvik: number }
+type AnleggRad = Pick<Tables<'anlegg'>, 'id' | 'anleggsnavn' | 'adresse' | 'poststed' | 'kontroll_status' | 'kontroll_maaned' | 'kontroll_type' | 'skjult' | 'status'> & { avvik: number }
 type Priser = Tables<'priser_kundenummer'>
 type Ukesplan = Pick<Tables<'ukesplaner'>, 'id' | 'uke_nummer' | 'aar' | 'navn' | 'status'>
 
@@ -44,7 +45,7 @@ export default function KundeDetaljer() {
   const [loading, setLoading] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
   const [visNyttAnlegg, setVisNyttAnlegg] = useState(false)
-  const [visSkjul, setVisSkjul] = useState(false)
+  const [visStatus, setVisStatus] = useState(false)
   const [visPriser, setVisPriser] = useState(false)
 
   const loadAll = useCallback(async () => {
@@ -53,7 +54,7 @@ export default function KundeDetaljer() {
       setFeil(null)
       const [k, a, u, avvik] = await Promise.all([
         db.from('customer').select('*, kontaktperson:kontaktpersoner!customer_kontaktperson_id_fkey(id, navn, epost, telefon, rolle)').eq('id', id).single(),
-        db.from('anlegg').select('id, anleggsnavn, adresse, poststed, kontroll_status, kontroll_maaned, kontroll_type, skjult').eq('kundenr', id).order('anleggsnavn'),
+        db.from('anlegg').select('id, anleggsnavn, adresse, poststed, kontroll_status, kontroll_maaned, kontroll_type, skjult, status').eq('kundenr', id).order('anleggsnavn'),
         db.from('ukesplaner').select('id, uke_nummer, aar, navn, status').eq('kunde_id', id).order('aar', { ascending: false }).order('uke_nummer', { ascending: false }).limit(8),
         db.rpc('avvik_per_anlegg'),
       ])
@@ -94,12 +95,6 @@ export default function KundeDetaljer() {
   const sum = useMemo(() => priser.reduce((s, p) => s + (p.prisbrannalarm ?? 0) + (p.prisnodlys ?? 0) + (p.prisslukkeutstyr ?? 0) + (p.prisroykluker ?? 0) + (p.prisekstern ?? 0), 0), [priser])
 
   async function kopierLenke() { try { await navigator.clipboard.writeText(window.location.href); toast.success('Lenke kopiert') } catch { toast.error('Kunne ikke kopiere') } }
-  async function toggleSkjult() {
-    if (!kunde) return
-    const { error } = await db.from('customer').update({ skjult: !kunde.skjult }).eq('id', kunde.id)
-    if (error) { toast.error('Kunne ikke endre synlighet', error); return }
-    toast.success(kunde.skjult ? 'Kunden vises igjen' : 'Kunden er skjult'); loadAll()
-  }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" /></div>
   if (feil || !kunde) {
@@ -124,7 +119,7 @@ export default function KundeDetaljer() {
         <div className="min-w-0 space-y-1.5">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{kunde.navn}</h1>
-            {kunde.skjult && <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-dark-100 dark:text-gray-400 inline-flex items-center gap-1"><EyeOff className="w-3 h-3" />Skjult</span>}
+            <StatusBadge status={kunde.status} />
           </div>
           <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-sm text-gray-500 dark:text-gray-400">
             {kunde.kunde_nummer && <span>Kundenr. {kunde.kunde_nummer}</span>}
@@ -137,9 +132,8 @@ export default function KundeDetaljer() {
             <IconButton variant="ghost" label="Kopier lenke" icon={<Share2 />} onClick={kopierLenke} />
             <DropdownMenu trigger={open => <IconButton variant="ghost" label="Flere valg" icon={<MoreHorizontal />} aria-expanded={open} />}>
               <MenuItem icon={<Calendar />} onSelect={() => navigate('/kontrollplan', { state: { openUkesplan: true, kundeId: kunde.id } })}>Ny ukesplan</MenuItem>
-              <MenuItem icon={kunde.skjult ? <Eye /> : <EyeOff />} onSelect={toggleSkjult}>{kunde.skjult ? 'Vis kunden i listen' : 'Skjul kunden (enkelt)'}</MenuItem>
               <MenuSeparator />
-              <MenuItem icon={<Trash2 />} danger onSelect={() => setVisSkjul(true)}>Skjul kunde med opprydding…</MenuItem>
+              <MenuItem icon={somStatus(kunde.status) === 'aktiv' ? <PauseCircle /> : <PlayCircle />} onSelect={() => setVisStatus(true)}>Endre status… <span className="text-xs text-gray-400 ml-1">{somStatus(kunde.status) === 'aktiv' ? 'Aktiv' : somStatus(kunde.status) === 'pauset' ? 'Pauset' : 'Deaktivert'}</span></MenuItem>
             </DropdownMenu>
           </IconButtonGroup>
           <Button variant="outline" icon={<Edit />} kbd="E" onClick={() => navigate(`/kunder/${kunde.id}/rediger`)}><span className="hidden sm:inline">Rediger</span></Button>
@@ -172,7 +166,7 @@ export default function KundeDetaljer() {
               {anlegg.map(a => (
                 <button key={a.id} type="button" onClick={() => navigate(`/anlegg/${a.id}`)} className={cn('card !p-3.5 w-full flex items-center gap-3 text-left border-l-[3px] hover:border-primary/60 transition-colors', KANT[a.kontroll_status ?? ''] ?? 'border-l-red-500', a.skjult && 'opacity-50')}>
                   <span className="flex-1 min-w-0">
-                    <span className="block font-semibold text-gray-900 dark:text-white truncate">{a.anleggsnavn}</span>
+                    <span className="flex items-center gap-2 min-w-0"><span className="font-semibold text-gray-900 dark:text-white truncate">{a.anleggsnavn}</span><StatusBadge status={a.status} /></span>
                     <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[a.adresse, a.poststed].filter(Boolean).join(', ')}{a.kontroll_type?.length ? ` · ${a.kontroll_type.join(', ')}` : ''}</span>
                   </span>
                   <span className="flex flex-col items-end gap-1">
@@ -240,7 +234,7 @@ export default function KundeDetaljer() {
       </div>
 
       {visNyttAnlegg && <NyttAnleggDialog kundeId={kunde.id} onClose={() => { setVisNyttAnlegg(false); loadAll() }} />}
-      {visSkjul && <SkjulKundeDialog kundeId={kunde.id} kundeNavn={kunde.navn ?? ''} onClose={() => setVisSkjul(false)} onSkjult={() => navigate('/kunder')} />}
+      {visStatus && <KundeStatusDialog kundeId={kunde.id} kundeNavn={kunde.navn ?? ''} status={kunde.status} onClose={() => setVisStatus(false)} onEndret={() => { setVisStatus(false); loadAll() }} />}
     </div>
   )
 }

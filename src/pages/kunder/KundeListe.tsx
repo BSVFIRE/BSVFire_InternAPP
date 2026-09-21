@@ -4,9 +4,10 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, Edit, Eye, EyeOff, MoreHorizontal, Plus, Search, X } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, Edit, MoreHorizontal, PauseCircle, Plus, Search, X } from 'lucide-react'
+import { KundeStatusDialog } from './KundeStatusDialog'
+import { StatusBadge } from '@/lib/status'
 import { db, type Tables } from '@/lib/supabase'
-import { toast } from '@/lib/toast'
 import { cn, formatDate } from '@/lib/utils'
 import { createLogger } from '@/lib/logger'
 import { Button, IconButton } from '@/components/ui/Button'
@@ -16,7 +17,7 @@ import { NyKundeDialog } from './NyKundeDialog'
 const log = createLogger('KundeListe')
 const SIDE = 25
 
-type Rad = Pick<Tables<'customer'>, 'id' | 'navn' | 'kunde_nummer' | 'organisasjonsnummer' | 'type' | 'opprettet' | 'skjult'> & {
+type Rad = Pick<Tables<'customer'>, 'id' | 'navn' | 'kunde_nummer' | 'organisasjonsnummer' | 'type' | 'opprettet' | 'skjult' | 'status'> & {
   kontaktperson: { navn: string | null } | null
   antallAnlegg: number
 }
@@ -28,6 +29,7 @@ export default function KundeListe() {
   const location = useLocation()
   const [params, setParams] = useSearchParams()
   const [rader, setRader] = useState<Rad[]>([])
+  const [statusFor, setStatusFor] = useState<Rad | null>(null)
   const [loading, setLoading] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
   const [visAntall, setVisAntall] = useState(SIDE)
@@ -57,7 +59,7 @@ export default function KundeListe() {
     try {
       setFeil(null)
       const [k, a] = await Promise.all([
-        db.from('customer').select('id, navn, kunde_nummer, organisasjonsnummer, type, opprettet, skjult, kontaktperson:kontaktpersoner!customer_kontaktperson_id_fkey(navn)').order('navn'),
+        db.from('customer').select('id, navn, kunde_nummer, organisasjonsnummer, type, opprettet, skjult, status, kontaktperson:kontaktpersoner!customer_kontaktperson_id_fkey(navn)').order('navn'),
         db.from('anlegg').select('kundenr'),
       ])
       if (k.error) throw k.error
@@ -114,11 +116,6 @@ export default function KundeListe() {
     if (sort === key) setParam('dir', dir === 'asc' ? 'desc' : 'asc')
     else { const p = new URLSearchParams(params); p.set('sort', key); p.delete('dir'); setParams(p, { replace: true }) }
   }
-  async function toggleSkjult(r: Rad) {
-    const { error } = await db.from('customer').update({ skjult: !r.skjult }).eq('id', r.id)
-    if (error) { toast.error('Kunne ikke endre synlighet', error); return }
-    toast.success(r.skjult ? `${r.navn} vises igjen` : `${r.navn} er skjult`); last()
-  }
 
   if (feil) {
     return <div className="card bg-red-900/20 border-red-800 flex items-start gap-3"><AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0" /><div><h2 className="text-lg font-semibold text-red-400 mb-1">Kunne ikke laste kunder</h2><p className="text-sm text-red-300 mb-3">{feil}</p><Button variant="primary" onClick={last}>Prøv igjen</Button></div></div>
@@ -142,7 +139,7 @@ export default function KundeListe() {
           <kbd className="hidden md:block absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-mono px-1.5 border border-gray-300 dark:border-gray-700 rounded text-gray-400">/</kbd>
         </div>
         <label className={cn('inline-flex items-center gap-2 h-[38px] px-3 rounded-lg border text-sm cursor-pointer select-none', skjulte ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300')}>
-          <input type="checkbox" checked={skjulte} onChange={e => setParam('skjulte', e.target.checked ? '1' : null)} className="w-3.5 h-3.5 rounded text-primary focus:ring-primary" />Vis skjulte
+          <input type="checkbox" checked={skjulte} onChange={e => setParam('skjulte', e.target.checked ? '1' : null)} className="w-3.5 h-3.5 rounded text-primary focus:ring-primary" />Vis pausede og deaktiverte
         </label>
       </div>
 
@@ -177,7 +174,7 @@ export default function KundeListe() {
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {synlig.map(r => (
                   <tr key={r.id} onClick={() => navigate(`/kunder/${r.id}`)} className={cn('group cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors', r.skjult && 'opacity-50')}>
-                    <td className="px-3.5 py-2.5"><div className="font-semibold text-gray-900 dark:text-white">{r.navn}</div><div className="text-xs text-gray-500 dark:text-gray-400">{[r.organisasjonsnummer ? `Org.nr. ${r.organisasjonsnummer}` : null, r.type].filter(Boolean).join(' · ')}</div></td>
+                    <td className="px-3.5 py-2.5"><div className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">{r.navn}<StatusBadge status={r.status} /></div><div className="text-xs text-gray-500 dark:text-gray-400">{[r.organisasjonsnummer ? `Org.nr. ${r.organisasjonsnummer}` : null, r.type].filter(Boolean).join(' · ')}</div></td>
                     <td className="px-3.5 py-2.5 tabular-nums text-gray-700 dark:text-gray-300">{r.kunde_nummer ?? <span className="text-yellow-700 dark:text-yellow-400 text-xs font-medium">Mangler</span>}</td>
                     <td className="px-3.5 py-2.5 text-gray-700 dark:text-gray-300">{r.kontaktperson?.navn ?? <span className="text-gray-400">–</span>}</td>
                     <td className="px-3.5 py-2.5"><span className={cn('inline-flex items-center gap-1.5 tabular-nums', r.antallAnlegg === 0 ? 'text-gray-400' : 'text-gray-900 dark:text-white')}><Building2 className="w-3.5 h-3.5 text-gray-400" />{r.antallAnlegg}</span></td>
@@ -186,7 +183,7 @@ export default function KundeListe() {
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
                         <IconButton variant="ghost" label="Rediger" icon={<Edit />} onClick={() => navigate(`/kunder/${r.id}/rediger`)} className="w-8 h-8" />
                         <DropdownMenu trigger={open => <IconButton variant="ghost" label="Mer" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
-                          <MenuItem icon={r.skjult ? <Eye /> : <EyeOff />} onSelect={() => toggleSkjult(r)}>{r.skjult ? 'Vis i listen' : 'Skjul fra listen'}</MenuItem>
+                          <MenuItem icon={<PauseCircle />} onSelect={() => setStatusFor(r)}>Endre status…</MenuItem>
                         </DropdownMenu>
                       </div>
                     </td>
@@ -200,7 +197,7 @@ export default function KundeListe() {
             {synlig.map(r => (
               <button key={r.id} type="button" onClick={() => navigate(`/kunder/${r.id}`)} className={cn('card !p-3 w-full flex gap-3 items-center text-left', r.skjult && 'opacity-50')}>
                 <span className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0"><Building2 className="w-4 h-4" /></span>
-                <span className="flex-1 min-w-0"><span className="block font-semibold text-gray-900 dark:text-white truncate">{r.navn}</span><span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[r.kunde_nummer ? `Kundenr. ${r.kunde_nummer}` : 'Mangler kundenummer', r.kontaktperson?.navn].filter(Boolean).join(' · ')}</span></span>
+                <span className="flex-1 min-w-0"><span className="flex items-center gap-2 min-w-0"><span className="font-semibold text-gray-900 dark:text-white truncate">{r.navn}</span><StatusBadge status={r.status} /></span><span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[r.kunde_nummer ? `Kundenr. ${r.kunde_nummer}` : 'Mangler kundenummer', r.kontaktperson?.navn].filter(Boolean).join(' · ')}</span></span>
                 <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap">{r.antallAnlegg} anlegg</span>
               </button>
             ))}
@@ -211,6 +208,7 @@ export default function KundeListe() {
       )}
 
       {visNy && <NyKundeDialog onClose={() => setVisNy(false)} />}
+      {statusFor && <KundeStatusDialog kundeId={statusFor.id} kundeNavn={statusFor.navn ?? ''} status={statusFor.status} onClose={() => setStatusFor(null)} onEndret={() => { setStatusFor(null); last() }} />}
     </div>
   )
 }
