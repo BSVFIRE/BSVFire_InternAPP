@@ -10,7 +10,7 @@ import { cn, isoUke, isoUkeAar, ukeDatoer, UKEDAGER } from '@/lib/utils'
 import { createLogger } from '@/lib/logger'
 import { MAANEDER, OPPGAVE_STATUSER } from '@/lib/constants'
 import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
-import { erKobletTilOutlook, hentAvtaler, type Avtale } from '@/lib/microsoft'
+import { erKobletTilOutlook, hentAvtaler, outlookMaaFornyes, type Avtale } from '@/lib/microsoft'
 import { Button, IconButton } from '@/components/ui/Button'
 
 const log = createLogger('Kalender')
@@ -57,7 +57,7 @@ export function Kalender() {
   const [avtaler, setAvtaler] = useState<Avtale[]>([])
   const [planDager, setPlanDager] = useState<PlanDag[]>([])
   const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
-  const [outlook, setOutlook] = useState<'ukjent' | 'ikke_koblet' | 'koblet'>('ukjent')
+  const [outlook, setOutlook] = useState<'ukjent' | 'ikke_koblet' | 'koblet' | 'ma_fornyes'>('ukjent')
   const [loading, setLoading] = useState(true)
 
   const last = useCallback(async () => {
@@ -76,7 +76,14 @@ export function Kalender() {
       setOppgaver((o.data ?? []) as Oppgave[])
       if (koblet) {
         setOutlook('koblet')
-        try { setAvtaler(await hentAvtaler(periode.fra, periode.til)) } catch (err) { log.warn('Outlook-avtaler feilet', { err }); setAvtaler([]) }
+        try {
+          setAvtaler(await hentAvtaler(periode.fra, periode.til))
+          if (outlookMaaFornyes()) setOutlook('ma_fornyes')
+        } catch (err) {
+          log.warn('Outlook-avtaler feilet', { err })
+          setAvtaler([])
+          if (outlookMaaFornyes()) setOutlook('ma_fornyes')
+        }
       } else { setOutlook('ikke_koblet'); setAvtaler([]) }
     } catch (err) {
       log.error('Kunne ikke laste kalender', { error: err })
@@ -137,6 +144,9 @@ export function Kalender() {
         </div>
       </header>
 
+      {outlook === 'ma_fornyes' && mine && (
+        <Link to="/admin/bedrift" className="block card !py-2.5 text-sm text-yellow-700 dark:text-yellow-400 hover:underline"><CalendarDays className="inline w-4 h-4 mr-1.5 -mt-0.5" />Outlook-tilgangen har utløpt. Koble til på nytt i profilen for å se avtalene dine →</Link>
+      )}
       {outlook === 'ikke_koblet' && mine && (
         <Link to="/admin/bedrift" className="block card !py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:text-primary"><CalendarDays className="inline w-4 h-4 mr-1.5 -mt-0.5" />Koble til Outlook i profilen for å se kalenderavtalene dine her →</Link>
       )}

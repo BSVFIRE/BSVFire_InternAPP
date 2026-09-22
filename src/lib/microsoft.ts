@@ -65,17 +65,28 @@ export async function kobleFraOutlook(): Promise<void> {
   if (konto) await m.logoutRedirect({ account: konto, postLogoutRedirectUri: window.location.href })
 }
 
+/**
+ * Sant når Outlook-tilgangen må fornyes med en ny innlogging. Vi sender aldri brukeren
+ * til Microsoft av eget tiltak – det tok hele siden med seg midt i arbeidet og så ut som
+ * en utlogging fra FireCtrl. I stedet vises «Koble til Outlook på nytt» der det er relevant.
+ */
+export function outlookMaaFornyes(): boolean {
+  return maaFornyes
+}
+let maaFornyes = false
+
 async function token(): Promise<string | null> {
   const m = await klient()
   const konto = m.getAllAccounts()[0]
   if (!konto) return null
   try {
     const r = await m.acquireTokenSilent({ scopes: SCOPES, account: konto })
+    maaFornyes = false
     return r.accessToken
   } catch (err) {
     if (err instanceof InteractionRequiredAuthError) {
-      // Samtykke/innlogging må fornyes – send brukeren til Microsoft og tilbake hit
-      await m.acquireTokenRedirect({ scopes: SCOPES, account: konto, redirectStartPage: window.location.href })
+      maaFornyes = true
+      log.info('Outlook-tilgangen må fornyes – brukeren må koble til på nytt')
       return null
     }
     throw err
