@@ -39,6 +39,7 @@ import { useThemeStore } from '@/store/themeStore'
 import { useAuthStore } from '@/store/authStore'
 import { useModulTilgang } from '@/hooks/useModulTilgang'
 import { OfflineInfoDialog } from './OfflineInfoDialog'
+import { SyncStatus } from './SyncStatus'
 import { WhatsNewDialog } from './WhatsNewDialog'
 import { UpdateChecker } from './UpdateChecker'
 
@@ -280,6 +281,8 @@ export function Layout({ children }: LayoutProps) {
               </div>
             </div>
             
+            <SyncStatus />
+
             <button
               onClick={toggleTheme}
               className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
