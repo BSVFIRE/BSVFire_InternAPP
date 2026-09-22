@@ -147,6 +147,12 @@ export function AnleggImport({ kunder, onClose, onImportComplete }: AnleggImport
             'desember': 'Desember', 'december': 'Desember', 'des': 'Desember', 'dec': 'Desember', '12': 'Desember'
           }
           
+          const fraMaanedsnr = (n: number) => monthNames[String(n)] || ''
+
+          // Excel-celler kan komme som ekte Date-objekt. Uten dette havnet hele datostrengen
+          // («Sun Nov 01 2026 …») i kontroll_maaned.
+          if (val instanceof Date && !isNaN(val.getTime())) return fraMaanedsnr(val.getMonth() + 1)
+
           // Hvis det er et tall (Excel serial date), konverter til måned
           if (typeof val === 'number') {
             // Excel serial date - konverter til JS Date
@@ -157,7 +163,13 @@ export function AnleggImport({ kunder, onClose, onImportComplete }: AnleggImport
           }
           
           const str = String(val).toLowerCase().trim()
-          return monthNames[str] || toStr(val)
+          if (monthNames[str]) return monthNames[str]
+
+          // Tekst som er en dato (fra regneark eller kopiert inn) – ta måneden ut av den
+          const dato = new Date(String(val))
+          if (!isNaN(dato.getTime())) return fraMaanedsnr(dato.getMonth() + 1)
+
+          return toStr(val)
         }
         
         // Hjelpefunksjon for å sjekke Ja/Nei/X
