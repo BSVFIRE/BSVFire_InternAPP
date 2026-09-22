@@ -10,6 +10,8 @@ import { db, type Tables } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { MAANEDER, ANLEGG_STATUSER } from '@/lib/constants'
 import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
+import { powersyncAktiv } from '@/lib/powersync/db'
+import { hentAnleggLokalt } from '@/lib/powersync/anlegg'
 import { Nodlys } from './rapporter/Nodlys'
 import { Brannalarm } from './rapporter/Brannalarm'
 import { Slukkeutstyr } from './rapporter/Slukkeutstyr'
@@ -46,8 +48,25 @@ export function Rapporter() {
   }, [state])
 
   useEffect(() => {
-    db.from('anlegg').select('id, anleggsnavn, adresse, poststed, kundenr, kontroll_type, kontroll_maaned, kontroll_status, ansvarlig_tekniker_id, brannalarm_fullfort, nodlys_fullfort, slukkeutstyr_fullfort, roykluker_fullfort, forstehjelp_fullfort, customer:kundenr(navn)').or('skjult.is.null,skjult.eq.false').order('anleggsnavn')
-      .then(({ data }) => setAnlegg((data ?? []).map(a => ({ ...a, kunde: (a.customer as { navn: string | null } | null)?.navn ?? 'Ukjent kunde' }))))
+    let avbrutt = false
+    async function last() {
+      const { data, error } = await db.from('anlegg')
+        .select('id, anleggsnavn, adresse, poststed, kundenr, kontroll_type, kontroll_maaned, kontroll_status, ansvarlig_tekniker_id, brannalarm_fullfort, nodlys_fullfort, slukkeutstyr_fullfort, roykluker_fullfort, forstehjelp_fullfort, customer:kundenr(navn)')
+        .or('skjult.is.null,skjult.eq.false').order('anleggsnavn')
+      if (avbrutt) return
+      if (!error && data) {
+        setAnlegg(data.map(a => ({ ...a, kunde: (a.customer as { navn: string | null } | null)?.navn ?? 'Ukjent kunde' })))
+        return
+      }
+      // Uten dekning: bruk det som er synkronisert til enheten
+      if (!powersyncAktiv) return
+      try {
+        const lokale = await hentAnleggLokalt()
+        if (!avbrutt) setAnlegg(lokale.filter(a => !a.skjult).map(a => ({ ...a, kunde: a.customer?.navn ?? 'Ukjent kunde' })) as unknown as AnleggRad[])
+      } catch { /* ingen lokale data ennå */ }
+    }
+    last()
+    return () => { avbrutt = true }
   }, [])
 
   const denneMnd = MAANEDER[new Date().getMonth()]

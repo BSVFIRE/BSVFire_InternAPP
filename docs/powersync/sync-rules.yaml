@@ -13,3 +13,5 @@ streams:
       - SELECT * FROM customer WHERE status = 'aktiv'
       - SELECT * FROM anlegg WHERE status = 'aktiv'
       - SELECT * FROM anleggsdata_nodlys
+      # Bare navn/kontaktfelt – passord og varslingstokens skal aldri ut på enhetene
+      - SELECT id, navn, epost, telefon, rolle FROM ansatte

@@ -61,5 +61,13 @@ const anleggsdata_nodlys = new Table({
   sist_oppdatert: column.text,
 }, { indexes: { anlegg: ['anlegg_id'] } })
 
-export const AppSchema = new Schema({ customer, anlegg, anleggsdata_nodlys })
+// Kun feltene teknikerne trenger – passord og varslingstokens synkroniseres aldri ut
+const ansatte = new Table({
+  navn: column.text,
+  epost: column.text,
+  telefon: column.text,
+  rolle: column.text,
+})
+
+export const AppSchema = new Schema({ customer, anlegg, anleggsdata_nodlys, ansatte })
 export type Database = (typeof AppSchema)['types']

@@ -9,4 +9,4 @@ alter default privileges in schema public grant select on tables to powersync_ro
 
 -- Tabellene som synkroniseres til enhetene. Utvides når flere moduler bygges om
 -- (alter publication powersync add table <tabell>).
-create publication powersync for table customer, anlegg, anleggsdata_nodlys;
+create publication powersync for table customer, anlegg, anleggsdata_nodlys, ansatte;

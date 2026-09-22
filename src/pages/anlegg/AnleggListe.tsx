@@ -13,6 +13,8 @@ import {
 } from 'lucide-react'
 import { AnleggStatusDialog } from './AnleggStatusDialog'
 import { StatusBadge } from '@/lib/status'
+import { powersyncAktiv } from '@/lib/powersync/db'
+import { hentAnleggLokalt } from '@/lib/powersync/anlegg'
 import { db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
@@ -124,6 +126,17 @@ export default function AnleggListe() {
       if (avvikRes.error) log.warn('avvik_per_anlegg feilet – kjør migrasjonen', { error: avvikRes.error })
       setRader((res.data ?? []).map(a => ({ ...a, avvik: avvik.get(a.id) ?? 0 })) as Rad[])
     } catch (err) {
+      // Uten dekning: les det som allerede er synkronisert til enheten
+      if (powersyncAktiv) {
+        try {
+          const lokale = await hentAnleggLokalt()
+          setRader(lokale.map(a => ({ ...a, avvik: 0 })) as unknown as Rad[])
+          setFeil(null)
+          return
+        } catch (lokalFeil) {
+          log.warn('Kunne ikke lese anlegg lokalt', { error: lokalFeil })
+        }
+      }
       log.error('Kunne ikke laste anlegg', { error: err })
       setFeil(err instanceof Error ? err.message : 'Kunne ikke laste anlegg')
     } finally {
