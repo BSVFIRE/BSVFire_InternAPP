@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react'
+import { useState, useRef, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { LogIn, AlertCircle, ArrowLeft, CheckCircle, Mail } from 'lucide-react'
@@ -11,11 +11,16 @@ export function Login() {
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const navigate = useNavigate()
+  // Passordbehandlere (f.eks. NordPass) kan sende skjemaet flere ganger. To innlogginger etter
+  // hverandre ugyldiggjør den første sesjonen, og brukeren kastes ut igjen – derfor denne sperren.
+  const paagaar = useRef(false)
   const signIn = useAuthStore((state) => state.signIn)
   const resetPassword = useAuthStore((state) => state.resetPassword)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    if (paagaar.current) return
+    paagaar.current = true
     setError('')
     setLoading(true)
 
@@ -24,6 +29,7 @@ export function Login() {
       navigate('/')
     } catch (err) {
       setError('Feil brukernavn eller passord')
+      paagaar.current = false
     } finally {
       setLoading(false)
     }
