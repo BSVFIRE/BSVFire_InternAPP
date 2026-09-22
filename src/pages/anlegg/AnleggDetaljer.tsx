@@ -12,7 +12,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  AlertCircle, Building2, Check, CheckSquare, ChevronLeft, ClipboardList, Clock, Cloud,
+  AlertCircle, Building2, Check, CheckSquare, ChevronLeft, ClipboardList, Clock, Cloud, CloudOff,
   DollarSign, Edit, ExternalLink, EyeOff, FileText, Loader2, Mail, MapPin, PauseCircle,
   MessageSquare, Mic, MicOff, MoreHorizontal, Navigation, Phone, Plus, Search,
   Send, Sparkles, Star, Upload, X, Home, Layers, AlertTriangle, ChevronDown, Share2,
@@ -29,6 +29,8 @@ import { LeilighetsOversikt } from '@/components/LeilighetsOversikt'
 import { DropboxFileBrowser } from '@/components/DropboxFileBrowser'
 import { QrEtikettPanel } from '@/components/QrEtikettPanel'
 import { AnleggStatusDialog } from './AnleggStatusDialog'
+import { powersyncAktiv } from '@/lib/powersync/db'
+import { hentEttAnleggLokalt } from '@/lib/powersync/anlegg'
 import { StatusBadge, STATUS_TEKST, somStatus } from '@/lib/status'
 import { Button, IconButton, IconButtonGroup } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuLabel, MenuSeparator } from '@/components/ui/DropdownMenu'
@@ -150,6 +152,8 @@ export default function AnleggDetaljer() {
   const [visDropbox, setVisDropbox] = useState(false)
   const [visTodoAdmin, setVisTodoAdmin] = useState(false)
   const [visKontaktModal, setVisKontaktModal] = useState(false)
+  /** Anlegget vises fra lokal database – noen seksjoner mangler til nettet er tilbake */
+  const [offline, setOffline] = useState(false)
 
   const notatRef = useRef<HTMLTextAreaElement>(null)
 
@@ -157,6 +161,7 @@ export default function AnleggDetaljer() {
     if (!id) return
     try {
       setFeil(null)
+      setOffline(false)
       const [anleggRes, kontRes, notRes, ordreRes, oppgRes, todoRes, dokRes, prisRes] = await Promise.all([
         db.from('anlegg')
           .select('*, customer:kundenr(navn, kunde_nummer, organisasjonsnummer, status), ansvarlig_tekniker:ansatte!anlegg_ansvarlig_tekniker_id_fkey(navn)')
@@ -221,6 +226,21 @@ export default function AnleggDetaljer() {
         setLeiligheter(null)
       }
     } catch (err) {
+      // Uten dekning: vis anlegget fra den lokale databasen. Lister som ikke synkroniseres
+      // (ordre, dokumenter, avvik) står tomme til nettet er tilbake.
+      if (powersyncAktiv) {
+        try {
+          const lokalt = await hentEttAnleggLokalt(id)
+          if (lokalt) {
+            setAnlegg(lokalt as unknown as AnleggRow)
+            setOffline(true)
+            setFeil(null)
+            return
+          }
+        } catch (lokalFeil) {
+          log.warn('Kunne ikke lese anlegget lokalt', { error: lokalFeil, anleggId: id })
+        }
+      }
       log.error('Kunne ikke laste anlegg', { error: err, anleggId: id })
       setFeil(err instanceof Error ? err.message : 'Kunne ikke laste anlegg')
     } finally {
@@ -313,6 +333,13 @@ export default function AnleggDetaljer() {
         <span className="hidden sm:inline">/</span>
         <span className="hidden sm:inline text-gray-900 dark:text-white truncate">{anlegg.anleggsnavn}</span>
       </div>
+
+      {offline && (
+        <div className="flex items-start gap-2.5 p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 text-sm text-gray-900 dark:text-gray-100">
+          <CloudOff className="w-4 h-4 text-yellow-700 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+          <span>Uten nett – anlegget vises fra enheten. Ordre, oppgaver, dokumenter, notater og avvik kommer når du er på nett igjen. Kontroller kan registreres som vanlig.</span>
+        </div>
+      )}
 
       {/* 1. Header */}
       <header className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">

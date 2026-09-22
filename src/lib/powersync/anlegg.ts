@@ -61,16 +61,27 @@ function typer(v: string | null): string[] | null {
   try { const p = JSON.parse(v); return Array.isArray(p) ? p : null } catch { return v ? [v] : null }
 }
 
-/** Alle aktive anlegg med kundenavn og ansvarlig tekniker, sortert på navn. */
-export async function hentAnleggLokalt(): Promise<LokaltAnlegg[]> {
-  const rader = await hentPowerSync().getAll<Rad>(`
+const SPORRING = `
     select a.*, k.navn as kunde_navn, k.kunde_nummer as kunde_nummer, k.status as kunde_status, t.navn as tekniker_navn
     from anlegg a
     left join customer k on k.id = a.kundenr
     left join ansatte t on t.id = a.ansvarlig_tekniker_id
-    order by a.anleggsnavn collate nocase
-  `)
-  return rader.map(r => ({
+  `
+
+/** Alle aktive anlegg med kundenavn og ansvarlig tekniker, sortert på navn. */
+export async function hentAnleggLokalt(): Promise<LokaltAnlegg[]> {
+  const rader = await hentPowerSync().getAll<Rad>(`${SPORRING} order by a.anleggsnavn collate nocase`)
+  return rader.map(tilAnlegg)
+}
+
+/** Ett anlegg – brukes av detaljsiden når Supabase ikke kan nås. */
+export async function hentEttAnleggLokalt(id: string): Promise<LokaltAnlegg | null> {
+  const rad = await hentPowerSync().getOptional<Rad>(`${SPORRING} where a.id = ?`, [id])
+  return rad ? tilAnlegg(rad) : null
+}
+
+function tilAnlegg(r: Rad): LokaltAnlegg {
+  return ({
     id: r.id,
     anleggsnavn: r.anleggsnavn,
     adresse: r.adresse,
@@ -92,5 +103,5 @@ export async function hentAnleggLokalt(): Promise<LokaltAnlegg[]> {
     ekstern_fullfort: bool(r.ekstern_fullfort),
     customer: r.kundenr ? { navn: r.kunde_navn, kunde_nummer: r.kunde_nummer, status: r.kunde_status } : null,
     ansvarlig_tekniker: r.ansvarlig_tekniker_id ? { navn: r.tekniker_navn } : null,
-  }))
+  })
 }
