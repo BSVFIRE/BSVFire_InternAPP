@@ -50,14 +50,17 @@ export function Rapporter() {
   useEffect(() => {
     let avbrutt = false
     async function last() {
-      const { data, error } = await db.from('anlegg')
-        .select('id, anleggsnavn, adresse, poststed, kundenr, kontroll_type, kontroll_maaned, kontroll_status, ansvarlig_tekniker_id, brannalarm_fullfort, nodlys_fullfort, slukkeutstyr_fullfort, roykluker_fullfort, forstehjelp_fullfort, customer:kundenr(navn)')
-        .or('skjult.is.null,skjult.eq.false').order('anleggsnavn')
+      try {
+        const { data, error } = await db.from('anlegg')
+          .select('id, anleggsnavn, adresse, poststed, kundenr, kontroll_type, kontroll_maaned, kontroll_status, ansvarlig_tekniker_id, brannalarm_fullfort, nodlys_fullfort, slukkeutstyr_fullfort, roykluker_fullfort, forstehjelp_fullfort, customer:kundenr(navn)')
+          .or('skjult.is.null,skjult.eq.false').order('anleggsnavn')
+        if (avbrutt) return
+        if (!error && data) {
+          setAnlegg(data.map(a => ({ ...a, kunde: (a.customer as { navn: string | null } | null)?.navn ?? 'Ukjent kunde' })))
+          return
+        }
+      } catch { /* uten dekning kaster fetch – da leser vi lokalt under */ }
       if (avbrutt) return
-      if (!error && data) {
-        setAnlegg(data.map(a => ({ ...a, kunde: (a.customer as { navn: string | null } | null)?.navn ?? 'Ukjent kunde' })))
-        return
-      }
       // Uten dekning: bruk det som er synkronisert til enheten
       if (!powersyncAktiv) return
       try {
