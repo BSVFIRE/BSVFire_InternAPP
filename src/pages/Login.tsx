@@ -12,15 +12,16 @@ export function Login() {
   const [resetSent, setResetSent] = useState(false)
   const navigate = useNavigate()
   // Passordbehandlere (f.eks. NordPass) kan sende skjemaet flere ganger. To innlogginger etter
-  // hverandre ugyldiggjør den første sesjonen, og brukeren kastes ut igjen – derfor denne sperren.
-  const paagaar = useRef(false)
+  // hverandre ugyldiggjør den første sesjonen. Vi hopper derfor over innsendinger som kommer
+  // rett etter hverandre – men bare i to sekunder, så skjemaet aldri kan bli låst.
+  const sistSendt = useRef(0)
   const signIn = useAuthStore((state) => state.signIn)
   const resetPassword = useAuthStore((state) => state.resetPassword)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (paagaar.current) return
-    paagaar.current = true
+    if (Date.now() - sistSendt.current < 2000) return
+    sistSendt.current = Date.now()
     setError('')
     setLoading(true)
 
@@ -29,7 +30,7 @@ export function Login() {
       navigate('/')
     } catch (err) {
       setError('Feil brukernavn eller passord')
-      paagaar.current = false
+      sistSendt.current = 0
     } finally {
       setLoading(false)
     }
