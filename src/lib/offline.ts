@@ -48,12 +48,74 @@ interface PendingChange {
   timestamp: number
 }
 
+/**
+ * Skriver til offline-cachen. Lagringen i nettleseren er på noen få MB og deles med
+ * innloggingen (Supabase) og Outlook (MSAL). Blir den full, feiler skrivingen for alle –
+ * og brukeren mister sesjonen og fremstår som utlogget. Derfor rydder vi her:
+ * eldste cache-nøkler kastes til det er plass, og vi lagrer aldri veldig store datasett.
+ */
+const MAKS_CACHE_BYTES = 512 * 1024
+const TID_PREFIX = 'bsv_offline_tid_'
+
+function erFullt(e: unknown): boolean {
+  return e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')
+}
+
+/** Fjerner de eldste cache-oppføringene (aldri ventende endringer eller sesjonen) */
+function ryddCache(behold: string): number {
+  const nokler = Object.keys(localStorage)
+    .filter(k => k.startsWith(CACHE_PREFIX) && !k.startsWith(TID_PREFIX) && k !== behold)
+    .map(k => ({ k, tid: Number(localStorage.getItem(TID_PREFIX + k.slice(CACHE_PREFIX.length)) ?? 0) }))
+    .sort((a, b) => a.tid - b.tid)
+  const fjern = nokler.slice(0, Math.max(1, Math.ceil(nokler.length / 2)))
+  for (const { k } of fjern) {
+    localStorage.removeItem(k)
+    localStorage.removeItem(TID_PREFIX + k.slice(CACHE_PREFIX.length))
+  }
+  return fjern.length
+}
+
+/**
+ * Kalles ved oppstart: rydder i cachen hvis lagringen nærmer seg full, slik at
+ * innloggingen alltid har plass til å skrive sesjonen sin.
+ */
+export function ryddLagringVedBehov(grenseKb = 3000) {
+  try {
+    let brukt = 0
+    for (const k of Object.keys(localStorage)) brukt += (localStorage.getItem(k)?.length ?? 0)
+    if (brukt / 1024 < grenseKb) return
+    const antall = ryddCache('')
+    log.warn(`Lokal lagring var ${Math.round(brukt / 1024)} kB – fjernet ${antall} cache-oppføringer`)
+  } catch { /* lagring utilgjengelig (privat modus) */ }
+}
+
 // Save data to local cache
 export function cacheData(key: string, data: any) {
+  const noekkel = CACHE_PREFIX + key
+  let verdi: string
   try {
-    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data))
+    verdi = JSON.stringify(data)
   } catch (error) {
-    log.error('Feil ved lagring til cache:', error)
+    log.warn('Kunne ikke serialisere data til cache', { key, error })
+    return
+  }
+  if (verdi.length > MAKS_CACHE_BYTES) {
+    // For stort til å være verdt plassen – hopp over i stedet for å fylle lagringen
+    log.debug(`Hopper over cache av ${key} (${Math.round(verdi.length / 1024)} kB)`)
+    localStorage.removeItem(noekkel)
+    return
+  }
+  for (let forsok = 0; forsok < 3; forsok++) {
+    try {
+      localStorage.setItem(noekkel, verdi)
+      localStorage.setItem(TID_PREFIX + key, String(Date.now()))
+      return
+    } catch (error) {
+      if (!erFullt(error)) { log.error('Feil ved lagring til cache:', error); return }
+      const antall = ryddCache(noekkel)
+      log.warn(`Lokal lagring full – fjernet ${antall} eldre cache-oppføringer`)
+      if (antall === 0) return
+    }
   }
 }
 
@@ -61,6 +123,7 @@ export function cacheData(key: string, data: any) {
 export function getCachedData<T>(key: string): T | null {
   try {
     const cached = localStorage.getItem(CACHE_PREFIX + key)
+    if (cached) localStorage.setItem(TID_PREFIX + key, String(Date.now()))
     return cached ? JSON.parse(cached) : null
   } catch (error) {
     log.error('Feil ved henting fra cache:', error)
