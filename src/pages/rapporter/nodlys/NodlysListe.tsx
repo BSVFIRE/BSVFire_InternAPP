@@ -351,7 +351,13 @@ function StatusKnapper({ e, kompakt, onVelg, onSlett }: { e: NodlysEnhet; kompak
   return (
     <div className="flex items-center gap-1.5 flex-shrink-0">
       {harStatus && e.status !== 'OK' ? (
-        <span className={cn('inline-flex items-center px-2 h-8 rounded-full text-xs font-semibold border whitespace-nowrap', STATUS_FARGE[e.status!] ?? 'bg-gray-100 text-gray-700 border-gray-300')}>{e.status}</span>
+        <>
+          <span className={cn('inline-flex items-center px-2 h-8 rounded-full text-xs font-semibold border whitespace-nowrap', STATUS_FARGE[e.status!] ?? 'bg-gray-100 text-gray-700 border-gray-300')}>{e.status}</span>
+          {/* Avviket er rettet på stedet – ett klikk for å sette OK */}
+          <button type="button" onClick={() => onVelg('OK')} title="Avviket er rettet – sett OK" aria-label="Sett OK" className="h-8 w-8 rounded-lg border border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 inline-flex items-center justify-center flex-shrink-0">
+            <Check className="w-4 h-4" strokeWidth={3} />
+          </button>
+        </>
       ) : (
         <button type="button" onClick={() => onVelg('OK')} aria-pressed={e.status === 'OK'} className={cn('h-8 px-3 rounded-lg text-sm font-semibold border transition-colors inline-flex items-center gap-1', e.status === 'OK' ? 'bg-green-500 border-green-500 text-white' : 'border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20')}><Check className="w-3.5 h-3.5" strokeWidth={3} />OK</button>
       )}
