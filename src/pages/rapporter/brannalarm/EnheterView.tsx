@@ -625,6 +625,8 @@ function LeggTilDialog({ forhaandsvalgt, kategori, data, styr, egne, onClose, on
   const [note, setNote] = useState('')
   const [forslag, setForslag] = useState<Record<string, string[]>>({})
   const [egenSkjema, setEgenSkjema] = useState<{ navn: string; slag: 'enhet' | 'styring'; kategori: string } | null>(null)
+  // Alt som er lagt til uten å lukke dialogen – vises nederst så en ser hva som er gjort
+  const [lagtTil, setLagtTil] = useState<string[]>([])
 
   // Typer/modeller registrert på alle anlegg – ett kall, gruppert per enhetstype
   useEffect(() => {
@@ -667,9 +669,18 @@ function LeggTilDialog({ forhaandsvalgt, kategori, data, styr, egne, onClose, on
 
   function bekreft(e: React.FormEvent) {
     e.preventDefault()
-    if (!key) return
+    leggTil(false)
+  }
+
+  /** fortsett = behold dialogen åpen så flere enheter kan legges til etter hverandre */
+  function leggTil(fortsett: boolean) {
+    if (!key || !valgt) return
     onLeggTil(key, type, Math.max(1, antall), note)
-    onClose()
+    if (!fortsett) { onClose(); return }
+    setLagtTil(prev => [...prev, `${Math.max(1, antall)} × ${valgt.navn}${type.trim() ? ` ${type.trim()}` : ''}`])
+    setType(''); setAntall(1); setNote('')
+    // Åpnet for én bestemt enhetstype: bli stående der. Ellers tilbake til listen for neste valg.
+    if (!forhaandsvalgt) { setKey(null); setSok('') }
   }
   function opprettEgen(e: React.FormEvent) {
     e.preventDefault()
@@ -746,11 +757,18 @@ function LeggTilDialog({ forhaandsvalgt, kategori, data, styr, egne, onClose, on
               })}
               {treff.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">Ingen treff på «{sok}».</p>}
             </div>
+            {lagtTil.length > 0 && (
+              <div className="px-5 py-2.5 border-t border-gray-200 dark:border-gray-800 bg-green-50/60 dark:bg-green-900/10">
+                <p className="text-xs text-green-700 dark:text-green-400 font-medium inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5" strokeWidth={3} />Lagt til nå: {lagtTil.join(', ')}</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Velg flere i listen, eller lukk når du er ferdig.</p>
+              </div>
+            )}
             <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-800">
               <button type="button" onClick={() => setEgenSkjema({ navn: sok.trim(), slag: fane === STYRING_KAT ? 'styring' : 'enhet', kategori: KATEGORIER.includes(fane) ? fane : 'Annet' })} className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left hover:bg-gray-100 dark:hover:bg-dark-100">
                 <span className="w-8 h-8 rounded-lg border border-dashed border-gray-400 text-gray-500 flex items-center justify-center"><Plus className="w-4 h-4" /></span>
                 <span className="flex-1"><span className="block text-sm font-medium text-gray-900 dark:text-white">Egendefinert enhet eller styring…</span><span className="block text-xs text-gray-500 dark:text-gray-400">Finnes ikke i listen? Lag din egen{sok.trim() ? ` («${sok.trim()}»)` : ''}.</span></span>
               </button>
+              {lagtTil.length > 0 && <Button variant="primary" icon={<Check />} onClick={onClose} className="w-full mt-2">Ferdig – {lagtTil.length} lagt til</Button>}
             </div>
           </>
         ) : (
@@ -778,9 +796,10 @@ function LeggTilDialog({ forhaandsvalgt, kategori, data, styr, egne, onClose, on
               </div>
               {valgt.finnes && valgt.info && <p className="text-xs text-gray-500 dark:text-gray-400">Finnes fra før: {valgt.info}. {erStyring ? 'Antallet legges til.' : 'Samme modell slås sammen.'}</p>}
             </div>
-            <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-800">
-              <Button variant="ghost" onClick={onClose}>Avbryt</Button>
-              <Button variant="primary" type="submit" icon={<Plus />}>Legg til</Button>
+            <div className="flex flex-wrap items-center justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-800">
+              <Button variant="ghost" onClick={onClose} className="mr-auto">Avbryt</Button>
+              <Button variant="outline" icon={<Plus />} onClick={() => leggTil(true)}>Legg til og fortsett</Button>
+              <Button variant="primary" type="submit" icon={<Check />}>Legg til og lukk</Button>
             </div>
           </>
         )}
