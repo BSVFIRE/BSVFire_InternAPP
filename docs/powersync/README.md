@@ -10,7 +10,7 @@ Pilot: **nødlys**. Appen kjører som før (direkte mot Supabase) når `VITE_POW
    - Connections → Postgres: Supabase *direct connection* (eller *Session mode*-pooler på Free-plan),
      bruker `powersync_role` + passordet fra steg 1.
    - Client auth → *Supabase auth* på, lim inn Supabase **JWT secret** (Settings → API).
-   - Sync Rules → lim inn `sync-rules.yaml` → Deploy.
+   - Sync Streams → lim inn `sync-rules.yaml` → Deploy.
 3. **Appen** – sett `VITE_POWERSYNC_URL=https://<instans>.powersync.journeyapps.com` i `.env.local`
    (lokalt) og i Netlify → Environment variables (prod). Bygg på nytt.
 
@@ -26,6 +26,6 @@ Pilot: **nødlys**. Appen kjører som før (direkte mot Supabase) når `VITE_POW
 ## Ny modul
 
 1. Legg tabellen til i `supabase.sql`-publikasjonen: `alter publication powersync add table <tabell>;`
-2. Legg den til i `sync-rules.yaml` og deploy.
+2. Legg den til i `sync-rules.yaml` (Sync Streams i dashboardet) og deploy.
 3. Legg til tabellen i `schema.ts`.
 4. Bytt lese-/skriveveien i modulen til lokale spørringer (mønster: `nodlys.ts` + `powersyncAktiv`-grenene i `Nodlys.tsx`).
