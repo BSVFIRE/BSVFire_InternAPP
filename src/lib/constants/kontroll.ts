@@ -32,6 +32,16 @@ export const MAANEDER = [
 
 export type Maaned = typeof MAANEDER[number]
 
+/**
+ * Anlegg uten serviceavtale. Lagres i kontroll_maaned fordi det er et alternativ til
+ * å ha en fast kontrollmåned – slike anlegg skal ikke telles som «ikke utført».
+ */
+export const IKKE_KONTRAKT = 'NA'
+export const IKKE_KONTRAKT_TEKST = 'Ikke kontraktskunde'
+export function erIkkeKontrakt(kontrollMaaned: string | null | undefined): boolean {
+  return kontrollMaaned === IKKE_KONTRAKT
+}
+
 // Måned-mapping for sortering
 export const MAANED_ORDER: Record<string, number> = {
   'Januar': 1,

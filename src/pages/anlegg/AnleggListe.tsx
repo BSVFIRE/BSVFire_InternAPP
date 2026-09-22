@@ -19,7 +19,7 @@ import { db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { createLogger } from '@/lib/logger'
-import { ANLEGG_STATUSER, KONTROLLTYPER, MAANEDER, MAANED_ORDER } from '@/lib/constants'
+import { IKKE_KONTRAKT, IKKE_KONTRAKT_TEKST, erIkkeKontrakt, ANLEGG_STATUSER, KONTROLLTYPER, MAANEDER, MAANED_ORDER } from '@/lib/constants'
 import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
@@ -53,18 +53,21 @@ function typeTone(a: Rad, type: string): 'g' | 'y' | 'r' {
   if (a.kontroll_status === ANLEGG_STATUSER.PLANLAGT || a.kontroll_status === ANLEGG_STATUSER.UTSATT) return 'y'
   return 'r'
 }
-function statusTone(s: string | null): 'g' | 'y' | 'r' | 'm' {
+/** 'n' = ikke kontraktskunde: ingen avtalt kontroll, skal ikke telles som ikke utført */
+function statusTone(s: string | null, kontrollMaaned?: string | null): 'g' | 'y' | 'r' | 'm' | 'n' {
+  if (erIkkeKontrakt(kontrollMaaned) && s !== ANLEGG_STATUSER.UTFORT) return 'n'
   if (s === ANLEGG_STATUSER.UTFORT) return 'g'
   if (s === ANLEGG_STATUSER.PLANLAGT || s === ANLEGG_STATUSER.UTSATT) return 'y'
   if (s === ANLEGG_STATUSER.OPPSAGT) return 'm'
   return 'r'
 }
-const DOT = { g: 'bg-green-500', y: 'bg-yellow-500', r: 'bg-red-500', m: 'bg-gray-400' }
+const DOT = { g: 'bg-green-500', y: 'bg-yellow-500', r: 'bg-red-500', m: 'bg-gray-400', n: 'bg-blue-400' }
 const PILL = {
   g: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
   y: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
   r: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
   m: 'bg-gray-100 text-gray-700 dark:bg-dark-100 dark:text-gray-400',
+  n: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
 }
 function initialer(navn: string | null | undefined) {
   return (navn ?? '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 3).toUpperCase()
@@ -161,8 +164,8 @@ export default function AnleggListe() {
   const grunnlag = useMemo(() => rader.filter(a => skjulte || !a.skjult), [rader, skjulte])
   const teller = useMemo(() => ({
     alle: grunnlag.length,
-    ikke_utfort: grunnlag.filter(a => statusTone(a.kontroll_status) === 'r').length,
-    planlagt: grunnlag.filter(a => statusTone(a.kontroll_status) === 'y').length,
+    ikke_utfort: grunnlag.filter(a => statusTone(a.kontroll_status, a.kontroll_maaned) === 'r').length,
+    planlagt: grunnlag.filter(a => statusTone(a.kontroll_status, a.kontroll_maaned) === 'y').length,
     utfort: grunnlag.filter(a => a.kontroll_status === ANLEGG_STATUSER.UTFORT).length,
     avvik: grunnlag.filter(a => a.avvik > 0).length,
     denne_mnd: grunnlag.filter(a => a.kontroll_maaned === denneMnd).length,
@@ -171,8 +174,8 @@ export default function AnleggListe() {
   const filtrert = useMemo(() => {
     const s = q.trim().toLowerCase()
     let liste = grunnlag.filter(a => {
-      if (chip === 'ikke_utfort' && statusTone(a.kontroll_status) !== 'r') return false
-      if (chip === 'planlagt' && statusTone(a.kontroll_status) !== 'y') return false
+      if (chip === 'ikke_utfort' && statusTone(a.kontroll_status, a.kontroll_maaned) !== 'r') return false
+      if (chip === 'planlagt' && statusTone(a.kontroll_status, a.kontroll_maaned) !== 'y') return false
       if (chip === 'utfort' && a.kontroll_status !== ANLEGG_STATUSER.UTFORT) return false
       if (chip === 'avvik' && a.avvik === 0) return false
       if (chip === 'denne_mnd' && a.kontroll_maaned !== denneMnd) return false
@@ -256,7 +259,7 @@ export default function AnleggListe() {
         </div>
         <label className="sr-only" htmlFor="f-mnd">Kontrollmåned</label>
         <select id="f-mnd" value={mnd} onChange={e => setParam('mnd', e.target.value)} className="input !w-auto !min-h-[38px] !h-[38px] !py-0">
-          <option value="">Alle måneder</option>{MAANEDER.map(m => <option key={m} value={m}>{m}</option>)}
+          <option value="">Alle måneder</option>{MAANEDER.map(m => <option key={m} value={m}>{m}</option>)}<option value={IKKE_KONTRAKT}>{IKKE_KONTRAKT_TEKST}</option>
         </select>
         <label className="sr-only" htmlFor="f-type">Kontrolltype</label>
         <select id="f-type" value={type} onChange={e => setParam('type', e.target.value)} className="input !w-auto !min-h-[38px] !h-[38px] !py-0">
@@ -328,7 +331,7 @@ export default function AnleggListe() {
           {/* Mobil-kort */}
           <div className="lg:hidden space-y-2">
             {synlig.map(a => {
-              const t = statusTone(a.kontroll_status)
+              const t = statusTone(a.kontroll_status, a.kontroll_maaned)
               return (
                 <button key={a.id} type="button" onClick={() => navigate(`/anlegg/${a.id}`)} className={cn('card !p-3 w-full flex gap-3 items-center text-left', a.skjult && 'opacity-50')}>
                   <span className={cn('w-1 self-stretch rounded-full', DOT[t])} />
@@ -338,7 +341,7 @@ export default function AnleggListe() {
                     <TypeChips a={a} kort />
                   </span>
                   <span className="flex flex-col items-end gap-1 text-xs text-gray-500 dark:text-gray-400">
-                    <span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', PILL[t])}>{a.kontroll_status ?? 'Ikke utført'}</span>
+                    <span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', PILL[t])}>{t === 'n' ? IKKE_KONTRAKT_TEKST : a.kontroll_status ?? 'Ikke utført'}</span>
                     {a.avvik > 0 ? <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 font-semibold"><AlertTriangle className="w-3 h-3" />{a.avvik} avvik</span> : <span>{[a.kontroll_maaned?.slice(0, 3), initialer(a.ansvarlig_tekniker?.navn)].filter(Boolean).join(' · ')}</span>}
                   </span>
                 </button>
@@ -407,10 +410,10 @@ function TypeChips({ a, kort }: { a: Rad; kort?: boolean }) {
 }
 
 function StatusCelle({ a }: { a: Rad }) {
-  const t = statusTone(a.kontroll_status)
+  const t = statusTone(a.kontroll_status, a.kontroll_maaned)
   return (
     <span className="inline-flex items-center gap-2">
-      <span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap', PILL[t])}>{a.kontroll_status ?? 'Ikke utført'}</span>
+      <span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap', PILL[t])}>{t === 'n' ? IKKE_KONTRAKT_TEKST : a.kontroll_status ?? 'Ikke utført'}</span>
       {a.avvik > 0 && <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400" title={`${a.avvik} avvik`}><AlertTriangle className="w-3 h-3" />{a.avvik}</span>}
     </span>
   )

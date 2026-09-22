@@ -20,7 +20,7 @@ import {
 import { supabase, db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { formatDate, cn } from '@/lib/utils'
-import { ANLEGG_STATUSER } from '@/lib/constants'
+import { ANLEGG_STATUSER, IKKE_KONTRAKT_TEKST, erIkkeKontrakt } from '@/lib/constants'
 import { createLogger } from '@/lib/logger'
 import { notifyNewMelding } from '@/lib/telegramService'
 import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
@@ -110,6 +110,8 @@ function statusFor(anlegg: AnleggRow, fullfortKey: keyof Tables<'anlegg'>): { to
   const s = anlegg.kontroll_status
   if (s === ANLEGG_STATUSER.PLANLAGT || s === ANLEGG_STATUSER.UTSATT) return { tone: 'warn', tekst: s }
   if (s === ANLEGG_STATUSER.OPPSAGT) return { tone: 'muted', tekst: s }
+  // Uten serviceavtale er det ingen kontroll som «gjenstår»
+  if (erIkkeKontrakt(anlegg.kontroll_maaned)) return { tone: 'muted', tekst: 'Ikke avtale' }
   return { tone: 'bad', tekst: 'Ikke utført' }
 }
 
@@ -400,7 +402,7 @@ export default function AnleggDetaljer() {
                   onAvvikClick={() => setTab('avvik')}
                   under={st.tone === 'ok'
                     ? [anlegg.sist_oppdatert ? formatDate(anlegg.sist_oppdatert) : null, anlegg.status_oppdatert_av_navn ? initialer(anlegg.status_oppdatert_av_navn) : null].filter(Boolean).join(' · ') || 'Kontroll fullført'
-                    : anlegg.kontroll_maaned ? `Kontrollmåned ${anlegg.kontroll_maaned}` : 'Kontrollmåned ikke satt'}
+                    : erIkkeKontrakt(anlegg.kontroll_maaned) ? IKKE_KONTRAKT_TEKST : anlegg.kontroll_maaned ? `Kontrollmåned ${anlegg.kontroll_maaned}` : 'Kontrollmåned ikke satt'}
                   onClick={k.rapportType
                     ? () => navigate('/rapporter', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id, rapportType: k.rapportType } })
                     : undefined}
@@ -420,7 +422,7 @@ export default function AnleggDetaljer() {
           </div>
         )}
         <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-sm text-gray-500 dark:text-gray-400 px-0.5">
-          <span><b className="font-semibold text-gray-900 dark:text-white">Kontrollmåned:</b> {anlegg.kontroll_maaned ?? '–'}</span>
+          <span><b className="font-semibold text-gray-900 dark:text-white">Kontrollmåned:</b> {erIkkeKontrakt(anlegg.kontroll_maaned) ? IKKE_KONTRAKT_TEKST : anlegg.kontroll_maaned ?? '–'}</span>
           <span><b className="font-semibold text-gray-900 dark:text-white">Ansvarlig:</b> {anlegg.ansvarlig_tekniker?.navn ?? 'Ikke satt'}</span>
           <button onClick={() => setTab('avvik')} className="hover:text-gray-900 dark:hover:text-white"><span className={cn('font-semibold', avvik.length > 0 ? 'text-red-600 dark:text-red-400' : 'text-primary')}>{avvik.length}</span> avvik</button>
           <button onClick={() => { setTab('oversikt'); setVisTodoAdmin(true) }} className="hover:text-gray-900 dark:hover:text-white"><span className="text-primary font-semibold">{apneTodos.length}</span> åpne todo</button>
@@ -606,7 +608,7 @@ function StatusVelger({ anlegg, onChanged }: { anlegg: AnleggRow; onChanged: () 
   return (
     <label className={cn('relative inline-flex items-center gap-1.5 pl-2.5 pr-7 py-1 rounded-full border text-xs font-semibold cursor-pointer', STATUS_PILL[status] ?? STATUS_PILL[ANLEGG_STATUSER.IKKE_UTFORT])}>
       {lagrer ? <Loader2 className="w-3 h-3 animate-spin" /> : status === ANLEGG_STATUSER.UTFORT ? <Check className="w-3 h-3" strokeWidth={3} /> : <Clock className="w-3 h-3" />}
-      {status}{anlegg.kontroll_maaned && status !== ANLEGG_STATUSER.UTFORT ? ` – ${anlegg.kontroll_maaned.toLowerCase()}` : ''}
+      {erIkkeKontrakt(anlegg.kontroll_maaned) && status !== ANLEGG_STATUSER.UTFORT ? IKKE_KONTRAKT_TEKST : `${status}${anlegg.kontroll_maaned && status !== ANLEGG_STATUSER.UTFORT ? ` – ${anlegg.kontroll_maaned.toLowerCase()}` : ''}`}
       <span className="sr-only">Endre kontrollstatus</span>
       <select value={status} onChange={e => endre(e.target.value)} disabled={lagrer}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer">

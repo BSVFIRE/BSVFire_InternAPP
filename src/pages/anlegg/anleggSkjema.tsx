@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom'
 import { Building2, Check, X } from 'lucide-react'
 import { db } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
-import { KONTROLLTYPER, MAANEDER } from '@/lib/constants'
+import { IKKE_KONTRAKT, IKKE_KONTRAKT_TEKST, KONTROLLTYPER, MAANEDER } from '@/lib/constants'
 import { Combobox } from '@/components/ui/Combobox'
 import { GoogleMapsAddressAutocomplete } from '@/components/GoogleMapsAddressAutocomplete'
 
@@ -220,6 +220,7 @@ export function KontrollFelter({ verdier, ansatte, onChange, visStatusHint }: { 
           <select id="anlegg-maaned" value={verdier.kontroll_maaned} onChange={e => onChange({ kontroll_maaned: e.target.value })} className="input">
             <option value="">Velg…</option>
             {MAANEDER.map(m => <option key={m} value={m}>{m}</option>)}
+            <option value={IKKE_KONTRAKT}>{IKKE_KONTRAKT_TEKST}</option>
           </select>
         </Felt>
         <Felt id="anlegg-tekniker" label="Ansvarlig tekniker">

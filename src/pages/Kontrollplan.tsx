@@ -11,7 +11,7 @@ import { db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn, isoUke, isoUkeAar, ukeDatoer } from '@/lib/utils'
 import { createLogger } from '@/lib/logger'
-import { ANLEGG_STATUSER, KONTROLLTYPER, MAANEDER } from '@/lib/constants'
+import { ANLEGG_STATUSER, IKKE_KONTRAKT_TEKST, KONTROLLTYPER, MAANEDER, erIkkeKontrakt } from '@/lib/constants'
 import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
 import { Button } from '@/components/ui/Button'
 import { UkesplanEditor } from '@/components/Ukesplan'
@@ -22,19 +22,21 @@ type Anlegg = Pick<Tables<'anlegg'>, 'id' | 'kundenr' | 'anleggsnavn' | 'adresse
 type Ansatt = Pick<Tables<'ansatte'>, 'id' | 'navn'>
 interface Ukesplan { id: string; uke_nummer: number; aar: number; navn: string | null; status: string | null; kunde_id: string; kunde: string; antallAnlegg: number; teknikere: string[] }
 
-type StatusKey = 'ikke_utfort' | 'utsatt' | 'planlagt' | 'utfort' | 'oppsagt'
+type StatusKey = 'ikke_utfort' | 'utsatt' | 'planlagt' | 'utfort' | 'oppsagt' | 'ikke_kontrakt'
 type Gruppering = 'status' | 'kunde' | 'tekniker'
 
 const STATUS: Record<StatusKey, { tittel: string; verdi: string; ikon: React.ReactNode; pill: string; tone: string }> = {
   ikke_utfort: { tittel: 'Ikke utført', verdi: ANLEGG_STATUSER.IKKE_UTFORT, ikon: <X className="w-4 h-4" strokeWidth={3} />, pill: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-900', tone: 'bg-red-500' },
   utsatt: { tittel: 'Utsatt', verdi: ANLEGG_STATUSER.UTSATT, ikon: <Clock className="w-4 h-4" />, pill: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200 dark:border-yellow-900', tone: 'bg-yellow-500' },
   planlagt: { tittel: 'Planlagt', verdi: ANLEGG_STATUSER.PLANLAGT, ikon: <CalendarDays className="w-4 h-4" />, pill: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-900', tone: 'bg-blue-500' },
+  ikke_kontrakt: { tittel: IKKE_KONTRAKT_TEKST, verdi: ANLEGG_STATUSER.IKKE_UTFORT, ikon: <Ban className="w-4 h-4" />, pill: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-900', tone: 'bg-blue-400' },
   utfort: { tittel: 'Utført', verdi: ANLEGG_STATUSER.UTFORT, ikon: <Check className="w-4 h-4" strokeWidth={3} />, pill: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-900', tone: 'bg-green-500' },
   oppsagt: { tittel: 'Oppsagt', verdi: ANLEGG_STATUSER.OPPSAGT, ikon: <Ban className="w-4 h-4" />, pill: 'bg-gray-100 text-gray-700 dark:bg-dark-100 dark:text-gray-400 border-gray-200 dark:border-gray-800', tone: 'bg-gray-400' },
 }
-const STATUS_REKKEFOLGE: StatusKey[] = ['ikke_utfort', 'utsatt', 'planlagt', 'utfort', 'oppsagt']
+const STATUS_REKKEFOLGE: StatusKey[] = ['ikke_utfort', 'utsatt', 'planlagt', 'utfort', 'ikke_kontrakt', 'oppsagt']
 
-function statusKey(s: string | null): StatusKey {
+function statusKey(s: string | null, kontrollMaaned?: string | null): StatusKey {
+  if (erIkkeKontrakt(kontrollMaaned) && s !== ANLEGG_STATUSER.UTFORT) return 'ikke_kontrakt'
   switch (s) {
     case ANLEGG_STATUSER.UTFORT: return 'utfort'
     case ANLEGG_STATUSER.PLANLAGT: return 'planlagt'
@@ -135,14 +137,14 @@ export function Kontrollplan() {
   useEffect(() => { setValgte(new Set()) }, [mnd, chip, type, tek, q, gruppering])
 
   const perMaaned = useMemo(() => MAANEDER.map(m => {
-    const liste = anlegg.filter(a => a.kontroll_maaned === m && statusKey(a.kontroll_status) !== 'oppsagt')
-    return { m, total: liste.length, utfort: liste.filter(a => statusKey(a.kontroll_status) === 'utfort').length }
+    const liste = anlegg.filter(a => a.kontroll_maaned === m && statusKey(a.kontroll_status, a.kontroll_maaned) !== 'oppsagt')
+    return { m, total: liste.length, utfort: liste.filter(a => statusKey(a.kontroll_status, a.kontroll_maaned) === 'utfort').length }
   }), [anlegg])
 
   const iMnd = useMemo(() => anlegg.filter(a => a.kontroll_maaned === mnd), [anlegg, mnd])
   const teller = useMemo(() => {
-    const t: Record<StatusKey, number> = { ikke_utfort: 0, utsatt: 0, planlagt: 0, utfort: 0, oppsagt: 0 }
-    for (const a of iMnd) t[statusKey(a.kontroll_status)]++
+    const t: Record<StatusKey, number> = { ikke_utfort: 0, utsatt: 0, planlagt: 0, utfort: 0, oppsagt: 0, ikke_kontrakt: 0 }
+    for (const a of iMnd) t[statusKey(a.kontroll_status, a.kontroll_maaned)]++
     return t
   }, [iMnd])
   const aktive = iMnd.length - teller.oppsagt
@@ -150,7 +152,7 @@ export function Kontrollplan() {
   const filtrert = useMemo(() => {
     const s = q.trim().toLowerCase()
     return iMnd.filter(a => {
-      if (chip !== 'alle' && statusKey(a.kontroll_status) !== chip) return false
+      if (chip !== 'alle' && statusKey(a.kontroll_status, a.kontroll_maaned) !== chip) return false
       if (type && !a.kontroll_type?.includes(type)) return false
       if (tek === 'ingen' ? a.ansvarlig_tekniker_id : tek && a.ansvarlig_tekniker_id !== tek) return false
       if (!s) return true
