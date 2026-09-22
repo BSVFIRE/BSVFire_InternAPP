@@ -11,10 +11,14 @@ const log = createLogger('PowerSync')
 
 export const powersyncAktiv = !!POWERSYNC_URL
 
-export const powersync = new PowerSyncDatabase({
-  schema: AppSchema,
-  database: { dbFilename: 'firectrl.sqlite' },
-})
+// Databasen opprettes først når PowerSync faktisk er i bruk – ellers laster ikke nettleseren
+// SQLite-filene (WebAssembly) og det opprettes ingen lokal lagring.
+let instans: PowerSyncDatabase | null = null
+
+export function hentPowerSync(): PowerSyncDatabase {
+  if (!instans) instans = new PowerSyncDatabase({ schema: AppSchema, database: { dbFilename: 'firectrl.sqlite' } })
+  return instans
+}
 
 let koblet = false
 
@@ -22,8 +26,9 @@ export async function startPowerSync() {
   if (!powersyncAktiv || koblet) return
   koblet = true
   try {
-    await powersync.init()
-    await powersync.connect(new SupabaseConnector())
+    const db = hentPowerSync()
+    await db.init()
+    await db.connect(new SupabaseConnector())
     log.info('PowerSync koblet til')
   } catch (e) {
     koblet = false
@@ -33,10 +38,10 @@ export async function startPowerSync() {
 
 /** Ved utlogging: koble fra og tøm den lokale databasen (neste bruker skal ikke arve data) */
 export async function stoppPowerSync() {
-  if (!powersyncAktiv || !koblet) return
+  if (!powersyncAktiv || !koblet || !instans) return
   koblet = false
   try {
-    await powersync.disconnectAndClear()
+    await instans.disconnectAndClear()
   } catch (e) {
     log.error('Kunne ikke koble fra PowerSync', { error: e })
   }

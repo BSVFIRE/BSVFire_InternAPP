@@ -17,7 +17,13 @@ import { DropboxCallback } from './pages/DropboxCallback'
 import { ResetPassword } from './pages/ResetPassword'
 import { MsCallback } from './pages/MsCallback'
 import { PowerSyncContext } from '@powersync/react'
-import { powersync } from '@/lib/powersync/db'
+
+/** Uten VITE_POWERSYNC_URL opprettes ingen lokal database – appen kjører som før, rett mot Supabase. */
+function PowerSyncProvider({ children }: { children: React.ReactNode }) {
+  if (!powersyncAktiv) return <>{children}</>
+  return <PowerSyncContext.Provider value={hentPowerSync()}>{children}</PowerSyncContext.Provider>
+}
+import { hentPowerSync, powersyncAktiv } from '@/lib/powersync/db'
 
 // Lazy-loaded sider (lastes når de trengs)
 const Kunder = lazy(() => import('./pages/kunder/KundeListe'))
@@ -118,7 +124,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <PowerSyncContext.Provider value={powersync}>
+      <PowerSyncProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -202,7 +208,7 @@ function App() {
           toastOptions={{ classNames: { toast: 'font-sans' } }}
         />
       </BrowserRouter>
-      </PowerSyncContext.Provider>
+      </PowerSyncProvider>
     </ErrorBoundary>
   )
 }
