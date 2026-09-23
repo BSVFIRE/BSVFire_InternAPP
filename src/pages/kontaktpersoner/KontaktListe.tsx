@@ -2,9 +2,10 @@
  * Kontaktpersoner (/kontaktpersoner) – samme oppsett som kunde- og anleggslisten.
  * Chips som teller og filtrerer, søk i URL, klikkbare rader, 25 om gangen.
  */
+import { useUendeligListe } from '@/hooks/useUendeligListe'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, Edit, Mail, Merge, MoreHorizontal, Phone, Plus, Search, Star, Trash2, X } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, Edit, Loader2, Mail, Merge, MoreHorizontal, Phone, Plus, Search, Star, Trash2, X } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { createLogger } from '@/lib/logger'
@@ -35,7 +36,6 @@ export default function KontaktListe() {
   const [rader, setRader] = useState<Rad[]>([])
   const [loading, setLoading] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
-  const [visAntall, setVisAntall] = useState(SIDE)
   const [visNy, setVisNy] = useState(false)
   const [slaSammen, setSlaSammen] = useState<Rad[] | null>(null)
   const sokRef = useRef<HTMLInputElement>(null)
@@ -46,7 +46,7 @@ export default function KontaktListe() {
   const dir = params.get('dir') === 'desc' ? 'desc' : 'asc'
   const setParam = useCallback((key: string, value: string | null) => {
     const p = new URLSearchParams(params); if (value) p.set(key, value); else p.delete(key)
-    setParams(p, { replace: true }); setVisAntall(SIDE)
+    setParams(p, { replace: true })
   }, [params, setParams])
 
   // Gamle innganger: ?view=, ?search=, state.selectedKontaktId
@@ -129,7 +129,7 @@ export default function KontaktListe() {
     })
   }, [rader, q, chip, sort, dir])
 
-  const synlig = filtrert.slice(0, visAntall)
+  const { synlig, merRef, harMer, visAntall, visFlere } = useUendeligListe(filtrert, SIDE)
   const harFilter = Boolean(q || chip !== 'alle')
 
   function sorterPa(key: SortKey) {
@@ -232,7 +232,13 @@ export default function KontaktListe() {
             ))}
           </div>
 
-          {filtrert.length > visAntall && <button type="button" onClick={() => setVisAntall(n => n + SIDE)} className="block mx-auto text-sm text-gray-500 dark:text-gray-400 hover:text-primary py-2">Vis {Math.min(SIDE, filtrert.length - visAntall)} til ({visAntall} av {filtrert.length} vist)</button>}
+          {harMer && (
+            <div ref={merRef} className="py-3 text-center">
+              <button type="button" onClick={visFlere} className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary inline-flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />Laster flere … ({visAntall} av {filtrert.length})
+              </button>
+            </div>
+          )}
         </>
       )}
 

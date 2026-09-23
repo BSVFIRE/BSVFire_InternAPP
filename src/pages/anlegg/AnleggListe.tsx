@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  AlertCircle, AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Calendar, Edit,
+  AlertCircle, AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Calendar, Edit, Loader2,
   MoreHorizontal, PauseCircle, Plus, Search, Trash2, Upload, X,
 } from 'lucide-react'
 import { AnleggStatusDialog } from './AnleggStatusDialog'
@@ -203,6 +203,16 @@ export default function AnleggListe() {
   }, [grunnlag, q, chip, mnd, type, mine, ansatt?.id, sort, dir, denneMnd])
 
   const synlig = filtrert.slice(0, visAntall)
+
+  // Laster flere rader automatisk når bunnen av listen kommer til syne
+  const merRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = merRef.current
+    if (!el || filtrert.length <= visAntall) return
+    const obs = new IntersectionObserver(([x]) => { if (x.isIntersecting) setVisAntall(n => n + SIDE) }, { rootMargin: '400px' })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [filtrert.length, visAntall])
   const harFilter = Boolean(q || chip !== 'alle' || mnd || type || mine || skjulte)
   const antallKunder = useMemo(() => new Set(rader.map(a => a.kundenr).filter(Boolean)).size, [rader])
 
@@ -350,9 +360,15 @@ export default function AnleggListe() {
           </div>
 
           {filtrert.length > visAntall && (
-            <button type="button" onClick={() => setVisAntall(n => n + SIDE)} className="block mx-auto text-sm text-gray-500 dark:text-gray-400 hover:text-primary py-2">
-              Vis {Math.min(SIDE, filtrert.length - visAntall)} til ({visAntall} av {filtrert.length} vist)
-            </button>
+            <div ref={merRef} className="py-3 text-center">
+              <button type="button" onClick={() => setVisAntall(n => n + SIDE)} className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary inline-flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Laster flere … ({visAntall} av {filtrert.length})
+              </button>
+            </div>
+          )}
+          {filtrert.length > SIDE && filtrert.length <= visAntall && (
+            <p className="py-3 text-center text-sm text-gray-400 dark:text-gray-500">Alle {filtrert.length} anlegg vist</p>
           )}
         </>
       )}

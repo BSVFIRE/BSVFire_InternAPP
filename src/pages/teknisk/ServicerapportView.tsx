@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { ArrowDown, ArrowLeft, ArrowUp, Building2, Edit, Eye, FileText, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'
+import { useUendeligListe } from '@/hooks/useUendeligListe'
+import { ArrowDown, ArrowLeft, ArrowUp, Building2, Edit, Eye, FileText, Loader2, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { cn, formatDate } from '@/lib/utils'
 import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
@@ -46,7 +47,6 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
   const { ansatt: meg } = useCurrentAnsatt()
   const [chip, setChip] = useState<'alle' | 'mine' | 'mnd' | 'aar'>('alle')
   const [anleggFilter, setAnleggFilter] = useState(initialAnleggId && !initialOrdreId ? initialAnleggId : '')
-  const [visAntall, setVisAntall] = useState(SIDE)
 
   function toggleSort(field: SortField) {
     if (sortField === field) setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
@@ -210,27 +210,6 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
     }
   }
 
-  if (isEditing && selectedRapport) {
-    return (
-      <ServicerapportEditor
-        rapport={selectedRapport}
-        onSave={handleSaveRapport}
-        onCancel={() => {
-          setIsEditing(false)
-          setSelectedRapport(null)
-        }}
-      />
-    )
-  }
-
-  if (showPreview && selectedRapport) {
-    return (
-      <ServicerapportPreview
-        rapport={selectedRapport}
-        onBack={() => setShowPreview(false)}
-      />
-    )
-  }
 
   const s = searchQuery.trim().toLowerCase()
   const iAar = (r: Servicerapport, aar: number) => new Date(r.rapport_dato).getFullYear() === aar
@@ -257,7 +236,31 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
     else c = (a.tekniker_navn || '').localeCompare(b.tekniker_navn || '', 'nb-NO')
     return sortDirection === 'asc' ? c : -c
   })
-  const synlig = sortert.slice(0, visAntall)
+  const { synlig, merRef, harMer, visAntall, visFlere } = useUendeligListe(sortert, SIDE)
+
+  // Egne visninger – må stå etter alle hooks
+  if (isEditing && selectedRapport) {
+    return (
+      <ServicerapportEditor
+        rapport={selectedRapport}
+        onSave={handleSaveRapport}
+        onCancel={() => {
+          setIsEditing(false)
+          setSelectedRapport(null)
+        }}
+      />
+    )
+  }
+
+  if (showPreview && selectedRapport) {
+    return (
+      <ServicerapportPreview
+        rapport={selectedRapport}
+        onBack={() => setShowPreview(false)}
+      />
+    )
+  }
+
   const anleggNavnFilter = anleggFilter ? rapporter.find(r => r.anlegg_id === anleggFilter)?.anlegg_navn : null
   const harFilter = Boolean(s || chip !== 'alle' || anleggFilter)
   // Grupper på måned når vi sorterer på dato
@@ -284,7 +287,7 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="search" value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setVisAntall(SIDE) }} placeholder="Søk i tittel, anlegg, kunde, tekniker eller innhold…" aria-label="Søk" className="input pl-9 !min-h-[38px] !h-[38px]" />
+          <input type="search" value={searchQuery} onChange={e => { setSearchQuery(e.target.value) }} placeholder="Søk i tittel, anlegg, kunde, tekniker eller innhold…" aria-label="Søk" className="input pl-9 !min-h-[38px] !h-[38px]" />
         </div>
         <div className="inline-flex rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden h-[38px]" role="group" aria-label="Sorter">
           {([['dato', 'Dato'], ['anlegg', 'Anlegg'], ['tekniker', 'Tekniker'], ['tittel', 'Tittel']] as [SortField, string][]).map(([f, navn]) => (
@@ -334,7 +337,13 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
           ))}
         </section>
       ))}
-      {sortert.length > visAntall && <button type="button" onClick={() => setVisAntall(n => n + SIDE)} className="block mx-auto text-sm text-gray-500 dark:text-gray-400 hover:text-primary py-2">Vis {Math.min(SIDE, sortert.length - visAntall)} til ({visAntall} av {sortert.length} vist)</button>}
+      {harMer && (
+        <div ref={merRef} className="py-3 text-center">
+          <button type="button" onClick={visFlere} className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary inline-flex items-center gap-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />Laster flere … ({visAntall} av {sortert.length})
+          </button>
+        </div>
+      )}
     </div>
   )
 }
