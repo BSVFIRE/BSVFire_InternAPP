@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { Combobox } from '@/components/ui/Combobox'
 import { SentralListe } from './roykluker/SentralListe'
+import { SentralKontroll } from './roykluker/SentralKontroll'
 import { DataView } from './roykluker/DataView'
 
 interface Kunde { id: string; navn: string }
@@ -33,6 +34,8 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
   const [selectedAnlegg, setSelectedAnlegg] = useState(state?.anleggId || '')
   /** Satt når en enkelt sentral er åpnet i kontrollskjemaet */
   const [sentralId, setSentralId] = useState<string | null>(null)
+  /** Gammel rapportside – beholdes til den nye PDF-en er ferdig */
+  const [visRapport, setVisRapport] = useState(false)
 
   useEffect(() => { loadKunder() }, [])
 
@@ -66,12 +69,23 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
   // Kontrollskjema for én sentral
   if (selectedAnlegg && sentralId) {
     return (
+      <SentralKontroll
+        sentralId={sentralId}
+        kundeNavn={kundeNavn}
+        anleggNavn={anleggNavn}
+        onTilbake={() => setSentralId(null)}
+      />
+    )
+  }
+
+  // Rapportvisningen (PDF) ligger fortsatt i DataView til den nye rapporten er klar
+  if (selectedAnlegg && visRapport) {
+    return (
       <DataView
         anleggId={selectedAnlegg}
         kundeNavn={kundeNavn}
         anleggNavn={anleggNavn}
-        valgtSentralId={sentralId}
-        onTilbake={() => setSentralId(null)}
+        onTilbake={() => setVisRapport(false)}
       />
     )
   }
@@ -136,6 +150,7 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
           kundeNavn={kundeNavn}
           anleggNavn={anleggNavn}
           onApneSentral={setSentralId}
+          onApneRapport={() => setVisRapport(true)}
         />
       )}
     </div>

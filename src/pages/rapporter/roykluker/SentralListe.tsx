@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle, Check, ChevronDown, ChevronRight, Loader2, MessageSquare, MoreHorizontal,
-  Plus, Search, Settings2, Trash2, Wind, X,
+  FileText, Plus, Search, Settings2, Trash2, Wind, X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -24,11 +24,12 @@ import {
 
 type Chip = 'alle' | 'gjenstar' | 'kontrollert' | 'avvik'
 
-export function SentralListe({ anleggId, kundeNavn, anleggNavn, onApneSentral }: {
+export function SentralListe({ anleggId, kundeNavn, anleggNavn, onApneSentral, onApneRapport }: {
   anleggId: string
   kundeNavn: string
   anleggNavn: string
   onApneSentral: (sentralId: string) => void
+  onApneRapport: () => void
 }) {
   const { user } = useAuthStore()
   const [params, setParams] = useSearchParams()
@@ -231,6 +232,7 @@ export function SentralListe({ anleggId, kundeNavn, anleggNavn, onApneSentral }:
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input type="search" value={sok} onChange={e => setParam('q', e.target.value || null)} placeholder="Søk nr., plassering…" className="input pl-9 w-full !h-[38px]" />
         </div>
+        <Button icon={<FileText />} className="!h-[38px]" onClick={onApneRapport}>Rapport</Button>
         <Button variant="primary" icon={<Plus />} className="!h-[38px] w-full sm:w-auto" onClick={() => setNyType(true)}>Ny sentral</Button>
       </div>
 
