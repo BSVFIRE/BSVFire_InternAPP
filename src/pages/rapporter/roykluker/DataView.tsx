@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Save, Battery, Info, Server, CheckCircle, HelpCircle, Wifi, WifiOff, Clock, Eye, X } from 'lucide-react'
+import { ArrowLeft, Save, Battery, Info, Server, CheckCircle, HelpCircle, Wifi, WifiOff, Clock, Eye, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -87,6 +87,10 @@ interface DataViewProps {
   anleggId: string
   kundeNavn: string
   anleggNavn: string
+  /** Åpne skjemaet rett på én sentral (fra oversikten) */
+  valgtSentralId?: string
+  /** Tilbake til sentraloversikten */
+  onTilbake?: () => void
 }
 
 const statusOptions = ['Ok', 'Avvik']
@@ -101,7 +105,7 @@ const klassifiseringOptions = [
   'EI 60'
 ]
 
-export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
+export function DataView({ anleggId, kundeNavn, anleggNavn, valgtSentralId, onTilbake }: DataViewProps) {
   const navigate = useNavigate()
   const { user: _user } = useAuthStore()
   const [sentraler, setSentraler] = useState<RoyklukeSentral[]>([])
@@ -211,7 +215,9 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       setSentraler(sentralData || [])
       
       if (sentralData && sentralData.length > 0) {
-        setSelectedSentral(sentralData[0].id)
+        // Kom vi fra oversikten, åpne den sentralen teknikeren valgte
+        const onsket = valgtSentralId && sentralData.some(x => x.id === valgtSentralId) ? valgtSentralId : sentralData[0].id
+        setSelectedSentral(onsket)
       }
     } catch (error) {
       console.error('Feil ved lasting av sentraler:', error)
@@ -1351,8 +1357,13 @@ export function DataView({ anleggId, kundeNavn, anleggNavn }: DataViewProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Sentraldata</h2>
-          <p className="text-gray-600 dark:text-gray-400">{kundeNavn} - {anleggNavn}</p>
+          {onTilbake && (
+            <button type="button" onClick={onTilbake} className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-1">
+              <ArrowLeft className="w-4 h-4" />Alle sentraler
+            </button>
+          )}
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Kontroll av sentral</h2>
+          <p className="text-gray-600 dark:text-gray-400">{kundeNavn} · {anleggNavn}</p>
           
           {/* Status indikatorer */}
           <div className="flex items-center gap-4 mt-2">

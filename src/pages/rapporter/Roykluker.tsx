@@ -1,25 +1,21 @@
+/**
+ * Røykluker (/rapporter → Røykluker).
+ *
+ * Én side per anlegg: oversikt over sentralene med lukene sine, fremdrift og kommentarer.
+ * Klikk «Kontroll» på en sentral for å åpne kontrollskjemaet (DataView) med alle målinger,
+ * sjekkpunkter og PDF-rapport.
+ */
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Wind, Building2, Server, Battery, MessageSquare } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { SentralerView } from './roykluker/SentralerView'
-import { DataView } from './roykluker/DataView'
-import { KommentarView } from './roykluker/KommentarView'
+import { ArrowLeft, Wind } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { toast } from '@/lib/toast'
 import { Combobox } from '@/components/ui/Combobox'
+import { SentralListe } from './roykluker/SentralListe'
+import { DataView } from './roykluker/DataView'
 
-interface Kunde {
-  id: string
-  navn: string
-}
-
-interface Anlegg {
-  id: string
-  anleggsnavn: string
-  kundenr: string
-  adresse?: string | null
-  postnummer?: string | null
-  poststed?: string | null
-}
+interface Kunde { id: string; navn: string }
+interface Anlegg { id: string; anleggsnavn: string; kundenr: string; adresse?: string | null; postnummer?: string | null; poststed?: string | null }
 
 interface RoyklukerProps {
   onBack: () => void
@@ -30,293 +26,118 @@ export function Roykluker({ onBack, fromAnlegg }: RoyklukerProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const state = location.state as { kundeId?: string; anleggId?: string } | null
-  
+
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [anlegg, setAnlegg] = useState<Anlegg[]>([])
   const [selectedKunde, setSelectedKunde] = useState(state?.kundeId || '')
   const [selectedAnlegg, setSelectedAnlegg] = useState(state?.anleggId || '')
-  const [activeView, setActiveView] = useState<'select' | 'sentraler' | 'data' | 'kommentar'>('select')
+  /** Satt når en enkelt sentral er åpnet i kontrollskjemaet */
+  const [sentralId, setSentralId] = useState<string | null>(null)
+
+  useEffect(() => { loadKunder() }, [])
 
   useEffect(() => {
-    loadKunder()
-  }, [])
-
-  useEffect(() => {
-    if (selectedKunde) {
-      loadAnlegg(selectedKunde)
-    } else {
-      setAnlegg([])
-      setSelectedAnlegg('')
-    }
+    if (selectedKunde) loadAnlegg(selectedKunde)
+    else { setAnlegg([]); setSelectedAnlegg('') }
   }, [selectedKunde])
 
   async function loadKunder() {
-    try {
-      const { data, error } = await supabase
-        .from('customer')
-        .select('id, navn').or('skjult.is.null,skjult.eq.false')
-        .order('navn')
-
-      if (error) throw error
-      setKunder(data || [])
-    } catch (error) {
-      console.error('Feil ved lasting av kunder:', error)
-    }
+    const { data, error } = await supabase.from('customer').select('id, navn').or('skjult.is.null,skjult.eq.false').order('navn')
+    if (error) { toast.error('Kunne ikke laste kunder', error); return }
+    setKunder((data ?? []) as Kunde[])
   }
 
   async function loadAnlegg(kundeId: string) {
-    try {
-      const { data, error } = await supabase
-        .from('anlegg')
-        .select('id, anleggsnavn, kundenr, adresse, postnummer, poststed').or('skjult.is.null,skjult.eq.false')
-        .eq('kundenr', kundeId)
-        .order('anleggsnavn')
-
-      if (error) throw error
-      setAnlegg(data || [])
-    } catch (error) {
-      console.error('Feil ved lasting av anlegg:', error)
-    }
+    const { data, error } = await supabase.from('anlegg')
+      .select('id, anleggsnavn, kundenr, adresse, postnummer, poststed')
+      .eq('kundenr', kundeId).or('skjult.is.null,skjult.eq.false').order('anleggsnavn')
+    if (error) { toast.error('Kunne ikke laste anlegg', error); return }
+    setAnlegg((data ?? []) as Anlegg[])
   }
 
-  const selectedKundeNavn = kunder.find(k => k.id === selectedKunde)?.navn || ''
-  const selectedAnleggNavn = anlegg.find(a => a.id === selectedAnlegg)?.anleggsnavn || ''
+  const kundeNavn = kunder.find(k => k.id === selectedKunde)?.navn ?? ''
+  const anleggNavn = anlegg.find(a => a.id === selectedAnlegg)?.anleggsnavn ?? ''
 
-  // Hvis vi er i en av view-modusene
-  if (activeView === 'sentraler' && selectedAnlegg) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setActiveView('select')}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Røykluker</h1>
-            <p className="text-gray-600 dark:text-gray-400">Sentraler og Luker</p>
-          </div>
-        </div>
-        <SentralerView
-          anleggId={selectedAnlegg}
-          kundeNavn={selectedKundeNavn}
-          anleggNavn={selectedAnleggNavn}
-        />
-      </div>
-    )
+  function tilbake() {
+    if (fromAnlegg && state?.anleggId) navigate('/anlegg', { state: { viewAnleggId: state.anleggId } })
+    else onBack()
   }
 
-  if (activeView === 'data' && selectedAnlegg) {
+  // Kontrollskjema for én sentral
+  if (selectedAnlegg && sentralId) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setActiveView('select')}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Røykluker</h1>
-            <p className="text-gray-600 dark:text-gray-400">Sentraldata</p>
-          </div>
-        </div>
-        <DataView
-          anleggId={selectedAnlegg}
-          kundeNavn={selectedKundeNavn}
-          anleggNavn={selectedAnleggNavn}
-        />
-      </div>
-    )
-  }
-
-  if (activeView === 'kommentar' && selectedAnlegg) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setActiveView('select')}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Røykluker</h1>
-            <p className="text-gray-600 dark:text-gray-400">Kommentarer</p>
-          </div>
-        </div>
-        <KommentarView
-          anleggId={selectedAnlegg}
-          kundeNavn={selectedKundeNavn}
-          anleggNavn={selectedAnleggNavn}
-        />
-      </div>
+      <DataView
+        anleggId={selectedAnlegg}
+        kundeNavn={kundeNavn}
+        anleggNavn={anleggNavn}
+        valgtSentralId={sentralId}
+        onTilbake={() => setSentralId(null)}
+      />
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => {
-              if (fromAnlegg && state?.anleggId) {
-                // Naviger tilbake til anleggsvisningen
-                navigate('/anlegg', { state: { viewAnleggId: state.anleggId } })
-              } else {
-                // Naviger til rapporter-oversikten
-                onBack()
-              }
-            }}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Røykluker</h1>
-            <p className="text-gray-600 dark:text-gray-400">Kontroll av røykluker</p>
-          </div>
-        </div>
+    <div className="space-y-5">
+      {/* Brødsmule */}
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={tilbake} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0">
+          <ArrowLeft className="w-4 h-4" />{fromAnlegg ? 'Anlegget' : 'Rapporter'}
+        </button>
       </div>
 
-      {/* Kunde og Anlegg Velger */}
-      <div className="card">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Kunde */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Velg kunde <span className="text-red-500">*</span>
-            </label>
+      <header>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white inline-flex items-center gap-2.5">
+          <Wind className="w-6 h-6 text-primary" />Røykluker
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          {selectedAnlegg
+            ? <>{kundeNavn} · <b className="font-semibold text-gray-700 dark:text-gray-300">{anleggNavn}</b> · <button type="button" onClick={() => { setSelectedAnlegg(''); setSentralId(null) }} className="hover:text-primary underline-offset-2 hover:underline">bytt anlegg</button></>
+            : 'Sentraler, luker og branngardiner – velg anlegg for å starte'}
+        </p>
+      </header>
+
+      {/* Velger */}
+      {!selectedAnlegg && (
+        <div className="card space-y-4 max-w-2xl">
+          <div className="space-y-1.5">
+            <span className="block text-sm font-medium text-gray-900 dark:text-white">Kunde</span>
             <Combobox
               options={kunder.map(k => ({ id: k.id, label: k.navn }))}
               value={selectedKunde}
-              onChange={(value) => {
-                setSelectedKunde(value)
-                setSelectedAnlegg('')
-              }}
-              placeholder="Søk etter kunde..."
+              onChange={v => { setSelectedKunde(v); setSelectedAnlegg('') }}
+              placeholder="Velg kunde…"
+              searchPlaceholder="Søk kunde…"
               emptyMessage="Ingen kunder funnet"
             />
           </div>
-
-          {/* Anlegg */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Velg anlegg <span className="text-red-500">*</span>
-            </label>
+          <div className="space-y-1.5">
+            <span className="block text-sm font-medium text-gray-900 dark:text-white">Anlegg</span>
             {!selectedKunde ? (
-              <div className="input bg-gray-100 dark:bg-dark-100 text-gray-500 cursor-not-allowed flex items-center">
-                Velg kunde først
-              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Velg kunde først.</p>
             ) : anlegg.length === 0 ? (
-              <div className="input bg-gray-100 dark:bg-dark-100 text-gray-500 flex items-center">
-                Ingen anlegg funnet for denne kunden
-              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Ingen anlegg på denne kunden.</p>
             ) : (
               <Combobox
-                options={anlegg.map(a => ({ 
-                  id: a.id, 
-                  label: a.anleggsnavn,
-                  sublabel: a.adresse ? `${a.adresse}${a.poststed ? `, ${a.poststed}` : ''}` : undefined
-                }))}
+                options={anlegg.map(a => ({ id: a.id, label: a.anleggsnavn, sublabel: [a.adresse, a.poststed].filter(Boolean).join(', ') || undefined }))}
                 value={selectedAnlegg}
                 onChange={setSelectedAnlegg}
-                placeholder="Søk etter anlegg..."
+                placeholder="Velg anlegg…"
+                searchPlaceholder="Søk anlegg…"
                 emptyMessage="Ingen anlegg funnet"
               />
             )}
           </div>
         </div>
-      </div>
-
-      {/* Valgt anlegg info og modulvalg */}
-      {selectedAnlegg && (
-        <>
-          <div className="card bg-primary/5 border-primary/20">
-            <div className="flex items-center gap-3">
-              <Building2 className="w-5 h-5 text-primary" />
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Valgt anlegg</p>
-                <p className="text-gray-900 dark:text-white font-medium">{selectedKundeNavn} - {selectedAnleggNavn}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Modulvalg */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Sentraler og Luker */}
-            <button
-              onClick={() => setActiveView('sentraler')}
-              className="card text-left hover:border-primary hover:shadow-lg hover:shadow-primary/20 transition-all cursor-pointer"
-            >
-              <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center mb-4">
-                <Server className="w-6 h-6 text-blue-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Sentraler og Luker</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Administrer røyklukesentraler og tilhørende luker
-              </p>
-            </button>
-
-            {/* Sentraldata */}
-            <button
-              onClick={() => setActiveView('data')}
-              className="card text-left hover:border-primary hover:shadow-lg hover:shadow-primary/20 transition-all cursor-pointer"
-            >
-              <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center mb-4">
-                <Battery className="w-6 h-6 text-green-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Sentraldata</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Registrer batteriinformasjon og tekniske data per sentral
-              </p>
-            </button>
-
-            {/* Kommentarer */}
-            <button
-              onClick={() => setActiveView('kommentar')}
-              className="card text-left hover:border-primary hover:shadow-lg hover:shadow-primary/20 transition-all cursor-pointer"
-            >
-              <div className="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center mb-4">
-                <MessageSquare className="w-6 h-6 text-purple-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Kommentarer</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Legg til og vis kommentarer om røyklukesystemet
-              </p>
-            </button>
-          </div>
-        </>
       )}
 
-      {/* Info Section */}
-      <div className="card bg-primary/5 border-primary/20">
-        <div className="flex items-start gap-3">
-          <Wind className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Om røykluker</h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">
-              Røykluker-modulen lar deg registrere og administrere kontroller for røykluker.
-            </p>
-            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
-                Velg kunde og anlegg for å starte
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
-                Registrer røykluker og utfør kontroller
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
-                Eksporter rapporter til PDF
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      {selectedAnlegg && (
+        <SentralListe
+          anleggId={selectedAnlegg}
+          kundeNavn={kundeNavn}
+          anleggNavn={anleggNavn}
+          onApneSentral={setSentralId}
+        />
+      )}
     </div>
   )
 }
