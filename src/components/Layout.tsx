@@ -90,8 +90,14 @@ const NAV_GRUPPER: NavGruppe[] = [
 ]
 
 const LUKKET_KEY = 'nav_lukkede_grupper'
+// Menyen starter samlet: Kunder & anlegg ligger åpen (det er inngangen til alt),
+// resten foldes ut ved behov. Gruppen med den siden du står på åpnes uansett.
+const LUKKET_FRA_START = ['arbeid', 'rapporter', 'admin']
 function lesLukkede(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(LUKKET_KEY) ?? '["admin"]')) } catch { return new Set(['admin']) }
+  try {
+    const lagret = localStorage.getItem(LUKKET_KEY)
+    return new Set(lagret ? JSON.parse(lagret) : LUKKET_FRA_START)
+  } catch { return new Set(LUKKET_FRA_START) }
 }
 
 // BSV company_id - kun dette firmaet skal se admin-tjenestene
