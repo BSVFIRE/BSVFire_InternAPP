@@ -14,6 +14,24 @@ const isDev = import.meta.env.DEV
 const isTest = import.meta.env.MODE === 'test'
 
 /**
+ * Systemloggen er til for å se hva som skjer hos brukerne. Feil fra en utviklermaskin
+ * (localhost, eller en app som kjøres fra en IP i lokalnettet) havnet tidligere i samme logg
+ * og fikk analysen til å peke på bugs som var rettet for lengst. De vises i konsollen uansett.
+ */
+function erUtviklingsmaskin(): boolean {
+  const v = window.location.hostname
+  return v === 'localhost' || v === '127.0.0.1' || v.endsWith('.local') || /^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\./.test(v)
+}
+
+/**
+ * Nettverksfeil sier at enheten var uten dekning, ikke at appen er ødelagt. De fyller loggen
+ * uten å peke på noe som kan rettes, så de lagres ikke.
+ */
+function erNettverksstoy(melding: string): boolean {
+  return /NetworkError when attempting to fetch|TypeError: (Load failed|Failed to fetch)|"(Load failed|Failed to fetch)"|AuthRetryableFetchError/.test(melding)
+}
+
+/**
  * Serialize a value for logging, handling Error objects specially
  */
 function serializeForLog(value: any, depth = 0): any {
@@ -78,6 +96,8 @@ async function saveLogToDatabase(
   try {
     // Don't save logs in test mode
     if (isTest) return
+    if (erUtviklingsmaskin()) return
+    if (erNettverksstoy(message)) return
 
     // Bruk sesjonen som ligger lokalt – aldri getUser() her: det er et nettverkskall mot /auth/v1/user som
     // svarer 403 uten gyldig sesjon og kan nullstille en innlogging som nettopp er gjort.

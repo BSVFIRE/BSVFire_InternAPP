@@ -11,6 +11,11 @@ interface State {
   error: Error | null
 }
 
+function erUtdatertChunk(error: Error): boolean {
+  const t = `${error.name} ${error.message}`
+  return /is not a valid JavaScript MIME type|Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module|ChunkLoadError/.test(t)
+}
+
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
@@ -22,6 +27,17 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Etter en deploy peker en åpen fane på chunk-filer som ikke finnes lenger. Da svarer
+    // Netlify med index.html, og importen feiler på MIME-type. Last siden på nytt én gang.
+    if (erUtdatertChunk(error)) {
+      try {
+        if (!sessionStorage.getItem('fc_chunk_reload')) {
+          sessionStorage.setItem('fc_chunk_reload', String(Date.now()))
+          window.location.reload()
+          return
+        }
+      } catch { /* sessionStorage utilgjengelig */ }
+    }
     // Log error to database
     logger.error('React Error Boundary caught error', {
       error: error.message,
