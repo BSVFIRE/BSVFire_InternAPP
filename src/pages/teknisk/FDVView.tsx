@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Upload, Search, FileText, Trash2, Download, Plus, X, Building2, Check, Settings, Edit2, ChevronDown, ChevronRight, ChevronUp } from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
 
 interface FDVViewProps {
@@ -150,7 +152,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
   }
 
   async function handleUpload() {
-    if (!uploadFile || !uploadData.tittel) { alert('Tittel og fil er påkrevd'); return }
+    if (!uploadFile || !uploadData.tittel) { toast.warning('Tittel og fil må fylles ut'); return }
     try {
       setUploading(true)
       
@@ -178,7 +180,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
       loadData()
     } catch (error: any) {
       console.error('Feil ved opplasting:', error)
-      alert('Kunne ikke laste opp: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke laste opp', error)
     } finally {
       setUploading(false)
     }
@@ -194,23 +196,23 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
       loadData()
     } catch (error: any) {
       console.error('Feil ved sletting:', error)
-      alert('Kunne ikke slette: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke slette databladet', error)
     }
   }
 
   async function handleAddToAnlegg(databladId: string) {
-    if (!selectedAnlegg) { alert('Velg et anlegg først'); return }
+    if (!selectedAnlegg) { toast.warning('Velg et anlegg først'); return }
     try {
       const { error } = await supabase.from('fdv_anlegg_datablader').insert({ anlegg_id: selectedAnlegg, datablad_id: databladId })
       if (error) {
-        if (error.code === '23505') alert('Dette databladet er allerede lagt til på anlegget')
+        if (error.code === '23505') toast.info('Databladet ligger allerede på anlegget')
         else throw error
       } else {
         loadAnleggDatablader(selectedAnlegg)
       }
     } catch (error: any) {
       console.error('Feil ved tillegging:', error)
-      alert('Kunne ikke legge til: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke legge til databladet', error)
     }
   }
 
@@ -319,10 +321,10 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
       await loadData()
       setEditingDatablad(null)
       setExpandedDatabladId(null)
-      alert('Datablad oppdatert!')
+      toast.success('Databladet er oppdatert')
     } catch (error: any) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke lagre', error)
     } finally {
       setSavingDatablad(false)
     }
@@ -338,7 +340,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
       setNewLeverandorNavn('')
       setShowNewLeverandorModal(false)
     } catch (error: any) {
-      alert('Kunne ikke legge til leverandør: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke legge til leverandøren', error)
     }
   }
 
@@ -352,7 +354,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
       setNewProdukttypeNavn('')
       setShowNewProdukttypeModal(false)
     } catch (error: any) {
-      alert('Kunne ikke legge til produkttype: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke legge til produkttypen', error)
     }
   }
 
@@ -363,7 +365,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
       if (error) throw error
       setLeverandorer(leverandorer.filter(l => l.id !== id))
     } catch (error: any) {
-      alert('Kunne ikke slette leverandør: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke slette leverandøren', error)
     }
   }
 
@@ -374,7 +376,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
       if (error) throw error
       setProdukttyper(produkttyper.filter(p => p.id !== id))
     } catch (error: any) {
-      alert('Kunne ikke slette produkttype: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke slette produkttypen', error)
     }
   }
 
@@ -386,7 +388,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
       setLeverandorer(leverandorer.map(l => l.id === editingLeverandor.id ? editingLeverandor : l).sort((a, b) => a.navn.localeCompare(b.navn)))
       setEditingLeverandor(null)
     } catch (error: any) {
-      alert('Kunne ikke oppdatere leverandør: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke oppdatere leverandøren', error)
     }
   }
 
@@ -408,13 +410,13 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
       setProdukttyper(produkttyper.map(p => p.id === editingProdukttype.id ? editingProdukttype : p).sort((a, b) => a.navn.localeCompare(b.navn)))
       setEditingProdukttype(null)
     } catch (error: any) {
-      alert('Kunne ikke oppdatere produkttype: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke oppdatere produkttypen', error)
     }
   }
 
   async function handleGenerateFDV() {
-    if (!selectedAnlegg || anleggDatablader.length === 0) { alert('Velg et anlegg og legg til datablader først'); return }
-    if (!fdvTittel.trim()) { alert('Skriv inn en tittel for FDV-dokumentet'); return }
+    if (!selectedAnlegg || anleggDatablader.length === 0) { toast.warning('Velg et anlegg og legg til datablader først'); return }
+    if (!fdvTittel.trim()) { toast.warning('Skriv inn en tittel for FDV-dokumentet'); return }
     try {
       setGenerating(true)
       const selectedAnleggInfo = anlegg.find(a => a.id === selectedAnlegg)
@@ -638,10 +640,10 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
       a.download = fileName
       a.click()
       URL.revokeObjectURL(url)
-      alert('FDV-dokument generert og lagret!')
+      toast.success('FDV-dokumentet er laget og lagret')
     } catch (error: any) {
       console.error('Feil ved generering:', error)
-      alert('Kunne ikke generere FDV: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke lage FDV-dokumentet', error)
     } finally {
       setGenerating(false)
     }
@@ -666,20 +668,21 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0">
+          <ArrowLeft className="w-4 h-4" />Teknisk
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">FDV / Datablader</h1>
-            <p className="text-gray-600 dark:text-gray-400">Last opp og administrer datablader, generer FDV-dokumentasjon</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">FDV og datablader</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Last opp datablader og sett sammen FDV-dokumentasjon per anlegg</p>
           </div>
         </div>
-        <button onClick={() => setShowUploadModal(true)} className="btn-primary flex items-center gap-2">
-          <Upload className="w-5 h-5" /> Last opp datablad
-        </button>
+        <Button variant="primary" icon={<Upload />} onClick={() => setShowUploadModal(true)}>Last opp datablad</Button>
       </div>
 
       <div className="flex gap-2">
@@ -705,7 +708,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
                 <option value="">Alle leverandører</option>
                 {leverandorer.map(l => <option key={l.id} value={l.id}>{l.navn}</option>)}
               </select>
-              <button onClick={() => setShowManageLeverandorerModal(true)} className="btn-secondary p-2" title="Administrer leverandører">
+              <button onClick={() => setShowManageLeverandorerModal(true)} className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-primary hover:border-primary" title="Administrer leverandører">
                 <Settings className="w-4 h-4" />
               </button>
             </div>
@@ -714,7 +717,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
                 <option value="">Alle produkttyper</option>
                 {produkttyper.map(p => <option key={p.id} value={p.id}>{p.navn}</option>)}
               </select>
-              <button onClick={() => setShowManageProdukttypeModal(true)} className="btn-secondary p-2" title="Administrer produkttyper">
+              <button onClick={() => setShowManageProdukttypeModal(true)} className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-primary hover:border-primary" title="Administrer produkttyper">
                 <Settings className="w-4 h-4" />
               </button>
             </div>
@@ -830,10 +833,10 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
                                   </div>
                                 )}
                                 <div className="flex justify-end gap-2">
-                                  <button onClick={(e) => { e.stopPropagation(); setExpandedDatabladId(null); setEditingDatablad(null) }} className="btn-secondary">
+                                  <button onClick={(e) => { e.stopPropagation(); setExpandedDatabladId(null); setEditingDatablad(null) }} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50">
                                     Avbryt
                                   </button>
-                                  <button onClick={(e) => { e.stopPropagation(); handleSaveDatablad() }} disabled={savingDatablad || !editingDatablad.tittel} className="btn-primary disabled:opacity-50">
+                                  <button onClick={(e) => { e.stopPropagation(); handleSaveDatablad() }} disabled={savingDatablad || !editingDatablad.tittel} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50 disabled:opacity-50">
                                     {savingDatablad ? 'Lagrer...' : 'Lagre endringer'}
                                   </button>
                                 </div>
@@ -918,7 +921,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
                                     {isAdded ? (
                                       <Check className="w-5 h-5 text-green-500" />
                                     ) : (
-                                      <button onClick={() => handleAddToAnlegg(d.id)} disabled={!selectedAnlegg} className="btn-secondary text-sm py-1 px-3 disabled:opacity-50">
+                                      <button onClick={() => handleAddToAnlegg(d.id)} disabled={!selectedAnlegg} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50 text-sm py-1 px-3 disabled:opacity-50">
                                         <Plus className="w-4 h-4 inline mr-1" /> Legg til
                                       </button>
                                     )}
@@ -986,7 +989,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">FDV Tittel</label>
                   <input type="text" value={fdvTittel} onChange={e => setFdvTittel(e.target.value)} className="input w-full" placeholder="F.eks. FDV Brannalarmanlegg" />
                 </div>
-                <button onClick={handleGenerateFDV} disabled={generating || anleggDatablader.length === 0} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
+                <button onClick={handleGenerateFDV} disabled={generating || anleggDatablader.length === 0} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50 w-full flex items-center justify-center gap-2 disabled:opacity-50">
                   {generating ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Download className="w-5 h-5" />}
                   {generating ? 'Genererer...' : 'Generer og last ned FDV'}
                 </button>
@@ -1023,7 +1026,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
                     <option value="">Velg leverandør...</option>
                     {leverandorer.map(l => <option key={l.id} value={l.id}>{l.navn}</option>)}
                   </select>
-                  <button onClick={() => setShowNewLeverandorModal(true)} className="btn-secondary"><Plus className="w-4 h-4" /></button>
+                  <button onClick={() => setShowNewLeverandorModal(true)} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
               <div>
@@ -1033,7 +1036,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
                     <option value="">Velg produkttype...</option>
                     {produkttyper.map(p => <option key={p.id} value={p.id}>{p.navn}</option>)}
                   </select>
-                  <button onClick={() => setShowNewProdukttypeModal(true)} className="btn-secondary"><Plus className="w-4 h-4" /></button>
+                  <button onClick={() => setShowNewProdukttypeModal(true)} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -1075,7 +1078,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
                   </p>
                 </div>
               )}
-              <button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadData.tittel} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
+              <button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadData.tittel} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50 w-full flex items-center justify-center gap-2 disabled:opacity-50">
                 {uploading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Upload className="w-5 h-5" />}
                 {uploading ? 'Laster opp...' : 'Last opp datablad'}
               </button>
@@ -1093,8 +1096,8 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
             <div className="p-4 space-y-4">
               <input type="text" value={newLeverandorNavn} onChange={e => setNewLeverandorNavn(e.target.value)} className="input w-full" placeholder="Leverandørnavn" autoFocus />
               <div className="flex gap-2">
-                <button onClick={() => setShowNewLeverandorModal(false)} className="btn-secondary flex-1">Avbryt</button>
-                <button onClick={handleAddLeverandor} className="btn-primary flex-1">Legg til</button>
+                <button onClick={() => setShowNewLeverandorModal(false)} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50 flex-1">Avbryt</button>
+                <button onClick={handleAddLeverandor} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50 flex-1">Legg til</button>
               </div>
             </div>
           </div>
@@ -1110,8 +1113,8 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
             <div className="p-4 space-y-4">
               <input type="text" value={newProdukttypeNavn} onChange={e => setNewProdukttypeNavn(e.target.value)} className="input w-full" placeholder="Produkttype" autoFocus />
               <div className="flex gap-2">
-                <button onClick={() => setShowNewProdukttypeModal(false)} className="btn-secondary flex-1">Avbryt</button>
-                <button onClick={handleAddProdukttype} className="btn-primary flex-1">Legg til</button>
+                <button onClick={() => setShowNewProdukttypeModal(false)} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50 flex-1">Avbryt</button>
+                <button onClick={handleAddProdukttype} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50 flex-1">Legg til</button>
               </div>
             </div>
           </div>
@@ -1130,7 +1133,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
             <div className="p-4 border-b border-gray-200 dark:border-dark-200">
               <div className="flex gap-2">
                 <input type="text" value={newLeverandorNavn} onChange={e => setNewLeverandorNavn(e.target.value)} className="input flex-1" placeholder="Ny leverandør..." onKeyDown={e => e.key === 'Enter' && handleAddLeverandor()} />
-                <button onClick={handleAddLeverandor} className="btn-primary"><Plus className="w-4 h-4" /></button>
+                <button onClick={handleAddLeverandor} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50"><Plus className="w-4 h-4" /></button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -1139,8 +1142,8 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
                   {editingLeverandor?.id === l.id ? (
                     <div className="flex-1 flex gap-2">
                       <input type="text" value={editingLeverandor.navn} onChange={e => setEditingLeverandor({ ...editingLeverandor, navn: e.target.value })} className="input flex-1" autoFocus onKeyDown={e => e.key === 'Enter' && handleUpdateLeverandor()} />
-                      <button onClick={handleUpdateLeverandor} className="btn-primary text-sm py-1 px-2">Lagre</button>
-                      <button onClick={() => setEditingLeverandor(null)} className="btn-secondary text-sm py-1 px-2">Avbryt</button>
+                      <button onClick={handleUpdateLeverandor} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50 text-sm py-1 px-2">Lagre</button>
+                      <button onClick={() => setEditingLeverandor(null)} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50 text-sm py-1 px-2">Avbryt</button>
                     </div>
                   ) : (
                     <>
@@ -1174,7 +1177,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
             <div className="p-4 border-b border-gray-200 dark:border-dark-200">
               <div className="flex gap-2">
                 <input type="text" value={newProdukttypeNavn} onChange={e => setNewProdukttypeNavn(e.target.value)} className="input flex-1" placeholder="Ny produkttype..." onKeyDown={e => e.key === 'Enter' && handleAddProdukttype()} />
-                <button onClick={handleAddProdukttype} className="btn-primary"><Plus className="w-4 h-4" /></button>
+                <button onClick={handleAddProdukttype} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50"><Plus className="w-4 h-4" /></button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -1183,8 +1186,8 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
                   {editingProdukttype?.id === p.id ? (
                     <div className="flex-1 flex gap-2">
                       <input type="text" value={editingProdukttype.navn} onChange={e => setEditingProdukttype({ ...editingProdukttype, navn: e.target.value })} className="input flex-1" autoFocus onKeyDown={e => e.key === 'Enter' && handleUpdateProdukttype()} />
-                      <button onClick={handleUpdateProdukttype} className="btn-primary text-sm py-1 px-2">Lagre</button>
-                      <button onClick={() => setEditingProdukttype(null)} className="btn-secondary text-sm py-1 px-2">Avbryt</button>
+                      <button onClick={handleUpdateProdukttype} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50 text-sm py-1 px-2">Lagre</button>
+                      <button onClick={() => setEditingProdukttype(null)} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50 text-sm py-1 px-2">Avbryt</button>
                     </div>
                   ) : (
                     <>
