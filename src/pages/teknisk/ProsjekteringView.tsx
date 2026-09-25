@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Search, Plus, Edit, FileText, Trash2, Building2, Calendar, User, Filter, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Search, Plus, Edit, FileText, Trash2, Building2, Calendar, User } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { toast } from '@/lib/toast'
+import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { ProsjekteringEditor } from './ProsjekteringEditor'
 
@@ -49,10 +52,8 @@ export function ProsjekteringView({ onBack, initialAnleggId, initialKundeId }: P
   const [kunder, setKunder] = useState<Kunde[]>([])
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('alle')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
 
   // For ny prosjektering
   const [showNyDialog, setShowNyDialog] = useState(false)
@@ -155,7 +156,7 @@ export function ProsjekteringView({ onBack, initialAnleggId, initialKundeId }: P
       setProsjekteringer(prev => prev.filter(p => p.id !== id))
     } catch (error: any) {
       console.error('Feil ved sletting:', error)
-      alert('Kunne ikke slette prosjektering: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke slette prosjekteringen', error)
     } finally {
       setDeletingId(null)
     }
@@ -171,7 +172,7 @@ export function ProsjekteringView({ onBack, initialAnleggId, initialKundeId }: P
 
   function handleOpprettPåEksisterende() {
     if (!selectedKundeId) {
-      alert('Velg en kunde først')
+      toast.warning('Velg en kunde først')
       return
     }
     setShowNyDialog(false)
@@ -196,6 +197,8 @@ export function ProsjekteringView({ onBack, initialAnleggId, initialKundeId }: P
   const filteredKunder = kunder.filter(k =>
     k.navn.toLowerCase().includes(searchKunde.toLowerCase())
   )
+
+  const [statusFilter, setStatusFilter] = useState('alle')
 
   const filteredProsjekteringer = prosjekteringer.filter(p => {
     const matchesSearch = 
@@ -237,77 +240,44 @@ export function ProsjekteringView({ onBack, initialAnleggId, initialKundeId }: P
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onBack}
-            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Prosjektering</h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Prosjektering av brannalarmanlegg iht. TEK 17, NS 3960, NS 3961
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={handleStartNyProsjektering}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Ny prosjektering
+    <div className="space-y-5">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0">
+          <ArrowLeft className="w-4 h-4" />Teknisk
         </button>
       </div>
 
-      {/* Søk og filter */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
-          <input
-            type="text"
-            placeholder="Søk etter prosjekt, kunde eller anlegg..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="input w-full pl-10"
-          />
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white inline-flex items-center gap-2.5">
+            <FileText className="w-6 h-6 text-primary" />Prosjektering
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {loading ? 'Laster…' : `${prosjekteringer.length} ${prosjekteringer.length === 1 ? 'prosjekt' : 'prosjekter'}`}
+          </p>
         </div>
-        <div className="relative">
-          <button
-            onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-            className="input flex items-center gap-2 min-w-[180px] justify-between"
-          >
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              <span>{statusFilter === 'alle' ? 'Alle statuser' : statusFilter}</span>
-            </div>
-            <ChevronDown className="w-4 h-4" />
-          </button>
-          {showStatusDropdown && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-200 rounded-lg shadow-lg z-10">
-              {statusOptions.map(status => (
-                <button
-                  key={status}
-                  onClick={() => {
-                    setStatusFilter(status)
-                    setShowStatusDropdown(false)
-                  }}
-                  className={`w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-dark-200 first:rounded-t-lg last:rounded-b-lg ${
-                    statusFilter === status ? 'bg-primary/10 text-primary' : 'text-gray-700 dark:text-gray-300'
-                  }`}
-                >
-                  {status === 'alle' ? 'Alle statuser' : status}
-                </button>
-              ))}
-            </div>
-          )}
+        <Button variant="primary" icon={<Plus />} onClick={handleStartNyProsjektering}>Ny prosjektering</Button>
+      </header>
+
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 flex-1" role="group" aria-label="Filter">
+          {statusOptions.map(status => {
+            const antall = status === 'alle' ? prosjekteringer.length : prosjekteringer.filter(p => p.status === status).length
+            return (
+              <button key={status} type="button" onClick={() => setStatusFilter(status)} aria-pressed={statusFilter === status}
+                className={cn('inline-flex items-center gap-2 h-[34px] px-3 rounded-full border text-sm whitespace-nowrap flex-shrink-0 transition-colors [&>b]:font-bold [&>b]:tabular-nums',
+                  statusFilter === status ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400')}>
+                {status === 'alle' ? 'Alle' : status} <b>{antall}</b>
+              </button>
+            )
+          })}
+        </div>
+        <div className="relative sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input type="search" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Søk prosjekt, kunde, anlegg…" className="input pl-9 w-full !h-[38px]" />
         </div>
       </div>
 
-      {/* Prosjekteringsliste */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
