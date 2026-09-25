@@ -13,7 +13,8 @@ interface State {
 
 function erUtdatertChunk(error: Error): boolean {
   const t = `${error.name} ${error.message}`
-  return /is not a valid JavaScript MIME type|Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module|ChunkLoadError/.test(t)
+  // «reading 'default'» kommer fra React.lazy når den dynamiske importen aldri ble lastet
+  return /is not a valid JavaScript MIME type|Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module|ChunkLoadError|Cannot read properties of undefined \(reading 'default'\)|undefined is not an object \(evaluating '[^']*\.default'\)/.test(t)
 }
 
 export class ErrorBoundary extends Component<Props, State> {

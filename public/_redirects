@@ -1,1 +1,6 @@
+# Gammelt Netlify-domene → app.firectrl.io.
+# Brukere som ble liggende på netlify.app kjørte et annet opphav: egen sesjon, egen offline-cache
+# og av og til et eldre bygg med chunk-filer som ikke finnes lenger.
+https://bsvfire-intern-app.netlify.app/*  https://app.firectrl.io/:splat  302!
+
 /*    /index.html   200
