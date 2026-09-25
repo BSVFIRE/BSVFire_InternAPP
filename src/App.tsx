@@ -64,6 +64,7 @@ const Kalender = lazy(() => import('./pages/Kalender').then(m => ({ default: m.K
 const Meldinger = lazy(() => import('./pages/Meldinger').then(m => ({ default: m.Meldinger })))
 const PowerOfficeTest = lazy(() => import('./pages/PowerOfficeTest'))
 const AdminDropboxFolders = lazy(() => import('./pages/AdminDropboxFolders').then(m => ({ default: m.AdminDropboxFolders })))
+const AdminDropboxEtterfyll = lazy(() => import('./pages/AdminDropboxEtterfyll').then(m => ({ default: m.AdminDropboxEtterfyll })))
 const AdminAarsavslutning = lazy(() => import('./pages/AdminAarsavslutning').then(m => ({ default: m.AdminAarsavslutning })))
 const AdminModulOversikt = lazy(() => import('./pages/AdminModulOversikt').then(m => ({ default: m.AdminModulOversikt })))
 const AdminSalg = lazy(() => import('./pages/AdminSalg').then(m => ({ default: m.AdminSalg })))
@@ -178,6 +179,7 @@ function App() {
                       <Route path="/admin/ai-embeddings" element={<AdminAIEmbeddings />} />
                       <Route path="/admin/ai-knowledge" element={<AdminAIKnowledge />} />
                       <Route path="/admin/dropbox-folders" element={<AdminDropboxFolders />} />
+                      <Route path="/admin/dropbox-etterfyll" element={<AdminDropboxEtterfyll />} />
                       <Route path="/admin/aarsavslutning" element={<AdminAarsavslutning />} />
                       <Route path="/admin/modul-oversikt" element={<AdminModulOversikt />} />
                       <Route path="/admin/salg" element={<AdminSalg />} />

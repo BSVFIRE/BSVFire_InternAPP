@@ -174,7 +174,9 @@ export async function createDropboxFolders(paths: string[]): Promise<{ created: 
  */
 export async function uploadToDropbox(
   filePath: string,
-  fileContent: Blob | ArrayBuffer
+  fileContent: Blob | ArrayBuffer,
+  /** 'add' lar Dropbox avvise filen hvis den allerede finnes – brukes ved etterfylling */
+  mode: 'overwrite' | 'add' = 'overwrite'
 ): Promise<DropboxResponse> {
   try {
     // Konverter til base64 - chunk-basert for å unngå stack overflow på store filer
@@ -194,6 +196,7 @@ export async function uploadToDropbox(
     const data = await callDropboxFunction('upload_file', {
       path: filePath,
       content: base64Content,
+      mode,
     })
 
     log.info('Fil lastet opp til Dropbox', { path: data.path, size: data.size })

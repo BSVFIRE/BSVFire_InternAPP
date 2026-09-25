@@ -374,7 +374,8 @@ serve(async (req) => {
           {
             apiArg: {
               path: params.path,
-              mode: 'overwrite',
+              // 'add' brukes ved etterfylling: Dropbox avviser filen i stedet for å overskrive
+              mode: params.mode === 'add' ? 'add' : 'overwrite',
               autorename: false,
               mute: false,
             },
