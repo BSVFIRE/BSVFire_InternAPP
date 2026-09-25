@@ -349,7 +349,7 @@ export function AlarmorganiseringEditor({ existingData, onClose, initialAnleggId
               <button
                 type="button"
                 onClick={addCustomDetectorType}
-                className="btn-secondary"
+                className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50"
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -429,7 +429,7 @@ export function AlarmorganiseringEditor({ existingData, onClose, initialAnleggId
         <div className="mt-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Styringer</h3>
-            <button onClick={addStyring} className="btn-secondary flex items-center gap-2"><Plus className="w-4 h-4" />Legg til styring</button>
+            <button onClick={addStyring} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50 flex items-center gap-2"><Plus className="w-4 h-4" />Legg til styring</button>
           </div>
           {styringer.length === 0 ? (
             <div className="p-8 border border-gray-700 rounded-lg text-center text-gray-400">Ingen styringer lagt til</div>

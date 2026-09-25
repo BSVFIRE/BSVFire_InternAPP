@@ -526,7 +526,7 @@ export function ProsjekteringView({ onBack, initialAnleggId, initialKundeId }: P
                   setShowNyDialog(false)
                   setNyProsjektType(null)
                 }}
-                className="btn-secondary"
+                className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50"
               >
                 Avbryt
               </button>
@@ -534,14 +534,14 @@ export function ProsjekteringView({ onBack, initialAnleggId, initialKundeId }: P
                 <button
                   onClick={handleOpprettPåEksisterende}
                   disabled={!selectedKundeId}
-                  className="btn-primary disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50 disabled:opacity-50"
                 >
                   Fortsett
                 </button>
               ) : nyProsjektType === 'ny' ? (
                 <button
                   onClick={handleOpprettPåNy}
-                  className="btn-primary"
+                  className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50"
                 >
                   Fortsett
                 </button>

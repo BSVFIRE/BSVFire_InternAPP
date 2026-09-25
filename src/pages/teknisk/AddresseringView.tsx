@@ -651,12 +651,8 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
 
       console.log(`Oppdatert: ${oppdatert}, Lagt til: ${lagtTil}`)
 
-      alert(
-        `Adresseliste oppdatert!\n\n` +
-        `• ${oppdatert} enheter oppdatert\n` +
-        `• ${lagtTil} nye enheter lagt til\n\n` +
-        `Gå til Teknisk → Adresseliste for å redigere.`
-      )
+      toast.success('Adresselisten er oppdatert',
+        [oppdatert ? `${oppdatert} oppdatert` : null, lagtTil ? `${lagtTil} lagt til` : null].filter(Boolean).join(' · ') + ' – åpne Teknisk → Adresselister for å redigere.')
     } catch (error: any) {
       console.error('Feil ved overføring:', error)
       toast.error('Kunne ikke opprette eller oppdatere adresselisten', error)
