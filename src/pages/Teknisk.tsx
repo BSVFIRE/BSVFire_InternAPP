@@ -8,7 +8,7 @@ import { ProsjekteringView } from './teknisk/ProsjekteringView'
 import { FDVView } from './teknisk/FDVView'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-type TekniskView = 'oversikt' | 'detektorliste' | 'alarm' | 'prosjektering' | 'servicerapport' | 'addressering' | 'fdv'
+type TekniskView = 'oversikt' | 'adresseliste' | 'alarm' | 'prosjektering' | 'servicerapport' | 'addressering' | 'fdv'
 
 export function Teknisk() {
   const location = useLocation()
@@ -35,8 +35,8 @@ export function Teknisk() {
     // Sjekk om vi kommer fra prosjekt med URL-parametere
     else if (anleggParam) {
       // Finn hvilken view basert på pathname
-      if (location.pathname.includes('detektorliste')) {
-        setActiveView('detektorliste')
+      if (location.pathname.includes('adresseliste')) {
+        setActiveView('adresseliste')
       } else if (location.pathname.includes('alarmorganisering')) {
         setActiveView('alarm')
       }
@@ -48,7 +48,7 @@ export function Teknisk() {
     // Sjekk om vi kommer fra anlegg eller prosjekt med tab-parameter
     else if (location.state?.tab) {
       const tabMap: Record<string, TekniskView> = {
-        'detektorliste': 'detektorliste',
+        'adresseliste': 'adresseliste',
         'alarmorganisering': 'alarm',
         'prosjektering': 'prosjektering',
         'servicerapport': 'servicerapport',
@@ -82,7 +82,7 @@ export function Teknisk() {
     }
   }
 
-  if (activeView === 'detektorliste') {
+  if (activeView === 'adresseliste') {
     return <DetektorlisteView 
       onBack={handleBack} 
       initialAnleggId={serviceRapportState?.anleggId}
@@ -140,13 +140,13 @@ export function Teknisk() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Teknisk</h1>
-        <p className="text-gray-400 dark:text-gray-400">Detektorlister, alarmorganisering og prosjektering</p>
+        <p className="text-gray-400 dark:text-gray-400">Adresselister, alarmorganisering og prosjektering</p>
       </div>
 
       {/* Kategorier */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <button
-          onClick={() => setActiveView('detektorliste')}
+          onClick={() => setActiveView('adresseliste')}
           className="card hover:border-primary/50 transition-colors cursor-pointer text-left"
         >
           <div className="flex items-center gap-4 mb-4">
@@ -154,7 +154,7 @@ export function Teknisk() {
               <Radio className="w-6 h-6 text-red-500" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Detektorlister</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Adresselister</h3>
               <p className="text-sm text-gray-400 dark:text-gray-400">Oversikt over detektorer</p>
             </div>
           </div>
@@ -249,7 +249,7 @@ export function Teknisk() {
           <div>
             <h3 className="text-gray-900 dark:text-white font-medium mb-1">Teknisk seksjon under utvikling</h3>
             <p className="text-gray-400 dark:text-gray-400 text-sm">
-              Denne seksjonen vil inneholde verktøy for detektorlister, alarmorganisering og prosjektering av brannsikkerhetssystemer.
+              Denne seksjonen vil inneholde verktøy for adresselister, alarmorganisering og prosjektering av brannsikkerhetssystemer.
             </p>
           </div>
         </div>

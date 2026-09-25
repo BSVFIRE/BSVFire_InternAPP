@@ -1,5 +1,5 @@
 /**
- * Detektorlister (Teknisk) – oversikt per anlegg med revisjoner, «Ny liste» og «Opprett fra enheter»
+ * Adresselister (Teknisk) – oversikt per anlegg med revisjoner, «Ny liste» og «Opprett fra enheter»
  * (forhåndsutfylte rader ut fra detektorer/meldere registrert på brannalarmanlegget).
  */
 import { useCallback, useEffect, useState } from 'react'
@@ -65,10 +65,10 @@ export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId, ini
   useEffect(() => { last() }, [last])
 
   async function slett(l: Liste) {
-    if (!confirm(`Slette detektorliste rev. ${l.revisjon} (${l.antall} enheter)? Dette kan ikke angres.`)) return
+    if (!confirm(`Slette adresseliste rev. ${l.revisjon} (${l.antall} enheter)? Dette kan ikke angres.`)) return
     const a = await supabase.from('detektor_items').delete().eq('detektorliste_id', l.id); if (a.error) { toast.error('Kunne ikke slette', a.error); return }
     const b = await supabase.from('detektorlister').delete().eq('id', l.id); if (b.error) { toast.error('Kunne ikke slette', b.error); return }
-    toast.success('Detektorliste slettet'); last()
+    toast.success('Adresseliste slettet'); last()
   }
   async function nyRevisjon(l: Liste) {
     const { data: hode } = await supabase.from('detektorlister').select('*').eq('id', l.id).single()
@@ -109,7 +109,7 @@ export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId, ini
       </div>
       <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Detektorlister</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Adresselister</h1>
           {anleggId ? (
             <button type="button" onClick={() => setVisVelger(v => !v)} className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary mt-0.5 text-left">{kundeNavn} · <span className="font-medium text-gray-900 dark:text-white">{anleggNavn}</span> <span className="text-xs">{visVelger ? '· skjul velger' : '· bytt anlegg'}</span></button>
           ) : <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Velg kunde og anlegg.</p>}
@@ -147,7 +147,7 @@ export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId, ini
 
           {lister.length === 0 ? (
             <div className="card text-center py-12 space-y-3">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Ingen detektorliste på dette anlegget ennå.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Ingen adresseliste på dette anlegget ennå.</p>
               <div className="flex justify-center gap-2 flex-wrap">
                 {startFraEnheter.length > 0 && <Button variant="outline" icon={<ListChecks />} onClick={() => setEditor({ startRader: startFraEnheter })}>Opprett fra enheter ({enhetSum})</Button>}
                 <Button variant="primary" icon={<Plus />} onClick={() => setEditor({})}>Ny tom liste</Button>

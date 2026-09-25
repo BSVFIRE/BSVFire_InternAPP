@@ -66,7 +66,7 @@ export function DetektorlistePreview({
       .replace(/[^a-zA-Z0-9_\-.]/g, '')
   }
   
-  const fileName = `Detektorliste_${sanitizeFileName(kundeNavn)}_${sanitizeFileName(anleggNavn)}_Rev${revisjon.replace(/\./g, '_')}.pdf`
+  const fileName = `Adresseliste_${sanitizeFileName(kundeNavn)}_${sanitizeFileName(anleggNavn)}_Rev${revisjon.replace(/\./g, '_')}.pdf`
 
   async function handleGeneratePDF() {
     setGenerating(true)
@@ -100,7 +100,7 @@ export function DetektorlistePreview({
 
       const kundeNummer = kundeData?.kunde_nummer || kundeId
       
-      console.log('📤 Laster opp detektorliste:', { kundeNummer, kundeNavn, anleggNavn, fileName })
+      console.log('📤 Laster opp adresseliste:', { kundeNummer, kundeNavn, anleggNavn, fileName })
 
       // 1. Last opp til Supabase Storage (i dokumenter-mappen så det vises i anlegg)
       setUploadStatus(prev => ({ ...prev, storage: 'uploading' }))
@@ -189,7 +189,7 @@ export function DetektorlistePreview({
             </button>
             <div>
               <h2 className="text-2xl font-bold text-white">
-                Forhåndsvisning - Detektorliste
+                Forhåndsvisning - Adresseliste
               </h2>
               <p className="text-gray-400">
                 {kundeNavn} - {anleggNavn} - Revisjon {revisjon}

@@ -340,7 +340,7 @@ export async function uploadKontrollrapportToDropbox(
 }
 
 /**
- * Bygger Dropbox-mappesti for detektorlister
+ * Bygger Dropbox-mappesti for adresselister
  * Format: /NY MAPPESTRUKTUR 2026/01_KUNDER/{kundenummer}_{kundenavn}/02_Bygg/{anleggsnavn}/02_Brannalarm/02_Detektorliste/{filnavn}
  */
 export function buildDetektorlisteDropboxPath(
@@ -367,7 +367,7 @@ export function buildDetektorlisteDropboxPath(
 }
 
 /**
- * Laster opp detektorliste-PDF til riktig kundemappe (02_Brannalarm/02_Detektorliste)
+ * Laster opp adresseliste-PDF til riktig kundemappe (02_Brannalarm/02_Detektorliste)
  */
 export async function uploadDetektorlisteToDropbox(
   kundeNummer: string,
@@ -388,7 +388,7 @@ export async function uploadDetektorlisteToDropbox(
 
   const filePath = buildDetektorlisteDropboxPath(kundeNummer, kundeNavn, anleggNavn, fileName)
   
-  log.info('Laster opp detektorliste til Dropbox', { filePath, kundeNummer, kundeNavn, anleggNavn })
+  log.info('Laster opp adresseliste til Dropbox', { filePath, kundeNummer, kundeNavn, anleggNavn })
   
   // Sørg for at mappen eksisterer
   const folderPath = filePath.substring(0, filePath.lastIndexOf('/'))

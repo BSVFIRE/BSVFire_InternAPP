@@ -1,5 +1,5 @@
 /**
- * Avstemming mellom detektorliste (teknisk) og enheter registrert på brannalarmanlegget.
+ * Avstemming mellom adresseliste (teknisk) og enheter registrert på brannalarmanlegget.
  * Detektorlistens typer mappes til enhetsnøklene i anleggsdata_brannalarm.
  */
 import { db } from './supabase'

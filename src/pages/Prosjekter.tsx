@@ -82,7 +82,7 @@ const TJENESTER = [
 ]
 
 const DOKUMENTASJONSKRAV = [
-  { value: 'detektorliste', label: 'Detektorliste', dropboxFolder: '02_Brannalarm/02_Detektorliste', modulePath: '/teknisk/detektorliste', moduleName: 'Detektorliste' },
+  { value: 'adresseliste', label: 'Adresseliste', dropboxFolder: '02_Brannalarm/02_Detektorliste', modulePath: '/teknisk/detektorliste', moduleName: 'Adresseliste' },
   { value: 'alarmorganisering', label: 'Alarmorganisering', dropboxFolder: '02_Brannalarm/03_Alarmorganisering', modulePath: '/teknisk/alarmorganisering', moduleName: 'Alarmorganisering' },
   { value: 'prosjektering', label: 'Prosjektering', dropboxFolder: '02_Brannalarm/04_Prosjektering', modulePath: null, moduleName: null },
   { value: 'fdv_datablader', label: 'FDV / Datablader', dropboxFolder: '06_FDV', modulePath: null, moduleName: null },
@@ -1285,10 +1285,10 @@ function ProsjektDokumenter({
                     onClick={() => {
                       // Map modulePath til riktig tab-navn
                       const tabMap: Record<string, string> = {
-                        '/teknisk/detektorliste': 'detektorliste',
+                        '/teknisk/detektorliste': 'adresseliste',
                         '/teknisk/alarmorganisering': 'alarmorganisering',
                       }
-                      const tab = tabMap[dokKrav.modulePath || ''] || 'detektorliste'
+                      const tab = tabMap[dokKrav.modulePath || ''] || 'adresseliste'
                       navigate('/teknisk', { 
                         state: { 
                           tab,

@@ -32,7 +32,7 @@ interface UploadResult {
 }
 
 const DOKUMENT_TYPER = [
-  'Detektorliste',
+  'Adresseliste',
   'Serviceavtale',
   'Prosjekteringsunderlag',
   'Brannkonsept',
@@ -48,7 +48,7 @@ export function LastOpp() {
   const [selectedKunde, setSelectedKunde] = useState('')
   const [selectedAnlegg, setSelectedAnlegg] = useState('')
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const [dokumentType, setDokumentType] = useState<string>('Detektorliste')
+  const [dokumentType, setDokumentType] = useState<string>('Adresseliste')
   const [customFilename, setCustomFilename] = useState('')
   
   const [kundeSok, setKundeSok] = useState('')

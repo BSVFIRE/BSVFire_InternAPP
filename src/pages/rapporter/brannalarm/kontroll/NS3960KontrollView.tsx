@@ -61,7 +61,7 @@ const KONTROLLPUNKTER_BY_CATEGORY = {
   ],
   'Dokumentasjon og opplæring': [
     'Kontrolljournal gjennomgått og utfylt',
-    'Gjennomgang av detektorliste',
+    'Gjennomgang av adresseliste',
     'Gjennomgang egenkontroll med sluttbruker',
     'Servicemerking/kontroll oblat',
     'Opplæring sluttkunde',

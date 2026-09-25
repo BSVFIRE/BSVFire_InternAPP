@@ -1,5 +1,5 @@
 /**
- * Detektorliste – redigering. Laget for rask innlegging fra tegning på PC:
+ * Adresseliste – redigering. Laget for rask innlegging fra tegning på PC:
  * Enter går til samme kolonne i neste rad, «Legg til» lager N rader med valgt type og fortløpende adresser,
  * alt lagres 2,5 s etter siste endring. Kontaktinfo og adresse fylles fra anlegget på nye lister.
  */
@@ -112,7 +112,7 @@ export function DetektorlisteEditor({ detektorlisteId, kundeId, anleggId, kundeN
         .sort((a, b) => a.adresse.localeCompare(b.adresse, 'nb-NO', { numeric: true }))
       setRader(items.length ? items : [tom(), tom(), tom()])
       setDirty(false)
-    } catch (err) { toast.error('Kunne ikke laste detektorlisten', err) } finally { setLoading(false) }
+    } catch (err) { toast.error('Kunne ikke laste adresselisten', err) } finally { setLoading(false) }
   }
 
   const lagre = useCallback(async (stille = true) => {
@@ -128,8 +128,8 @@ export function DetektorlisteEditor({ detektorlisteId, kundeId, anleggId, kundeN
       const items = rader.filter(r => r.adresse.trim() || r.type || r.plassering.trim()).map((r, i) => ({ detektorliste_id: id, adresse: r.adresse.trim() || String(i + 1).padStart(3, '0'), type: r.type || null, plassering: r.plassering || null, kart: r.kart || null, akse: r.akse || null, etasje: r.etasje || null, kommentar: r.kommentar || null, rekkefølge: i }))
       if (items.length) { const { error: e2 } = await supabase.from('detektor_items').insert(items); if (e2) throw e2 }
       setLastSaved(new Date()); setDirty(false)
-      if (!stille) toast.success('Detektorliste lagret')
-    } catch (err) { toast.error('Kunne ikke lagre detektorlisten', err) } finally { lagrerRef.current = false; setSaving(false) }
+      if (!stille) toast.success('Adresseliste lagret')
+    } catch (err) { toast.error('Kunne ikke lagre adresselisten', err) } finally { lagrerRef.current = false; setSaving(false) }
   }, [kundeId, anleggId, prosjektId, revisjon, dato, servicetekniker, kundeadresse, kontaktperson, mobil, epost, annet, status, listeId, rader])
 
   // Autolagring
@@ -166,12 +166,12 @@ export function DetektorlisteEditor({ detektorlisteId, kundeId, anleggId, kundeN
   return (
     <div className="space-y-4 pb-24">
       <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-        <button type="button" onClick={tilbake} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Detektorlister</button>
+        <button type="button" onClick={tilbake} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Adresselister</button>
         <span className="hidden sm:inline">/</span><span className="hidden sm:inline text-gray-900 dark:text-white truncate">{anleggNavn}</span>
       </div>
       <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{detektorlisteId ? `Detektorliste rev. ${revisjon}` : 'Ny detektorliste'}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{detektorlisteId ? `Adresseliste rev. ${revisjon}` : 'Ny adresseliste'}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate">{kundeNavn} · {anleggNavn} · {antall} {antall === 1 ? 'enhet' : 'enheter'}</p>
         </div>
         <div className="flex items-center gap-3">

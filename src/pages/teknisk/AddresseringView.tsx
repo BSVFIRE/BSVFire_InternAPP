@@ -475,9 +475,9 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
     try {
       setSaving(true)
 
-      // Sjekk om det finnes eksisterende detektorlister for dette anlegget
+      // Sjekk om det finnes eksisterende adresselister for dette anlegget
       const { data: eksisterendeLister, error: listeQueryError } = await supabase
-        .from('detektorlister')
+        .from('adresselister')
         .select('*')
         .eq('anlegg_id', selectedAnlegg)
         .order('opprettet_dato', { ascending: false }) as { data: Array<{ id: string; revisjon: string; dato: string; service_ingeniør: string }> | null; error: any }
@@ -491,7 +491,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
         // Det finnes eksisterende lister - spør brukeren
         const nyesteListe = eksisterendeLister[0]
         const valg = prompt(
-          `Det finnes ${eksisterendeLister.length} eksisterende detektorliste(r) for dette anlegget.\n\n` +
+          `Det finnes ${eksisterendeLister.length} eksisterende adresseliste(r) for dette anlegget.\n\n` +
           `Nyeste: Revisjon ${nyesteListe.revisjon} (${new Date(nyesteListe.dato).toLocaleDateString('nb-NO')})\n\n` +
           `Hva vil du gjøre?\n\n` +
           `1 = Oppdater nyeste liste (beholder eksisterende data)\n` +
@@ -512,7 +512,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
           
           // Kopier listen
           const { data: backupListe, error: backupError } = await supabase
-            .from('detektorlister')
+            .from('adresselister')
             .insert({
               kunde_id: selectedKunde,
               anlegg_id: selectedAnlegg,
@@ -555,7 +555,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
         } else if (valg === '3') {
           // Opprett ny liste
           const { data: nyListe, error: nyListeError } = await supabase
-            .from('detektorlister')
+            .from('adresselister')
             .insert({
               kunde_id: selectedKunde,
               anlegg_id: selectedAnlegg,
@@ -578,7 +578,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
       } else {
         // Ingen eksisterende lister - opprett ny
         const { data: nyListe, error: listeError } = await supabase
-          .from('detektorlister')
+          .from('adresselister')
           .insert({
             kunde_id: selectedKunde,
             anlegg_id: selectedAnlegg,
@@ -649,14 +649,14 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
       console.log(`Oppdatert: ${oppdatert}, Lagt til: ${lagtTil}`)
 
       alert(
-        `Detektorliste oppdatert!\n\n` +
+        `Adresseliste oppdatert!\n\n` +
         `• ${oppdatert} enheter oppdatert\n` +
         `• ${lagtTil} nye enheter lagt til\n\n` +
-        `Gå til Teknisk → Detektorliste for å redigere.`
+        `Gå til Teknisk → Adresseliste for å redigere.`
       )
     } catch (error: any) {
       console.error('Feil ved overføring:', error)
-      alert('Kunne ikke opprette/oppdatere detektorliste: ' + (error?.message || 'Ukjent feil'))
+      alert('Kunne ikke opprette/oppdatere adresseliste: ' + (error?.message || 'Ukjent feil'))
     } finally {
       setSaving(false)
     }
@@ -718,7 +718,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
               className="btn-secondary flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
             >
               <FileText className="w-5 h-5" />
-              Overfør til Detektorliste
+              Overfør til Adresseliste
             </button>
             <button
               onClick={exportToCSV}

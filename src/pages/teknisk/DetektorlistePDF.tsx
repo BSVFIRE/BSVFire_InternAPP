@@ -178,7 +178,7 @@ export function DetektorlistePDF({
           <View style={styles.divider} />
         </View>
 
-        <Text style={styles.title}>Detektorliste</Text>
+        <Text style={styles.title}>Adresseliste</Text>
         <Text style={styles.subtitle}>Revisjon {revisjon}</Text>
 
         {/* Kunde og anlegg informasjon */}
@@ -272,11 +272,11 @@ export function DetektorlistePDF({
         </View>
 
         <Text style={styles.footer}>
-          BSV Fire - Detektorliste - Side 1
+          BSV Fire - Adresseliste - Side 1
         </Text>
       </Page>
 
-      {/* Side 2+: Detektorliste - Chunk per 25 rader for å sikre header på hver side */}
+      {/* Side 2+: Adresseliste - Chunk per 25 rader for å sikre header på hver side */}
       {Array.from({ length: Math.ceil(sortedDetektorer.length / 25) }, (_, pageIndex) => {
         const startIndex = pageIndex * 25
         const endIndex = Math.min(startIndex + 25, sortedDetektorer.length)
@@ -287,7 +287,7 @@ export function DetektorlistePDF({
             {/* Header */}
             <View style={{ marginBottom: 20 }}>
               <Text style={{ fontSize: 16, fontWeight: 'bold' }}>
-                Detektorliste - {kundeNavn} - {anleggNavn}
+                Adresseliste - {kundeNavn} - {anleggNavn}
               </Text>
               <Text style={{ fontSize: 10, color: '#666', marginTop: 5 }}>
                 Revisjon {revisjon} - {new Date(dato).toLocaleDateString('nb-NO')}
@@ -327,7 +327,7 @@ export function DetektorlistePDF({
             <Text
               style={styles.footer}
               render={({ pageNumber, totalPages }) =>
-                `BSV Fire - Detektorliste - Side ${pageNumber} av ${totalPages}`
+                `BSV Fire - Adresseliste - Side ${pageNumber} av ${totalPages}`
               }
               fixed
             />

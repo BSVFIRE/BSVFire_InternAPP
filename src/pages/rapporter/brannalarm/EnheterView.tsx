@@ -145,7 +145,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
   const [notatApen, setNotatApen] = useState<Set<string>>(new Set())
   const [redigerer, setRedigerer] = useState<{ key: string; idx: number } | null>(null)
   const navigate = useNavigate()
-  const [detektorliste, setDetektorliste] = useState<DetektorlisteTelling | null | undefined>(undefined)
+  const [adresseliste, setDetektorliste] = useState<DetektorlisteTelling | null | undefined>(undefined)
   const [visAvstemming, setVisAvstemming] = useState(false)
   useEffect(() => { tellDetektorliste(anleggId).then(setDetektorliste) }, [anleggId])
 
@@ -264,8 +264,8 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
     toast.success(eksisterende >= 0 ? `${antall} lagt til på ${type}` : `${navn}: ${type || 'uten type'} × ${antall} lagt til`)
   }
 
-  const avstemming = detektorliste ? ENHETSTYPER.filter(e => ['rd', 'vd', 'multi', 'flame', 'mm', 'sirene', 'optisk'].includes(e.key)).map(e => {
-    const iListe = detektorliste.perEnhet[e.key] ?? 0
+  const avstemming = adresseliste ? ENHETSTYPER.filter(e => ['rd', 'vd', 'multi', 'flame', 'mm', 'sirene', 'optisk'].includes(e.key)).map(e => {
+    const iListe = adresseliste.perEnhet[e.key] ?? 0
     const iEnheter = (data[e.key]?.typer ?? []).reduce((s, t) => s + (t.antall || 0), 0)
     return { key: e.key, navn: e.navn, iListe, iEnheter, diff: iListe - iEnheter }
   }).filter(x => x.iListe > 0 || x.iEnheter > 0) : []
@@ -297,23 +297,23 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
         </div>
       )}
 
-      {/* Avstemming mot detektorliste */}
-      {detektorliste !== undefined && (
-        <section className={cn('card !p-0 overflow-hidden', detektorliste && avvikTeller > 0 && 'border-yellow-300 dark:border-yellow-800')} aria-label="Detektorliste">
+      {/* Avstemming mot adresseliste */}
+      {adresseliste !== undefined && (
+        <section className={cn('card !p-0 overflow-hidden', adresseliste && avvikTeller > 0 && 'border-yellow-300 dark:border-yellow-800')} aria-label="Adresseliste">
           <div className="flex items-center gap-2 px-3 py-2.5">
-            <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', !detektorliste ? 'bg-gray-100 dark:bg-dark-100 text-gray-400' : avvikTeller ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400')}><ListIkon className="w-4 h-4" /></span>
-            <button type="button" onClick={() => detektorliste && setVisAvstemming(v => !v)} className="flex-1 min-w-0 text-left" aria-expanded={visAvstemming}>
-              <span className="block text-sm font-semibold text-gray-900 dark:text-white">Detektorliste</span>
+            <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', !adresseliste ? 'bg-gray-100 dark:bg-dark-100 text-gray-400' : avvikTeller ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400')}><ListIkon className="w-4 h-4" /></span>
+            <button type="button" onClick={() => adresseliste && setVisAvstemming(v => !v)} className="flex-1 min-w-0 text-left" aria-expanded={visAvstemming}>
+              <span className="block text-sm font-semibold text-gray-900 dark:text-white">Adresseliste</span>
               <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">
-                {!detektorliste ? 'Ingen detektorliste registrert på anlegget' : avvikTeller === 0 ? `Stemmer med enhetene · ${detektorliste.totalt} enheter i listen (${formatDate(detektorliste.sisteDato)})` : `${avvikTeller} ${avvikTeller === 1 ? 'type' : 'typer'} avviker fra detektorlisten (${formatDate(detektorliste.sisteDato)}) – trykk for å avstemme`}
+                {!adresseliste ? 'Ingen adresseliste registrert på anlegget' : avvikTeller === 0 ? `Stemmer med enhetene · ${adresseliste.totalt} enheter i listen (${formatDate(adresseliste.sisteDato)})` : `${avvikTeller} ${avvikTeller === 1 ? 'type' : 'typer'} avviker fra adresselisten (${formatDate(adresseliste.sisteDato)}) – trykk for å avstemme`}
               </span>
             </button>
-            <button type="button" onClick={() => navigate('/teknisk', { state: { tab: 'detektorliste', anleggId } })} className="text-xs text-primary hover:underline whitespace-nowrap">{detektorliste ? 'Åpne listen' : 'Opprett liste'}</button>
+            <button type="button" onClick={() => navigate('/teknisk', { state: { tab: 'detektorliste', anleggId } })} className="text-xs text-primary hover:underline whitespace-nowrap">{adresseliste ? 'Åpne listen' : 'Opprett liste'}</button>
           </div>
-          {detektorliste && visAvstemming && (
+          {adresseliste && visAvstemming && (
             <div className="border-t border-gray-100 dark:border-gray-800">
               <table className="w-full text-sm">
-                <thead className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400"><tr><th className="px-3 py-1.5 text-left font-semibold">Type</th><th className="px-3 py-1.5 text-right font-semibold">Detektorliste</th><th className="px-3 py-1.5 text-right font-semibold">Enheter</th><th className="px-3 py-1.5 text-right font-semibold">Diff</th><th className="w-px"></th></tr></thead>
+                <thead className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400"><tr><th className="px-3 py-1.5 text-left font-semibold">Type</th><th className="px-3 py-1.5 text-right font-semibold">Adresseliste</th><th className="px-3 py-1.5 text-right font-semibold">Enheter</th><th className="px-3 py-1.5 text-right font-semibold">Diff</th><th className="w-px"></th></tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {avstemming.map(x => (
                     <tr key={x.key} className={x.diff !== 0 ? 'bg-yellow-50/50 dark:bg-yellow-900/10' : ''}>
@@ -327,8 +327,8 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
                 </tbody>
               </table>
               <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
-                <span>{Object.keys(detektorliste.ukjenteTyper).length ? `Ikke telt: ${Object.entries(detektorliste.ukjenteTyper).map(([t, n]) => `${t} (${n})`).join(', ')}. ` : ''}Diff = detektorliste − enheter. Tallene i Enheter settes på modellraden; har typen flere modeller justeres den største.</span>
-                {avvikTeller > 0 && <button type="button" onClick={() => { if (confirm(`Sette ${avvikTeller} ${avvikTeller === 1 ? 'type' : 'typer'} til tallene fra detektorlisten?`)) avstemming.filter(x => x.diff !== 0).forEach(x => settTotalt(x.key, x.iListe)) }} className="text-primary font-medium hover:underline">Bruk alle tall fra detektorlisten</button>}
+                <span>{Object.keys(adresseliste.ukjenteTyper).length ? `Ikke telt: ${Object.entries(adresseliste.ukjenteTyper).map(([t, n]) => `${t} (${n})`).join(', ')}. ` : ''}Diff = adresseliste − enheter. Tallene i Enheter settes på modellraden; har typen flere modeller justeres den største.</span>
+                {avvikTeller > 0 && <button type="button" onClick={() => { if (confirm(`Sette ${avvikTeller} ${avvikTeller === 1 ? 'type' : 'typer'} til tallene fra adresselisten?`)) avstemming.filter(x => x.diff !== 0).forEach(x => settTotalt(x.key, x.iListe)) }} className="text-primary font-medium hover:underline">Bruk alle tall fra adresselisten</button>}
               </div>
             </div>
           )}

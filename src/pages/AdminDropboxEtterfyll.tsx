@@ -23,10 +23,11 @@ import {
 const log = createLogger('DropboxEtterfyll')
 
 /** Hvilken undermappe en dokumenttype hører hjemme i */
-function mappeFor(type: string | null): 'kontroll' | 'service' | 'detektorliste' | 'tilbud' | null {
+function mappeFor(type: string | null): 'kontroll' | 'service' | 'adresseliste' | 'tilbud' | null {
   const t = (type ?? '').toLowerCase()
   if (!t) return null
-  if (t.includes('detektorliste')) return 'detektorliste'
+  // Gamle dokumenter er merket «Detektorliste», nye «Adresseliste»
+  if (t.includes('adresseliste') || t.includes('detektorliste')) return 'adresseliste'
   if (t.includes('tilbud')) return 'tilbud'
   if (t.includes('servicerapport') || t.includes('serviceoppdrag')) return 'service'
   if (t.includes('rapport') || t.includes('kontroll')) return 'kontroll'
@@ -36,7 +37,7 @@ function mappeFor(type: string | null): 'kontroll' | 'service' | 'detektorliste'
 const MAPPENAVN: Record<string, string> = {
   kontroll: '07_Rapporter/02_Kontrollrapport',
   service: '07_Rapporter/01_Servicerapport',
-  detektorliste: '02_Brannalarm/02_Detektorliste',
+  adresseliste: '02_Brannalarm/02_Detektorliste',
   tilbud: '08_Tilbud',
 }
 
@@ -50,7 +51,7 @@ interface Dok {
   anleggNavn: string
   kundeNavn: string
   kundeNummer: string
-  mappe: 'kontroll' | 'service' | 'detektorliste' | 'tilbud'
+  mappe: 'kontroll' | 'service' | 'adresseliste' | 'tilbud'
   dropboxSti: string
 }
 
@@ -98,7 +99,7 @@ export function AdminDropboxEtterfyll() {
         // Uten kundenummer, navn eller kjent type vet vi ikke hvor filen skal – de vises som mangler nedenfor
         if (!mappe || !kundeNummer || !kundeNavn || !anleggNavn || !filnavn) continue
         if (!filnavn.toLowerCase().endsWith('.pdf')) continue
-        const sti = mappe === 'detektorliste' ? buildDetektorlisteDropboxPath(kundeNummer, kundeNavn, anleggNavn, filnavn)
+        const sti = mappe === 'adresseliste' ? buildDetektorlisteDropboxPath(kundeNummer, kundeNavn, anleggNavn, filnavn)
           : mappe === 'tilbud' ? buildTilbudDropboxPath(kundeNummer, kundeNavn, anleggNavn, filnavn)
           : buildDropboxPath(kundeNummer, kundeNavn, anleggNavn, filnavn, mappe === 'service' ? '01_Servicerapport' : '02_Kontrollrapport')
         liste.push({

@@ -54,7 +54,7 @@ export function AlarmorganiseringEditor({ existingData, onClose, initialAnleggId
     visuell_varsling_aktivering: existingData?.visuell_varsling_aktivering || '',
     alarm_aktivering: existingData?.alarm_aktivering || '',
     seksjoneringsoppsett: existingData?.seksjoneringsoppsett || '',
-    detektorplassering: existingData?.detektorplassering || 'Se detektorliste for utvidet informasjon',
+    detektorplassering: existingData?.detektorplassering || 'Se adresseliste for utvidet informasjon',
     alarmnivaa_forvarsel: existingData?.alarmnivaa_forvarsel || '',
     alarmnivaa_stille: existingData?.alarmnivaa_stille || '',
     alarmnivaa_stor: existingData?.alarmnivaa_stor || '',

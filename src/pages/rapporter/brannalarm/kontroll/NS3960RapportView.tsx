@@ -1000,7 +1000,7 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
           ],
           '3. Dokumentasjon og opplæring': [
             'Kontrolljournal gjennomgått og utfylt',
-    'Gjennomgang av detektorliste',
+    'Gjennomgang av adresseliste',
             'Gjennomgang egenkontroll med sluttbruker',
             'Servicemerking/kontroll oblat',
             'Opplæring sluttkunde',
