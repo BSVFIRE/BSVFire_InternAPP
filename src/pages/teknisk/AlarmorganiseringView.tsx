@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Plus, Search, Pencil, Trash2, Bell, RefreshCw } from 'lucide-react'
+import { Button, IconButton } from '@/components/ui/Button'
+import { cn } from '@/lib/utils'
+import { toast } from '@/lib/toast'
 import { supabase } from '../../lib/supabase'
 import { AlarmorganiseringEditor } from './AlarmorganiseringEditor'
 
@@ -139,19 +142,11 @@ export function AlarmorganiseringView({ onBack, initialAnleggId, initialKundeId,
       loadAlarmorganiseringer()
     } catch (error) {
       console.error('Error deleting alarmorganisering:', error)
-      alert('Feil ved sletting av alarmorganisering')
+      toast.error('Kunne ikke slette alarmorganiseringen', error)
     }
   }
 
-  const handleEdit = (item: Alarmorganisering) => {
-    setEditingItem(item)
-    setShowEditor(true)
-  }
 
-  const handleNew = () => {
-    setEditingItem(null)
-    setShowEditor(true)
-  }
 
   const handleEditorClose = (saved: boolean) => {
     setShowEditor(false)
@@ -174,18 +169,6 @@ export function AlarmorganiseringView({ onBack, initialAnleggId, initialKundeId,
     }
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'Ferdig':
-        return '✓'
-      case 'Utkast':
-        return '✎'
-      case 'Arkivert':
-        return '📦'
-      default:
-        return '•'
-    }
-  }
 
   if (showEditor) {
     return (
@@ -199,136 +182,84 @@ export function AlarmorganiseringView({ onBack, initialAnleggId, initialKundeId,
     )
   }
 
+  const teller = {
+    alle: alarmorganiseringer.length,
+    Utkast: alarmorganiseringer.filter(x => x.status === 'Utkast').length,
+    Ferdig: alarmorganiseringer.filter(x => x.status === 'Ferdig').length,
+    Arkivert: alarmorganiseringer.filter(x => x.status === 'Arkivert').length,
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Alarmorganisering</h1>
-            <p className="text-gray-400 dark:text-gray-400">Organisering av alarmer</p>
-          </div>
+    <div className="space-y-5">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0">
+          <ArrowLeft className="w-4 h-4" />Teknisk
+        </button>
+      </div>
+
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white inline-flex items-center gap-2.5">
+            <Bell className="w-6 h-6 text-primary" />Alarmorganisering
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {loading ? 'Laster…' : `${teller.alle} ${teller.alle === 1 ? 'organisering' : 'organiseringer'} · ${teller.Utkast} utkast`}
+          </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={loadAlarmorganiseringer}
-            className="btn-secondary flex items-center gap-2"
-            disabled={loading}
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Oppdater
-          </button>
-          <button
-            onClick={handleNew}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Ny alarmorganisering
-          </button>
+        <div className="flex items-center gap-2">
+          <IconButton label="Oppdater" icon={<RefreshCw className={cn(loading && 'animate-spin')} />} onClick={loadAlarmorganiseringer} />
+          <Button variant="primary" icon={<Plus />} onClick={() => { setEditingItem(null); setShowEditor(true) }}>Ny alarmorganisering</Button>
+        </div>
+      </header>
+
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 flex-1" role="group" aria-label="Filter">
+          {(['Alle', 'Utkast', 'Ferdig', 'Arkivert'] as const).map(s => (
+            <button key={s} type="button" onClick={() => setSelectedStatus(s)} aria-pressed={selectedStatus === s}
+              className={cn('inline-flex items-center gap-2 h-[34px] px-3 rounded-full border text-sm whitespace-nowrap flex-shrink-0 transition-colors [&>b]:font-bold [&>b]:tabular-nums',
+                selectedStatus === s ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400')}>
+              {s} <b>{s === 'Alle' ? teller.alle : teller[s]}</b>
+            </button>
+          ))}
+        </div>
+        <div className="relative sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input type="search" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Søk kunde, anlegg, ingeniør…" className="input pl-9 w-full !h-[38px]" />
         </div>
       </div>
 
-      {/* Search and Filter */}
-      <div className="card space-y-4">
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Søk etter kunde, anlegg eller tekniker..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input pl-10 w-full"
-            />
-          </div>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="input w-48"
-          >
-            <option value="Alle">Alle statuser</option>
-            <option value="Utkast">Utkast</option>
-            <option value="Ferdig">Ferdig</option>
-            <option value="Arkivert">Arkivert</option>
-          </select>
-        </div>
-      </div>
-
-      {/* List */}
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <div className="card py-12 text-center text-sm text-gray-500">Laster…</div>
       ) : filteredData.length === 0 ? (
-        <div className="card text-center py-12">
-          <Bell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-400">Ingen alarmorganiseringer funnet</p>
-          <button
-            onClick={handleNew}
-            className="btn-primary mt-4 inline-flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Opprett ny
-          </button>
+        <div className="card py-10 text-center space-y-3">
+          <Bell className="w-10 h-10 text-gray-300 dark:text-gray-700 mx-auto" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {alarmorganiseringer.length === 0 ? 'Ingen alarmorganiseringer laget ennå.' : 'Ingen treff på filtrene.'}
+          </p>
+          {alarmorganiseringer.length === 0 && <Button variant="primary" icon={<Plus />} onClick={() => { setEditingItem(null); setShowEditor(true) }}>Lag den første</Button>}
         </div>
       ) : (
-        <div className="grid gap-4">
-          {filteredData.map((item) => (
-            <div
-              key={item.id}
-              className="card hover:border-primary/50 transition-colors cursor-pointer"
-              onClick={() => handleEdit(item)}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-4 flex-1">
-                  <div className="w-12 h-12 bg-yellow-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Bell className="w-6 h-6 text-yellow-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                        {item.customer?.navn || item.anlegg?.anleggsnavn || 'Ukjent'}
-                      </h3>
-                      <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusColor(item.status)}`}>
-                        {getStatusIcon(item.status)} {item.status}
-                      </span>
-                    </div>
-                    <div className="space-y-1 text-sm text-gray-400">
-                      {item.anlegg?.anleggsnavn && item.customer?.navn && (
-                        <p>🏢 {item.anlegg.anleggsnavn}</p>
-                      )}
-                      {item.service_ingeniør && (
-                        <p>👤 {item.service_ingeniør}</p>
-                      )}
-                      <p>📅 {new Date(item.dato).toLocaleDateString('nb-NO')}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => handleEdit(item)}
-                    className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-                    title="Rediger"
-                  >
-                    <Pencil className="w-4 h-4 text-gray-400" />
+        <div className="card p-0 overflow-hidden">
+          <ul className="divide-y divide-gray-200 dark:divide-gray-800">
+            {filteredData.map(item => (
+              <li key={item.id}>
+                <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors">
+                  <button type="button" onClick={() => { setEditingItem(item); setShowEditor(true) }} className="flex-1 min-w-0 text-left">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="font-semibold text-gray-900 dark:text-white truncate">{item.anlegg?.anleggsnavn ?? 'Uten anlegg'}</span>
+                      <span className={cn('px-2 py-0.5 rounded-full border text-xs font-medium whitespace-nowrap', getStatusColor(item.status))}>{item.status}</span>
+                    </span>
+                    <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {[item.customer?.navn, item.anlegg?.adresse, item.service_ingeniør, `Rev. ${item.revisjon}`].filter(Boolean).join(' · ')}
+                    </span>
                   </button>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="p-2 hover:bg-red-500/10 rounded-lg transition-colors"
-                    title="Slett"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-500" />
-                  </button>
+                  <span className="text-xs text-gray-400 tabular-nums whitespace-nowrap hidden sm:block">{item.dato ? new Date(item.dato).toLocaleDateString('nb-NO') : ''}</span>
+                  <IconButton variant="ghost" label="Rediger" icon={<Pencil />} onClick={() => { setEditingItem(item); setShowEditor(true) }} className="w-8 h-8" />
+                  <IconButton variant="ghost" label="Slett" icon={<Trash2 />} onClick={() => handleDelete(item.id)} className="w-8 h-8 hover:!text-red-500" />
                 </div>
-              </div>
-            </div>
-          ))}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
