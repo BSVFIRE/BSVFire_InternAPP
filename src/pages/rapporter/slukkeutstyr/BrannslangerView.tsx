@@ -814,16 +814,17 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
                 )
 
                 if (dropboxResult.success) {
-                  console.log('✅ Brannslanger-rapport lastet opp til Dropbox:', dropboxResult.path)
+                  toast.success('Rapporten er lagret i Dropbox')
                 } else {
-                  console.warn('⚠️ Dropbox-opplasting feilet:', dropboxResult.error)
+                  toast.warning('Rapporten er lagret, men ikke i Dropbox', dropboxResult.error)
                 }
               } else {
-                console.warn('⚠️ Kundenummer mangler - kan ikke laste opp til Dropbox')
+                toast.warning('Rapporten er lagret, men ikke i Dropbox', 'Kunden mangler kundenummer eller navn')
               }
             }
           } catch (dropboxError) {
-            console.error('❌ Feil ved Dropbox-opplasting:', dropboxError)
+            console.error('Feil ved Dropbox-opplasting:', dropboxError)
+            toast.warning('Rapporten er lagret, men ikke i Dropbox', dropboxError instanceof Error ? dropboxError.message : undefined)
             // Ikke stopp prosessen hvis Dropbox feiler
           }
         }

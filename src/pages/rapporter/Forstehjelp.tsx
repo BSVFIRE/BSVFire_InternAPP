@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, HeartPulse, Building2, Plus, Trash2, Save, Check, X, Edit, Eye } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -855,14 +856,15 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
               )
 
               if (dropboxResult.success) {
-                console.log('✅ Førstehjelp-rapport lastet opp til Dropbox:', dropboxResult.path)
+                toast.success('Rapporten er lagret i Dropbox')
               } else {
-                console.warn('⚠️ Dropbox-opplasting feilet:', dropboxResult.error)
+                toast.warning('Rapporten er lagret, men ikke i Dropbox', dropboxResult.error)
               }
             }
           }
         } catch (dropboxError) {
-          console.error('❌ Feil ved Dropbox-opplasting:', dropboxError)
+          console.error('Feil ved Dropbox-opplasting:', dropboxError)
+            toast.warning('Rapporten er lagret, men ikke i Dropbox', dropboxError instanceof Error ? dropboxError.message : undefined)
         }
       }
 

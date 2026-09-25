@@ -1074,8 +1074,10 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
               storage_path: storagePath
             })
 
-          // Last opp til Dropbox hvis aktivert
-          if (dropboxAvailable) {
+          // Last opp til Dropbox hvis aktivert. Statusen ble hentet da siden ble åpnet – var den
+          // nede akkurat da, sjekker vi på nytt her i stedet for å hoppe over opplastingen.
+          const dropboxKlar = dropboxAvailable || (await checkDropboxStatus()).connected
+          if (dropboxKlar) {
             try {
               // Hent kundedata for Dropbox-sti
               const { data: anleggData } = await supabase
@@ -1094,28 +1096,31 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
               if (anleggData) {
                 const kundeNummer = (anleggData.customer as any)?.kunde_nummer
                 const kundeNavnDropbox = (anleggData.customer as any)?.navn
+                // Bruk navnet fra databasen, ikke fra anleggslisten i skjermbildet: er ikke lista
+                // lastet, ble navnet tomt og opplastingen stoppet uten at noen så det.
+                const anleggNavnDropbox = anleggData.anleggsnavn || selectedAnleggNavn
 
-                if (kundeNummer && kundeNavnDropbox) {
-                  console.log('📤 Laster opp nødlys-rapport til Dropbox...')
+                if (kundeNummer && kundeNavnDropbox && anleggNavnDropbox) {
                   const dropboxResult = await uploadKontrollrapportToDropbox(
                     kundeNummer,
                     kundeNavnDropbox,
-                    selectedAnleggNavn,
+                    anleggNavnDropbox,
                     previewPdf.fileName,
                     previewPdf.blob
                   )
 
                   if (dropboxResult.success) {
-                    console.log('✅ Nødlys-rapport lastet opp til Dropbox:', dropboxResult.path)
+                    toast.success('Rapporten er lagret i Dropbox')
                   } else {
-                    console.warn('⚠️ Dropbox-opplasting feilet:', dropboxResult.error)
+                    toast.warning('Rapporten er lagret, men ikke i Dropbox', dropboxResult.error)
                   }
                 } else {
-                  console.warn('⚠️ Kundenummer mangler - kan ikke laste opp til Dropbox')
+                  toast.warning('Rapporten er lagret, men ikke i Dropbox', 'Kunden mangler kundenummer eller navn')
                 }
               }
             } catch (dropboxError) {
-              console.error('❌ Feil ved Dropbox-opplasting:', dropboxError)
+              console.error('Feil ved Dropbox-opplasting:', dropboxError)
+              toast.warning('Rapporten er lagret, men ikke i Dropbox', dropboxError instanceof Error ? dropboxError.message : undefined)
               // Ikke stopp prosessen hvis Dropbox feiler
             }
           }
