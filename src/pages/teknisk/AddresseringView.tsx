@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Search, Plus, Trash2, Download, Copy, Check, Save, FileText } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { Cpu, ArrowLeft, Search, Plus, Trash2, Download, Copy, Check, Save, FileText } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
 import { toast } from '@/lib/toast'
+import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 
 interface AddresseringViewProps {
@@ -226,7 +228,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
       toast.success('DIP-switch-oppsettet er lagret')
     } catch (error: any) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke lagre', error)
     } finally {
       setSaving(false)
     }
@@ -244,7 +246,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
       setKunder(data || [])
     } catch (error) {
       console.error('Feil ved lasting av kunder:', error)
-      alert('Kunne ikke laste kunder')
+      toast.error('Kunne ikke laste kunder', error)
     } finally {
       setLoading(false)
     }
@@ -263,7 +265,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
       setAnlegg(data || [])
     } catch (error) {
       console.error('Feil ved lasting av anlegg:', error)
-      alert('Kunne ikke laste anlegg')
+      toast.error('Kunne ikke laste anlegg', error)
     } finally {
       setLoading(false)
     }
@@ -344,7 +346,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
       }
     }
     if (existingBases.length >= 4) {
-      alert('Maksimalt 4 baser (Base 0-3) er støttet')
+      toast.warning('Maksimalt 4 baser (Base 0–3) er støttet')
       return
     }
     const channel = 0
@@ -469,7 +471,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
     )
 
     if (enheterMedData.length === 0) {
-      alert('Ingen enheter med data å overføre. Fyll inn "Enhet merket" for enhetene du vil overføre.')
+      toast.warning('Ingenting å overføre', 'Fyll inn «Enhet merket» for enhetene du vil ta med.')
       return
     }
 
@@ -657,7 +659,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
       )
     } catch (error: any) {
       console.error('Feil ved overføring:', error)
-      alert('Kunne ikke opprette/oppdatere adresseliste: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke opprette eller oppdatere adresselisten', error)
     } finally {
       setSaving(false)
     }
@@ -685,52 +687,29 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onBack}
-            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">DIP-switch</h1>
-            <p className="text-gray-600 dark:text-gray-400">Adresseoppsett for trådløse baser og enheter</p>
-          </div>
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0">
+          <ArrowLeft className="w-4 h-4" />Teknisk
+        </button>
+      </div>
+
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white inline-flex items-center gap-2.5">
+            <Cpu className="w-6 h-6 text-primary" />DIP-switch
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Adresseoppsett for trådløse baser og enheter</p>
         </div>
         {selectedAnlegg && enheter.length > 0 && (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={saveAddressering}
-              disabled={saving}
-              className={`btn-primary flex items-center gap-2 ${hasChanges ? 'bg-green-600 hover:bg-green-700' : ''}`}
-            >
-              {saving ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Save className="w-5 h-5" />
-              )}
-              {saving ? 'Lagrer...' : 'Lagre'}
-            </button>
-            <button
-              onClick={transferToDetektorliste}
-              disabled={saving}
-              className="btn-secondary flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
-            >
-              <FileText className="w-5 h-5" />
-              Overfør til Adresseliste
-            </button>
-            <button
-              onClick={exportToCSV}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <Download className="w-5 h-5" />
-              Eksporter CSV
-            </button>
+          <div className="flex items-center gap-2">
+            <Button icon={<Download />} onClick={exportToCSV}>CSV</Button>
+            <Button icon={<FileText />} onClick={transferToDetektorliste} disabled={saving}>Til adresseliste</Button>
+            <Button variant="primary" icon={<Save />} onClick={saveAddressering} loading={saving} className={cn(hasChanges && '!bg-green-600 hover:!bg-green-700')}>
+              {hasChanges ? 'Lagre endringer' : 'Lagre'}
+            </Button>
           </div>
         )}
-      </div>
+      </header>
 
       {/* Kunde og Anlegg valg */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -852,18 +831,12 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
                 0 = Off, 1 = On | Channel 0-3 velges i Base | Switch 7: X = ikke i bruk | Switch 8: 0 = Normal, 1 = Reg mode
               </p>
             </div>
-            <button
-              onClick={addBase}
-              className="btn-primary flex items-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              Legg til Base
-            </button>
+            <Button variant="primary" icon={<Plus />} onClick={addBase}>Legg til base</Button>
           </div>
 
           {/* Info om merking */}
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-6">
-            <p className="text-sm text-blue-400">
+          <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-3 mb-6">
+            <p className="text-sm text-blue-700 dark:text-blue-400">
               <strong>Merking:</strong> Enheter merkes som f.eks. <strong>001.01</strong> hvor 001 = Sone og 01 = Enhet i sone
             </p>
           </div>
@@ -886,7 +859,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
                             const otherBases = enheter.filter(en => en.baseNr !== baseIndex)
                             const existingBases = [...new Set(otherBases.map(en => en.baseNr))]
                             if (existingBases.includes(newIndex)) {
-                              alert(`Base ${newIndex.toString().padStart(2, '0')} er allerede i bruk`)
+                              toast.warning(`Base ${newIndex.toString().padStart(2, '0')} er allerede i bruk`)
                               return
                             }
                             
@@ -1127,12 +1100,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
           {enheter.length === 0 && (
             <div className="text-center py-12">
               <p className="text-gray-500 dark:text-gray-400">Ingen enheter konfigurert ennå</p>
-              <button
-                onClick={addBase}
-                className="btn-primary mt-4"
-              >
-                Legg til første base
-              </button>
+              <Button variant="primary" icon={<Plus />} onClick={addBase} className="mt-4">Legg til første base</Button>
             </div>
           )}
         </div>
