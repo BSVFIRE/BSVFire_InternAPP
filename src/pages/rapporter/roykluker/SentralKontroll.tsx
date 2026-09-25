@@ -12,7 +12,7 @@ import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { Button, IconButton } from '@/components/ui/Button'
 import {
-  ANLEGGSTYPER, TILSTANDER, TILSTAND_FARGE, punkterFor, tilstandFor,
+  ANLEGGSTYPER, TILSTANDER, TILSTAND_FARGE, punkterFor, relevanteFunn, tilstandFor,
   type ByttetUtstyr, type Krets, type Sentral, type Sjekkpunkt,
 } from './typer'
 
@@ -79,8 +79,8 @@ export function SentralKontroll({ sentralId, anleggNavn, kundeNavn, onTilbake, o
   const punkter = useMemo(() => s ? punkterFor(s) : [], [s])
   const vurdert = useMemo(() => punkter.filter(p => tilstandFor(s ?? { sjekkpunkter: [] }, p).tilstand).length, [punkter, s])
   const funn = useMemo(() => ({
-    avvik: (s?.sjekkpunkter ?? []).filter(x => x.tilstand === 'Avvik'),
-    anbefalinger: (s?.sjekkpunkter ?? []).filter(x => x.tilstand === 'Anbefaling'),
+    avvik: s ? relevanteFunn(s, 'Avvik') : [],
+    anbefalinger: s ? relevanteFunn(s, 'Anbefaling') : [],
   }), [s])
 
   function settPunkt(punkt: string, patch: Partial<Sjekkpunkt>) {

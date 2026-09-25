@@ -101,11 +101,26 @@ export function erKontrollert(s: Sentral): boolean {
   return Boolean(s.funksjonsteste) || Boolean(s.kontroll_forskriftsmessig)
 }
 
-/** Punktene som skal vises for en sentral: faste for typen + én rad per krets */
-export function punkterFor(s: Pick<Sentral, 'anlegg_type' | 'kretser'>): string[] {
+/**
+ * Punktene som vises for en sentral: faste for anleggstypen, ett per krets, og i tillegg
+ * punkter som ligger lagret med avvik eller merknad selv om de ikke hører til typen.
+ * Det siste sikrer at ingenting blir usynlig – f.eks. et avvik på «Ledeskinner» registrert
+ * før sentralen ble satt til Røykluker, eller «Krets» fra data som ble konvertert.
+ */
+export function punkterFor(s: Pick<Sentral, 'anlegg_type' | 'kretser' | 'sjekkpunkter'>): string[] {
   const faste = SJEKKPUNKTER[s.anlegg_type ?? 'Røykluker'] ?? SJEKKPUNKTER.Røykluker
   const kretser = (s.kretser ?? []).map((k, i) => `Krets ${k.nr || i + 1}`)
-  return [...faste, 'Signal', ...kretser]
+  const kjente = new Set([...faste, 'Signal', ...kretser])
+  const ekstra = (s.sjekkpunkter ?? [])
+    .filter(p => !kjente.has(p.punkt) && (p.tilstand === 'Avvik' || p.tilstand === 'Anbefaling' || p.merknad?.trim()))
+    .map(p => p.punkt)
+  return [...faste, 'Signal', ...kretser, ...Array.from(new Set(ekstra))]
+}
+
+/** Funn som faktisk gjelder sentralen – punkter utenfor listen tas ikke med i tellinger */
+export function relevanteFunn(s: Sentral, tilstand: 'Avvik' | 'Anbefaling'): Sjekkpunkt[] {
+  const gjelder = new Set(punkterFor(s))
+  return (s.sjekkpunkter ?? []).filter(p => p.tilstand === tilstand && gjelder.has(p.punkt))
 }
 
 export function tilstandFor(s: Pick<Sentral, 'sjekkpunkter'>, punkt: string): Sjekkpunkt {

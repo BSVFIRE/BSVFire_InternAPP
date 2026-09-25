@@ -9,7 +9,7 @@
  */
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { punkterFor, tilstandFor, type Krets, type Luke, type Sentral } from './typer'
+import { punkterFor, relevanteFunn, tilstandFor, type Krets, type Luke, type Sentral } from './typer'
 
 export interface RapportData {
   kundeNavn: string
@@ -148,7 +148,7 @@ export async function lagRoyklukeRapport(d: RapportData): Promise<{ blob: Blob; 
 
   // Avvik og anbefalinger, hentet fra sjekkpunktene
   const funn = (tilstand: 'Avvik' | 'Anbefaling') => sentraler.flatMap(s =>
-    (s.sjekkpunkter ?? []).filter(p => p.tilstand === tilstand)
+    relevanteFunn(s, tilstand)
       .map(p => [s.plassering || `Sentral ${s.sentral_nr ?? ''}`.trim(), tilstand, p.punkt, p.merknad || '']))
 
   for (const [tittel, tilstand, farge] of [

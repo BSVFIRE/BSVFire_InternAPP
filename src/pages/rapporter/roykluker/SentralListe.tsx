@@ -18,7 +18,7 @@ import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { useAuthStore } from '@/store/authStore'
 import {
-  ANLEGGSTYPER, AVVIK_STATUSER, STATUSER, STATUS_FARGE, erKontrollert, sentralNavn,
+  ANLEGGSTYPER, AVVIK_STATUSER, STATUSER, STATUS_FARGE, erKontrollert, relevanteFunn, sentralNavn,
   type Anleggstype, type Kommentar, type Luke, type Sentral,
 } from './typer'
 
@@ -83,7 +83,7 @@ export function SentralListe({ anleggId, kundeNavn, anleggNavn, onApneSentral, o
 
   function avvikFor(s: Sentral): number {
     const egne = AVVIK_STATUSER.has(s.status ?? '') ? 1 : 0
-    return egne + (lukerPer.get(s.id) ?? []).filter(l => AVVIK_STATUSER.has(l.status ?? '')).length
+    return egne + relevanteFunn(s, 'Avvik').length + (lukerPer.get(s.id) ?? []).filter(l => AVVIK_STATUSER.has(l.status ?? '')).length
   }
 
   const teller = useMemo(() => ({
