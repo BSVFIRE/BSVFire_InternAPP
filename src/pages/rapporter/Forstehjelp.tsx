@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { toast } from '@/lib/toast'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, HeartPulse, Building2, Plus, Trash2, Save, Check, X, Edit, Eye } from 'lucide-react'
+import { ArrowLeft, HeartPulse, Save, Check, FileText } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
 import { useLocation, useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -9,6 +10,7 @@ import { ForstehjelpPreview } from './ForstehjelpPreview'
 import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
 import { SendRapportDialog } from '@/components/SendRapportDialog'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
+import { ForstehjelpListe } from './forstehjelp/ForstehjelpListe'
 import { Combobox } from '@/components/ui/Combobox'
 
 interface Kunde {
@@ -51,7 +53,6 @@ interface ForstehjelpProps {
 const statusTyper = ['OK', 'Defekt', 'Mangler', 'Utskiftet', 'Utgått']
 const etasjeOptions = ['-2.Etg', '-1.Etg', '0.Etg', '1.Etg', '2.Etg', '3.Etg', '4.Etg', '5.Etg', '6.Etg', '7.Etg', '8.Etg', '9.Etg', '10.Etg']
 const typeOptions = ['Førstehjelpskoffert', 'Øyeskylling', 'Hjertestarter (AED)', 'Førstehjelpsstasjon', 'Båre', 'Annet']
-const tilleggOptions = ['Plasterstasjon', 'Brannskade']
 
 // Sjekkpunkter per type
 const sjekkpunkterPerType: Record<string, string[]> = {
@@ -78,14 +79,12 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'preview'>('list')
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
   const [pdfFileName, setPdfFileName] = useState('')
-    const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null)
-  const [editValue, setEditValue] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const [kommentarModal, setKommentarModal] = useState<{ id: string; internnummer: string; kommentar: string } | null>(null)
   const [showFullfortDialog, setShowFullfortDialog] = useState(false)
   const [showSendRapportDialog, setShowSendRapportDialog] = useState(false)
   const [pendingPdfSave, setPendingPdfSave] = useState<{ fileName: string; pdfBlob: Blob } | null>(null)
   const [dropboxAvailable, setDropboxAvailable] = useState(false)
+  const [lagrer, setLagrer] = useState<Set<string>>(new Set())
   const [kundeId, setKundeId] = useState<string | null>(null)
 
   // Form state for ny enhet
@@ -226,80 +225,18 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       await loadForstehjelp(selectedAnlegg)
     } catch (error) {
       console.error('Feil ved opprettelse:', error)
-      alert('Kunne ikke opprette førstehjelpenhet')
+      toast.error('Kunne ikke opprette enheten', error)
     } finally {
       setIsSaving(false)
     }
   }
 
-  async function updateForstehjelp(id: string, field: string, value: string | boolean | Record<string, boolean> | string[] | null) {
-    try {
-      const { error } = await supabase
-        .from('anleggsdata_forstehjelp')
-        .update({ [field]: value })
-        .eq('id', id)
 
-      if (error) throw error
-      
-      // Oppdater lokal state
-      setForstehjelpListe(prev => 
-        prev.map(f => f.id === id ? { ...f, [field]: value } : f)
-      )
-    } catch (error) {
-      console.error('Feil ved oppdatering:', error)
-      alert('Kunne ikke oppdatere')
-    }
-  }
 
-  async function deleteForstehjelp(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne førstehjelpenheten?')) return
 
-    try {
-      const { error } = await supabase
-        .from('anleggsdata_forstehjelp')
-        .delete()
-        .eq('id', id)
 
-      if (error) throw error
-      await loadForstehjelp(selectedAnlegg)
-    } catch (error) {
-      console.error('Feil ved sletting:', error)
-      alert('Kunne ikke slette førstehjelpenhet')
-    }
-  }
 
-  function startEditing(id: string, field: string, currentValue: string | null) {
-    setEditingCell({ id, field })
-    setEditValue(currentValue || '')
-  }
 
-  async function saveInlineEdit(id: string, field: string) {
-    await updateForstehjelp(id, field, editValue || null)
-    setEditingCell(null)
-    setEditValue('')
-  }
-
-  function cancelEditing() {
-    setEditingCell(null)
-    setEditValue('')
-  }
-
-  async function toggleSjekkpunkt(id: string, punkt: string, currentSjekkpunkter: Record<string, boolean> | null) {
-    const updatedSjekkpunkter = {
-      ...(currentSjekkpunkter || {}),
-      [punkt]: !(currentSjekkpunkter?.[punkt] || false)
-    }
-    await updateForstehjelp(id, 'sjekkpunkter', updatedSjekkpunkter)
-  }
-
-  async function toggleTillegg(id: string, tillegg: string, currentTillegg: string[] | null) {
-    const current = currentTillegg || []
-    const isSelected = current.includes(tillegg)
-    const updatedTillegg = isSelected 
-      ? current.filter(t => t !== tillegg)
-      : [...current, tillegg]
-    await updateForstehjelp(id, 'tillegg', updatedTillegg)
-  }
 
   async function markerAlleSjekkpunkter() {
     if (!confirm('Vil du markere alle sjekkpunkter som utført?')) return
@@ -322,8 +259,48 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       await loadForstehjelp(selectedAnlegg)
     } catch (error) {
       console.error('Feil ved markering:', error)
-      alert('Kunne ikke markere alle sjekkpunkter')
+      toast.error('Kunne ikke markere alle sjekkpunkter', error)
     }
+  }
+
+
+  /** Lagrer én endring med en gang og ruller tilbake hvis det feiler */
+  async function lagreEndring(id: string, patch: Partial<ForstehjelpEnhet>) {
+    const forrige = forstehjelpListe.find(f => f.id === id)
+    if (!forrige) return
+    setForstehjelpListe(prev => prev.map(f => f.id === id ? { ...f, ...patch } : f))
+    setLagrer(prev => new Set(prev).add(id))
+    const { error } = await supabase.from('anleggsdata_forstehjelp').update(patch).eq('id', id)
+    setLagrer(prev => { const n = new Set(prev); n.delete(id); return n })
+    if (error) {
+      setForstehjelpListe(prev => prev.map(f => f.id === id ? forrige : f))
+      toast.error('Kunne ikke lagre', error)
+    }
+  }
+
+  /** Samme endring på flere enheter (velg flere) */
+  async function lagreEndringFlere(ids: string[], patch: Partial<ForstehjelpEnhet>) {
+    if (ids.length === 0) return
+    const { error } = await supabase.from('anleggsdata_forstehjelp').update(patch).in('id', ids)
+    if (error) { toast.error('Kunne ikke oppdatere', error); return }
+    setForstehjelpListe(prev => prev.map(f => ids.includes(f.id) ? { ...f, ...patch } : f))
+    toast.success(`${ids.length} ${ids.length === 1 ? 'enhet' : 'enheter'} oppdatert`)
+  }
+
+  async function slettEnhet(e: ForstehjelpEnhet) {
+    if (!confirm(`Slette ${[e.internnummer, e.type, e.plassering].filter(Boolean).join(' · ') || 'enheten'}?`)) return
+    const { error } = await supabase.from('anleggsdata_forstehjelp').delete().eq('id', e.id)
+    if (error) { toast.error('Kunne ikke slette', error); return }
+    setForstehjelpListe(prev => prev.filter(f => f.id !== e.id))
+    toast.success('Enheten er slettet')
+  }
+
+  async function slettFlere(ids: string[]) {
+    if (ids.length === 0) return
+    const { error } = await supabase.from('anleggsdata_forstehjelp').delete().in('id', ids)
+    if (error) { toast.error('Kunne ikke slette', error); throw error }
+    setForstehjelpListe(prev => prev.filter(f => !ids.includes(f.id)))
+    toast.success(`${ids.length} ${ids.length === 1 ? 'enhet' : 'enheter'} slettet`)
   }
 
   async function genererPDFBlob(): Promise<{ blob: Blob; fileName: string }> {
@@ -774,13 +751,8 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       setViewMode('preview')
     } catch (error) {
       console.error('Feil ved PDF-generering:', error)
-      alert('Kunne ikke generere PDF')
+      toast.error('Kunne ikke lage PDF-en', error)
     }
-  }
-
-  async function lagreOgLastNedPDF() {
-    // Kan utvides til å lagre til Dropbox etc.
-    return Promise.resolve()
   }
 
   async function genererOgLastNedPDF() {
@@ -873,9 +845,14 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       setShowFullfortDialog(true)
     } catch (error) {
       console.error('Feil ved PDF-generering:', error)
-      alert('Kunne ikke generere rapport')
+      toast.error('Kunne ikke lage rapporten', error)
     }
   }
+
+  async function lagreOgLastNedPDF() {
+    await genererOgLastNedPDF()
+  }
+
 
   async function handleTjenesteFullfort() {
     try {
@@ -904,7 +881,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       setShowSendRapportDialog(true)
     } catch (error) {
       console.error('Feil ved oppdatering av tjenestestatus:', error)
-      alert('Rapport lagret, men kunne ikke oppdatere status')
+      toast.warning('Rapporten er lagret, men statusen ble ikke oppdatert')
       setShowFullfortDialog(false)
     }
   }
@@ -1072,472 +1049,92 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => {
-              if (fromAnlegg && state?.anleggId) {
-                navigate('/anlegg', { state: { viewAnleggId: state.anleggId } })
-              } else {
-                onBack()
-              }
-            }}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Førstehjelp</h1>
-            <p className="text-gray-500 dark:text-gray-400">Kontroll av førstehjelpstasjoner</p>
-          </div>
-        </div>
+    <div className="space-y-5">
+      {/* Brødsmule */}
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <button
+          type="button"
+          onClick={() => { if (fromAnlegg && state?.anleggId) navigate('/anlegg', { state: { viewAnleggId: state.anleggId } }); else onBack() }}
+          className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"
+        >
+          <ArrowLeft className="w-4 h-4" />{fromAnlegg ? 'Anlegget' : 'Rapporter'}
+        </button>
       </div>
 
-      {/* Kunde og Anlegg Velger */}
-      <div className="card">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Kunde */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Velg kunde <span className="text-red-500">*</span>
-            </label>
+      <header>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white inline-flex items-center gap-2.5">
+          <HeartPulse className="w-6 h-6 text-primary" />Førstehjelp
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          {selectedAnlegg
+            ? <>{selectedKundeNavn} · <b className="font-semibold text-gray-700 dark:text-gray-300">{selectedAnleggNavn}</b> · <button type="button" onClick={() => setSelectedAnlegg('')} className="hover:text-primary underline-offset-2 hover:underline">bytt anlegg</button></>
+            : 'Kofferter, øyeskylling og hjertestartere – velg anlegg for å starte'}
+        </p>
+      </header>
+
+      {/* Velger */}
+      {!selectedAnlegg && (
+        <div className="card space-y-4 max-w-2xl">
+          <div className="space-y-1.5">
+            <span className="block text-sm font-medium text-gray-900 dark:text-white">Kunde</span>
             <Combobox
               options={kunder.map(k => ({ id: k.id, value: k.id, label: k.navn }))}
               value={selectedKunde}
-              onChange={(val) => {
-                setSelectedKunde(val)
-                setSelectedAnlegg('')
-              }}
-              placeholder="Søk og velg kunde..."
-              searchPlaceholder="Skriv for å søke..."
+              onChange={val => { setSelectedKunde(val); setSelectedAnlegg('') }}
+              placeholder="Velg kunde…"
+              searchPlaceholder="Søk kunde…"
               emptyMessage="Ingen kunder funnet"
             />
           </div>
-
-          {/* Anlegg */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Velg anlegg <span className="text-red-500">*</span>
-            </label>
-            <Combobox
-              options={anlegg.map(a => ({ id: a.id, value: a.id, label: a.anleggsnavn }))}
-              value={selectedAnlegg}
-              onChange={(val) => setSelectedAnlegg(val)}
-              placeholder="Søk og velg anlegg..."
-              searchPlaceholder="Skriv for å søke..."
-              emptyMessage="Ingen anlegg funnet"
-              disabled={!selectedKunde}
-            />
+          <div className="space-y-1.5">
+            <span className="block text-sm font-medium text-gray-900 dark:text-white">Anlegg</span>
+            {!selectedKunde ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Velg kunde først.</p>
+            ) : anlegg.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Ingen anlegg på denne kunden.</p>
+            ) : (
+              <Combobox
+                options={anlegg.map(a => ({ id: a.id, value: a.id, label: a.anleggsnavn }))}
+                value={selectedAnlegg}
+                onChange={setSelectedAnlegg}
+                placeholder="Velg anlegg…"
+                searchPlaceholder="Søk anlegg…"
+                emptyMessage="Ingen anlegg funnet"
+              />
+            )}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Valgt anlegg info og liste */}
       {selectedAnlegg && (
         <>
-          {/* Valgt anlegg info */}
-          <div className="card bg-green-500/5 border-green-500/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Building2 className="w-5 h-5 text-green-500" />
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Valgt anlegg</p>
-                  <p className="text-gray-900 dark:text-white font-medium">{selectedKundeNavn} - {selectedAnleggNavn}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={markerAlleSjekkpunkter}
-                  className="btn-secondary text-sm flex items-center gap-2"
-                >
-                  <Check className="w-4 h-4" />
-                  Marker alle kontrollert
-                </button>
-                <button
-                  onClick={genererOgLastNedPDF}
-                  className="btn-secondary text-sm flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  Generer rapport
-                </button>
-                <button
-                  onClick={visForhandsvisning}
-                  className="btn-secondary text-sm flex items-center gap-2"
-                >
-                  <Eye className="w-4 h-4" />
-                  Forhåndsvis PDF
-                </button>
-                <button
-                  onClick={() => setViewMode('create')}
-                  className="btn-primary text-sm flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Ny enhet
-                </button>
-              </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {selectedKundeNavn} · <b className="font-semibold text-gray-700 dark:text-gray-300">{selectedAnleggNavn}</b>
+            </p>
+            <div className="flex items-center gap-2">
+              <Button icon={<Check />} onClick={markerAlleSjekkpunkter}>Huk av alle sjekkpunkter</Button>
+              <Button icon={<FileText />} onClick={visForhandsvisning} disabled={forstehjelpListe.length === 0}>Rapport</Button>
             </div>
           </div>
 
-          {/* Statistikk */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="card bg-gray-500/10">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Totalt</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{forstehjelpListe.length}</p>
-            </div>
-            <div className="card bg-green-500/10">
-              <p className="text-sm text-gray-500 dark:text-gray-400">OK</p>
-              <p className="text-2xl font-bold text-green-500">{forstehjelpListe.filter(f => f.status === 'OK').length}</p>
-            </div>
-            <div className="card bg-red-500/10">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Defekt/Utgått</p>
-              <p className="text-2xl font-bold text-red-500">{forstehjelpListe.filter(f => f.status === 'Defekt' || f.status === 'Utgått').length}</p>
-            </div>
-            <div className="card bg-blue-500/10">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Kontrollert</p>
-              <p className="text-2xl font-bold text-blue-500">{forstehjelpListe.filter(f => f.kontrollert).length}</p>
-            </div>
-          </div>
-
-          {/* Liste */}
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Førstehjelpenheter ({forstehjelpListe.length})</h3>
-            
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              </div>
-            ) : forstehjelpListe.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                <HeartPulse className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Ingen førstehjelpenheter registrert</p>
-                <button
-                  onClick={() => setViewMode('create')}
-                  className="btn-primary mt-4"
-                >
-                  Legg til første enhet
-                </button>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Nr</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Type</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Plassering</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Etasje</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Utløpsdato</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Status</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Tillegg</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Sjekkpunkter</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Kommentar</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-500 dark:text-gray-400">Handlinger</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {forstehjelpListe.map((enhet) => (
-                      <tr key={enhet.id} className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-dark-100">
-                        {/* Internnummer */}
-                        <td className="py-3 px-2">
-                          {editingCell?.id === enhet.id && editingCell?.field === 'internnummer' ? (
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="text"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                className="input py-1 px-2 text-sm w-20"
-                                autoFocus
-                              />
-                              <button onClick={() => saveInlineEdit(enhet.id, 'internnummer')} className="text-green-500 hover:text-green-400">
-                                <Check className="w-4 h-4" />
-                              </button>
-                              <button onClick={cancelEditing} className="text-red-500 hover:text-red-400">
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <span
-                              onClick={() => startEditing(enhet.id, 'internnummer', enhet.internnummer)}
-                              className="cursor-pointer hover:text-primary text-gray-900 dark:text-white"
-                            >
-                              {enhet.internnummer || '-'}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Type */}
-                        <td className="py-3 px-2">
-                          {editingCell?.id === enhet.id && editingCell?.field === 'type' ? (
-                            <div className="flex items-center gap-1">
-                              <select
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                className="input py-1 px-2 text-sm"
-                                autoFocus
-                              >
-                                <option value="">Velg type</option>
-                                {typeOptions.map(t => (
-                                  <option key={t} value={t}>{t}</option>
-                                ))}
-                              </select>
-                              <button onClick={() => saveInlineEdit(enhet.id, 'type')} className="text-green-500 hover:text-green-400">
-                                <Check className="w-4 h-4" />
-                              </button>
-                              <button onClick={cancelEditing} className="text-red-500 hover:text-red-400">
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <span
-                              onClick={() => startEditing(enhet.id, 'type', enhet.type)}
-                              className="cursor-pointer hover:text-primary text-gray-900 dark:text-white"
-                            >
-                              {enhet.type || '-'}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Plassering */}
-                        <td className="py-3 px-2">
-                          {editingCell?.id === enhet.id && editingCell?.field === 'plassering' ? (
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="text"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                className="input py-1 px-2 text-sm w-32"
-                                autoFocus
-                              />
-                              <button onClick={() => saveInlineEdit(enhet.id, 'plassering')} className="text-green-500 hover:text-green-400">
-                                <Check className="w-4 h-4" />
-                              </button>
-                              <button onClick={cancelEditing} className="text-red-500 hover:text-red-400">
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <span
-                              onClick={() => startEditing(enhet.id, 'plassering', enhet.plassering)}
-                              className="cursor-pointer hover:text-primary text-gray-900 dark:text-white"
-                            >
-                              {enhet.plassering || '-'}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Etasje */}
-                        <td className="py-3 px-2">
-                          {editingCell?.id === enhet.id && editingCell?.field === 'etasje' ? (
-                            <div className="flex items-center gap-1">
-                              <select
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                className="input py-1 px-2 text-sm"
-                                autoFocus
-                              >
-                                <option value="">Velg</option>
-                                {etasjeOptions.map(e => (
-                                  <option key={e} value={e}>{e}</option>
-                                ))}
-                              </select>
-                              <button onClick={() => saveInlineEdit(enhet.id, 'etasje')} className="text-green-500 hover:text-green-400">
-                                <Check className="w-4 h-4" />
-                              </button>
-                              <button onClick={cancelEditing} className="text-red-500 hover:text-red-400">
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <span
-                              onClick={() => startEditing(enhet.id, 'etasje', enhet.etasje)}
-                              className="cursor-pointer hover:text-primary text-gray-900 dark:text-white"
-                            >
-                              {enhet.etasje || '-'}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Utløpsdato */}
-                        <td className="py-3 px-2">
-                          {editingCell?.id === enhet.id && editingCell?.field === 'utlopsdato' ? (
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="date"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                className="input py-1 px-2 text-sm"
-                                autoFocus
-                              />
-                              <button onClick={() => saveInlineEdit(enhet.id, 'utlopsdato')} className="text-green-500 hover:text-green-400">
-                                <Check className="w-4 h-4" />
-                              </button>
-                              <button onClick={cancelEditing} className="text-red-500 hover:text-red-400">
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <span
-                              onClick={() => startEditing(enhet.id, 'utlopsdato', enhet.utlopsdato)}
-                              className={`cursor-pointer hover:text-primary ${enhet.utlopsdato && new Date(enhet.utlopsdato) < new Date() ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}
-                            >
-                              {enhet.utlopsdato ? new Date(enhet.utlopsdato).toLocaleDateString('nb-NO') : '-'}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-3 px-2">
-                          <select
-                            value={enhet.status || ''}
-                            onChange={(e) => updateForstehjelp(enhet.id, 'status', e.target.value)}
-                            className={`py-1 px-2 rounded text-sm font-medium ${
-                              enhet.status === 'OK' ? 'bg-green-500/20 text-green-500' :
-                              enhet.status === 'Defekt' || enhet.status === 'Utgått' ? 'bg-red-500/20 text-red-500' :
-                              'bg-yellow-500/20 text-yellow-500'
-                            }`}
-                          >
-                            {statusTyper.map(s => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
-                          </select>
-                        </td>
-
-                        {/* Tillegg */}
-                        <td className="py-3 px-2">
-                          {enhet.type === 'Øyeskylling' || enhet.type === 'Hjertestarter (AED)' || enhet.type === 'Båre' ? (
-                            <span className="text-gray-500 text-xs">-</span>
-                          ) : (
-                            <div className="flex flex-col gap-1">
-                              {tilleggOptions.map((tillegg) => {
-                                const isSelected = enhet.tillegg?.includes(tillegg) || false
-                                return (
-                                  <button
-                                    key={tillegg}
-                                    onClick={() => toggleTillegg(enhet.id, tillegg, enhet.tillegg)}
-                                    className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 whitespace-nowrap ${
-                                      isSelected 
-                                        ? 'bg-blue-500/20 text-blue-600 dark:text-blue-500 border border-blue-500/30' 
-                                        : 'bg-gray-200 dark:bg-gray-700/50 text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-600'
-                                    }`}
-                                    title={tillegg}
-                                  >
-                                    {isSelected && <Check className="w-3 h-3" />}
-                                    {tillegg}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Sjekkpunkter */}
-                        <td className="py-3 px-2">
-                          <div className="flex flex-col gap-1">
-                            {(sjekkpunkterPerType[enhet.type || 'Annet'] || sjekkpunkterPerType['Annet']).map((punkt) => {
-                              const isChecked = enhet.sjekkpunkter?.[punkt] || false
-                              return (
-                                <button
-                                  key={punkt}
-                                  onClick={() => toggleSjekkpunkt(enhet.id, punkt, enhet.sjekkpunkter)}
-                                  className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 whitespace-nowrap ${
-                                    isChecked 
-                                      ? 'bg-green-500/20 text-green-600 dark:text-green-500 border border-green-500/30' 
-                                      : 'bg-gray-200 dark:bg-gray-700/50 text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-600'
-                                  }`}
-                                  title={punkt}
-                                >
-                                  {isChecked && <Check className="w-3 h-3" />}
-                                  {punkt}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </td>
-
-                        {/* Kommentar */}
-                        <td className="py-3 px-2">
-                          <span
-                            onClick={() => setKommentarModal({ id: enhet.id, internnummer: enhet.internnummer || '-', kommentar: enhet.kommentar || '' })}
-                            className="cursor-pointer hover:text-primary text-gray-400 text-sm max-w-[120px] truncate block"
-                            title={enhet.kommentar || 'Klikk for å legge til'}
-                          >
-                            {enhet.kommentar || '-'}
-                          </span>
-                        </td>
-
-                        {/* Handlinger */}
-                        <td className="py-3 px-2">
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => setKommentarModal({ id: enhet.id, internnummer: enhet.internnummer || '-', kommentar: enhet.kommentar || '' })}
-                              className="p-1 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 rounded"
-                              title="Rediger kommentar"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => deleteForstehjelp(enhet.id)}
-                              className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded"
-                              title="Slett"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {loading ? (
+            <div className="card py-12 text-center text-sm text-gray-500">Laster utstyret…</div>
+          ) : (
+            <ForstehjelpListe
+              enheter={forstehjelpListe}
+              lagrer={lagrer}
+              onEndre={lagreEndring}
+              onEndreFlere={lagreEndringFlere}
+              onSlett={slettEnhet}
+              onSlettFlere={slettFlere}
+              onNy={() => setViewMode('create')}
+            />
+          )}
         </>
       )}
 
-      {/* Kommentar Modal */}
-      {kommentarModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-200 rounded-lg p-6 w-full max-w-md mx-4 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Rediger kommentar</h3>
-              <button
-                onClick={() => setKommentarModal(null)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-sm text-gray-400 mb-3">Enhet: <span className="text-green-500 font-medium">{kommentarModal.internnummer}</span></p>
-            <textarea
-              value={kommentarModal.kommentar}
-              onChange={(e) => setKommentarModal({ ...kommentarModal, kommentar: e.target.value })}
-              className="input w-full h-32 resize-none"
-              placeholder="Skriv kommentar her..."
-              autoFocus
-            />
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => setKommentarModal(null)}
-                className="btn-secondary"
-              >
-                Avbryt
-              </button>
-              <button
-                onClick={async () => {
-                  await updateForstehjelp(kommentarModal.id, 'kommentar', kommentarModal.kommentar || null)
-                  setKommentarModal(null)
-                }}
-                className="btn-primary"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Lagre
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* TjenesteFullfort Dialog */}
       <TjenesteFullfortDialog
