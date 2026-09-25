@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { ArrowLeft, Search, Plus, Trash2, Download, Copy, Check, Save, FileText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { toast } from '@/lib/toast'
 import { useAuthStore } from '@/store/authStore'
 
 interface AddresseringViewProps {
@@ -222,7 +223,7 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
       if (error) throw error
 
       setHasChanges(false)
-      alert('Addressering lagret!')
+      toast.success('DIP-switch-oppsettet er lagret')
     } catch (error: any) {
       console.error('Feil ved lagring:', error)
       alert('Kunne ikke lagre: ' + (error?.message || 'Ukjent feil'))
@@ -694,8 +695,8 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Addressering</h1>
-            <p className="text-gray-600 dark:text-gray-400">DIP-switch konfigurasjon for trådløse baser og enheter</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">DIP-switch</h1>
+            <p className="text-gray-600 dark:text-gray-400">Adresseoppsett for trådløse baser og enheter</p>
           </div>
         </div>
         {selectedAnlegg && enheter.length > 0 && (

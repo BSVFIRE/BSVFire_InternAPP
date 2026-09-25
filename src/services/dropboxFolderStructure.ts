@@ -29,7 +29,7 @@ export const ANLEGG_FOLDERS = [
   '02_Brannalarm/01_Konfig',
   '02_Brannalarm/01_Konfig/01_Siste konfigurasjon',
   '02_Brannalarm/01_Konfig/99_Arkiv',
-  '02_Brannalarm/02_Detektorliste',
+  '02_Brannalarm/02_Adresseliste',
   '02_Brannalarm/03_Prosjekteringsunderlag',
   '02_Brannalarm/04_Brannkonsept',
   '02_Brannalarm/05_Alarmorganisering',

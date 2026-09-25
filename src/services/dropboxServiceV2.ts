@@ -339,15 +339,34 @@ export async function uploadKontrollrapportToDropbox(
   return uploadToDropbox(filePath, pdfBlob)
 }
 
+/** Nytt navn på mappen. Anlegg som allerede bruker det gamle beholder det – se finnAdresselisteMappe. */
+export const ADRESSELISTE_MAPPE = '02_Adresseliste'
+export const ADRESSELISTE_MAPPE_GAMMEL = '02_Detektorliste'
+
+/**
+ * Hvilken mappe adresselister skal i for et anlegg: den gamle hvis anlegget allerede har filer der,
+ * ellers den nye. Da splittes ikke filene for anlegg som er i drift.
+ */
+export async function finnAdresselisteMappe(kundeNummer: string, kundeNavn: string, anleggNavn: string): Promise<string> {
+  const gammel = buildDetektorlisteDropboxPath(kundeNummer, kundeNavn, anleggNavn, '', ADRESSELISTE_MAPPE_GAMMEL).replace(/\/$/, '')
+  try {
+    const res = await listDropboxFolder(gammel)
+    if (res.success && (res.entries?.length ?? 0) > 0) return ADRESSELISTE_MAPPE_GAMMEL
+  } catch { /* mappen finnes ikke – bruk det nye navnet */ }
+  return ADRESSELISTE_MAPPE
+}
+
 /**
  * Bygger Dropbox-mappesti for adresselister
- * Format: /NY MAPPESTRUKTUR 2026/01_KUNDER/{kundenummer}_{kundenavn}/02_Bygg/{anleggsnavn}/02_Brannalarm/02_Detektorliste/{filnavn}
+ * Format: …/02_Bygg/{anleggsnavn}/02_Brannalarm/{02_Adresseliste|02_Detektorliste}/{filnavn}
  */
 export function buildDetektorlisteDropboxPath(
   kundeNummer: string,
   kundeNavn: string,
   anleggNavn: string,
-  fileName: string
+  fileName: string,
+  /** Nye anlegg bruker 02_Adresseliste; eldre anlegg har 02_Detektorliste og beholder den */
+  mappe: string = ADRESSELISTE_MAPPE
 ): string {
   const safeKundeNavn = kundeNavn
     .replace(/[<>:"/\\|?*]/g, '_')
@@ -361,7 +380,7 @@ export function buildDetektorlisteDropboxPath(
 
   const basePath = '/NY MAPPESTRUKTUR 2026/01_KUNDER'
   const kundePath = `${kundeNummer}_${safeKundeNavn}`
-  const fullPath = `${basePath}/${kundePath}/02_Bygg/${safeAnleggNavn}/02_Brannalarm/02_Detektorliste/${fileName}`
+  const fullPath = `${basePath}/${kundePath}/02_Bygg/${safeAnleggNavn}/02_Brannalarm/${mappe}/${fileName}`
 
   return fullPath
 }
@@ -386,9 +405,10 @@ export async function uploadDetektorlisteToDropbox(
     return { success: false, error: 'Anleggsnavn mangler' }
   }
 
-  const filePath = buildDetektorlisteDropboxPath(kundeNummer, kundeNavn, anleggNavn, fileName)
-  
-  log.info('Laster opp adresseliste til Dropbox', { filePath, kundeNummer, kundeNavn, anleggNavn })
+  const mappe = await finnAdresselisteMappe(kundeNummer, kundeNavn, anleggNavn)
+  const filePath = buildDetektorlisteDropboxPath(kundeNummer, kundeNavn, anleggNavn, fileName, mappe)
+
+  log.info('Laster opp adresseliste til Dropbox', { filePath, mappe, kundeNummer, kundeNavn, anleggNavn })
   
   // Sørg for at mappen eksisterer
   const folderPath = filePath.substring(0, filePath.lastIndexOf('/'))

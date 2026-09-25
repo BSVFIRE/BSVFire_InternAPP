@@ -202,8 +202,8 @@ export function Teknisk() {
               <Cpu className="w-6 h-6 text-purple-500" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Addressering</h3>
-              <p className="text-sm text-gray-400 dark:text-gray-400">DIP-switch konfigurasjon</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">DIP-switch</h3>
+              <p className="text-sm text-gray-400 dark:text-gray-400">Adresseoppsett for trådløse enheter</p>
             </div>
           </div>
           <p className="text-primary text-sm font-medium">Klikk for å åpne →</p>
