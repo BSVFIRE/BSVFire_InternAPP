@@ -377,6 +377,9 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       doc.setTextColor(0)
     }
 
+    const nesteKontroll = new Date(kontrolldato)
+    nesteKontroll.setMonth(nesteKontroll.getMonth() + 12)
+
     await lagForside(doc, {
       tittel: 'Kontrollrapport førstehjelp',
       anleggNavn: anleggData?.anleggsnavn || selectedAnleggNavn,
@@ -384,7 +387,10 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       kontaktNavn: primaerKontakt?.navn ?? null,
       kontaktTelefon: primaerKontakt?.telefon ?? null,
       tekniker: tekniker?.navn ?? null,
+      teknikerTelefon: tekniker?.telefon ?? null,
       dato: kontrolldato,
+      undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB).',
+      nesteKontroll: nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }),
     })
     doc.addPage()
     let yPos = 20

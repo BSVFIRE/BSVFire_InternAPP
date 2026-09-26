@@ -473,6 +473,10 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         doc.setTextColor(0)
       }
 
+      const kontrollDato = kontrollData?.dato ? new Date(kontrollData.dato) : new Date()
+      const nesteKontroll = new Date(kontrollDato)
+      nesteKontroll.setFullYear(nesteKontroll.getFullYear() + 1)
+
       await lagForside(doc, {
         tittel: 'Kontrollrapport brannalarm',
         anleggNavn: anleggData?.anleggsnavn || '',
@@ -483,7 +487,12 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         kontaktNavn: primaerKontakt?.navn ?? null,
         kontaktTelefon: primaerKontakt?.telefon ?? null,
         tekniker: kontrollorData?.navn ?? null,
-        dato: new Date(),
+        teknikerTelefon: kontrollorData?.telefon ?? null,
+        teknikerSertifikat: kontrollorData?.fg_sertifikat_nr ?? null,
+        kontaktEpost: primaerKontakt?.epost ?? null,
+        dato: kontrollDato,
+        undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB) og FG-790.',
+        nesteKontroll: nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }),
         ekstra: [['Standard', 'FG-790']],
       })
       doc.addPage()

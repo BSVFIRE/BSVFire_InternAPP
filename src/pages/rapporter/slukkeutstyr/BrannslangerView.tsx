@@ -292,6 +292,10 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         .order('created_at', { ascending: false })
 
       const doc = new jsPDF()
+      const idag = new Date()
+      const nesteKontroll = new Date(idag)
+      nesteKontroll.setMonth(nesteKontroll.getMonth() + 12)
+
       await lagForside(doc, {
         tittel: 'Kontrollrapport brannslanger',
         anleggNavn: anleggNavn,
@@ -299,7 +303,10 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         kontaktNavn: kontaktData?.navn ?? null,
         kontaktTelefon: kontaktData?.telefon ?? null,
         tekniker: tekniker?.navn ?? null,
-        dato: new Date(),
+        teknikerTelefon: tekniker?.telefon ?? null,
+        dato: idag,
+        undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB) og NS-EN 671-3.',
+        nesteKontroll: nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }),
       })
       doc.addPage()
       let yPos = 20

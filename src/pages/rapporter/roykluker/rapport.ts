@@ -61,6 +61,8 @@ function janei(v: boolean | string | null | undefined): 'Ja' | 'Nei' | '' {
 
 export async function lagRoyklukeRapport(d: RapportData): Promise<{ blob: Blob; fileName: string }> {
   const doc = new jsPDF()
+  const nesteKontroll = new Date(d.kontrolldato)
+  nesteKontroll.setFullYear(nesteKontroll.getFullYear() + 1)
   const sentraler = [...d.sentraler].sort((a, b) => (a.sentral_nr ?? 999) - (b.sentral_nr ?? 999))
 
   await lagForside(doc, {
@@ -74,7 +76,10 @@ export async function lagRoyklukeRapport(d: RapportData): Promise<{ blob: Blob; 
     kontaktNavn: d.kontaktNavn,
     kontaktTelefon: d.kontaktTelefon,
     tekniker: d.tekniker,
+    kontaktEpost: d.kontaktEpost,
     dato: d.kontrolldato,
+    undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB).',
+    nesteKontroll: nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }),
   })
   let y = 20
 

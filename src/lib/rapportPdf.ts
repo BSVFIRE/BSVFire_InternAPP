@@ -47,7 +47,15 @@ export interface Forsidedata {
   kontaktNavn?: string | null
   kontaktTelefon?: string | null
   tekniker?: string | null
+  teknikerTelefon?: string | null
+  /** F.eks. FG-sertifikatnummer – viktig dokumentasjon for kunden */
+  teknikerSertifikat?: string | null
+  kontaktEpost?: string | null
   dato?: Date
+  /** Linjen rett under tittelen, f.eks. hvilken forskrift kontrollen er utført etter */
+  undertittel?: string
+  /** Når neste kontroll skal utføres. Vises framhevet – det er ofte det kunden ser etter. */
+  nesteKontroll?: string
   /** Ekstra rader nederst i tabellen, f.eks. «Standard: NS 3960» */
   ekstra?: [string, string][]
 }
@@ -82,6 +90,10 @@ export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
   doc.text(d.tittel, MARG, 72)
   doc.setFontSize(14).setFont('helvetica', 'normal').setTextColor(80)
   doc.text(d.anleggNavn || '', MARG, 84)
+  if (d.undertittel) {
+    doc.setFontSize(10).setTextColor(110)
+    doc.text(doc.splitTextToSize(d.undertittel, INNHOLDSBREDDE), MARG, 94)
+  }
   doc.setTextColor(0)
 
   const adresse = [d.adresse, [d.postnummer, d.poststed].filter(Boolean).join(' ')].filter(Boolean).join(', ')
@@ -90,9 +102,12 @@ export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
     ['Anlegg', d.anleggNavn || '-', 'Dato', norskDato(dato)],
     ['Adresse', adresse || '-', 'Utført av', d.tekniker || '-'],
   ]
-  if (d.kontaktNavn || d.kontaktTelefon) {
+  if (d.teknikerSertifikat) rader.push(['Sertifikat', d.teknikerSertifikat, 'Telefon', d.teknikerTelefon || '-'])
+  if (d.kontaktNavn || d.kontaktTelefon || d.kontaktEpost) {
     rader.push(['Kontaktperson', d.kontaktNavn || '-', 'Telefon', d.kontaktTelefon || '-'])
+    if (d.kontaktEpost) rader.push(['E-post', d.kontaktEpost, '', ''])
   }
+  if (d.nesteKontroll) rader.push(['Neste kontroll', d.nesteKontroll.toUpperCase(), '', ''])
   for (const [navn, verdi] of d.ekstra ?? []) rader.push([navn, verdi || '-', '', ''])
 
   // Bredde settes per kolonne, ikke per celle: ellers regner autoTable feil og kutter innhold
@@ -108,6 +123,14 @@ export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
       3: { cellWidth: 60 },
     },
     body: rader,
+    // “Neste kontroll” framheves i gult, som i de gamle rapportene
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.row.raw && (data.row.raw as string[])[0] === 'Neste kontroll') {
+        data.cell.styles.fillColor = [254, 249, 195]
+        data.cell.styles.fontStyle = 'bold'
+        data.cell.styles.textColor = [146, 100, 0]
+      }
+    },
   })
   return sisteY(doc)
 }

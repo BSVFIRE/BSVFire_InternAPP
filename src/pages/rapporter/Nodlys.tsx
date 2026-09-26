@@ -503,6 +503,10 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         doc.setTextColor(0)
       }
 
+      const idag = new Date()
+      const nesteKontroll = new Date(idag)
+      nesteKontroll.setMonth(nesteKontroll.getMonth() + 12)
+
       await lagForside(doc, {
         tittel: 'Kontrollrapport nødlys',
         anleggNavn: anleggData?.anleggsnavn || selectedAnleggNavn || '',
@@ -514,7 +518,11 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         kontaktNavn: primaerKontakt?.navn ?? null,
         kontaktTelefon: primaerKontakt?.telefon ?? null,
         tekniker: tekniker?.navn ?? null,
-        dato: new Date(),
+        teknikerTelefon: tekniker?.telefon ?? null,
+        kontaktEpost: primaerKontakt?.epost ?? null,
+        dato: idag,
+        undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB).',
+        nesteKontroll: nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }),
       })
       doc.addPage()
       let yPos = 20
