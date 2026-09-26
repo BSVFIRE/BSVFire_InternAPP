@@ -264,7 +264,7 @@ function AlarmorganiseringPDFDocument({ data }: AlarmorganiseringPDFDocumentProp
         )}
         {data.alarmnivaa_stille && (
           <View style={styles.alarmBox}>
-            <Text style={styles.alarmTitle}>Alarmnivå - Stille alarm</Text>
+            <Text style={styles.alarmTitle}>Alarmnivå - Liten alarm</Text>
             <Text style={styles.text}>{data.alarmnivaa_stille}</Text>
           </View>
         )}
@@ -314,8 +314,26 @@ function AlarmorganiseringPDFDocument({ data }: AlarmorganiseringPDFDocumentProp
         )}
         {data.verifikasjonsmetoder && (
           <View>
-            <Text style={styles.subsectionTitle}>Verifikasjonsmetoder:</Text>
+            <Text style={styles.subsectionTitle}>Hvordan alarmen verifiseres:</Text>
             <Text style={styles.text}>{data.verifikasjonsmetoder}</Text>
+          </View>
+        )}
+        {data.organisatoriske_prosesser && (
+          <View>
+            <Text style={styles.subsectionTitle}>Organisatoriske prosesser ved verifisering:</Text>
+            <Text style={styles.text}>{data.organisatoriske_prosesser}</Text>
+          </View>
+        )}
+        {data.type_overforing && (
+          <View>
+            <Text style={styles.subsectionTitle}>Type alarmoverføring:</Text>
+            <Text style={styles.text}>{data.type_overforing}</Text>
+          </View>
+        )}
+        {data.overvakingstid && (
+          <View>
+            <Text style={styles.subsectionTitle}>Overvåkingstid:</Text>
+            <Text style={styles.text}>{data.overvakingstid}</Text>
           </View>
         )}
         {data.kommunikasjonskanaler && (
@@ -334,7 +352,20 @@ function AlarmorganiseringPDFDocument({ data }: AlarmorganiseringPDFDocumentProp
         <View style={styles.divider} />
 
         {/* 3. Oppkobling */}
-        <Text style={styles.sectionTitle}>3. Oppkobling/Integrasjon</Text>
+        <Text style={styles.sectionTitle}>3. Oppkobling</Text>
+        {data.styringer_data && data.styringer_data.length > 0 && (
+          <View>
+            <Text style={styles.subsectionTitle}>Styringsmatrise – hva utløses på hvilket alarmnivå:</Text>
+            {data.styringer_data.map((styring, index) => (
+              <View key={index} style={styles.styringBox}>
+                <Text style={styles.styringHeader}>
+                  {styring.type} – {styring.alarmnivaa}
+                </Text>
+                {styring.beskrivelse && <Text style={styles.text}>{styring.beskrivelse}</Text>}
+              </View>
+            ))}
+          </View>
+        )}
         {data.integrasjon_andre_systemer && (
           <View>
             <Text style={styles.subsectionTitle}>Integrasjon med andre systemer:</Text>
@@ -373,12 +404,6 @@ function AlarmorganiseringPDFDocument({ data }: AlarmorganiseringPDFDocumentProp
       <Page size="A4" style={styles.page}>
         {/* 4. Tiltak */}
         <Text style={styles.sectionTitle}>4. Tiltak</Text>
-        {data.organisatoriske_prosesser && (
-          <View>
-            <Text style={styles.subsectionTitle}>Organisatoriske prosesser:</Text>
-            <Text style={styles.text}>{data.organisatoriske_prosesser}</Text>
-          </View>
-        )}
         {data.evakueringsprosedyrer && (
           <View>
             <Text style={styles.subsectionTitle}>Evakueringsprosedyrer:</Text>
@@ -404,10 +429,11 @@ function AlarmorganiseringPDFDocument({ data }: AlarmorganiseringPDFDocumentProp
           </View>
         )}
 
-        <View style={styles.divider} />
-
-        {/* Alarmorganisering */}
-        <Text style={styles.sectionTitle}>Alarmorganisering</Text>
+        {/* Tilleggsopplysninger fra eldre revisjoner – vises bare når de finnes */}
+        {(data.samspill_teknisk_organisatorisk || data.styringsmatrise) && <View style={styles.divider} />}
+        {(data.samspill_teknisk_organisatorisk || data.styringsmatrise) && (
+          <Text style={styles.sectionTitle}>Tilleggsopplysninger</Text>
+        )}
         {data.samspill_teknisk_organisatorisk && (
           <View>
             <Text style={styles.subsectionTitle}>Samspill teknisk/organisatorisk:</Text>
@@ -418,19 +444,6 @@ function AlarmorganiseringPDFDocument({ data }: AlarmorganiseringPDFDocumentProp
           <View>
             <Text style={styles.subsectionTitle}>Styringsmatrise:</Text>
             <Text style={styles.text}>{data.styringsmatrise}</Text>
-          </View>
-        )}
-        {data.styringer_data && data.styringer_data.length > 0 && (
-          <View>
-            <Text style={styles.subsectionTitle}>Styringer:</Text>
-            {data.styringer_data.map((styring, index) => (
-              <View key={index} style={styles.styringBox}>
-                <Text style={styles.styringHeader}>
-                  {styring.type} - {styring.alarmnivaa}
-                </Text>
-                {styring.beskrivelse && <Text style={styles.text}>{styring.beskrivelse}</Text>}
-              </View>
-            ))}
           </View>
         )}
 

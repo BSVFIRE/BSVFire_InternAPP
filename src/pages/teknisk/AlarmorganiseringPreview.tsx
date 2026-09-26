@@ -206,7 +206,7 @@ function AlarmorganiseringPDFDocument({ data }: { data: any }) {
         )}
         {data.alarmnivaa_stille && (
           <View style={styles.alarmBox}>
-            <Text style={styles.alarmTitle}>Alarmnivå - Stille alarm</Text>
+            <Text style={styles.alarmTitle}>Alarmnivå - Liten alarm</Text>
             <Text style={styles.text}>{data.alarmnivaa_stille}</Text>
           </View>
         )}
@@ -254,7 +254,20 @@ function AlarmorganiseringPDFDocument({ data }: { data: any }) {
 
         <View style={styles.divider} />
 
-        <Text style={styles.sectionTitle}>3. Oppkobling/Integrasjon</Text>
+        <Text style={styles.sectionTitle}>3. Oppkobling</Text>
+        {data.styringer_data && data.styringer_data.length > 0 && (
+          <View>
+            <Text style={styles.subsectionTitle}>Styringsmatrise – hva utløses på hvilket alarmnivå:</Text>
+            {data.styringer_data.map((styring: any, index: number) => (
+              <View key={index} style={styles.styringBox}>
+                <Text style={styles.styringHeader}>
+                  {styring.type} - {styring.alarmnivaa}
+                </Text>
+                {styring.beskrivelse && <Text style={styles.text}>{styring.beskrivelse}</Text>}
+              </View>
+            ))}
+          </View>
+        )}
         {data.integrasjon_andre_systemer && (
           <View>
             <Text style={styles.subsectionTitle}>Integrasjon med andre systemer:</Text>
@@ -284,12 +297,6 @@ function AlarmorganiseringPDFDocument({ data }: { data: any }) {
 
       <Page size="A4" style={styles.page}>
         <Text style={styles.sectionTitle}>4. Tiltak</Text>
-        {data.organisatoriske_prosesser && (
-          <View>
-            <Text style={styles.subsectionTitle}>Organisatoriske prosesser:</Text>
-            <Text style={styles.text}>{data.organisatoriske_prosesser}</Text>
-          </View>
-        )}
         {data.evakueringsprosedyrer && (
           <View>
             <Text style={styles.subsectionTitle}>Evakueringsprosedyrer:</Text>
@@ -299,20 +306,6 @@ function AlarmorganiseringPDFDocument({ data }: { data: any }) {
 
         <View style={styles.divider} />
 
-        <Text style={styles.sectionTitle}>Alarmorganisering</Text>
-        {data.styringer_data && data.styringer_data.length > 0 && (
-          <View>
-            <Text style={styles.subsectionTitle}>Styringer:</Text>
-            {data.styringer_data.map((styring: any, index: number) => (
-              <View key={index} style={styles.styringBox}>
-                <Text style={styles.styringHeader}>
-                  {styring.type} - {styring.alarmnivaa}
-                </Text>
-                {styring.beskrivelse && <Text style={styles.text}>{styring.beskrivelse}</Text>}
-              </View>
-            ))}
-          </View>
-        )}
 
         <View style={styles.footer}>
           <Text style={styles.footerCompany}>Brannteknisk Service og Vedlikehold AS</Text>
