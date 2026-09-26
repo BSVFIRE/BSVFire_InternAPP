@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { batteriInfo } from '@/lib/batteri'
 import { toast } from '@/lib/toast'
+import { lagForside } from '@/lib/rapportPdf'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Download, Eye, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -497,149 +498,21 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
         doc.setTextColor(0)
       }
 
+      await lagForside(doc, {
+        tittel: 'Kontrollrapport brannalarm',
+        anleggNavn: anleggData?.anleggsnavn || '',
+        kundeNavn: kundeNavn || '',
+        adresse: anleggData?.adresse ?? null,
+        postnummer: anleggData?.postnummer ?? null,
+        poststed: anleggData?.poststed ?? null,
+        kontaktNavn: primaerKontakt?.navn ?? null,
+        kontaktTelefon: primaerKontakt?.telefon ?? null,
+        tekniker: kontrollorData?.navn ?? null,
+        dato: new Date(),
+        ekstra: [['Standard', 'NS 3960']],
+      })
+      doc.addPage()
       let yPos = 20
-
-      // Logo
-      try {
-        const logoImg = new Image()
-        logoImg.src = '/bsv-logo.png'
-        await new Promise((resolve, reject) => {
-          logoImg.onload = resolve
-          logoImg.onerror = reject
-        })
-        doc.addImage(logoImg, 'PNG', 20, yPos, 40, 15)
-        yPos += 25
-      } catch (error) {
-        console.error('Kunne ikke laste logo:', error)
-        // Fallback til tekst hvis logo ikke lastes
-        doc.setFontSize(16)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(41, 128, 185)
-        doc.text('BSV FIRE', 20, yPos)
-        doc.setTextColor(0)
-        yPos += 15
-      }
-
-      // Tittel
-      doc.setFontSize(18)
-      doc.setFont('helvetica', 'bold')
-      doc.text('KONTROLLRAPPORT - BRANNALARM', 20, yPos)
-      yPos += 6
-      doc.setFontSize(9)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(80, 80, 80)
-      doc.text('Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB) og NS 3960', 20, yPos)
-      doc.setTextColor(0)
-      yPos += 10
-
-      // Anleggsinformasjon - Profesjonell layout
-      doc.setDrawColor(220, 220, 220)
-      doc.setLineWidth(0.3)
-      doc.setFillColor(250, 250, 250)
-      doc.rect(17, yPos, 85, 28, 'FD')
-      
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(100, 100, 100)
-      doc.text('KUNDE', 20, yPos + 5)
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(0, 0, 0)
-      doc.text(kundeData?.navn || '-', 20, yPos + 10)
-      
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(100, 100, 100)
-      doc.text('ANLEGG', 20, yPos + 16)
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(0, 0, 0)
-      doc.text(anleggData.anleggsnavn, 20, yPos + 21)
-      
-      const kontrollDato = kontrolldato
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(100, 100, 100)
-      doc.text(`Kontrollert: ${kontrollDato.toLocaleDateString('nb-NO')}`, 20, yPos + 26)
-      
-      // Neste kontroll boks
-      doc.setFillColor(254, 249, 195)
-      doc.rect(104, yPos, 91, 28, 'FD')
-      
-      const nesteKontroll = new Date(kontrollDato)
-      nesteKontroll.setFullYear(nesteKontroll.getFullYear() + 1)
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(100, 100, 100)
-      doc.text('NESTE KONTROLL', 107, yPos + 5)
-      doc.setFontSize(14)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(202, 138, 4)
-      doc.text(nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }).toUpperCase(), 107, yPos + 14)
-      
-      yPos += 32
-
-      // Kontaktpersoner - To kolonner
-      const colWidth = 85
-      const leftCol = 17
-      const rightCol = 104
-      
-      if (primaerKontakt?.navn) {
-        doc.setDrawColor(220, 220, 220)
-        doc.setFillColor(250, 250, 250)
-        doc.rect(leftCol, yPos, colWidth, 24, 'FD')
-        
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(100, 100, 100)
-        doc.text('KONTAKTPERSON', leftCol + 3, yPos + 5)
-        
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(0, 0, 0)
-        doc.text(primaerKontakt.navn, leftCol + 3, yPos + 11)
-        
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'normal')
-        let infoY = yPos + 15
-        if (primaerKontakt.telefon) {
-          doc.text(`Tlf: ${primaerKontakt.telefon}`, leftCol + 3, infoY)
-          infoY += 4
-        }
-        if (primaerKontakt.epost) {
-          doc.text(`E-post: ${primaerKontakt.epost}`, leftCol + 3, infoY)
-        }
-      }
-
-      if (kontrollorData?.navn) {
-        doc.setFillColor(240, 253, 244)
-        doc.rect(rightCol, yPos, colWidth + 6, 24, 'FD')
-        
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(100, 100, 100)
-        doc.text('KONTROLL UTFØRT AV', rightCol + 3, yPos + 5)
-        
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(22, 163, 74)
-        doc.text(kontrollorData.navn, rightCol + 3, yPos + 11)
-        
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(0, 0, 0)
-        let infoY = yPos + 15
-        if (kontrollorData.telefon) {
-          doc.text(`Tlf: ${kontrollorData.telefon}`, rightCol + 3, infoY)
-          infoY += 4
-        }
-        if (kontrollorData.fg_sertifikat_nr) {
-          doc.text(`Sertifikat: ${kontrollorData.fg_sertifikat_nr}`, rightCol + 3, infoY)
-        }
-      }
-      
-      doc.setTextColor(0, 0, 0)
-      yPos += 38
 
       // Teknisk informasjon - med boks
       if (brannalarmData?.leverandor || brannalarmData?.sentraltype) {
