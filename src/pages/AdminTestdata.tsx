@@ -178,7 +178,7 @@ export function AdminTestdata() {
                     {a.moduler.length === 0
                       ? 'Uten data – for tomme tilstander og import'
                       : a.moduler.filter(m => m !== 'kontaktpersoner').map(m => MODULER.find(x => x.nokkel === m)?.navn).join(', ')}
-                    {a.kontrollType ? ` · ${a.kontrollType}` : ''}
+                    {a.standard ? ` · ${a.standard}` : ''}
                     {a.erLeilighetsbygg ? ' · leilighetsbygg' : ''}
                   </span>
                 </li>

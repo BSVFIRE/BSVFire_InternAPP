@@ -37,7 +37,17 @@ interface Testanlegg {
   erLeilighetsbygg: boolean
   kontaktNavn: string
   moduler: ModulNokkel[]
-  kontrollType: 'NS3960' | 'FG790' | null
+  /** Hvilken brannalarmstandard anlegget kontrolleres etter. Vises i oversikten. */
+  standard: 'NS 3960' | 'FG-790' | null
+}
+
+/** `anlegg.kontroll_type` er en liste over hvilke kontroller anlegget har – se KONTROLLTYPER. */
+const KONTROLLTYPE_FOR: Partial<Record<ModulNokkel, string>> = {
+  brannalarm: 'Brannalarm',
+  nodlys: 'Nødlys',
+  slukkeutstyr: 'Slukkeutstyr',
+  roykluker: 'Røykluker',
+  forstehjelp: 'Førstehjelp',
 }
 
 export const TESTANLEGG: Testanlegg[] = [
@@ -50,7 +60,7 @@ export const TESTANLEGG: Testanlegg[] = [
     erLeilighetsbygg: false,
     kontaktNavn: 'Kari Testesen',
     moduler: ['kontaktpersoner', 'brannalarm', 'nodlys', 'slukkeutstyr'],
-    kontrollType: 'NS3960',
+    standard: 'NS 3960',
   },
   {
     navn: 'TEST – Lagerhall Sør',
@@ -61,7 +71,7 @@ export const TESTANLEGG: Testanlegg[] = [
     erLeilighetsbygg: false,
     kontaktNavn: 'Ola Testmann',
     moduler: ['kontaktpersoner', 'brannalarm', 'roykluker', 'slukkeutstyr'],
-    kontrollType: 'FG790',
+    standard: 'FG-790',
   },
   {
     navn: 'TEST – Leilighetsbygg Vest',
@@ -72,7 +82,7 @@ export const TESTANLEGG: Testanlegg[] = [
     erLeilighetsbygg: true,
     kontaktNavn: 'Styreleder Test',
     moduler: ['kontaktpersoner', 'nodlys', 'forstehjelp'],
-    kontrollType: null,
+    standard: null,
   },
   {
     navn: 'TEST – Tomt anlegg Øst',
@@ -83,7 +93,7 @@ export const TESTANLEGG: Testanlegg[] = [
     erLeilighetsbygg: false,
     kontaktNavn: 'Ingen kontakt',
     moduler: [],
-    kontrollType: null,
+    standard: null,
   },
 ]
 
@@ -98,15 +108,34 @@ export interface Testdatastatus {
 
 /** Finnes testdataene allerede? Brukes til å vise status og hindre dobbelt oppsett. */
 export async function hentTestdatastatus(): Promise<Testdatastatus> {
-  const { data: kunde } = await supabase.from('customer').select('id').eq('er_testdata', true).maybeSingle()
-  const { data: anlegg } = await supabase.from('anlegg').select('id, anleggsnavn').eq('er_testdata', true).order('anleggsnavn')
+  const { data: kunde, error: kundeFeil } = await supabase.from('customer').select('id').eq('er_testdata', true).maybeSingle()
+  if (kundeFeil) throw manglerKolonne(kundeFeil)
+  const { data: anlegg, error: anleggFeil } = await supabase.from('anlegg').select('id, anleggsnavn').eq('er_testdata', true).order('anleggsnavn')
+  if (anleggFeil) throw manglerKolonne(anleggFeil)
   return {
     kundeId: kunde?.id ?? null,
     anlegg: (anlegg ?? []).map(a => ({ id: a.id, navn: a.anleggsnavn ?? 'Uten navn' })),
   }
 }
 
-const ETASJER = ['1. etasje', '2. etasje', '3. etasje']
+/**
+ * «Kolonnen finnes ikke» rett etter en migrasjon betyr som regel at PostgREST ennå
+ * kjører på gammel skjemacache. Si det, i stedet for å la feilkoden stå alene.
+ */
+function manglerKolonne(feil: { code?: string; message?: string }): Error {
+  if (feil.code === '42703' || feil.code === 'PGRST204' || feil.message?.includes('er_testdata')) {
+    return new Error(
+      'Kolonnen er_testdata finnes ikke ennå. Kjør 20260927_testdata.sql, og last siden på nytt – ' +
+      'Supabase kan bruke et minutt på å oppdage nye kolonner.',
+    )
+  }
+  return new Error(feil.message ?? 'Ukjent feil')
+}
+
+// Etasjevalgene er ikke skrevet likt i alle modulene. Feil format gir en verdi som
+// ikke finnes i nedtrekkslisten, og da ser raden tom ut i skjemaet.
+const ETASJER_PUNKTUM = ['1.Etg', '2.Etg', '3.Etg']   // nødlys, førstehjelp
+const ETASJER_MELLOMROM = ['1 Etg', '2 Etg', '3 Etg'] // brannslukkere, brannslanger
 
 function nodlysrader(anleggId: string, kundeNavn: string) {
   // 24 armaturer. Fire har avvik, så avviksliste og rapport har noe å vise.
@@ -117,13 +146,13 @@ function nodlysrader(anleggId: string, kundeNavn: string) {
       anlegg_id: anleggId,
       kundenavn: kundeNavn,
       internnummer: `N${String(nr).padStart(3, '0')}`,
-      etasje: ETASJER[i % 3],
+      etasje: ETASJER_PUNKTUM[i % 3],
       plassering: `Korridor ${Math.floor(i / 3) + 1}`,
-      type: nr % 4 === 0 ? 'Markeringslys' : 'Ledelys',
+      type: nr % 4 === 0 ? 'ML' : 'LL',
       produsent: nr % 2 === 0 ? 'Glamox' : 'Teknoware',
       batteritype: 'NiMH',
       kurs: `Kurs ${(i % 4) + 1}`,
-      status: medAvvik ? 'Avvik' : 'OK',
+      status: medAvvik ? 'Batterifeil' : 'OK',
       notat: medAvvik ? 'Lyser ikke ved nettbortfall – batteri må byttes' : null,
       kontrollert: true,
     }
@@ -136,13 +165,14 @@ function slukkerader(anleggId: string) {
     return {
       anlegg_id: anleggId,
       apparat_nr: `S${String(nr).padStart(3, '0')}`,
-      etasje: ETASJER[i % 3],
+      etasje: ETASJER_MELLOMROM[i % 3],
       plassering: `Ved rømningsvei ${nr}`,
       produsent: 'Housegard',
       modell: nr % 3 === 0 ? 'CO2 5 kg' : 'Pulver 6 kg',
       brannklasse: nr % 3 === 0 ? 'BC' : 'ABC',
       produksjonsaar: String(2014 + (i % 8)),
-      status: nr === 3 ? 'Avvik' : 'OK',
+      // status er en liste med avviksmerkelapper – tom liste betyr i orden
+      status: nr === 3 ? ['Trykk for lavt'] : ['OK'],
       service: nr % 5 === 0,
     }
   })
@@ -155,15 +185,15 @@ function slangerader(anleggId: string, kundeNavn: string) {
       anlegg_id: anleggId,
       kunde: kundeNavn,
       slangenummer: `B${String(nr).padStart(3, '0')}`,
-      etasje: ETASJER[i % 3],
+      etasje: ETASJER_MELLOMROM[i % 3],
       plassering: `Trapperom ${nr}`,
       produsent: 'Falck',
-      modell: '30 m / 19 mm',
+      modell: '30M 19mm',
       produksjonsaar: String(2010 + i),
       // Trykktest hvert femte år – den eldste er forfalt, så varselet kan testes
       trykktest: i === 0 ? '2018' : String(2022 + i),
-      status: i === 0 ? 'Avvik' : 'OK',
-      type_avvik: i === 0 ? 'Trykktest forfalt' : null,
+      status: i === 0 ? 'Må trykktestes' : 'OK',
+      type_avvik: i === 0 ? ['Må trykktestes'] : [],
     }
   })
 }
@@ -176,22 +206,22 @@ function forstehjelprader(anleggId: string, kundeNavn: string) {
     return d.toISOString().slice(0, 10)
   }
   return [
-    { type: 'Førstehjelpsskap', utlop: om(14), plassering: 'Resepsjon' },
-    { type: 'Førstehjelpsskap', utlop: om(-2), plassering: 'Kantine' },
-    { type: 'Øyeskyll', utlop: om(2), plassering: 'Verksted' },
-    { type: 'Øyeskyll', utlop: om(-6), plassering: 'Lager' },
-    { type: 'Hjertestarter', utlop: om(20), plassering: 'Hovedinngang' },
-    { type: 'Brannteppe', utlop: om(30), plassering: 'Kjøkken' },
+    { type: 'Førstehjelpskoffert', utlop: om(14), plassering: 'Resepsjon' },
+    { type: 'Førstehjelpskoffert', utlop: om(-2), plassering: 'Kantine' },
+    { type: 'Øyeskylling', utlop: om(2), plassering: 'Verksted' },
+    { type: 'Øyeskylling', utlop: om(-6), plassering: 'Lager' },
+    { type: 'Hjertestarter (AED)', utlop: om(20), plassering: 'Hovedinngang' },
+    { type: 'Førstehjelpsstasjon', utlop: om(30), plassering: 'Kjøkken' },
   ].map((e, i) => ({
     anlegg_id: anleggId,
     kundenavn: kundeNavn,
     internnummer: `F${String(i + 1).padStart(3, '0')}`,
-    etasje: ETASJER[i % 3],
+    etasje: ETASJER_PUNKTUM[i % 3],
     plassering: e.plassering,
     type: e.type,
     produsent: 'Cederroth',
     utlopsdato: e.utlop,
-    status: new Date(e.utlop) < idag ? 'Avvik' : 'OK',
+    status: new Date(e.utlop) < idag ? 'Utgått' : 'OK',
     kontrollert: true,
   }))
 }
@@ -288,7 +318,7 @@ export async function opprettTestdata(valgteModuler: ModulNokkel[], si: Framdrif
         postnummer: mal.postnummer,
         poststed: mal.poststed,
         kontroll_maaned: mal.kontrollMaaned,
-        kontroll_type: mal.kontrollType,
+        kontroll_type: mal.moduler.map(m => KONTROLLTYPE_FOR[m]).filter(Boolean),
         er_leilighetsbygg: mal.erLeilighetsbygg,
         status: 'aktiv',
         er_testdata: true,
