@@ -6,7 +6,7 @@
  * i `dokumenter` med type «Bilde». Denne fanen er visningen av dem.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Camera, ImagePlus, Loader2, Trash2, X } from 'lucide-react'
+import { Camera, CloudOff, ImagePlus, Loader2, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from '@/lib/toast'
 import { useOfflineStatus } from '@/hooks/useOffline'
@@ -20,10 +20,19 @@ export function BilderFane({ anleggId, onAntall }: { anleggId: string; onAntall?
   const [lasterOpp, setLasterOpp] = useState(false)
   const [apent, setApent] = useState<Anleggsbilde | null>(null)
   const [sletter, setSletter] = useState<Anleggsbilde | null>(null)
+  const ventende = bilder.filter(b => b.venter).length
   const velgRef = useRef<HTMLInputElement>(null)
   const kameraRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { last() }, [anleggId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Kommer nettet tilbake tømmer bildekøen seg, og listen må hentes på nytt
+  useEffect(() => {
+    if (isOnline && ventende > 0) {
+      const t = setTimeout(() => last(), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [isOnline, ventende]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function last() {
     setLaster(true)
@@ -46,7 +55,10 @@ export function BilderFane({ anleggId, onAntall }: { anleggId: string; onAntall?
     setLasterOpp(true)
     try {
       for (const fil of valgte) await lastOppAnleggsbilde(anleggId, fil)
-      toast.success(valgte.length === 1 ? 'Bildet er lagret på anlegget' : `${valgte.length} bilder er lagret på anlegget`)
+      toast.success(
+        valgte.length === 1 ? 'Bildet er lagret på anlegget' : `${valgte.length} bilder er lagret på anlegget`,
+        isOnline ? undefined : 'Lastes opp når nettet er tilbake.',
+      )
       await last()
     } catch (e) {
       console.error('Kunne ikke laste opp bildet:', e)
@@ -81,13 +93,16 @@ export function BilderFane({ anleggId, onAntall }: { anleggId: string; onAntall?
         <div className="flex items-center gap-2">
           <input ref={kameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { leggTil(e.target.files); e.target.value = '' }} />
           <input ref={velgRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { leggTil(e.target.files); e.target.value = '' }} />
-          <Button icon={<Camera />} disabled={!isOnline || lasterOpp} onClick={() => kameraRef.current?.click()}>Ta bilde</Button>
-          <Button variant="primary" icon={<ImagePlus />} loading={lasterOpp} disabled={!isOnline} onClick={() => velgRef.current?.click()}>Last opp</Button>
+          <Button icon={<Camera />} disabled={lasterOpp} onClick={() => kameraRef.current?.click()}>Ta bilde</Button>
+          <Button variant="primary" icon={<ImagePlus />} loading={lasterOpp} onClick={() => velgRef.current?.click()}>Last opp</Button>
         </div>
       </div>
 
-      {!isOnline && (
-        <p className="text-xs text-amber-700 dark:text-amber-400">Uten nett kan du se bildene som allerede er lastet, men ikke legge til nye.</p>
+      {ventende > 0 && (
+        <p className="text-xs text-amber-700 dark:text-amber-400 inline-flex items-center gap-1.5">
+          <CloudOff className="w-3.5 h-3.5" />
+          {ventende === 1 ? 'Ett bilde ligger på enheten og' : `${ventende} bilder ligger på enheten og`} lastes opp når nettet er tilbake.
+        </p>
       )}
 
       {laster ? (
@@ -117,6 +132,11 @@ export function BilderFane({ anleggId, onAntall }: { anleggId: string; onAntall?
               >
                 <Trash2 className="w-4 h-4" />
               </button>
+              {b.venter && (
+                <span title="Lastes opp når nettet er tilbake" className="absolute top-1.5 left-1.5 w-7 h-7 inline-flex items-center justify-center bg-black/60 text-white rounded-full">
+                  <CloudOff className="w-3.5 h-3.5" />
+                </span>
+              )}
               <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 truncate">
                 {b.opplastetDato ? new Date(b.opplastetDato).toLocaleDateString('nb-NO') : ''}
                 {b.opplastetAv ? ` · ${b.opplastetAv}` : ''}

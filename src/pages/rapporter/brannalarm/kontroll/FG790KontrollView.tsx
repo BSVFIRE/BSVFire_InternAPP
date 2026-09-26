@@ -11,6 +11,18 @@ import type { BrannalarmStyring } from '../../Brannalarm'
 import { KONTROLLPUNKTER_FG790, AVVIK_TYPER, AG_VERDIER, FEILKODER, KONTROLLPUNKT_REFERANSER } from '@/lib/constants/fg790'
 import { useOfflineStatus, useOfflineQueue } from '@/hooks/useOffline'
 import { cacheData, getCachedData } from '@/lib/offline'
+import { AvvikBilder } from '@/components/AvvikBilder'
+
+/** Bildestiene ligger som JSON i en TEXT-kolonne. Ugyldig innhold skal ikke velte kontrollen. */
+function lesBilder(raa: unknown): string[] {
+  if (typeof raa !== 'string' || !raa.trim()) return []
+  try {
+    const liste = JSON.parse(raa)
+    return Array.isArray(liste) ? liste.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
 
 interface KontrollpunktData {
   posisjon: string
@@ -23,6 +35,8 @@ interface KontrollpunktData {
   kommentar: string | null
   poeng_trekk: number
   antall_avvik: number
+  /** Storage-stier til bilder av avviket. Følger avviket inn i rapporten. */
+  bilder: string[]
 }
 
 interface FG790KontrollViewProps {
@@ -85,7 +99,8 @@ export function FG790KontrollView({
           ag_verdi: null,
           kommentar: null,
           poeng_trekk: 0,
-          antall_avvik: 1
+          antall_avvik: 1,
+          bilder: []
         })
       })
     })
@@ -258,6 +273,7 @@ export function FG790KontrollView({
                 kommentar: punkt.kommentar,
                 poeng_trekk: punkt.poeng_trekk || 0,
                 antall_avvik: punkt.antall_avvik || 1,
+                bilder: lesBilder(punkt.bilder),
               }
             }
           })
@@ -288,6 +304,7 @@ export function FG790KontrollView({
                 kommentar: p.kommentar,
                 poeng_trekk: p.poeng_trekk || 0,
                 antall_avvik: p.antall_avvik || 1,
+                bilder: lesBilder(p.bilder),
               }
             ])
           ) : data
@@ -353,6 +370,7 @@ export function FG790KontrollView({
           kommentar: punkt.kommentar || null,
           poeng_trekk: punkt.poeng_trekk || 0,
           antall_avvik: punkt.antall_avvik || 1,
+          bilder: JSON.stringify(punkt.bilder ?? []),
         })
       })
       
@@ -385,6 +403,7 @@ export function FG790KontrollView({
         kommentar: punkt.kommentar || null,
         poeng_trekk: punkt.poeng_trekk || 0,
         antall_avvik: punkt.antall_avvik || 1,
+        bilder: JSON.stringify(punkt.bilder ?? []),
       }))
 
       const { error } = await supabase
@@ -640,6 +659,13 @@ export function FG790KontrollView({
                                       </div>
                                       {trekk > 0 && <span className="text-xs text-orange-700 dark:text-orange-400 tabular-nums">{p.antall_avvik > 1 ? `${p.antall_avvik} × ${p.poeng_trekk} = ` : ''}−{trekk.toFixed(1)} poeng</span>}
                                     </div>
+                                  </Rad>
+                                  <Rad label="Bilder">
+                                    <AvvikBilder
+                                      anleggId={anleggId}
+                                      bilder={p.bilder ?? []}
+                                      onEndre={bilder => updatePunkt(key, { bilder })}
+                                    />
                                   </Rad>
                                 </>
                               )}

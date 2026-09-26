@@ -1,14 +1,14 @@
 /**
- * Bilder på et avvik. Bildene lastes opp med én gang de tas, og stiene lagres
- * sammen med avviket – de følger avviket inn i kontrollrapporten.
+ * Bilder på et avvik. Stien lagres sammen med avviket med én gang, og bildet følger
+ * avviket inn i kontrollrapporten.
  *
- * Opplasting krever dekning. Offline-køen vår tar JSON-rader, ikke filer, så
- * knappene er avslått uten nett i stedet for å love noe vi ikke holder.
+ * Uten dekning legges bildet i kø på enheten (se `bildekoe.ts`) og lastes opp når
+ * nettet er tilbake. Teknikeren merker ingen forskjell utover en liten sky-markør.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Camera, ImagePlus, Loader2, X } from 'lucide-react'
+import { Camera, CloudOff, ImagePlus, Loader2, X } from 'lucide-react'
 import { MAKS_BILDER_PER_AVVIK, bildeUrler, lastOppAnleggsbilde } from '@/lib/bilder'
-import { useOfflineStatus } from '@/hooks/useOffline'
+import { koHent } from '@/lib/bildekoe'
 import { toast } from '@/lib/toast'
 
 export function AvvikBilder({ anleggId, bilder, onEndre, maks = MAKS_BILDER_PER_AVVIK }: {
@@ -17,8 +17,8 @@ export function AvvikBilder({ anleggId, bilder, onEndre, maks = MAKS_BILDER_PER_
   onEndre: (bilder: string[]) => void
   maks?: number
 }) {
-  const { isOnline } = useOfflineStatus()
   const [urler, setUrler] = useState<Record<string, string>>({})
+  const [venter, setVenter] = useState<Set<string>>(new Set())
   const [laster, setLaster] = useState(false)
   const velgRef = useRef<HTMLInputElement>(null)
   const kameraRef = useRef<HTMLInputElement>(null)
@@ -28,6 +28,8 @@ export function AvvikBilder({ anleggId, bilder, onEndre, maks = MAKS_BILDER_PER_
     if (mangler.length === 0) return
     let aktiv = true
     bildeUrler(mangler).then(nye => { if (aktiv) setUrler(f => ({ ...f, ...nye })) })
+    Promise.all(bilder.map(async b => [b, Boolean(await koHent(b))] as const))
+      .then(par => { if (aktiv) setVenter(new Set(par.filter(([, v]) => v).map(([b]) => b))) })
     return () => { aktiv = false }
   }, [bilder]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -67,6 +69,11 @@ export function AvvikBilder({ anleggId, bilder, onEndre, maks = MAKS_BILDER_PER_
               ? <img src={urler[sti]} alt="Bilde av avviket" className="w-full h-full object-cover" />
               : <span className="w-full h-full flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-gray-400" /></span>}
           </a>
+          {venter.has(sti) && (
+            <span title="Lastes opp når nettet er tilbake" className="absolute bottom-0.5 left-0.5 w-5 h-5 inline-flex items-center justify-center bg-black/60 text-white rounded-full">
+              <CloudOff className="w-3 h-3" />
+            </span>
+          )}
           <button
             type="button"
             onClick={() => onEndre(bilder.filter(b => b !== sti))}
@@ -84,9 +91,9 @@ export function AvvikBilder({ anleggId, bilder, onEndre, maks = MAKS_BILDER_PER_
           <input ref={velgRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { leggTil(e.target.files); e.target.value = '' }} />
           <button
             type="button"
-            disabled={!isOnline || laster}
+            disabled={laster}
             onClick={() => kameraRef.current?.click()}
-            title={isOnline ? 'Ta bilde av avviket' : 'Bilder krever nett'}
+            title="Ta bilde av avviket"
             className="w-16 h-16 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-400 hover:text-orange-600 disabled:opacity-40 disabled:hover:border-gray-300 inline-flex flex-col items-center justify-center gap-0.5"
           >
             {laster ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
@@ -94,9 +101,9 @@ export function AvvikBilder({ anleggId, bilder, onEndre, maks = MAKS_BILDER_PER_
           </button>
           <button
             type="button"
-            disabled={!isOnline || laster}
+            disabled={laster}
             onClick={() => velgRef.current?.click()}
-            title={isOnline ? 'Velg bilde fra enheten' : 'Bilder krever nett'}
+            title="Velg bilde fra enheten"
             className="w-16 h-16 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-400 hover:text-orange-600 disabled:opacity-40 disabled:hover:border-gray-300 inline-flex flex-col items-center justify-center gap-0.5"
           >
             <ImagePlus className="w-4 h-4" />

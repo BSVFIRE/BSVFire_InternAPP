@@ -9,6 +9,8 @@
  * rapporten for tung til å sendes på e-post og for treg å laste opp fra bilen.
  */
 import { supabase } from '@/lib/supabase'
+import { getOnlineStatus } from '@/lib/offline'
+import { koFjern, koHent, koHentAlle, koLeggTil } from '@/lib/bildekoe'
 
 /** Et avvik skal dokumenteres, ikke illustreres. To bilder holder, og rapporten forblir lett. */
 export const MAKS_BILDER_PER_AVVIK = 2
@@ -23,6 +25,8 @@ export interface Anleggsbilde {
   filnavn: string
   opplastetDato: string | null
   opplastetAv: string | null
+  /** Tatt uten dekning og ligger i kø på enheten. Vises, men er ikke i skyen ennå. */
+  venter?: boolean
 }
 
 /**
@@ -69,18 +73,29 @@ async function lastBitmap(fil: File): Promise<ImageBitmap | HTMLImageElement> {
 }
 
 /**
- * Komprimerer og laster opp ett bilde. Returnerer storage-stien, som er det vi lagrer
- * videre – signerte URL-er går ut på tid og skal aldri havne i basen.
+ * Komprimerer og lagrer ett bilde. Stien bestemmes her, før opplastingen, slik at
+ * avviket kan lagre den med én gang. Uten dekning går bildet i kø på enheten og
+ * lastes opp når nettet er tilbake – kallet lykkes uansett.
  */
 export async function lastOppAnleggsbilde(anleggId: string, fil: File, beskrivelse?: string): Promise<string> {
   const blob = await komprimerBilde(fil)
   const navn = `${Date.now()}_${crypto.randomUUID().slice(0, 8)}.jpg`
   const storagePath = `anlegg/${anleggId}/bilder/${navn}`
+  const filnavn = beskrivelse?.trim() || navn
+
+  if (!getOnlineStatus()) {
+    await koLeggTil({ storagePath, anleggId, filnavn, blob })
+    return storagePath
+  }
 
   const { error } = await supabase.storage
     .from('anlegg.dokumenter')
     .upload(storagePath, blob, { contentType: 'image/jpeg', upsert: false })
-  if (error) throw error
+  if (error) {
+    // Nettet kan ha falt bort mellom sjekken og kallet – da er køen riktig sted
+    await koLeggTil({ storagePath, anleggId, filnavn, blob })
+    return storagePath
+  }
 
   // Registreres som dokument, slik at bildebanken finner det uten å liste storage.
   // Går registreringen galt er bildet likevel lastet opp og brukbart på avviket –
@@ -88,7 +103,7 @@ export async function lastOppAnleggsbilde(anleggId: string, fil: File, beskrivel
   const { data: { user } } = await supabase.auth.getUser()
   const { error: regFeil } = await supabase.from('dokumenter').insert({
     anlegg_id: anleggId,
-    filnavn: beskrivelse?.trim() || navn,
+    filnavn,
     type: 'Bilde',
     storage_path: storagePath,
     opplastet_dato: new Date().toISOString(),
@@ -99,8 +114,13 @@ export async function lastOppAnleggsbilde(anleggId: string, fil: File, beskrivel
   return storagePath
 }
 
-/** Signert URL for visning i nettleseren. Gyldig en time – nok til en økt. */
+/**
+ * URL for visning i nettleseren. Ligger bildet fortsatt i køen, vises blobben fra
+ * enheten – ellers en signert URL, gyldig en time.
+ */
 export async function bildeUrl(storagePath: string): Promise<string | null> {
+  const ventende = await koHent(storagePath)
+  if (ventende) return URL.createObjectURL(ventende.blob)
   const { data } = await supabase.storage.from('anlegg.dokumenter').createSignedUrl(storagePath, 60 * 60)
   return data?.signedUrl ?? null
 }
@@ -114,7 +134,10 @@ export async function bildeUrler(stier: string[]): Promise<Record<string, string
 /** Bildet som data-URL, slik jsPDF trenger det for addImage(). */
 export async function bildeSomDataUrl(storagePath: string): Promise<{ data: string; bredde: number; hoyde: number } | null> {
   try {
-    const { data, error } = await supabase.storage.from('anlegg.dokumenter').download(storagePath)
+    const ventende = await koHent(storagePath)
+    const { data, error } = ventende
+      ? { data: ventende.blob, error: null }
+      : await supabase.storage.from('anlegg.dokumenter').download(storagePath)
     if (error || !data) return null
     const dataUrl = await new Promise<string>((ok, feil) => {
       const leser = new FileReader()
@@ -140,7 +163,7 @@ export async function hentAnleggsbilder(anleggId: string): Promise<Anleggsbilde[
     .eq('type', 'Bilde')
     .order('opplastet_dato', { ascending: false })
   if (error) throw error
-  return (data ?? [])
+  const fraBasen: Anleggsbilde[] = (data ?? [])
     .filter(d => d.storage_path)
     .map(d => ({
       id: d.id,
@@ -149,10 +172,27 @@ export async function hentAnleggsbilder(anleggId: string): Promise<Anleggsbilde[
       opplastetDato: d.opplastet_dato,
       opplastetAv: d.opplastet_av,
     }))
+
+  // Bilder som venter på nett skal synes, ellers tror teknikeren de er borte
+  const kjente = new Set(fraBasen.map(b => b.storagePath))
+  const ventende: Anleggsbilde[] = (await koHentAlle())
+    .filter(b => b.anleggId === anleggId && !kjente.has(b.storagePath))
+    .map(b => ({
+      id: b.storagePath,
+      storagePath: b.storagePath,
+      filnavn: b.filnavn,
+      opplastetDato: b.lagtTil,
+      opplastetAv: null,
+      venter: true,
+    }))
+
+  return [...ventende, ...fraBasen]
 }
 
 /** Sletter bildet både fra storage og dokumentlisten. */
 export async function slettAnleggsbilde(bilde: Anleggsbilde): Promise<void> {
+  await koFjern(bilde.storagePath)
+  if (bilde.venter) return
   await supabase.storage.from('anlegg.dokumenter').remove([bilde.storagePath])
   const { error } = await supabase.from('dokumenter').delete().eq('id', bilde.id)
   if (error) throw error
