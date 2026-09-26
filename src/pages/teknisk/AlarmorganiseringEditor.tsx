@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, X, Save, FileText, Building2, Radio, MessageSquare, Link2, AlertTriangle, Plus, Trash2, Settings, Eye, FileDown } from 'lucide-react'
+import { ArrowLeft, Save, FileText, Building2, Radio, MessageSquare, Link2, AlertTriangle, Plus, Trash2, Eye, FileDown } from 'lucide-react'
 import { toast } from '@/lib/toast'
-import { Button } from '@/components/ui/Button'
+import { Button, IconButton } from '@/components/ui/Button'
 import { supabase } from '../../lib/supabase'
 import { AlarmorganiseringPreview } from './AlarmorganiseringPreview'
 import { generateAlarmorganiseringPDF } from './AlarmorganiseringPDF'
@@ -25,6 +25,83 @@ const NOTIFICATION_RECIPIENTS = ['Brannvesen', 'Vaktselskap', 'Eier/Driftsansvar
 const VERIFICATION_METHODS = ['Visuell kontroll', 'Telefonkontakt', 'Fysisk oppmøte', 'Kameraovervåking', 'Sensordata', 'Automatisk verifikasjon']
 const CONTROL_TYPES = ['Brannklokke/Sirene', 'Talevarsling', 'Visuell varsling', 'Røykventilasjon', 'Branndører', 'Sprinkleranlegg', 'Slokkeanlegg', 'Heisblokering', 'Strømkutt', 'Ventilasjonsstopp', 'Annet utstyr']
 const ALARM_LEVELS = ['Forvarsel', 'Liten alarm', 'Storalarm']
+
+
+/** Felt som er tatt ut av skjemaet. Innholdet vises fortsatt hvis en gammel rapport har det. */
+const UTGATTE_FELT = [
+  { key: 'samspill_teknisk_organisatorisk', navn: 'Samspill teknisk/organisatorisk' },
+  { key: 'styringsmatrise', navn: 'Styringsmatrise (fritekst)' },
+  { key: 'seksjoneringsoppsett', navn: 'Seksjoneringsoppsett' },
+  { key: 'brannklokker_aktivering', navn: 'Brannklokker – aktivering' },
+  { key: 'visuell_varsling_aktivering', navn: 'Visuell varsling – aktivering' },
+  { key: 'alarm_aktivering', navn: 'Alarm – aktivering' },
+  { key: 'kommunikasjonskanaler', navn: 'Kommunikasjonskanaler' },
+  { key: 'meldingsrutiner', navn: 'Meldingsrutiner' },
+  { key: 'automatiske_funksjoner', navn: 'Automatiske funksjoner' },
+  { key: 'organisatoriske_prosesser', navn: 'Organisatoriske prosesser' },
+  { key: 'beredskapsplaner', navn: 'Beredskapsplaner' },
+  { key: 'annet', navn: 'Annet' },
+]
+
+function Tekst({ label, hjelp, verdi, onChange, rader = 2 }: { label: string; hjelp?: string; verdi: string; onChange: (v: string) => void; rader?: number }) {
+  return (
+    <label className="block space-y-1">
+      <span className="block text-sm font-medium text-gray-900 dark:text-white">{label}</span>
+      {hjelp && <span className="block text-xs text-gray-500 dark:text-gray-400">{hjelp}</span>}
+      <textarea value={verdi ?? ''} onChange={e => onChange(e.target.value)} rows={rader} className="input !h-auto w-full" />
+    </label>
+  )
+}
+
+function Avkrysning({ label, valg, verdier, onChange, egne, onNyEgen, onFjernEgen }: {
+  label: string
+  valg: readonly string[]
+  verdier: Record<string, boolean>
+  onChange: (v: Record<string, boolean>) => void
+  /** Egendefinerte valg teknikeren har lagt til selv */
+  egne?: string[]
+  onNyEgen?: (navn: string) => void
+  onFjernEgen?: (index: number) => void
+}) {
+  const [nytt, setNytt] = useState('')
+  return (
+    <div className="space-y-1.5">
+      <span className="block text-sm font-medium text-gray-900 dark:text-white">{label}</span>
+      <div className="flex flex-wrap gap-1.5">
+        {[...valg, ...(egne ?? [])].map(v => {
+          const av = Boolean(verdier[v])
+          return (
+            <button key={v} type="button" onClick={() => onChange({ ...verdier, [v]: !av })}
+              className={`h-8 px-2.5 rounded-lg border text-xs font-medium transition-colors ${av ? 'bg-primary border-primary text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-primary'}`}>
+              {v}
+            </button>
+          )
+        })}
+      </div>
+      {onNyEgen && (
+        <div className="flex gap-2 pt-1">
+          <input value={nytt} onChange={e => setNytt(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (nytt.trim()) { onNyEgen(nytt.trim()); setNytt('') } } }}
+            placeholder="Legg til egen type…" className="input !h-8 text-sm max-w-xs" />
+          <Button onClick={() => { if (nytt.trim()) { onNyEgen(nytt.trim()); setNytt('') } }} disabled={!nytt.trim()} className="!h-8">Legg til</Button>
+          {(egne?.length ?? 0) > 0 && onFjernEgen && (
+            <button type="button" onClick={() => onFjernEgen((egne?.length ?? 1) - 1)} className="text-xs text-gray-500 hover:text-red-500">Fjern siste egne</button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Nivaa({ farge, tittel, verdi, onChange }: { farge: 'orange' | 'yellow' | 'red'; tittel: string; verdi: string; onChange: (v: string) => void }) {
+  const kant = farge === 'orange' ? 'border-l-orange-500' : farge === 'yellow' ? 'border-l-yellow-500' : 'border-l-red-500'
+  return (
+    <label className={`block border-l-[3px] ${kant} pl-3 space-y-1`}>
+      <span className="block text-sm font-medium text-gray-900 dark:text-white">{tittel}</span>
+      <input value={verdi ?? ''} onChange={e => onChange(e.target.value)} placeholder={`Hva skjer ved ${tittel.toLowerCase()}?`} className="input !h-9 w-full" />
+    </label>
+  )
+}
 
 export function AlarmorganiseringEditor({ existingData, onClose, initialAnleggId, initialKundeId, initialProsjektId }: AlarmorganiseringEditorProps) {
   const [saving, setSaving] = useState(false)
@@ -51,7 +128,6 @@ export function AlarmorganiseringEditor({ existingData, onClose, initialAnleggId
     overvakingstid: existingData?.overvakingstid || '',
     innstallasjon: existingData?.innstallasjon || '',
     gjeldende_teknisk_forskrift: existingData?.gjeldende_teknisk_forskrift || '',
-    antall_styringer: existingData?.antall_styringer || '',
     brannklokker_aktivering: existingData?.brannklokker_aktivering || '',
     visuell_varsling_aktivering: existingData?.visuell_varsling_aktivering || '',
     alarm_aktivering: existingData?.alarm_aktivering || '',
@@ -92,14 +168,10 @@ export function AlarmorganiseringEditor({ existingData, onClose, initialAnleggId
     return initial
   })
   
-  const [forvarselAktiverer, setForvarselAktiverer] = useState(!!existingData?.alarmnivaa_forvarsel)
-  const [stilleAlarmAktiverer, setStilleAlarmAktiverer] = useState(!!existingData?.alarmnivaa_stille)
-  const [storAlarmAktiverer, setStorAlarmAktiverer] = useState(!!existingData?.alarmnivaa_stor)
   const [styringer, setStyringer] = useState<Styring[]>(existingData?.styringer_data || [])
   const [showPreview, setShowPreview] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [previewData, setPreviewData] = useState<any>(null)
-  const [customDetectorType, setCustomDetectorType] = useState('')
   const [customDetectorTypes, setCustomDetectorTypes] = useState<string[]>([])
 
   useEffect(() => {
@@ -165,6 +237,7 @@ export function AlarmorganiseringEditor({ existingData, onClose, initialAnleggId
         hvem_faar_melding: Object.entries(meldingMottakere).filter(([_, v]) => v).map(([k]) => k).join(', '),
         verifikasjonsmetoder: Object.entries(verifikasjonsmetoder).filter(([_, v]) => v).map(([k]) => k).join(', '),
         styringer_data: styringer,
+        antall_styringer: String(styringer.length),
         opprettet_av: (await supabase.auth.getUser()).data.user?.id,
       }
 
@@ -193,12 +266,6 @@ export function AlarmorganiseringEditor({ existingData, onClose, initialAnleggId
     setStyringer(updated)
   }
 
-  const addCustomDetectorType = () => {
-    if (customDetectorType.trim()) {
-      setCustomDetectorTypes([...customDetectorTypes, customDetectorType.trim()])
-      setCustomDetectorType('')
-    }
-  }
 
   const removeCustomDetectorType = (index: number) => {
     setCustomDetectorTypes(customDetectorTypes.filter((_, i) => i !== index))
@@ -321,137 +388,99 @@ export function AlarmorganiseringEditor({ existingData, onClose, initialAnleggId
       </div>
 
       {/* 1. Deteksjon */}
-      <div className="card">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2 mb-4"><Radio className="w-4 h-4 text-primary" />1. Deteksjon</h2>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Detektortyper</label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3 border border-gray-200 dark:border-gray-800 rounded-lg">
-            {DETECTOR_TYPES.map((type) => (
-              <label key={type} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-white">
-                <input type="checkbox" checked={detektortyper[type]} onChange={(e) => setDetektortyper({ ...detektortyper, [type]: e.target.checked })} className="rounded" />
-                {type}
-              </label>
-            ))}
-          </div>
-          
-          {/* Custom detector types */}
-          <div className="mt-4">
-            <label className="label text-sm">Legg til egendefinert detektortype</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={customDetectorType}
-                onChange={(e) => setCustomDetectorType(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addCustomDetectorType()}
-                placeholder="F.eks. CO-detektor, Gassdetektor..."
-                className="input flex-1"
-              />
-              <button
-                type="button"
-                onClick={addCustomDetectorType}
-                className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-            {customDetectorTypes.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {customDetectorTypes.map((type, index) => (
-                  <span key={index} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm">
-                    {type}
-                    <button
-                      type="button"
-                      onClick={() => removeCustomDetectorType(index)}
-                      className="hover:text-red-400"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
+      <div className="card space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2"><Radio className="w-4 h-4 text-primary" />1. Deteksjon</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Når, hvor og hvorfor detektorer aktiveres – og hva som er gjort for å unngå unødige alarmer.</p>
         </div>
-        <div className="mb-4"><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Detektorplassering</label><textarea value={formData.detektorplassering} onChange={(e) => setFormData({ ...formData, detektorplassering: e.target.value })} className="input" rows={3} /></div>
-        <div className="space-y-4">
-          <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-lg"><div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-orange-400">Alarmnivå - Forvarsel</h3><label className="flex items-center gap-2 cursor-pointer"><span className="text-sm text-gray-400">Aktiverer styringer</span><input type="checkbox" checked={forvarselAktiverer} onChange={(e) => { setForvarselAktiverer(e.target.checked); if (!e.target.checked) setFormData({ ...formData, alarmnivaa_forvarsel: '' }) }} className="rounded" /></label></div>{forvarselAktiverer && <textarea value={formData.alarmnivaa_forvarsel} onChange={(e) => setFormData({ ...formData, alarmnivaa_forvarsel: e.target.value })} className="input" rows={2} placeholder="Beskriv hva som skjer ved forvarsel" />}</div>
-          <div className="p-4 bg-gray-500/10 border border-gray-500/20 rounded-lg"><div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-400">Alarmnivå - Stille alarm</h3><label className="flex items-center gap-2 cursor-pointer"><span className="text-sm text-gray-400">Aktiverer styringer</span><input type="checkbox" checked={stilleAlarmAktiverer} onChange={(e) => { setStilleAlarmAktiverer(e.target.checked); if (!e.target.checked) setFormData({ ...formData, alarmnivaa_stille: '' }) }} className="rounded" /></label></div>{stilleAlarmAktiverer && <textarea value={formData.alarmnivaa_stille} onChange={(e) => setFormData({ ...formData, alarmnivaa_stille: e.target.value })} className="input" rows={2} placeholder="Beskriv hva som skjer ved stille alarm" />}</div>
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg"><div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-red-400">Alarmnivå - Stor alarm</h3><label className="flex items-center gap-2 cursor-pointer"><span className="text-sm text-gray-400">Aktiverer styringer</span><input type="checkbox" checked={storAlarmAktiverer} onChange={(e) => { setStorAlarmAktiverer(e.target.checked); if (!e.target.checked) setFormData({ ...formData, alarmnivaa_stor: '' }) }} className="rounded" /></label></div>{storAlarmAktiverer && <textarea value={formData.alarmnivaa_stor} onChange={(e) => setFormData({ ...formData, alarmnivaa_stor: e.target.value })} className="input" rows={2} placeholder="Beskriv hva som skjer ved stor alarm" />}</div>
+        <Avkrysning label="Detektortyper i anlegget" valg={DETECTOR_TYPES} verdier={detektortyper} onChange={setDetektortyper}
+          egne={customDetectorTypes} onNyEgen={n => setCustomDetectorTypes([...customDetectorTypes, n])} onFjernEgen={removeCustomDetectorType} />
+        <Tekst label="Plassering og dekning" hjelp="Hvor detektorene står, og hvilke områder som er dekket." verdi={formData.detektorplassering} onChange={v => setFormData({ ...formData, detektorplassering: v })} rader={2} />
+        <div className="space-y-2">
+          <span className="block text-sm font-medium text-gray-900 dark:text-white">Alarmnivåer</span>
+          <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1">Hva skjer på hvert nivå? La feltet stå tomt hvis nivået ikke er i bruk.</p>
+          <Nivaa farge="orange" tittel="Forvarsel" verdi={formData.alarmnivaa_forvarsel} onChange={v => setFormData({ ...formData, alarmnivaa_forvarsel: v })} />
+          <Nivaa farge="yellow" tittel="Liten alarm" verdi={formData.alarmnivaa_stille} onChange={v => setFormData({ ...formData, alarmnivaa_stille: v })} />
+          <Nivaa farge="red" tittel="Stor alarm" verdi={formData.alarmnivaa_stor} onChange={v => setFormData({ ...formData, alarmnivaa_stor: v })} />
         </div>
-        <div className="mt-4"><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Tekniske tiltak mot unødige alarmer</label><textarea value={formData.tekniske_tiltak_unodige_alarmer} onChange={(e) => setFormData({ ...formData, tekniske_tiltak_unodige_alarmer: e.target.value })} className="input" rows={3} /></div>
+        <Tekst label="Tekniske tiltak mot unødige alarmer" hjelp="F.eks. to-detektoravhengighet, forsinket videresending, skjerming mot damp og støv." verdi={formData.tekniske_tiltak_unodige_alarmer} onChange={v => setFormData({ ...formData, tekniske_tiltak_unodige_alarmer: v })} rader={2} />
       </div>
 
       {/* 2. Melding */}
-      <div className="card">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2 mb-4"><MessageSquare className="w-4 h-4 text-primary" />2. Melding</h2>
-        <div className="mb-4"><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Hvem får melding</label><div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3 border border-gray-200 dark:border-gray-800 rounded-lg">{NOTIFICATION_RECIPIENTS.map((r) => (<label key={r} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-white"><input type="checkbox" checked={meldingMottakere[r]} onChange={(e) => setMeldingMottakere({ ...meldingMottakere, [r]: e.target.checked })} className="rounded" />{r}</label>))}</div></div>
-        <div className="mb-4"><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Hvordan melding mottas</label><textarea value={formData.hvordan_melding_mottas} onChange={(e) => setFormData({ ...formData, hvordan_melding_mottas: e.target.value })} className="input" rows={2} /></div>
-        <div className="mb-4"><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Verifikasjonsmetoder</label><div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3 border border-gray-200 dark:border-gray-800 rounded-lg">{VERIFICATION_METHODS.map((m) => (<label key={m} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-white"><input type="checkbox" checked={verifikasjonsmetoder[m]} onChange={(e) => setVerifikasjonsmetoder({ ...verifikasjonsmetoder, [m]: e.target.checked })} className="rounded" />{m}</label>))}</div></div>
-        <div className="mb-4"><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Kommunikasjonskanaler</label><textarea value={formData.kommunikasjonskanaler} onChange={(e) => setFormData({ ...formData, kommunikasjonskanaler: e.target.value })} className="input" rows={2} /></div>
-        <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Meldingsrutiner</label><textarea value={formData.meldingsrutiner} onChange={(e) => setFormData({ ...formData, meldingsrutiner: e.target.value })} className="input" rows={3} /></div>
+      <div className="card space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2"><MessageSquare className="w-4 h-4 text-primary" />2. Melding</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Hvem får melding, hvordan den mottas, og hvordan den verifiseres før man varsler videre.</p>
+        </div>
+        <Avkrysning label="Hvem får melding" valg={NOTIFICATION_RECIPIENTS} verdier={meldingMottakere} onChange={setMeldingMottakere} />
+        <Tekst label="Hvordan meldingen mottas" hjelp="Sentral, app, SMS, vaktselskap – og i hvilken rekkefølge." verdi={formData.hvordan_melding_mottas} onChange={v => setFormData({ ...formData, hvordan_melding_mottas: v })} rader={2} />
+        <Avkrysning label="Hvordan alarmen verifiseres" valg={VERIFICATION_METHODS} verdier={verifikasjonsmetoder} onChange={setVerifikasjonsmetoder} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Tekst label="Type alarmoverføring" hjelp="F.eks. direkte til 110-sentral via vaktselskap." verdi={formData.type_overforing} onChange={v => setFormData({ ...formData, type_overforing: v })} rader={2} />
+          <Tekst label="Overvåkingstid" hjelp="Når er overføringen aktiv – døgnet rundt eller bestemte tider?" verdi={formData.overvakingstid} onChange={v => setFormData({ ...formData, overvakingstid: v })} rader={2} />
+        </div>
       </div>
 
-      {/* 3. Oppkobling */}
-      <div className="card">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2 mb-4"><Link2 className="w-4 h-4 text-primary" />3. Oppkobling/Integrasjon</h2>
-        <div className="space-y-4">
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Integrasjon med andre systemer</label><textarea value={formData.integrasjon_andre_systemer} onChange={(e) => setFormData({ ...formData, integrasjon_andre_systemer: e.target.value })} className="input" rows={3} /></div>
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Forriglinger</label><textarea value={formData.forriglinger} onChange={(e) => setFormData({ ...formData, forriglinger: e.target.value })} className="input" rows={2} /></div>
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Automatiske funksjoner</label><textarea value={formData.automatiske_funksjoner} onChange={(e) => setFormData({ ...formData, automatiske_funksjoner: e.target.value })} className="input" rows={3} /></div>
+      {/* 3. Oppkobling – styringsmatrisen */}
+      <div className="card space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2"><Link2 className="w-4 h-4 text-primary" />3. Oppkobling</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Hva er koblet til brannalarmen, og på hvilket alarmnivå det utløses. Dette er styringsmatrisen for anlegget.</p>
         </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">Styringer <span className="text-gray-400 font-normal">({styringer.length})</span></span>
+            <Button icon={<Plus />} onClick={addStyring}>Legg til styring</Button>
+          </div>
+          {styringer.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400 py-3">Ingen styringer lagt til. Legg inn klokker, ventilasjon, dører, heis og annet som utløses av alarmen.</p>
+          ) : (
+            <ul className="divide-y divide-gray-200 dark:divide-gray-800 rounded-lg border border-gray-200 dark:border-gray-800">
+              {styringer.map((s, i) => (
+                <li key={i} className="p-2 flex flex-wrap items-center gap-2">
+                  <select value={s.type} onChange={e => updateStyring(i, 'type', e.target.value)} aria-label="Type styring" className="input !h-9 w-44">
+                    {CONTROL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <select value={s.alarmnivaa} onChange={e => updateStyring(i, 'alarmnivaa', e.target.value)} aria-label="Alarmnivå" className="input !h-9 w-36">
+                    {ALARM_LEVELS.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                  <input value={s.beskrivelse} onChange={e => updateStyring(i, 'beskrivelse', e.target.value)} placeholder="Hva skjer? F.eks. «Alle dører i 2. etg frigis»" className="input !h-9 flex-1 min-w-[12rem]" />
+                  <IconButton variant="ghost" label="Fjern styring" icon={<Trash2 />} onClick={() => removeStyring(i)} className="w-9 h-9 hover:!text-red-500" />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <Tekst label="Forriglinger" hjelp="Hva må være i en bestemt tilstand før noe annet kan skje – f.eks. at ventilasjon stopper før røykluker åpnes." verdi={formData.forriglinger} onChange={v => setFormData({ ...formData, forriglinger: v })} rader={2} />
+        <Tekst label="Integrasjon med andre systemer" hjelp="Adgangskontroll, SD-anlegg, heis, nødlys og lignende." verdi={formData.integrasjon_andre_systemer} onChange={v => setFormData({ ...formData, integrasjon_andre_systemer: v })} rader={2} />
       </div>
 
       {/* 4. Tiltak */}
-      <div className="card">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2 mb-4"><AlertTriangle className="w-4 h-4 text-primary" />4. Tiltak</h2>
-        <div className="space-y-4">
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Organisatoriske prosesser</label><textarea value={formData.organisatoriske_prosesser} onChange={(e) => setFormData({ ...formData, organisatoriske_prosesser: e.target.value })} className="input" rows={3} /></div>
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Evakueringsprosedyrer</label><textarea value={formData.evakueringsprosedyrer} onChange={(e) => setFormData({ ...formData, evakueringsprosedyrer: e.target.value })} className="input" rows={3} /></div>
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Beredskapsplaner</label><textarea value={formData.beredskapsplaner} onChange={(e) => setFormData({ ...formData, beredskapsplaner: e.target.value })} className="input" rows={3} /></div>
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Ansvarlige personer</label><textarea value={formData.ansvarlige_personer} onChange={(e) => setFormData({ ...formData, ansvarlige_personer: e.target.value })} className="input" rows={3} /></div>
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Opplæringsrutiner</label><textarea value={formData.opplaering_rutiner} onChange={(e) => setFormData({ ...formData, opplaering_rutiner: e.target.value })} className="input" rows={3} /></div>
+      <div className="card space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-primary" />4. Tiltak</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Hva menneskene på stedet skal gjøre når alarmen går.</p>
         </div>
+        <Tekst label="Evakuering" hjelp="Hvem evakuerer hvor, møteplass, og hvem som teller opp." verdi={formData.evakueringsprosedyrer} onChange={v => setFormData({ ...formData, evakueringsprosedyrer: v })} rader={3} />
+        <Tekst label="Ansvarlige personer" hjelp="Hvem har hvilken rolle ved alarm – brannvernleder, etasjeansvarlige, vakt." verdi={formData.ansvarlige_personer} onChange={v => setFormData({ ...formData, ansvarlige_personer: v })} rader={2} />
+        <Tekst label="Opplæring og øvelser" hjelp="Hvor ofte øves det, og hvem får opplæring i sentralen." verdi={formData.opplaering_rutiner} onChange={v => setFormData({ ...formData, opplaering_rutiner: v })} rader={2} />
       </div>
 
-      {/* Alarmorganisering */}
-      <div className="card">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2 mb-4"><Settings className="w-4 h-4 text-primary" />Alarmorganisering</h2>
-        <div className="space-y-4">
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Samspill mellom det tekniske og det organisatoriske</label><textarea value={formData.samspill_teknisk_organisatorisk} onChange={(e) => setFormData({ ...formData, samspill_teknisk_organisatorisk: e.target.value })} className="input" rows={3} /></div>
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Styringsmatrise</label><textarea value={formData.styringsmatrise} onChange={(e) => setFormData({ ...formData, styringsmatrise: e.target.value })} className="input" rows={3} /></div>
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Type Overføring</label><textarea value={formData.type_overforing} onChange={(e) => setFormData({ ...formData, type_overforing: e.target.value })} className="input" rows={2} /></div>
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Overvåkingstid</label><textarea value={formData.overvakingstid} onChange={(e) => setFormData({ ...formData, overvakingstid: e.target.value })} className="input" rows={2} /></div>
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Innstallasjon</label><textarea value={formData.innstallasjon} onChange={(e) => setFormData({ ...formData, innstallasjon: e.target.value })} className="input" rows={3} /></div>
-          <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Gjeldende teknisk forskrift</label><textarea value={formData.gjeldende_teknisk_forskrift} onChange={(e) => setFormData({ ...formData, gjeldende_teknisk_forskrift: e.target.value })} className="input" rows={3} /></div>
-        </div>
-        
-        {/* Styringer */}
-        <div className="mt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Styringer</h3>
-            <button onClick={addStyring} className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 disabled:opacity-50 flex items-center gap-2"><Plus className="w-4 h-4" />Legg til styring</button>
+      {/* Felt fra tidligere versjoner av skjemaet – vises bare når de har innhold */}
+      {UTGATTE_FELT.some(f => (formData as Record<string, string>)[f.key]?.trim()) && (
+        <div className="card space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Tidligere utfylt</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Disse feltene er tatt ut av skjemaet. Innholdet er beholdt – flytt det gjerne inn i punktene over.</p>
           </div>
-          {styringer.length === 0 ? (
-            <div className="p-8 border border-gray-700 rounded-lg text-center text-gray-400">Ingen styringer lagt til</div>
-          ) : (
-            <div className="space-y-4">
-              {styringer.map((s, i) => (
-                <div key={i} className="p-4 border border-gray-700 rounded-lg">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-semibold text-gray-300">Styring {i + 1}</h4>
-                    <button onClick={() => removeStyring(i)} className="p-1 hover:bg-red-500/10 rounded"><Trash2 className="w-4 h-4 text-red-500" /></button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Type</label><select value={s.type} onChange={(e) => updateStyring(i, 'type', e.target.value)} className="input">{CONTROL_TYPES.map((t) => (<option key={t} value={t}>{t}</option>))}</select></div>
-                    <div><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Alarmnivå</label><select value={s.alarmnivaa} onChange={(e) => updateStyring(i, 'alarmnivaa', e.target.value)} className="input">{ALARM_LEVELS.map((a) => (<option key={a} value={a}>{a}</option>))}</select></div>
-                  </div>
-                  <div className="mt-4"><label className="block text-sm font-medium text-gray-900 dark:text-white mb-1.5">Beskrivelse</label><textarea value={s.beskrivelse} onChange={(e) => updateStyring(i, 'beskrivelse', e.target.value)} className="input" rows={2} /></div>
-                </div>
-              ))}
-            </div>
-          )}
+          {UTGATTE_FELT.filter(f => (formData as Record<string, string>)[f.key]?.trim()).map(f => (
+            <Tekst key={f.key} label={f.navn} verdi={(formData as Record<string, string>)[f.key]} onChange={v => setFormData({ ...formData, [f.key]: v })} rader={2} />
+          ))}
         </div>
-      </div>
+      )}
+
     </div>
     </>
   )
