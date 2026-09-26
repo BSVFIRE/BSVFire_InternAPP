@@ -16,7 +16,7 @@ import { KontrolldatoVelger } from '@/components/KontrolldatoVelger'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
 import { Combobox } from '@/components/ui/Combobox'
 import { toast } from '@/lib/toast'
-import { lagForside } from '@/lib/rapportPdf'
+import { lagForside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { NodlysListe } from './nodlys/NodlysListe'
@@ -461,47 +461,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       // Generer PDF
       const doc = new jsPDF()
       
-      // Funksjon for å legge til footer på hver side
-      const addFooter = (pageNum: number) => {
-        // Bruk gjeldende sides mål – listesiden er liggende, resten stående
-        const pageWidth = doc.internal.pageSize.getWidth()
-        const pageHeight = doc.internal.pageSize.getHeight()
-        const footerY = pageHeight - 20
-        
-        // Linje over footer
-        doc.setDrawColor(200, 200, 200)
-        doc.setLineWidth(0.5)
-        doc.line(20, footerY - 5, pageWidth - 20, footerY - 5)
-        
-        // Firmanavn (blå og bold)
-        doc.setFontSize(9)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(0, 102, 204)
-        doc.text('Brannteknisk Service og Vedlikehold AS', 20, footerY)
-        
-        // Org.nr, e-post og telefon
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(100, 100, 100)
-        doc.text('Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600', 20, footerY + 4)
-        
-        // Adresse
-        doc.text('Adresse: Sælenveien 44, 5151 Straumsgrend', 20, footerY + 8)
-        
-        // Generert dato (lys grå)
-        doc.setFontSize(7)
-        doc.setTextColor(150, 150, 150)
-        const genererDato = new Date().toLocaleDateString('nb-NO') + ' ' + new Date().toLocaleTimeString('nb-NO')
-        doc.text(`Generert: ${genererDato}`, 20, footerY + 13)
-        
-        // Sidetall (høyre side)
-        doc.setFontSize(8)
-        doc.setTextColor(100, 100, 100)
-        doc.text(`Side ${pageNum}`, pageWidth - 20, footerY, { align: 'right' })
-        
-        // Reset farge
-        doc.setTextColor(0)
-      }
 
       const idag = new Date()
       const nesteKontroll = new Date(idag)
@@ -538,11 +497,11 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
       // Statistikk - Profesjonell layout
       doc.setFillColor(41, 128, 185)
-      doc.rect(15, yPos, 180, 8, 'F')
+      doc.rect(20, yPos, 170, 8, 'F')
       doc.setTextColor(255, 255, 255)
       doc.setFontSize(12)
       doc.setFont('helvetica', 'bold')
-      doc.text('STATISTIKK', 20, yPos + 5.5)
+      doc.text('STATISTIKK', 25, yPos + 5.5)
       doc.setTextColor(0, 0, 0)
       yPos += 12
       
@@ -653,9 +612,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         yPos += 10
       }
 
-      // Legg til footer på første side
-      addFooter(1)
-
       // Ny side for nødlysliste – liggende, så alle kolonnene får plass
       doc.addPage('a4', 'landscape')
       yPos = 20
@@ -714,13 +670,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 8 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
         columnStyles: { 0: { cellWidth: 20 }, 1: { cellWidth: 24 }, 2: { cellWidth: 16 }, 3: { cellWidth: harBygg ? 34 : 18 }, 5: { cellWidth: 26 }, 6: { cellWidth: 18 }, 7: { cellWidth: 22 }, 8: { cellWidth: 24 }, 9: { cellWidth: 18 } },
-        margin: { left: 10, right: 10, bottom: 25 },
-        didDrawPage: () => {
-          // Legg til footer på hver side
-          // const pageCount = (doc as any).internal.getNumberOfPages()
-          const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-          addFooter(currentPage)
-        }
+        margin: { left: 20, right: 20, bottom: 25 },
       })
 
       // Kommentarer seksjon - på ny (stående) side hvis det finnes kommentarer
@@ -742,8 +692,6 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           if (yPos > 250) {
             doc.addPage()
             yPos = 20
-            const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-            addFooter(currentPage)
           }
 
           // Kommentar boks
@@ -753,15 +701,15 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
           
           // Beregn høyde basert på tekst
           const kommentarTekst = kommentar.kommentar || ''
-          const textLines = doc.splitTextToSize(kommentarTekst, 170)
+          const textLines = doc.splitTextToSize(kommentarTekst, 160)
           const boxHeight = 12 + (textLines.length * 4)
           
-          doc.rect(15, yPos, 180, boxHeight, 'FD')
+          doc.rect(20, yPos, 170, boxHeight, 'FD')
           
           // Kommentar header (navn og dato)
           doc.setFontSize(9)
           doc.setFont('helvetica', 'bold')
-          doc.text(kommentar.opprettet_av || 'Ukjent', 20, yPos + 5)
+          doc.text(kommentar.opprettet_av || 'Ukjent', 25, yPos + 5)
           
           // Dato
           doc.setFont('helvetica', 'normal')
@@ -781,32 +729,23 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
               datoTekst = kommentarDato
             }
           }
-          doc.text(datoTekst, 190, yPos + 5, { align: 'right' })
+          doc.text(datoTekst, 185, yPos + 5, { align: 'right' })
           
           // Kommentar tekst
           doc.setFontSize(9)
           doc.setTextColor(0, 0, 0)
           yPos += 9
           doc.setFont('helvetica', 'normal')
-          doc.text(textLines, 20, yPos)
+          doc.text(textLines, 25, yPos)
           
           yPos += boxHeight - 9 + 5 // Mellomrom til neste kommentar
         })
-
-        // Legg til footer på kommentar-siden
-        const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-        addFooter(currentPage)
       }
 
+      await settSidefot(doc)
+
       const pdfBlob = doc.output('blob')
-      // Konverter norske bokstaver til vanlige for storage (Supabase støtter ikke æøå i filnavn)
-      const anleggsnavnForStorage = (anleggData?.anleggsnavn || 'Anlegg')
-        .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
-        .replace(/ø/g, 'o').replace(/Ø/g, 'O')
-        .replace(/å/g, 'a').replace(/Å/g, 'A')
-        .replace(/\s+/g, '_')  // Erstatt mellomrom med underscore
-        .replace(/[^a-zA-Z0-9._-]/g, '_')  // Fjern alle spesialtegn utenom punktum og bindestrek
-      const fileName = `Rapport_Nodlys_${new Date().getFullYear()}_${anleggsnavnForStorage}.pdf`
+      const fileName = rapportFilnavn('Nødlys', anleggData?.anleggsnavn || 'Anlegg')
 
       if (mode === 'preview') {
         // Vis forhåndsvisning

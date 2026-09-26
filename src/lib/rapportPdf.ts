@@ -32,8 +32,9 @@ export const FARGE = {
   gra: [240, 240, 240] as [number, number, number],
 }
 
-export const MARG = 15
-export const INNHOLDSBREDDE = 180
+/** Venstre- og høyremarg i mm. Overskrifter, tabeller og sidefot bruker samme kant. */
+export const MARG = 20
+export const INNHOLDSBREDDE = 170
 
 export interface Forsidedata {
   /** F.eks. «Kontrollrapport nødlys» */
@@ -65,6 +66,18 @@ function norskDato(d: Date): string {
   return d.toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+/** Laster et bilde fra /public. Gir null i stedet for å kaste, så en manglende logo ikke velter PDF-en. */
+async function lastBilde(sti: string): Promise<HTMLImageElement | null> {
+  try {
+    const img = new Image()
+    img.src = sti
+    await new Promise((ok, feil) => { img.onload = ok; img.onerror = feil; setTimeout(feil, 2000) })
+    return img
+  } catch {
+    return null
+  }
+}
+
 function sisteY(doc: jsPDF): number {
   return (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 0
 }
@@ -76,12 +89,10 @@ function sisteY(doc: jsPDF): number {
 export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
   const dato = d.dato ?? new Date()
 
-  try {
-    const logo = new Image()
-    logo.src = '/bsv-logo.png'
-    await new Promise((ok, feil) => { logo.onload = ok; logo.onerror = feil })
+  const logo = await lastBilde('/bsv-logo.png')
+  if (logo) {
     doc.addImage(logo, 'PNG', MARG, 18, 45, 17)
-  } catch {
+  } else {
     doc.setFontSize(18).setFont('helvetica', 'bold').setTextColor(...FARGE.bla)
     doc.text('BSV FIRE', MARG, 30)
     doc.setTextColor(0)
@@ -136,9 +147,9 @@ export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
     headStyles: { fillColor: FARGE.bla, textColor: 255, fontSize: 8.5 },
     columnStyles: {
       0: { cellWidth: 30, fontStyle: 'bold', fillColor: [246, 246, 246] },
-      1: { cellWidth: 60 },
+      1: { cellWidth: 55 },
       2: { cellWidth: 30, fontStyle: 'bold', fillColor: [246, 246, 246] },
-      3: { cellWidth: 60 },
+      3: { cellWidth: 55 },
     },
     head: [[{ content: 'Kunde og anlegg', colSpan: 2 }, { content: 'Kontrollen er utført av', colSpan: 2 }]],
     body: rader,
@@ -161,15 +172,45 @@ export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
 
 /**
  * Sidefot med firmaopplysninger og sidetall på alle sider. Kalles helt til slutt,
- * etter at alt innholdet er lagt inn.
+ * etter at alt innholdet er lagt inn – sidetallet trenger å vite hvor mange sider det ble.
+ *
+ * `merker` tegner FG- og Noralarm-logoen nederst på forsiden. Det gjelder bare
+ * brannalarmkontrollene; på en førstehjelpsrapport ville de vært misvisende.
  */
-export function settSidefot(doc: jsPDF): void {
+export async function settSidefot(doc: jsPDF, valg: { merker?: boolean } = {}): Promise<void> {
+  const fg = valg.merker ? await lastBilde('/fg_logo.png') : null
+  const noralarm = valg.merker ? await lastBilde('/noralarm-logo.png') : null
   const sider = doc.getNumberOfPages()
+
   for (let i = 1; i <= sider; i++) {
     doc.setPage(i)
-    doc.setFontSize(7).setFont('helvetica', 'normal').setTextColor(130)
-    doc.text(`${FIRMA.navn} · ${FIRMA.adresse} · ${FIRMA.telefon} · ${FIRMA.epost}`, MARG, 288)
-    doc.text(`Side ${i} av ${sider}`, MARG + INNHOLDSBREDDE, 288, { align: 'right' })
+    // Målene hentes per side: nødlyslisten er liggende, resten stående
+    const bredde = doc.internal.pageSize.getWidth()
+    const y = doc.internal.pageSize.getHeight() - 20
+
+    doc.setDrawColor(210, 210, 210)
+    doc.setLineWidth(0.3)
+    doc.line(MARG, y - 5, bredde - MARG, y - 5)
+
+    doc.setFontSize(8.5).setFont('helvetica', 'bold').setTextColor(...FARGE.bla)
+    doc.text(FIRMA.navn, MARG, y)
+    doc.setFontSize(7.5).setFont('helvetica', 'normal').setTextColor(115)
+    doc.text(`Org.nr ${FIRMA.orgnr} · ${FIRMA.adresse}`, MARG, y + 4)
+    doc.text(`${FIRMA.telefon} · ${FIRMA.epost} · ${FIRMA.web}`, MARG, y + 8)
+
+    doc.setFontSize(8).setTextColor(115)
+    doc.text(`Side ${i} av ${sider}`, bredde - MARG, y, { align: 'right' })
+
+    if (i === 1) {
+      if (fg) {
+        doc.addImage(fg, 'PNG', bredde - 70, y + 1, 10, 10)
+        doc.setFontSize(5).setTextColor(115).text('FG-godkjent', bredde - 70, y)
+      }
+      if (noralarm) {
+        doc.addImage(noralarm, 'PNG', bredde - 50, y + 1, 20, 10)
+        doc.setFontSize(5).setTextColor(115).text('Medlem av', bredde - 50, y)
+      }
+    }
     doc.setTextColor(0)
   }
 }

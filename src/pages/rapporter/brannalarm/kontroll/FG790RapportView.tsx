@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { batteriInfo } from '@/lib/batteri'
 import { toast } from '@/lib/toast'
-import { lagForside } from '@/lib/rapportPdf'
+import { lagForside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Download, Eye, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -370,108 +370,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       console.log('AnleggData:', anleggData)
       console.log('KontrollData:', kontrollData)
       const doc = new jsPDF()
-      const pageWidth = doc.internal.pageSize.getWidth()
-      const pageHeight = doc.internal.pageSize.getHeight()
       
-      // Last Noralarm-logo på forhånd
-      let noralarmLogoImg: HTMLImageElement | null = null
-      try {
-        noralarmLogoImg = new Image()
-        noralarmLogoImg.src = '/noralarm-logo.png'
-        await new Promise((resolve, reject) => {
-          noralarmLogoImg!.onload = resolve
-          noralarmLogoImg!.onerror = reject
-          setTimeout(reject, 2000)
-        })
-      } catch {
-        noralarmLogoImg = null
-      }
-      
-      // Last FG-logo på forhånd
-      let fgLogoImg: HTMLImageElement | null = null
-      try {
-        fgLogoImg = new Image()
-        fgLogoImg.src = '/fg_logo.png'
-        await new Promise((resolve, reject) => {
-          fgLogoImg!.onload = resolve
-          fgLogoImg!.onerror = reject
-          setTimeout(reject, 2000)
-        })
-      } catch {
-        fgLogoImg = null
-      }
-      
-      // Funksjon for å legge til footer på hver side
-      const addFooter = (pageNum: number) => {
-        const footerY = pageHeight - 20
-        
-        // Linje over footer
-        doc.setDrawColor(200, 200, 200)
-        doc.setLineWidth(0.5)
-        doc.line(20, footerY - 5, pageWidth - 20, footerY - 5)
-        
-        // Firmanavn (blå og bold)
-        doc.setFontSize(9)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(0, 102, 204)
-        doc.text('Brannteknisk Service og Vedlikehold AS', 20, footerY)
-        
-        // Org.nr, e-post og telefon
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(100, 100, 100)
-        doc.text('Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600', 20, footerY + 4)
-        
-        // Adresse
-        doc.text('Adresse: Sælenveien 44, 5151 Straumsgrend', 20, footerY + 8)
-        
-        // Generert dato (lys grå)
-        doc.setFontSize(7)
-        doc.setTextColor(150, 150, 150)
-        const genererDato = new Date().toLocaleDateString('nb-NO') + ' ' + new Date().toLocaleTimeString('nb-NO')
-        doc.text(`Generert: ${genererDato}`, 20, footerY + 13)
-        
-        // Sidetall (høyre side)
-        doc.setFontSize(8)
-        doc.setTextColor(100, 100, 100)
-        doc.text(`Side ${pageNum}`, pageWidth - 20, footerY, { align: 'right' })
-        
-        // Logoer på side 1 (FG og Noralarm)
-        if (pageNum === 1) {
-          // FG-logo (venstre)
-          if (fgLogoImg) {
-            const fgX = pageWidth - 70
-            const fgY = footerY + 1
-            doc.addImage(fgLogoImg, 'PNG', fgX, fgY, 15, 10)
-            
-            doc.setFontSize(5)
-            doc.setFont('helvetica', 'normal')
-            doc.setTextColor(100, 100, 100)
-            doc.text('FG-godkjent', fgX, fgY - 1)
-          }
-          
-          // Noralarm-logo (høyre)
-          const noralarmX = pageWidth - 50
-          const noralarmY = footerY + 1
-          
-          if (noralarmLogoImg) {
-            doc.addImage(noralarmLogoImg, 'PNG', noralarmX, noralarmY, 20, 10)
-            
-            doc.setFontSize(5)
-            doc.setFont('helvetica', 'normal')
-            doc.setTextColor(100, 100, 100)
-            doc.text('Medlem av', noralarmX, noralarmY - 1)
-          } else {
-            doc.setFontSize(6)
-            doc.setFont('helvetica', 'bold')
-            doc.setTextColor(227, 30, 36)
-            doc.text('Medlem av NORALARM', noralarmX, noralarmY + 5)
-          }
-        }
-        
-        // Reset farge
-        doc.setTextColor(0)
-      }
 
       const kontrollDato = kontrollData?.dato ? new Date(kontrollData.dato) : new Date()
       const nesteKontroll = new Date(kontrollDato)
@@ -612,9 +511,6 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         yPos += utkoblingHoyde + 5
       }
 
-      // Legg til footer på første side
-      addFooter(1)
-
       // Start side 2 for enheter
       doc.addPage()
       yPos = 20
@@ -685,11 +581,11 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           headStyles: { fillColor: [41, 128, 185] },
           styles: { fontSize: 9 },
           columnStyles: {
-            0: { cellWidth: 100 },
-            1: { cellWidth: 30, halign: 'center' },
+            0: { cellWidth: 90 },
+            1: { cellWidth: 25, halign: 'center' },
             2: { cellWidth: 55 }
           },
-          margin: { left: 10, right: 10, bottom: 25 },
+          margin: { left: 20, right: 20, bottom: 25 },
           didDrawCell: (data: any) => {
             // Tegn pil for underrader (type/modell)
             if (data.section === 'body' && data.column.index === 0) {
@@ -706,10 +602,6 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
                 doc.line(x + 4, y + 1.8, x + 6, y) // Nedre pilspiss
               }
             }
-          },
-          didDrawPage: () => {
-            const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-            addFooter(currentPage)
           }
         })
 
@@ -741,13 +633,13 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           theme: 'grid',
           headStyles: { fillColor: [41, 128, 185], fontSize: 8 },
           styles: { fontSize: 9 },
-          margin: { left: 10, right: 10, bottom: 25 },
+          margin: { left: 20, right: 20, bottom: 25 },
           columnStyles: {
-            0: { cellWidth: 45 },
-            1: { cellWidth: 20, halign: 'center' },
-            2: { cellWidth: 45 },
-            3: { cellWidth: 55 },
-            4: { cellWidth: 20, halign: 'center' }
+            0: { cellWidth: 42 },
+            1: { cellWidth: 18, halign: 'center' },
+            2: { cellWidth: 42 },
+            3: { cellWidth: 50 },
+            4: { cellWidth: 18, halign: 'center' }
           },
           didParseCell: (data: any) => {
             // Marker hele raden med svak gul bakgrunn hvis det er avvik
@@ -767,10 +659,6 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
                 }
               }
             }
-          },
-          didDrawPage: () => {
-            const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-            addFooter(currentPage)
           }
         })
 
@@ -820,11 +708,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           theme: 'grid',
           headStyles: { fillColor: [41, 128, 185] },
           styles: { fontSize: 8 },
-          margin: { left: 10, right: 10, bottom: 25 },
-          didDrawPage: () => {
-            const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-            addFooter(currentPage)
-          }
+          margin: { left: 20, right: 20, bottom: 25 }
         })
 
         yPos = (doc as any).lastAutoTable.finalY + 10
@@ -924,7 +808,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           1: { cellWidth: 20, halign: 'center' },
           2: { cellWidth: 20, halign: 'center' },
           3: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
-          4: { cellWidth: 85 }
+          4: { cellWidth: 75 }
         },
         didParseCell: (data) => {
           // Fremhev viktige rader
@@ -942,11 +826,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
             }
           }
         },
-        margin: { left: 10, right: 10, bottom: 25 },
-        didDrawPage: () => {
-          const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-          addFooter(currentPage)
-        }
+        margin: { left: 20, right: 20, bottom: 25 }
       })
 
       yPos = (doc as any).lastAutoTable.finalY + 15
@@ -986,18 +866,14 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
           styles: { fontSize: 8, cellPadding: 2 },
           columnStyles: {
-            0: { cellWidth: 50 },
-            1: { cellWidth: 25 },
-            2: { cellWidth: 25 },
+            0: { cellWidth: 45 },
+            1: { cellWidth: 23 },
+            2: { cellWidth: 23 },
             3: { cellWidth: 20 },
             4: { cellWidth: 20 },
-            5: { cellWidth: 40 }
+            5: { cellWidth: 39 }
           },
-          margin: { left: 10, right: 10, bottom: 25 },
-          didDrawPage: () => {
-            const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-            addFooter(currentPage)
-          }
+          margin: { left: 20, right: 20, bottom: 25 }
         })
 
         yPos = (doc as any).lastAutoTable.finalY + 10
@@ -1042,13 +918,9 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
               styles: { fontSize: 9, cellPadding: 3 },
               columnStyles: {
                 0: { cellWidth: 45, fontStyle: 'bold', fillColor: [245, 245, 245] },
-                1: { cellWidth: 140 }
+                1: { cellWidth: 125 }
               },
-              margin: { left: 10, right: 10, bottom: 25 },
-              didDrawPage: () => {
-                const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-                addFooter(currentPage)
-              }
+              margin: { left: 20, right: 20, bottom: 25 }
             })
             yPos = (doc as any).lastAutoTable.finalY + 8
           }
@@ -1085,13 +957,9 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
               styles: { fontSize: 9, cellPadding: 3 },
               columnStyles: {
                 0: { cellWidth: 45, fontStyle: 'bold', fillColor: [245, 245, 245] },
-                1: { cellWidth: 140 }
+                1: { cellWidth: 125 }
               },
-              margin: { left: 10, right: 10, bottom: 25 },
-              didDrawPage: () => {
-                const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-                addFooter(currentPage)
-              }
+              margin: { left: 20, right: 20, bottom: 25 }
             })
             yPos = (doc as any).lastAutoTable.finalY + 8
           }
@@ -1145,13 +1013,9 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
               styles: { fontSize: 9, cellPadding: 3 },
               columnStyles: {
                 0: { cellWidth: 45, fontStyle: 'bold', fillColor: [245, 245, 245] },
-                1: { cellWidth: 140 }
+                1: { cellWidth: 125 }
               },
-              margin: { left: 10, right: 10, bottom: 25 },
-              didDrawPage: () => {
-                const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-                addFooter(currentPage)
-              }
+              margin: { left: 20, right: 20, bottom: 25 }
             })
             yPos = (doc as any).lastAutoTable.finalY + 8
           }
@@ -1225,16 +1089,12 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           },
           columnStyles: {
             0: { cellWidth: 12, halign: 'center' },
-            1: { cellWidth: 25 },
-            2: { cellWidth: 45 },
-            3: { cellWidth: 55 },
-            4: { cellWidth: 45 }
+            1: { cellWidth: 23 },
+            2: { cellWidth: 42 },
+            3: { cellWidth: 51 },
+            4: { cellWidth: 42 }
           },
-          margin: { left: 10, right: 10, bottom: 25 },
-          didDrawPage: () => {
-            const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber
-            addFooter(currentPage)
-          }
+          margin: { left: 20, right: 20, bottom: 25 }
         })
 
         yPos = (doc as any).lastAutoTable.finalY + 10
@@ -1299,7 +1159,6 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       // ===== FORSKRIFTER OG EIERS PLIKTER =====
       doc.addPage()
       yPos = 20
-      const forskrifterPage = (doc as any).internal.getCurrentPageInfo().pageNumber
 
       // Hovedoverskrift
       doc.setFontSize(14)
@@ -1424,26 +1283,19 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
 
       // Anbefaling
       doc.setFillColor(240, 248, 255)
-      doc.rect(15, yPos - 2, 180, 14, 'F')
+      doc.rect(20, yPos - 2, 170, 14, 'F')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(9)
       const anbefaling = 'Det anbefales at identifiserte avvik og forbedringspunkter utbedres i henhold til gjeldende standarder for å sikre optimal funksjon og økt personsikkerhet.'
-      const anbefalingLines = doc.splitTextToSize(anbefaling, 170)
-      doc.text(anbefalingLines, 20, yPos + 2)
+      const anbefalingLines = doc.splitTextToSize(anbefaling, 160)
+      doc.text(anbefalingLines, 25, yPos + 2)
 
-      addFooter(forskrifterPage)
+
+      await settSidefot(doc, { merker: true })
 
       const pdfBlob = doc.output('blob')
       const datoForFilnavn = kontrollData.dato ? new Date(kontrollData.dato) : new Date()
-      const year = datoForFilnavn.getFullYear()
-      // Konverter norske bokstaver til vanlige for storage (Supabase støtter ikke æøå i filnavn)
-      const anleggsnavnForStorage = anleggData.anleggsnavn
-        .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
-        .replace(/ø/g, 'o').replace(/Ø/g, 'O')
-        .replace(/å/g, 'a').replace(/Å/g, 'A')
-        .replace(/\s+/g, '_')  // Erstatt mellomrom med underscore
-        .replace(/[^a-zA-Z0-9._-]/g, '_')  // Fjern alle spesialtegn utenom punktum og bindestrek
-      const fileName = `Rapport_Brannalarm_FG790_${year}_${anleggsnavnForStorage}.pdf`
+      const fileName = rapportFilnavn('Brannalarm FG790', anleggData.anleggsnavn, datoForFilnavn)
 
       if (preview) {
         // Forhåndsvisning

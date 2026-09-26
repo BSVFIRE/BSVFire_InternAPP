@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { lagForside } from '@/lib/rapportPdf'
+import { lagForside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Save, Eye, ClipboardCheck, Droplets } from 'lucide-react'
 import { toast } from '@/lib/toast'
@@ -319,11 +319,11 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       const maaTrykktestes = slanger.filter(s => { const y = parseInt(s.trykktest || '0'); return y > 0 && y <= currentYear - 5 }).length
       // Statistikk - Profesjonell layout
       doc.setFillColor(41, 128, 185)
-      doc.rect(15, yPos, 180, 8, 'F')
+      doc.rect(20, yPos, 170, 8, 'F')
       doc.setTextColor(255, 255, 255)
       doc.setFontSize(12)
       doc.setFont('helvetica', 'bold')
-      doc.text('STATISTIKK', 20, yPos + 5.5)
+      doc.text('STATISTIKK', 25, yPos + 5.5)
       doc.setTextColor(0, 0, 0)
       yPos += 12
       
@@ -498,7 +498,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         styles: { fontSize: 8 },
         headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 8 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { left: 10, right: 10, bottom: 30 },
+        margin: { left: 20, right: 20, bottom: 30 },
       })
 
       // Kommentarer seksjon - på ny side hvis det finnes kommentarer
@@ -508,11 +508,11 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
 
         // Kommentarer header med bakgrunn
         doc.setFillColor(13, 110, 253) // Blue color for brannslanger
-        doc.rect(15, yPos - 5, 180, 12, 'F')
+        doc.rect(20, yPos - 5, 170, 12, 'F')
         doc.setFontSize(16)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(255, 255, 255)
-        doc.text('KOMMENTARER', 20, yPos + 3)
+        doc.text('KOMMENTARER', 25, yPos + 3)
         doc.setTextColor(0, 0, 0)
         yPos += 15
 
@@ -531,15 +531,15 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
           
           // Beregn høyde basert på tekst
           const kommentarTekst = kommentar.kommentar || ''
-          const textLines = doc.splitTextToSize(kommentarTekst, 170)
+          const textLines = doc.splitTextToSize(kommentarTekst, 160)
           const boxHeight = 12 + (textLines.length * 4)
           
-          doc.rect(15, yPos, 180, boxHeight, 'FD')
+          doc.rect(20, yPos, 170, boxHeight, 'FD')
           
           // Kommentar header (navn og dato)
           doc.setFontSize(9)
           doc.setFont('helvetica', 'bold')
-          doc.text(kommentar.opprettet_av || 'Ukjent', 20, yPos + 5)
+          doc.text(kommentar.opprettet_av || 'Ukjent', 25, yPos + 5)
           
           // Dato
           doc.setFont('helvetica', 'normal')
@@ -559,69 +559,23 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
               datoTekst = kommentarDato
             }
           }
-          doc.text(datoTekst, 190, yPos + 5, { align: 'right' })
+          doc.text(datoTekst, 185, yPos + 5, { align: 'right' })
           doc.setTextColor(0, 0, 0)
           
           // Kommentar tekst
           yPos += 9
           doc.setFontSize(9)
           doc.setFont('helvetica', 'normal')
-          doc.text(textLines, 20, yPos)
+          doc.text(textLines, 25, yPos)
           
           yPos += boxHeight - 9 + 5 // Mellomrom til neste kommentar
         })
       }
 
-      // Legg til footer på alle sider
-      const pageCount = (doc as any).internal.getNumberOfPages()
-      const pageWidth = doc.internal.pageSize.getWidth()
-      const pageHeight = doc.internal.pageSize.getHeight()
-      
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i)
-        const footerY = pageHeight - 20
-        
-        // Linje over footer
-        doc.setDrawColor(200, 200, 200)
-        doc.setLineWidth(0.5)
-        doc.line(20, footerY - 5, pageWidth - 20, footerY - 5)
-        
-        // Firmanavn (blå og bold)
-        doc.setFontSize(9)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(0, 102, 204)
-        doc.text('Brannteknisk Service og Vedlikehold AS', 20, footerY)
-        
-        // Org.nr, e-post og telefon
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(100, 100, 100)
-        doc.text('Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600', 20, footerY + 4)
-        
-        // Adresse
-        doc.text('Adresse: Sælenveien 44, 5151 Straumsgrend', 20, footerY + 8)
-        
-        // Generert dato (lys grå)
-        doc.setFontSize(7)
-        doc.setTextColor(150, 150, 150)
-        const genererDato = new Date().toLocaleDateString('nb-NO') + ' ' + new Date().toLocaleTimeString('nb-NO')
-        doc.text(`Generert: ${genererDato}`, 20, footerY + 13)
-        
-        // Sidetall (høyre side)
-        doc.setFontSize(8)
-        doc.setTextColor(100, 100, 100)
-        doc.text(`Side ${i} av ${pageCount}`, pageWidth - 20, footerY, { align: 'right' })
-      }
+      await settSidefot(doc)
 
       const pdfBlob = doc.output('blob')
-      // Konverter norske bokstaver til vanlige for storage (Supabase støtter ikke æøå i filnavn)
-      const anleggsnavnForStorage = anleggNavn
-        .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
-        .replace(/ø/g, 'o').replace(/Ø/g, 'O')
-        .replace(/å/g, 'a').replace(/Å/g, 'A')
-        .replace(/\s+/g, '_')  // Erstatt mellomrom med underscore
-        .replace(/[^a-zA-Z0-9._-]/g, '_')  // Fjern alle spesialtegn utenom punktum og bindestrek
-      const fileName = `Rapport_Brannslanger_${new Date().getFullYear()}_${anleggsnavnForStorage}.pdf`
+      const fileName = rapportFilnavn('Brannslanger', anleggNavn)
 
       if (mode === 'preview') {
         setPreviewPdf({ blob: pdfBlob, fileName })

@@ -269,7 +269,7 @@ export async function lagRoyklukeRapport(d: RapportData): Promise<{ blob: Blob; 
     if (eget.length > 0) seksjon([['Byttet utstyr', 'Antall']], eget.map(u => [u.materiell, u.antall ?? '']), { 1: { cellWidth: 20 } })
   }
 
-  settSidefot(doc)
+  await settSidefot(doc)
 
   const fileName = rapportFilnavn('Roykluker', d.anleggNavn, d.kontrolldato)
   return { blob: doc.output('blob'), fileName }

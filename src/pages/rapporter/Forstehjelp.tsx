@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { toast } from '@/lib/toast'
-import { lagForside } from '@/lib/rapportPdf'
+import { lagForside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, HeartPulse, Save, Check, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -336,46 +336,6 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       .maybeSingle()
 
     const doc = new jsPDF()
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-
-    // Footer funksjon
-    const addFooter = (pageNum: number, totalPages: number) => {
-      const footerY = pageHeight - 20
-      
-      // Linje over footer
-      doc.setDrawColor(200, 200, 200)
-      doc.setLineWidth(0.5)
-      doc.line(20, footerY - 5, pageWidth - 20, footerY - 5)
-      
-      // Firmanavn (blå og bold)
-      doc.setFontSize(9)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(0, 102, 204)
-      doc.text('Brannteknisk Service og Vedlikehold AS', 20, footerY)
-      
-      // Org.nr, e-post og telefon
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(100, 100, 100)
-      doc.text('Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600', 20, footerY + 4)
-      
-      // Adresse
-      doc.text('Adresse: Sælenveien 44, 5151 Straumsgrend', 20, footerY + 8)
-      
-      // Generert dato (lys grå)
-      doc.setFontSize(7)
-      doc.setTextColor(150, 150, 150)
-      const genererDato = new Date().toLocaleDateString('nb-NO') + ' ' + new Date().toLocaleTimeString('nb-NO')
-      doc.text(`Generert: ${genererDato}`, 20, footerY + 13)
-      
-      // Sidetall (høyre side)
-      doc.setFontSize(8)
-      doc.setTextColor(100, 100, 100)
-      doc.text(`Side ${pageNum} av ${totalPages}`, pageWidth - 20, footerY, { align: 'right' })
-      
-      doc.setTextColor(0)
-    }
 
     const nesteKontroll = new Date(kontrolldato)
     nesteKontroll.setMonth(nesteKontroll.getMonth() + 12)
@@ -413,11 +373,11 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
 
     // Statistikk - Profesjonell layout
     doc.setFillColor(34, 197, 94)
-    doc.rect(15, yPos, 180, 8, 'F')
+    doc.rect(20, yPos, 170, 8, 'F')
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(12)
     doc.setFont('helvetica', 'bold')
-    doc.text('STATISTIKK', 20, yPos + 5.5)
+    doc.text('STATISTIKK', 25, yPos + 5.5)
     doc.setTextColor(0, 0, 0)
     yPos += 12
     
@@ -508,10 +468,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       styles: { fontSize: 8 },
       headStyles: { fillColor: [34, 197, 94], textColor: 255, fontSize: 8 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
-      margin: { left: 10, right: 10, bottom: 25 },
-      didDrawPage: () => {
-        // Footer legges til på slutten
-      }
+      margin: { left: 20, right: 20, bottom: 25 },
     })
 
     // Sjekkpunkter seksjon - egen tabell
@@ -524,11 +481,11 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
     }
 
     doc.setFillColor(34, 197, 94)
-    doc.rect(10, yPos, 190, 8, 'F')
+    doc.rect(20, yPos, 170, 8, 'F')
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
-    doc.text('SJEKKPUNKTER OVERSIKT', 15, yPos + 5.5)
+    doc.text('SJEKKPUNKTER OVERSIKT', 25, yPos + 5.5)
     doc.setTextColor(0, 0, 0)
     yPos += 12
 
@@ -555,7 +512,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
         5: { cellWidth: 25 }
       },
       alternateRowStyles: { fillColor: [250, 250, 250] },
-      margin: { left: 10, right: 10, bottom: 25 }
+      margin: { left: 20, right: 20, bottom: 25 }
     })
 
     // Kommentarer seksjon - på ny side hvis det finnes kommentarer
@@ -586,40 +543,35 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
         
         // Beregn høyde basert på tekst
         const kommentarTekst = enhet.kommentar || ''
-        const textLines = doc.splitTextToSize(kommentarTekst, 170)
+        const textLines = doc.splitTextToSize(kommentarTekst, 160)
         const boxHeight = 16 + (textLines.length * 5)
         
-        doc.rect(15, kommentarY, 180, boxHeight, 'FD')
+        doc.rect(20, kommentarY, 170, boxHeight, 'FD')
         
         // Enhet nummer og type
         doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(34, 197, 94)
-        doc.text(`${enhet.internnummer || '-'}`, 20, kommentarY + 6)
+        doc.text(`${enhet.internnummer || '-'}`, 25, kommentarY + 6)
         
         doc.setTextColor(100, 100, 100)
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(9)
-        doc.text(`${enhet.type || '-'} - ${enhet.plassering || '-'}`, 50, kommentarY + 6)
+        doc.text(`${enhet.type || '-'} - ${enhet.plassering || '-'}`, 55, kommentarY + 6)
         
         // Kommentar tekst
         doc.setFontSize(9)
         doc.setTextColor(0, 0, 0)
-        doc.text(textLines, 20, kommentarY + 13)
+        doc.text(textLines, 25, kommentarY + 13)
         
         kommentarY += boxHeight + 5
       })
 
       }
 
-    // Legg til footer på alle sider
-    const pageCount = (doc as any).internal.getNumberOfPages()
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i)
-      addFooter(i, pageCount)
-    }
+    await settSidefot(doc)
 
-    const fileName = `Forstehjelp_${anleggData?.anleggsnavn || 'rapport'}_${new Date().toISOString().split('T')[0]}.pdf`
+    const fileName = rapportFilnavn('Førstehjelp', anleggData?.anleggsnavn || 'Anlegg')
     const blob = doc.output('blob')
     
     return { blob, fileName }
@@ -642,14 +594,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       const { blob: pdfBlob } = await genererPDFBlob()
       const anleggData = anlegg.find(a => a.id === selectedAnlegg)
       
-      // Konverter norske bokstaver for storage
-      const anleggsnavnForStorage = (anleggData?.anleggsnavn || 'rapport')
-        .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
-        .replace(/ø/g, 'o').replace(/Ø/g, 'O')
-        .replace(/å/g, 'a').replace(/Å/g, 'A')
-        .replace(/\s+/g, '_')
-        .replace(/[^a-zA-Z0-9._-]/g, '_')
-      const storageFileName = `Rapport_Forstehjelp_${new Date().getFullYear()}_${anleggsnavnForStorage}.pdf`
+      const storageFileName = rapportFilnavn('Førstehjelp', anleggData?.anleggsnavn || 'Anlegg')
 
       // Lagre til Supabase Storage
       const storagePath = `anlegg/${selectedAnlegg}/dokumenter/${storageFileName}`
