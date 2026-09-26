@@ -662,7 +662,8 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           // Hovedrad for enheten med rowSpan på kommentar
           enheterTableData.push([
             { content: e.type, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
-            { content: e.antall.toString(), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+            // Antallet står på hver type under; bare enheter uten typer viser summen her
+            { content: underrader > 0 ? '' : e.antall.toString(), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
             { content: e.kommentar || '-', styles: { fillColor: [240, 240, 240] }, rowSpan: underrader > 0 ? underrader + 1 : 1 }
           ])
           
