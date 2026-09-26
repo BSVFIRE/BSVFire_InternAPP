@@ -85,24 +85,28 @@ export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
   doc.setTextColor(0)
 
   const adresse = [d.adresse, [d.postnummer, d.poststed].filter(Boolean).join(' ')].filter(Boolean).join(', ')
-  const fet = { fontStyle: 'bold' as const, cellWidth: 32 }
-  const rader: (string | { content: string; styles: typeof fet })[][] = [
-    [{ content: 'Kunde', styles: fet }, d.kundeNavn || '-', { content: 'Kundenr.', styles: fet }, d.kundeNummer || '-'],
-    [{ content: 'Anlegg', styles: fet }, d.anleggNavn || '-', { content: 'Dato', styles: fet }, norskDato(dato)],
-    [{ content: 'Adresse', styles: fet }, adresse || '-', { content: 'Utført av', styles: fet }, d.tekniker || '-'],
+  const rader: string[][] = [
+    ['Kunde', d.kundeNavn || '-', 'Kundenr.', d.kundeNummer || '-'],
+    ['Anlegg', d.anleggNavn || '-', 'Dato', norskDato(dato)],
+    ['Adresse', adresse || '-', 'Utført av', d.tekniker || '-'],
   ]
   if (d.kontaktNavn || d.kontaktTelefon) {
-    rader.push([{ content: 'Kontaktperson', styles: fet }, d.kontaktNavn || '-', { content: 'Telefon', styles: fet }, d.kontaktTelefon || '-'])
+    rader.push(['Kontaktperson', d.kontaktNavn || '-', 'Telefon', d.kontaktTelefon || '-'])
   }
-  for (const [navn, verdi] of d.ekstra ?? []) {
-    rader.push([{ content: navn, styles: fet }, verdi || '-', '', ''])
-  }
+  for (const [navn, verdi] of d.ekstra ?? []) rader.push([navn, verdi || '-', '', ''])
 
+  // Bredde settes per kolonne, ikke per celle: ellers regner autoTable feil og kutter innhold
   autoTable(doc, {
     startY: 200,
     margin: { left: MARG, right: MARG },
     theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 2.5 },
+    styles: { fontSize: 9, cellPadding: 2.5, overflow: 'linebreak' },
+    columnStyles: {
+      0: { cellWidth: 30, fontStyle: 'bold', fillColor: [246, 246, 246] },
+      1: { cellWidth: 60 },
+      2: { cellWidth: 30, fontStyle: 'bold', fillColor: [246, 246, 246] },
+      3: { cellWidth: 60 },
+    },
     body: rader,
   })
   return sisteY(doc)

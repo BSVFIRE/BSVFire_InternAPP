@@ -807,7 +807,7 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
         yPos += 7
 
         const nettverkRows = nettverk.map(n => [
-          n.nettverk_id.toString(),
+          n.nettverk_id != null ? String(n.nettverk_id) : '-',
           n.plassering || '-',
           n.type || '-',
           n.sw_id || '-',

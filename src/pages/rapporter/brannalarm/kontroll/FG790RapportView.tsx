@@ -793,7 +793,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
           const batterIkkeAktuelt = n.batteri_ikke_aktuelt === true
           
           return [
-            n.nettverk_id.toString(),
+            n.nettverk_id != null ? String(n.nettverk_id) : '-',
             n.plassering || '-',
             n.type || '-',
             n.sw_id || '-',
