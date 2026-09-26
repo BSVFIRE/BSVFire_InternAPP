@@ -123,6 +123,11 @@ export function AdminTestdata() {
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Kunde <strong>{TEST_KUNDENAVN}</strong> (kundenr. {TEST_KUNDENUMMER}) med {status?.anlegg.length} anlegg.
           </p>
+          {status?.anlegg.length === 0 && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Settet er ufullstendig – kunden finnes, men ingen anlegg. Slett og opprett på nytt.
+            </p>
+          )}
           <ul className="divide-y divide-gray-200 dark:divide-gray-800 border border-gray-200 dark:border-gray-800 rounded-lg">
             {status?.anlegg.map(a => (
               <li key={a.id}>

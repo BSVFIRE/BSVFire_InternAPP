@@ -184,7 +184,7 @@ function slangerader(anleggId: string, kundeNavn: string) {
     return {
       anlegg_id: anleggId,
       kunde: kundeNavn,
-      slangenummer: `B${String(nr).padStart(3, '0')}`,
+      slangenummer: nr,
       etasje: ETASJER_MELLOMROM[i % 3],
       plassering: `Trapperom ${nr}`,
       produsent: 'Falck',
@@ -239,7 +239,7 @@ async function lagRoykluker(anleggId: string) {
       anlegg_id: anleggId,
       sentral_produsent: 'D+H',
       batteri_type: '12V 7Ah',
-      batteri_alder: '2022',
+      batteri_alder: 2022,
       krets_nr: '1',
       status: 'Ikke kontrollert',
     })))
@@ -282,12 +282,33 @@ async function lagBrannalarm(anleggId: string) {
 /**
  * Oppretter kunden og de valgte anleggene. Finnes testdataene fra før må de slettes
  * først – to sett ville gjort det uklart hva man faktisk tester mot.
+ *
+ * Feiler noe underveis ryddes det som ble opprettet bort igjen. Uten det sitter man
+ * igjen med en halv testkunde, og siden tilbyr bare å slette.
  */
 export async function opprettTestdata(valgteModuler: ModulNokkel[], si: Framdrift): Promise<Testdatastatus> {
   const finnes = await hentTestdatastatus()
   if (finnes.kundeId || finnes.anlegg.length > 0) {
     throw new Error('Det finnes testdata fra før. Slett dem først.')
   }
+  try {
+    return await byggTestdata(valgteModuler, si)
+  } catch (feil) {
+    si('Noe gikk galt – rydder opp …')
+    try {
+      await slettTestdata(() => {})
+    } catch (ryddefeil) {
+      console.error('Kunne ikke rydde opp etter mislykket oppretting:', ryddefeil)
+      throw new Error(
+        `${feil instanceof Error ? feil.message : String(feil)} – og opprydningen feilet også. ` +
+        'Slett testdataene manuelt før du prøver igjen.',
+      )
+    }
+    throw feil
+  }
+}
+
+async function byggTestdata(valgteModuler: ModulNokkel[], si: Framdrift): Promise<Testdatastatus> {
 
   si('Oppretter testkunde …')
   const { data: kunde, error: kundeFeil } = await supabase
@@ -313,7 +334,8 @@ export async function opprettTestdata(valgteModuler: ModulNokkel[], si: Framdrif
       .insert({
         anleggsnavn: mal.navn,
         kundenr: kunde.id,
-        kunde_nummer: TEST_KUNDENUMMER,
+        // anlegg.kunde_nummer er et tall, customer.kunde_nummer er tekst
+        kunde_nummer: Number(TEST_KUNDENUMMER),
         adresse: mal.adresse,
         postnummer: mal.postnummer,
         poststed: mal.poststed,
