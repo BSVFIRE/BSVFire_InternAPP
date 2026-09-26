@@ -55,7 +55,7 @@ export function FG790KontrollView({
   onShowRapport 
 }: FG790KontrollViewProps) {
   const { isOnline, isSyncing } = useOfflineStatus()
-  const { queueInsert, queueUpdate } = useOfflineQueue()
+  const { queueUpsert, queueUpdate } = useOfflineQueue()
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -201,6 +201,8 @@ export function FG790KontrollView({
           .eq('anlegg_id', anleggId)
           .eq('rapport_type', 'FG790')
           .eq('kontroll_status', 'utkast')
+          .order('dato', { ascending: false })
+          .limit(1)
           .maybeSingle()
 
         if (existingDraft) {
@@ -353,9 +355,10 @@ export function FG790KontrollView({
         kritisk_feil_kommentar: kritiskFeilKommentar || null,
       })
       
-      // Queue kontrollpunkter
+      // Punktet kan finnes fra før. Upsert, ellers ville synkroniseringen enten
+      // duplisert punktet eller forkastet det teknikeren registrerte uten dekning.
       Object.values(data).forEach(punkt => {
-        queueInsert('kontrollsjekkpunkter_brannalarm', {
+        queueUpsert('kontrollsjekkpunkter_brannalarm', {
           kontroll_id: currentKontrollId,
           anlegg_id: anleggId,
           kontrollaar: new Date().getFullYear(),
@@ -371,7 +374,7 @@ export function FG790KontrollView({
           poeng_trekk: punkt.poeng_trekk || 0,
           antall_avvik: punkt.antall_avvik || 1,
           bilder: JSON.stringify(punkt.bilder ?? []),
-        })
+        }, 'kontroll_id,posisjon,kategori,tittel')
       })
       
       setHasUnsavedChanges(false)
@@ -382,13 +385,9 @@ export function FG790KontrollView({
     }
     
     try {
-      // Slett eksisterende kontrollpunkter
-      await supabase
-        .from('kontrollsjekkpunkter_brannalarm')
-        .delete()
-        .eq('kontroll_id', currentKontrollId)
-
-      // Lagre alle punkter
+      // Punktene oppdateres på plass. Tidligere ble alle slettet først, og feilet
+      // innsettingen etterpå sto kontrollen igjen tom.
+      const lagretNa = new Date().toISOString()
       const punkterToSave = Object.values(data).map(punkt => ({
         kontroll_id: currentKontrollId,
         anlegg_id: anleggId,
@@ -404,17 +403,25 @@ export function FG790KontrollView({
         poeng_trekk: punkt.poeng_trekk || 0,
         antall_avvik: punkt.antall_avvik || 1,
         bilder: JSON.stringify(punkt.bilder ?? []),
+        updated_at: lagretNa,
       }))
 
       const { error } = await supabase
         .from('kontrollsjekkpunkter_brannalarm')
-        .insert(punkterToSave)
+        .upsert(punkterToSave, { onConflict: 'kontroll_id,posisjon,kategori,tittel' })
 
       if (error) {
         console.error('Feil ved lagring:', error)
         toast.error('Kunne ikke lagre kontrollen', error)
         return
       }
+
+      // Punkter som ikke lenger finnes i sjekklisten står igjen med gammelt tidsstempel
+      await supabase
+        .from('kontrollsjekkpunkter_brannalarm')
+        .delete()
+        .eq('kontroll_id', currentKontrollId)
+        .or(`updated_at.lt.${lagretNa},updated_at.is.null`)
 
       // Lagre anleggsvurdering data
       const { error: vurderingError } = await supabase
