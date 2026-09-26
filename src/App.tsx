@@ -65,6 +65,7 @@ const Meldinger = lazy(() => import('./pages/Meldinger').then(m => ({ default: m
 const PowerOfficeTest = lazy(() => import('./pages/PowerOfficeTest'))
 const AdminDropboxFolders = lazy(() => import('./pages/AdminDropboxFolders').then(m => ({ default: m.AdminDropboxFolders })))
 const AdminDropboxEtterfyll = lazy(() => import('./pages/AdminDropboxEtterfyll').then(m => ({ default: m.AdminDropboxEtterfyll })))
+const AdminTestdata = lazy(() => import('./pages/AdminTestdata').then(m => ({ default: m.AdminTestdata })))
 const AdminAarsavslutning = lazy(() => import('./pages/AdminAarsavslutning').then(m => ({ default: m.AdminAarsavslutning })))
 const AdminModulOversikt = lazy(() => import('./pages/AdminModulOversikt').then(m => ({ default: m.AdminModulOversikt })))
 const AdminSalg = lazy(() => import('./pages/AdminSalg').then(m => ({ default: m.AdminSalg })))
@@ -180,6 +181,7 @@ function App() {
                       <Route path="/admin/ai-knowledge" element={<AdminAIKnowledge />} />
                       <Route path="/admin/dropbox-folders" element={<AdminDropboxFolders />} />
                       <Route path="/admin/dropbox-etterfyll" element={<AdminDropboxEtterfyll />} />
+                      <Route path="/admin/testdata" element={<AdminTestdata />} />
                       <Route path="/admin/aarsavslutning" element={<AdminAarsavslutning />} />
                       <Route path="/admin/modul-oversikt" element={<AdminModulOversikt />} />
                       <Route path="/admin/salg" element={<AdminSalg />} />

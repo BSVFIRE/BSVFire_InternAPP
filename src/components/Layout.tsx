@@ -2,6 +2,7 @@ import { useEffect, useState, ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
+  FlaskConical,
   Home, 
   Users, 
   Building2, 
@@ -85,6 +86,7 @@ const NAV_GRUPPER: NavGruppe[] = [
     { name: 'Etterfyll Dropbox', href: '/admin/dropbox-etterfyll', icon: UploadCloud, modulKey: 'admin_dropbox' },
     { name: 'QR-koder', href: '/admin/qr-koder', icon: QrCode, modulKey: 'admin_qr_koder' },
     { name: 'System Logger', href: '/admin/logger', icon: Bug, modulKey: 'admin_logger' },
+    { name: 'Testdata', href: '/admin/testdata', icon: FlaskConical, modulKey: 'admin_logger' },
     { name: 'AI Embeddings', href: '/admin/ai-embeddings', icon: Sparkles, modulKey: 'admin_ai_embeddings' },
     { name: 'AI Kunnskapsbase', href: '/admin/ai-knowledge', icon: BookOpen, modulKey: 'admin_ai_knowledge' },
   ] },
