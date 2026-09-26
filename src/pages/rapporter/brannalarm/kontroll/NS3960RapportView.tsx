@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { batteriInfo } from '@/lib/batteri'
 import { toast } from '@/lib/toast'
-import { lagForside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
+import { MARG, lagForside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
+import { bildeSomDataUrl } from '@/lib/bilder'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Download, Eye, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -93,6 +94,7 @@ interface AnsattData {
 interface AvvikItem {
   id: string
   beskrivelse: string
+  bilder?: string[]
 }
 
 interface Kontrollpunkt {
@@ -1027,6 +1029,8 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
 
         // Bygg avvikstabell-data
         const avvikTableData: string[][] = []
+        // Bildene får sin egen seksjon etter tabellen – de får ikke plass i en celle
+        const avvikBilder: { nr: number; punkt: string; stier: string[] }[] = []
         let avvikNr = 1
 
         // Kontrollpunkt-avvik
@@ -1037,6 +1041,8 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
             try {
               const avvikListe: AvvikItem[] = JSON.parse(punkt.avvik_liste)
               avvikBeskrivelser = avvikListe.map(a => a.beskrivelse || '(Ingen beskrivelse)')
+              const stier = avvikListe.flatMap(a => a.bilder ?? [])
+              if (stier.length > 0) avvikBilder.push({ nr: avvikNr, punkt: punkt.kontrollpunkt_navn, stier })
             } catch {
               avvikBeskrivelser = ['(Kunne ikke lese avvik)']
             }
@@ -1095,6 +1101,42 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
         })
 
         yPos = (doc as any).lastAutoTable.finalY + 10
+
+        // Bildedokumentasjon – to bilder i bredden, nummerert som i tabellen over
+        if (avvikBilder.length > 0) {
+          const BILDEBREDDE = 80
+          const MAKS_HOYDE = 65
+
+          doc.addPage()
+          yPos = 20
+          doc.setFontSize(14).setFont('helvetica', 'bold').setTextColor(0)
+          doc.text('Bilder til avvikene', MARG, yPos)
+          yPos += 9
+
+          for (const gruppe of avvikBilder) {
+            const bilder = (await Promise.all(gruppe.stier.map(bildeSomDataUrl))).filter(Boolean) as { data: string; bredde: number; hoyde: number }[]
+            if (bilder.length === 0) continue
+
+            const hoyder = bilder.map(b => Math.min(MAKS_HOYDE, BILDEBREDDE * (b.hoyde / b.bredde)))
+            const radHoyde = Math.max(...hoyder)
+
+            if (yPos + radHoyde + 14 > 262) {
+              doc.addPage()
+              yPos = 20
+            }
+
+            doc.setFontSize(9).setFont('helvetica', 'bold').setTextColor(80)
+            doc.text(`Avvik ${gruppe.nr} – ${gruppe.punkt}`, MARG, yPos)
+            yPos += 4
+
+            bilder.forEach((b, i) => {
+              const x = MARG + i * (BILDEBREDDE + 10)
+              doc.addImage(b.data, 'JPEG', x, yPos, BILDEBREDDE, hoyder[i])
+            })
+            yPos += radHoyde + 8
+          }
+          doc.setTextColor(0)
+        }
       }
 
       // Kommentarer (uten avvik) - vises separat

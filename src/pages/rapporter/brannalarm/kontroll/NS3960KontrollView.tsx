@@ -10,10 +10,13 @@ import { STYRINGER, StyringRad, lesEgendefinerte, lesStyringer, styringTilKolonn
 import type { BrannalarmStyring } from '../../Brannalarm'
 import { useOfflineStatus, useOfflineQueue } from '@/hooks/useOffline'
 import { cacheData, getCachedData } from '@/lib/offline'
+import { AvvikBilder } from '@/components/AvvikBilder'
 
 interface Avvik {
   id: string
   beskrivelse: string
+  /** Storage-stier til bilder av avviket. Følger avviket inn i rapporten. */
+  bilder?: string[]
 }
 
 interface KontrollpunktData {
@@ -790,10 +793,19 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                           {p.avvik && (
                             <div className="space-y-1.5">
                               {p.avvikListe.map((a, idx) => (
-                                <div key={a.id} className="flex items-center gap-2">
-                                  <span className="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-semibold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
-                                  <input value={a.beskrivelse} onChange={e => updatePunkt(navn, { avvikListe: p.avvikListe.map((x, i) => i === idx ? { ...x, beskrivelse: e.target.value } : x) })} placeholder="Beskriv avviket …" autoFocus={!a.beskrivelse && idx === p.avvikListe.length - 1} className="input !h-[36px] !min-h-[36px] !py-0 text-sm flex-1" />
-                                  <IconButton variant="ghost" label="Fjern avvik" icon={<X />} onClick={() => { const l = p.avvikListe.filter((_, i) => i !== idx); updatePunkt(navn, { avvikListe: l, avvik: l.length > 0 }) }} className="w-8 h-8 hover:!text-red-500" />
+                                <div key={a.id} className="space-y-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-semibold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                                    <input value={a.beskrivelse} onChange={e => updatePunkt(navn, { avvikListe: p.avvikListe.map((x, i) => i === idx ? { ...x, beskrivelse: e.target.value } : x) })} placeholder="Beskriv avviket …" autoFocus={!a.beskrivelse && idx === p.avvikListe.length - 1} className="input !h-[36px] !min-h-[36px] !py-0 text-sm flex-1" />
+                                    <IconButton variant="ghost" label="Fjern avvik" icon={<X />} onClick={() => { const l = p.avvikListe.filter((_, i) => i !== idx); updatePunkt(navn, { avvikListe: l, avvik: l.length > 0 }) }} className="w-8 h-8 hover:!text-red-500" />
+                                  </div>
+                                  <div className="ml-8">
+                                    <AvvikBilder
+                                      anleggId={anleggId}
+                                      bilder={a.bilder ?? []}
+                                      onEndre={bilder => updatePunkt(navn, { avvikListe: p.avvikListe.map((x, i) => i === idx ? { ...x, bilder } : x) })}
+                                    />
+                                  </div>
                                 </div>
                               ))}
                               <button type="button" onClick={() => updatePunkt(navn, { avvikListe: [...p.avvikListe, { id: crypto.randomUUID(), beskrivelse: '' }] })} className="text-xs text-orange-600 dark:text-orange-400 hover:underline inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Ett avvik til</button>

@@ -1,0 +1,109 @@
+/**
+ * Bilder på et avvik. Bildene lastes opp med én gang de tas, og stiene lagres
+ * sammen med avviket – de følger avviket inn i kontrollrapporten.
+ *
+ * Opplasting krever dekning. Offline-køen vår tar JSON-rader, ikke filer, så
+ * knappene er avslått uten nett i stedet for å love noe vi ikke holder.
+ */
+import { useEffect, useRef, useState } from 'react'
+import { Camera, ImagePlus, Loader2, X } from 'lucide-react'
+import { MAKS_BILDER_PER_AVVIK, bildeUrler, lastOppAnleggsbilde } from '@/lib/bilder'
+import { useOfflineStatus } from '@/hooks/useOffline'
+import { toast } from '@/lib/toast'
+
+export function AvvikBilder({ anleggId, bilder, onEndre, maks = MAKS_BILDER_PER_AVVIK }: {
+  anleggId: string
+  bilder: string[]
+  onEndre: (bilder: string[]) => void
+  maks?: number
+}) {
+  const { isOnline } = useOfflineStatus()
+  const [urler, setUrler] = useState<Record<string, string>>({})
+  const [laster, setLaster] = useState(false)
+  const velgRef = useRef<HTMLInputElement>(null)
+  const kameraRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const mangler = bilder.filter(b => !urler[b])
+    if (mangler.length === 0) return
+    let aktiv = true
+    bildeUrler(mangler).then(nye => { if (aktiv) setUrler(f => ({ ...f, ...nye })) })
+    return () => { aktiv = false }
+  }, [bilder]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function leggTil(filer: FileList | null) {
+    const valgte = Array.from(filer ?? []).filter(f => f.type.startsWith('image/'))
+    if (valgte.length === 0) return
+
+    const plass = maks - bilder.length
+    if (valgte.length > plass) {
+      toast.warning(`Maks ${maks} bilder per avvik`, `Tar med de ${plass} første.`)
+    }
+
+    setLaster(true)
+    const nye: string[] = []
+    try {
+      for (const fil of valgte.slice(0, plass)) {
+        nye.push(await lastOppAnleggsbilde(anleggId, fil))
+      }
+      onEndre([...bilder, ...nye])
+    } catch (e) {
+      console.error('Kunne ikke laste opp bildet:', e)
+      toast.error('Kunne ikke laste opp bildet', e)
+      if (nye.length > 0) onEndre([...bilder, ...nye])
+    } finally {
+      setLaster(false)
+    }
+  }
+
+  const fullt = bilder.length >= maks
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {bilder.map(sti => (
+        <div key={sti} className="relative group">
+          <a href={urler[sti]} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-dark-100">
+            {urler[sti]
+              ? <img src={urler[sti]} alt="Bilde av avviket" className="w-full h-full object-cover" />
+              : <span className="w-full h-full flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-gray-400" /></span>}
+          </a>
+          <button
+            type="button"
+            onClick={() => onEndre(bilder.filter(b => b !== sti))}
+            aria-label="Fjern bildet fra avviket"
+            className="absolute -top-1.5 -right-1.5 w-6 h-6 inline-flex items-center justify-center bg-black/70 hover:bg-red-600 text-white rounded-full"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
+
+      {!fullt && (
+        <>
+          <input ref={kameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { leggTil(e.target.files); e.target.value = '' }} />
+          <input ref={velgRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { leggTil(e.target.files); e.target.value = '' }} />
+          <button
+            type="button"
+            disabled={!isOnline || laster}
+            onClick={() => kameraRef.current?.click()}
+            title={isOnline ? 'Ta bilde av avviket' : 'Bilder krever nett'}
+            className="w-16 h-16 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-400 hover:text-orange-600 disabled:opacity-40 disabled:hover:border-gray-300 inline-flex flex-col items-center justify-center gap-0.5"
+          >
+            {laster ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+            <span className="text-[10px] leading-none">Ta bilde</span>
+          </button>
+          <button
+            type="button"
+            disabled={!isOnline || laster}
+            onClick={() => velgRef.current?.click()}
+            title={isOnline ? 'Velg bilde fra enheten' : 'Bilder krever nett'}
+            className="w-16 h-16 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-400 hover:text-orange-600 disabled:opacity-40 disabled:hover:border-gray-300 inline-flex flex-col items-center justify-center gap-0.5"
+          >
+            <ImagePlus className="w-4 h-4" />
+            <span className="text-[10px] leading-none">Velg</span>
+          </button>
+        </>
+      )}
+    </div>
+  )
+}

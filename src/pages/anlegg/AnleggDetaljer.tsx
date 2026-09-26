@@ -29,6 +29,7 @@ import { LeilighetsOversikt } from '@/components/LeilighetsOversikt'
 import { DropboxFileBrowser } from '@/components/DropboxFileBrowser'
 import { QrEtikettPanel } from '@/components/QrEtikettPanel'
 import { AnleggStatusDialog } from './AnleggStatusDialog'
+import { BilderFane } from './BilderFane'
 import { powersyncAktiv } from '@/lib/powersync/db'
 import { hentEttAnleggLokalt } from '@/lib/powersync/anlegg'
 import { StatusBadge, STATUS_TEKST, somStatus } from '@/lib/status'
@@ -75,7 +76,7 @@ type Aktivitet =
   | { kind: 'dokument'; id: string; dato: string; dokument: Dokument }
 
 type Filter = 'alle' | 'notat' | 'ordre' | 'oppgave' | 'dokument'
-type Tab = 'oversikt' | 'avvik' | 'dokumenter'
+type Tab = 'oversikt' | 'avvik' | 'dokumenter' | 'bilder'
 
 // ---------- Kontrolltyper ----------
 
@@ -135,7 +136,7 @@ export default function AnleggDetaljer() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
-  const tab: Tab = tabParam === 'dokumenter' ? 'dokumenter' : tabParam === 'avvik' ? 'avvik' : 'oversikt'
+  const tab: Tab = tabParam === 'dokumenter' ? 'dokumenter' : tabParam === 'bilder' ? 'bilder' : tabParam === 'avvik' ? 'avvik' : 'oversikt'
 
   const [anlegg, setAnlegg] = useState<AnleggRow | null>(null)
   const [kontakter, setKontakter] = useState<Kontakt[]>([])
@@ -144,6 +145,7 @@ export default function AnleggDetaljer() {
   const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
   const [todos, setTodos] = useState<Todo[]>([])
   const [dokumenter, setDokumenter] = useState<Dokument[]>([])
+  const [antallBilder, setAntallBilder] = useState<number | null>(null)
   const [priser, setPriser] = useState<Priser | null>(null)
   const [avvik, setAvvik] = useState<Avvik[]>([])
   const [leiligheter, setLeiligheter] = useState<{ totalt: number; kontrollert: number } | null>(null)
@@ -177,7 +179,7 @@ export default function AnleggDetaljer() {
         db.from('oppgaver').select('id, tittel, type, status, forfallsdato, opprettet_dato, tekniker:tekniker_id(navn)')
           .eq('anlegg_id', id).order('opprettet_dato', { ascending: false }).limit(25),
         db.from('anlegg_todos').select('*').eq('anlegg_id', id).order('created_at', { ascending: false }),
-        db.from('dokumenter').select('id, filnavn, storage_path, url, opplastet_dato, created_at').eq('anlegg_id', id),
+        db.from('dokumenter').select('id, filnavn, storage_path, url, opplastet_dato, created_at, type').eq('anlegg_id', id),
         db.from('priser_kundenummer').select('*').eq('anlegg_id', id).limit(1).maybeSingle(),
       ])
 
@@ -202,7 +204,7 @@ export default function AnleggDetaljer() {
       const storagePrefix = `anlegg/${id}/dokumenter`
       const { data: filer } = await supabase.storage.from('anlegg.dokumenter').list(storagePrefix, { limit: 200 })
       const fraTabell: Dokument[] = (dokRes.data ?? [])
-        .filter(d => d.filnavn)
+        .filter(d => d.filnavn && d.type !== 'Bilde')
         .map(d => ({
           id: d.id,
           filnavn: d.filnavn!,
@@ -449,6 +451,9 @@ export default function AnleggDetaljer() {
         <FaneKnapp aktiv={tab === 'dokumenter'} onClick={() => setTab('dokumenter')}>
           Dokumenter <span className="px-1.5 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-dark-100">{dokumenter.length}</span>
         </FaneKnapp>
+        <FaneKnapp aktiv={tab === 'bilder'} onClick={() => setTab('bilder')}>
+          Bilder{antallBilder !== null && <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-dark-100">{antallBilder}</span>}
+        </FaneKnapp>
       </nav>
 
       {tab === 'oversikt' ? (
@@ -474,6 +479,8 @@ export default function AnleggDetaljer() {
         </div>
       ) : tab === 'avvik' ? (
         <AvvikFane anlegg={anlegg} avvik={avvik} />
+      ) : tab === 'bilder' ? (
+        <BilderFane anleggId={anlegg.id} onAntall={setAntallBilder} />
       ) : (
         <DokumenterFane
           anlegg={anlegg}
