@@ -16,6 +16,7 @@ import { KontrolldatoVelger } from '@/components/KontrolldatoVelger'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
 import { Combobox } from '@/components/ui/Combobox'
 import { toast } from '@/lib/toast'
+import { lagForside } from '@/lib/rapportPdf'
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { NodlysListe } from './nodlys/NodlysListe'
@@ -413,7 +414,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       // customer har ikke telefon/epost-kolonner – spørringen feilet stille før
       const { data: kundeData } = await supabase
         .from('customer')
-        .select('navn')
+        .select('navn, kunde_nummer')
         .eq('id', anleggData.kundenr)
         .single()
 
@@ -502,143 +503,21 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         doc.setTextColor(0)
       }
 
+      await lagForside(doc, {
+        tittel: 'Kontrollrapport nødlys',
+        anleggNavn: anleggData?.anleggsnavn || selectedAnleggNavn || '',
+        kundeNavn: kundeData?.navn || selectedKundeNavn || '',
+        kundeNummer: kundeData?.kunde_nummer ?? null,
+        adresse: anleggData?.adresse ?? null,
+        postnummer: anleggData?.postnummer ?? null,
+        poststed: anleggData?.poststed ?? null,
+        kontaktNavn: primaerKontakt?.navn ?? null,
+        kontaktTelefon: primaerKontakt?.telefon ?? null,
+        tekniker: tekniker?.navn ?? null,
+        dato: new Date(),
+      })
+      doc.addPage()
       let yPos = 20
-
-      // Logo
-      try {
-        const logoImg = new Image()
-        logoImg.src = '/bsv-logo.png'
-        await new Promise((resolve, reject) => {
-          logoImg.onload = resolve
-          logoImg.onerror = reject
-        })
-        doc.addImage(logoImg, 'PNG', 20, yPos, 40, 15)
-        yPos += 20
-      } catch (error) {
-        console.error('Kunne ikke laste logo:', error)
-        // Fallback til tekst hvis logo ikke lastes
-        doc.setFontSize(16)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(41, 128, 185)
-        doc.text('BSV FIRE', 20, yPos)
-        doc.setTextColor(0)
-        yPos += 10
-      }
-
-      // Tittel
-      doc.setFontSize(18)
-      doc.setFont('helvetica', 'bold')
-      doc.text('RAPPORT - NØDLYS', 20, yPos)
-      yPos += 12
-
-      // Anleggsinformasjon - Profesjonell layout
-      doc.setDrawColor(220, 220, 220)
-      doc.setLineWidth(0.3)
-      doc.setFillColor(250, 250, 250)
-      doc.rect(17, yPos, 85, 28, 'FD')
-      
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(100, 100, 100)
-      doc.text('KUNDE', 20, yPos + 5)
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(0, 0, 0)
-      doc.text(kundeData?.navn || selectedKundeNavn || '-', 20, yPos + 10)
-      
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(100, 100, 100)
-      doc.text('ANLEGG', 20, yPos + 16)
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(0, 0, 0)
-      doc.text(anleggData?.anleggsnavn || '-', 20, yPos + 21)
-      
-      const idag = kontrolldato
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(100, 100, 100)
-      doc.text(`Kontrollert: ${idag.toLocaleDateString('nb-NO')}`, 20, yPos + 26)
-      
-      // Neste kontroll boks
-      doc.setFillColor(254, 249, 195)
-      doc.rect(104, yPos, 91, 28, 'FD')
-      
-      const nesteKontroll = new Date(idag)
-      nesteKontroll.setMonth(nesteKontroll.getMonth() + 12)
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(100, 100, 100)
-      doc.text('NESTE KONTROLL', 107, yPos + 5)
-      doc.setFontSize(14)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(202, 138, 4)
-      doc.text(nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }).toUpperCase(), 107, yPos + 14)
-      
-      yPos += 32
-
-      // Kontaktpersoner - To kolonner
-      const colWidth = 85
-      const leftCol = 17
-      const rightCol = 104
-      
-      if (primaerKontakt?.navn) {
-        doc.setDrawColor(220, 220, 220)
-        doc.setFillColor(250, 250, 250)
-        doc.rect(leftCol, yPos, colWidth, 24, 'FD')
-        
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(100, 100, 100)
-        doc.text('KONTAKTPERSON', leftCol + 3, yPos + 5)
-        
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(0, 0, 0)
-        doc.text(primaerKontakt.navn, leftCol + 3, yPos + 11)
-        
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'normal')
-        let infoY = yPos + 15
-        if (primaerKontakt.telefon) {
-          doc.text(`Tlf: ${primaerKontakt.telefon}`, leftCol + 3, infoY)
-          infoY += 4
-        }
-        if (primaerKontakt.epost) {
-          doc.text(`E-post: ${primaerKontakt.epost}`, leftCol + 3, infoY)
-        }
-      }
-
-      if (tekniker?.navn) {
-        doc.setFillColor(240, 253, 244)
-        doc.rect(rightCol, yPos, colWidth + 6, 24, 'FD')
-        
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(100, 100, 100)
-        doc.text('UTFØRT AV', rightCol + 3, yPos + 5)
-        
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(22, 163, 74)
-        doc.text(tekniker.navn, rightCol + 3, yPos + 11)
-        
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(0, 0, 0)
-        let infoY = yPos + 15
-        if (tekniker.telefon) {
-          doc.text(`Tlf: ${tekniker.telefon}`, rightCol + 3, infoY)
-          infoY += 4
-        }
-        if (tekniker.epost) {
-          doc.text(`E-post: ${tekniker.epost}`, rightCol + 3, infoY)
-        }
-      }
-      
-      doc.setTextColor(0, 0, 0)
-      yPos += 28
 
       // Statistikk
       const totalt = nodlysListe.length

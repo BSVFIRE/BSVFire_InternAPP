@@ -9,6 +9,7 @@
  */
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { FARGE, MARG, lagForside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
 import { punkterFor, relevanteFunn, tilstandFor, type Krets, type Luke, type Sentral } from './typer'
 
 export interface RapportData {
@@ -28,18 +29,8 @@ export interface RapportData {
   kommentarer: string[]
 }
 
-const BLA: [number, number, number] = [41, 128, 185]
-const GRA: [number, number, number] = [240, 240, 240]
-const GRONN: [number, number, number] = [214, 239, 220]
-const ROD: [number, number, number] = [250, 219, 216]
-const GUL: [number, number, number] = [252, 243, 207]
+const { bla: BLA, gra: GRA, gronn: GRONN, rod: ROD, gul: GUL } = FARGE
 
-const MARG = 15
-const BREDDE = 180
-
-function dato(d: Date): string {
-  return d.toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
 
 /** Teller opp sentraltyper, motortyper og luketyper på tvers av anlegget */
 function omfang(sentraler: Sentral[], luker: Luke[]): string[] {
@@ -72,37 +63,20 @@ export async function lagRoyklukeRapport(d: RapportData): Promise<{ blob: Blob; 
   const doc = new jsPDF()
   const sentraler = [...d.sentraler].sort((a, b) => (a.sentral_nr ?? 999) - (b.sentral_nr ?? 999))
 
-  // ---------- Forside ----------
-  let y = 20
-  try {
-    const logo = new Image()
-    logo.src = '/bsv-logo.png'
-    await new Promise((ok, feil) => { logo.onload = ok; logo.onerror = feil })
-    doc.addImage(logo, 'PNG', MARG, y, 45, 17)
-  } catch {
-    doc.setFontSize(18).setFont('helvetica', 'bold').setTextColor(...BLA).text('BSV FIRE', MARG, y + 10)
-    doc.setTextColor(0)
-  }
-  y = 70
-  doc.setFontSize(24).setFont('helvetica', 'bold').setTextColor(0)
-  doc.text('Kontrollrapport røykventilasjon', MARG, y)
-  y += 12
-  doc.setFontSize(14).setFont('helvetica', 'normal').setTextColor(80)
-  doc.text(d.anleggNavn, MARG, y)
-  doc.setTextColor(0)
-
-  autoTable(doc, {
-    startY: 200,
-    margin: { left: MARG, right: MARG },
-    theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 2 },
-    body: [
-      [{ content: 'Kunde', styles: { fontStyle: 'bold' } }, d.kundeNavn, { content: 'Kundenr.', styles: { fontStyle: 'bold' } }, d.kundeNummer ?? '-'],
-      [{ content: 'Anlegg', styles: { fontStyle: 'bold' } }, d.anleggNavn, { content: 'Dato', styles: { fontStyle: 'bold' } }, dato(d.kontrolldato)],
-      [{ content: 'Adresse', styles: { fontStyle: 'bold' } }, [d.adresse, [d.postnummer, d.poststed].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '-', { content: 'Utført av', styles: { fontStyle: 'bold' } }, d.tekniker ?? '-'],
-      [{ content: 'Kontaktperson', styles: { fontStyle: 'bold' } }, d.kontaktNavn ?? '-', { content: 'Telefon', styles: { fontStyle: 'bold' } }, d.kontaktTelefon ?? '-'],
-    ],
+  await lagForside(doc, {
+    tittel: 'Kontrollrapport røykventilasjon',
+    anleggNavn: d.anleggNavn,
+    kundeNavn: d.kundeNavn,
+    kundeNummer: d.kundeNummer,
+    adresse: d.adresse,
+    postnummer: d.postnummer,
+    poststed: d.poststed,
+    kontaktNavn: d.kontaktNavn,
+    kontaktTelefon: d.kontaktTelefon,
+    tekniker: d.tekniker,
+    dato: d.kontrolldato,
   })
+  let y = 20
 
   // ---------- Sammendrag ----------
   doc.addPage()
@@ -286,17 +260,8 @@ export async function lagRoyklukeRapport(d: RapportData): Promise<{ blob: Blob; 
     if (eget.length > 0) seksjon([['Byttet utstyr', 'Antall']], eget.map(u => [u.materiell, u.antall ?? '']), { 1: { cellWidth: 20 } })
   }
 
-  // ---------- Sidefot på alle sider ----------
-  const sider = doc.getNumberOfPages()
-  for (let i = 1; i <= sider; i++) {
-    doc.setPage(i)
-    doc.setFontSize(7).setTextColor(130)
-    doc.text('Brannteknisk Service og Vedlikehold AS · Sælenveien 44, 5151 Straumsgrend · 900 46 600 · mail@bsvfire.no', MARG, 288)
-    doc.text(`Side ${i} av ${sider}`, MARG + BREDDE, 288, { align: 'right' })
-    doc.setTextColor(0)
-  }
+  settSidefot(doc)
 
-  const trygt = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[øØ]/g, 'o').replace(/[æÆ]/g, 'ae').replace(/[åÅ]/g, 'a').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '')
-  const fileName = `Rapport_Roykluker_${d.kontrolldato.getFullYear()}_${trygt(d.anleggNavn)}.pdf`
+  const fileName = rapportFilnavn('Roykluker', d.anleggNavn, d.kontrolldato)
   return { blob: doc.output('blob'), fileName }
 }
