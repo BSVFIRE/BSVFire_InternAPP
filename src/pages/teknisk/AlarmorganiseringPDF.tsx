@@ -1,6 +1,6 @@
 import { pdf } from '@react-pdf/renderer'
-import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
-import { BSV_LOGO } from '@/assets/logoBase64'
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+import { Forside, Sidefot } from '@/lib/rapportPdfReact'
 
 interface AlarmorganiseringData {
   id: string
@@ -184,62 +184,22 @@ interface AlarmorganiseringPDFDocumentProps {
 function AlarmorganiseringPDFDocument({ data }: AlarmorganiseringPDFDocumentProps) {
   return (
     <Document>
+      <Forside
+        tittel="Alarmorganisering"
+        anleggNavn={data.anlegg_navn || ''}
+        felt={[
+          { navn: 'Kunde', verdi: data.kunde_navn || '' },
+          { navn: 'Anlegg', verdi: data.anlegg_navn || '' },
+          { navn: 'Adresse', verdi: data.kundeadresse || '' },
+          { navn: 'Dato', verdi: new Date(data.dato).toLocaleDateString('nb-NO') },
+          { navn: 'Kontaktperson', verdi: data.kontakt_person || '' },
+          { navn: 'Telefon', verdi: data.mobil || '' },
+          { navn: 'Utført av', verdi: data.service_ingeniør || '' },
+          { navn: 'Revisjon', verdi: data.revisjon || '' },
+        ]}
+      />
+
       <Page size="A4" style={styles.page}>
-        {/* Header with Logo */}
-        <View style={styles.header}>
-          <Image src={BSV_LOGO} style={styles.logo} />
-          <Text style={styles.mainTitle}>Alarmorganisering</Text>
-          <Text style={styles.subtitle}>Revisjon {data.revisjon} - {new Date(data.dato).toLocaleDateString('nb-NO')}</Text>
-        </View>
-
-        {/* Info Section */}
-        <View style={styles.infoSection}>
-          {data.kunde_navn && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Kunde:</Text>
-              <Text style={styles.infoValue}>{data.kunde_navn}</Text>
-            </View>
-          )}
-          {data.anlegg_navn && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Anlegg:</Text>
-              <Text style={styles.infoValue}>{data.anlegg_navn}</Text>
-            </View>
-          )}
-          {data.kundeadresse && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Adresse:</Text>
-              <Text style={styles.infoValue}>{data.kundeadresse}</Text>
-            </View>
-          )}
-          {data.kontakt_person && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Kontaktperson:</Text>
-              <Text style={styles.infoValue}>{data.kontakt_person}</Text>
-            </View>
-          )}
-          {data.mobil && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Mobil:</Text>
-              <Text style={styles.infoValue}>{data.mobil}</Text>
-            </View>
-          )}
-          {data.e_post && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>E-post:</Text>
-              <Text style={styles.infoValue}>{data.e_post}</Text>
-            </View>
-          )}
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Service Ingeniør:</Text>
-            <Text style={styles.infoValue}>{data.service_ingeniør}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Status:</Text>
-            <Text style={styles.infoValue}>{data.status}</Text>
-          </View>
-        </View>
-
         <View style={styles.divider} />
 
         {/* 1. Deteksjon */}
@@ -281,19 +241,7 @@ function AlarmorganiseringPDFDocument({ data }: AlarmorganiseringPDFDocumentProp
           </View>
         )}
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerCompany}>Brannteknisk Service og Vedlikehold AS</Text>
-          <Text style={styles.footerInfo}>
-            Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600
-          </Text>
-          <Text style={styles.footerInfo}>
-            Adresse: Sælenveien 44, 5151 Straumsgrend
-          </Text>
-          <Text style={{ fontSize: 7, color: '#999', marginTop: 5 }}>
-            Generert: {new Date().toLocaleDateString('nb-NO')} {new Date().toLocaleTimeString('nb-NO')}
-          </Text>
-        </View>
+        <Sidefot />
       </Page>
 
       {/* Page 2 - Melding og Oppkobling */}
@@ -385,19 +333,7 @@ function AlarmorganiseringPDFDocument({ data }: AlarmorganiseringPDFDocumentProp
           </View>
         )}
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerCompany}>Brannteknisk Service og Vedlikehold AS</Text>
-          <Text style={styles.footerInfo}>
-            Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600
-          </Text>
-          <Text style={styles.footerInfo}>
-            Adresse: Sælenveien 44, 5151 Straumsgrend
-          </Text>
-          <Text style={{ fontSize: 7, color: '#999', marginTop: 5 }}>
-            Side 2 av 3
-          </Text>
-        </View>
+        <Sidefot />
       </Page>
 
       {/* Page 3 - Tiltak og Alarmorganisering */}
@@ -447,19 +383,7 @@ function AlarmorganiseringPDFDocument({ data }: AlarmorganiseringPDFDocumentProp
           </View>
         )}
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerCompany}>Brannteknisk Service og Vedlikehold AS</Text>
-          <Text style={styles.footerInfo}>
-            Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600
-          </Text>
-          <Text style={styles.footerInfo}>
-            Adresse: Sælenveien 44, 5151 Straumsgrend
-          </Text>
-          <Text style={{ fontSize: 7, color: '#999', marginTop: 5 }}>
-            Side 3 av 3
-          </Text>
-        </View>
+        <Sidefot />
       </Page>
     </Document>
   )
