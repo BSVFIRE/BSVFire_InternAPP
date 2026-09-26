@@ -48,6 +48,7 @@ export interface Forsidedata {
   kontaktTelefon?: string | null
   tekniker?: string | null
   teknikerTelefon?: string | null
+  teknikerEpost?: string | null
   /** F.eks. FG-sertifikatnummer – viktig dokumentasjon for kunden */
   teknikerSertifikat?: string | null
   kontaktEpost?: string | null
@@ -114,6 +115,7 @@ export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
   const hoyre: [string, string][] = [['Kontrollør', d.tekniker || '-']]
   if (d.teknikerSertifikat) hoyre.push(['Sertifikat', d.teknikerSertifikat])
   if (d.teknikerTelefon) hoyre.push(['Telefon', d.teknikerTelefon])
+  if (d.teknikerEpost) hoyre.push(['E-post', d.teknikerEpost])
   hoyre.push(['Kontrolldato', norskDato(dato)])
   for (const [navn, verdi] of d.ekstra ?? []) hoyre.push([navn, verdi || '-'])
 

@@ -488,6 +488,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         kontaktTelefon: primaerKontakt?.telefon ?? null,
         tekniker: kontrollorData?.navn ?? null,
         teknikerTelefon: kontrollorData?.telefon ?? null,
+        teknikerEpost: kontrollorData?.epost ?? null,
         teknikerSertifikat: kontrollorData?.fg_sertifikat_nr ?? null,
         kontaktEpost: primaerKontakt?.epost ?? null,
         dato: kontrollDato,

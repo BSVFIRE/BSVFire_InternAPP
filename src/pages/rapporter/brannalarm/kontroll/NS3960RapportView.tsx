@@ -513,6 +513,7 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
         kontaktTelefon: primaerKontakt?.telefon ?? null,
         tekniker: kontrollorData?.navn ?? null,
         teknikerTelefon: kontrollorData?.telefon ?? null,
+        teknikerEpost: kontrollorData?.epost ?? null,
         teknikerSertifikat: kontrollorData?.fg_sertifikat_nr ?? null,
         kontaktEpost: primaerKontakt?.epost ?? null,
         dato: kontrollDato,

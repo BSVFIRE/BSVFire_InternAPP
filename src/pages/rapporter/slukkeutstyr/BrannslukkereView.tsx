@@ -293,6 +293,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
         kontaktTelefon: kontaktData?.telefon ?? null,
         tekniker: tekniker?.navn ?? null,
         teknikerTelefon: tekniker?.telefon ?? null,
+        teknikerEpost: tekniker?.epost ?? null,
         dato: idag,
         undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB) og NS 3910.',
         nesteKontroll: nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }),

@@ -519,6 +519,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         kontaktTelefon: primaerKontakt?.telefon ?? null,
         tekniker: tekniker?.navn ?? null,
         teknikerTelefon: tekniker?.telefon ?? null,
+        teknikerEpost: tekniker?.epost ?? null,
         kontaktEpost: primaerKontakt?.epost ?? null,
         dato: idag,
         undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB).',

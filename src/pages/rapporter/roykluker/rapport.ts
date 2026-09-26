@@ -23,6 +23,8 @@ export interface RapportData {
   kontaktTelefon: string | null
   kontaktEpost: string | null
   tekniker: string | null
+  teknikerTelefon: string | null
+  teknikerEpost: string | null
   kontrolldato: Date
   sentraler: Sentral[]
   luker: Luke[]
@@ -76,6 +78,8 @@ export async function lagRoyklukeRapport(d: RapportData): Promise<{ blob: Blob; 
     kontaktNavn: d.kontaktNavn,
     kontaktTelefon: d.kontaktTelefon,
     tekniker: d.tekniker,
+    teknikerTelefon: d.teknikerTelefon,
+    teknikerEpost: d.teknikerEpost,
     kontaktEpost: d.kontaktEpost,
     dato: d.kontrolldato,
     undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB).',

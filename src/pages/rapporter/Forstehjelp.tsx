@@ -388,6 +388,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       kontaktTelefon: primaerKontakt?.telefon ?? null,
       tekniker: tekniker?.navn ?? null,
       teknikerTelefon: tekniker?.telefon ?? null,
+      teknikerEpost: tekniker?.epost ?? null,
       dato: kontrolldato,
       undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB).',
       nesteKontroll: nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }),

@@ -304,6 +304,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         kontaktTelefon: kontaktData?.telefon ?? null,
         tekniker: tekniker?.navn ?? null,
         teknikerTelefon: tekniker?.telefon ?? null,
+        teknikerEpost: tekniker?.epost ?? null,
         dato: idag,
         undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB) og NS-EN 671-3.',
         nesteKontroll: nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }),

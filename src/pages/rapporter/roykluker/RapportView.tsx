@@ -63,6 +63,8 @@ export function RapportView({ anleggId, kundeNavn, anleggNavn, onTilbake }: {
         kontaktTelefon: k?.telefon ?? null,
         kontaktEpost: k?.epost ?? null,
         tekniker: ansatt?.navn ?? null,
+        teknikerTelefon: ansatt?.telefon ?? null,
+        teknikerEpost: ansatt?.epost ?? null,
         kontrolldato: new Date(),
         sentraler: liste,
         luker: (luker ?? []) as Luke[],
