@@ -75,7 +75,7 @@ const KONTROLLPUNKTER_BY_CATEGORY = {
 
 export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, kontrollId, onBack, onShowRapport }: NS3960KontrollViewProps) {
   const { isOnline, isSyncing } = useOfflineStatus()
-  const { queueInsert, queueUpdate } = useOfflineQueue()
+  const { queueUpsert, queueUpdate } = useOfflineQueue()
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -222,6 +222,8 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           .eq('anlegg_id', anleggId)
           .eq('rapport_type', 'NS3960')
           .eq('kontroll_status', 'utkast')
+          .order('dato', { ascending: false })
+          .limit(1)
           .maybeSingle()
 
         if (draftError) {
@@ -415,16 +417,18 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
         sentraltype,
       })
       
-      // Queue kontrollpunkter (we'll need to handle this specially on sync)
+      // Punktet kan finnes fra før. Upsert, ellers ville synkroniseringen sett et
+      // duplikat og forkastet alt teknikeren registrerte uten dekning.
       Object.values(data).forEach(punkt => {
-        queueInsert('ns3960_kontrollpunkter', {
+        queueUpsert('ns3960_kontrollpunkter', {
           kontroll_id: currentKontrollId,
           anlegg_id: anleggId,
           kontrollpunkt_navn: punkt.kontrollpunkt_navn,
           status: punkt.status,
           avvik: punkt.avvik,
+          avvik_liste: JSON.stringify(punkt.avvikListe || []),
           kommentar: punkt.kommentar,
-        })
+        }, 'kontroll_id,kontrollpunkt_navn')
       })
       
       setLastSaved(new Date())

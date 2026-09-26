@@ -46,6 +46,15 @@ export function useOfflineQueue() {
     queueChange({ table, operation: 'update', data })
   }
 
+  /**
+   * For rader som kan finnes fra før – f.eks. et kontrollpunkt som ble lagret på nett
+   * tidligere samme dag. En ren insert ville feilet med duplikat og blitt forkastet,
+   * slik at det teknikeren registrerte offline forsvant i stillhet.
+   */
+  const queueUpsert = (table: string, data: any, onConflict: string) => {
+    queueChange({ table, operation: 'upsert', data, onConflict })
+  }
+
   const queueDelete = (table: string, id: string) => {
     queueChange({ table, operation: 'delete', data: { id } })
   }
@@ -58,6 +67,7 @@ export function useOfflineQueue() {
     isOnline,
     queueInsert,
     queueUpdate,
+    queueUpsert,
     queueDelete,
     manualSync,
   }

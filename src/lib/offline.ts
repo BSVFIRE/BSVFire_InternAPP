@@ -43,8 +43,10 @@ const PENDING_CHANGES_KEY = 'bsv_pending_changes'
 interface PendingChange {
   id: string
   table: string
-  operation: 'insert' | 'update' | 'delete'
+  operation: 'insert' | 'update' | 'delete' | 'upsert'
   data: any
+  /** Kolonnene som avgjør om raden finnes fra før. Kreves av upsert. */
+  onConflict?: string
   timestamp: number
 }
 
@@ -136,7 +138,11 @@ export function getCachedData<T>(key: string): T | null {
 const PERMANENTE_FEIL = new Set(['23505', '23503', '23502', '22P02', '42501', '42703', '42P01', 'PGRST204'])
 
 export function queueChange(change: Omit<PendingChange, 'id' | 'timestamp'>) {
-  if (change.operation !== 'insert' && !change.data?.id) {
+  if (change.operation === 'upsert' && !change.onConflict) {
+    log.error(`Nektet å legge upsert på ${change.table} i offline-kø uten onConflict`, { data: change.data })
+    return
+  }
+  if (change.operation !== 'insert' && change.operation !== 'upsert' && !change.data?.id) {
     // En update/delete uten id ville feilet med 22P02 («undefined» er ikke en uuid) ved hver synkronisering
     log.error(`Nektet å legge ${change.operation} på ${change.table} i offline-kø uten id`, { data: change.data })
     return
@@ -201,6 +207,10 @@ export async function syncPendingChanges() {
       switch (change.operation) {
         case 'insert':
           result = await supabase.from(change.table).insert(change.data)
+          break
+        case 'upsert':
+          // Raden kan allerede finnes – den skal oppdateres, ikke forkastes som duplikat
+          result = await supabase.from(change.table).upsert(change.data, { onConflict: change.onConflict })
           break
         case 'update':
           result = await supabase
