@@ -187,14 +187,17 @@ function AlarmorganiseringPDFDocument({ data }: AlarmorganiseringPDFDocumentProp
       <Forside
         tittel="Alarmorganisering"
         anleggNavn={data.anlegg_navn || ''}
-        felt={[
+        venstre={[
           { navn: 'Kunde', verdi: data.kunde_navn || '' },
           { navn: 'Anlegg', verdi: data.anlegg_navn || '' },
           { navn: 'Adresse', verdi: data.kundeadresse || '' },
+          ...(data.kontakt_person ? [{ navn: 'Kontaktperson', verdi: data.kontakt_person }] : []),
+          ...(data.mobil ? [{ navn: 'Telefon', verdi: data.mobil }] : []),
+          ...(data.e_post ? [{ navn: 'E-post', verdi: data.e_post }] : []),
+        ]}
+        hoyre={[
+          { navn: 'Kontrollør', verdi: data.service_ingeniør || '' },
           { navn: 'Dato', verdi: new Date(data.dato).toLocaleDateString('nb-NO') },
-          { navn: 'Kontaktperson', verdi: data.kontakt_person || '' },
-          { navn: 'Telefon', verdi: data.mobil || '' },
-          { navn: 'Utført av', verdi: data.service_ingeniør || '' },
           { navn: 'Revisjon', verdi: data.revisjon || '' },
         ]}
       />

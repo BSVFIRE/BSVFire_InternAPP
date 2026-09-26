@@ -518,7 +518,6 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
         dato: kontrollDato,
         undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB) og NS 3960.',
         nesteKontroll: nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }),
-        ekstra: [['Standard', 'NS 3960']],
       })
       doc.addPage()
       let yPos = 20

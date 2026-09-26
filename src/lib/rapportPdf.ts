@@ -12,7 +12,7 @@
  * For rapporter bygget med @react-pdf/renderer, se `src/lib/rapportPdfReact.tsx`.
  */
 import type jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import autoTable, { type RowInput } from 'jspdf-autotable'
 
 export const FIRMA = {
   navn: 'Brannteknisk Service og Vedlikehold AS',
@@ -56,7 +56,7 @@ export interface Forsidedata {
   undertittel?: string
   /** Når neste kontroll skal utføres. Vises framhevet – det er ofte det kunden ser etter. */
   nesteKontroll?: string
-  /** Ekstra rader nederst i tabellen, f.eks. «Standard: NS 3960» */
+  /** Ekstra rader på høyre side av tabellen – opplysninger om selve kontrollen */
   ekstra?: [string, string][]
 }
 
@@ -97,18 +97,33 @@ export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
   doc.setTextColor(0)
 
   const adresse = [d.adresse, [d.postnummer, d.poststed].filter(Boolean).join(' ')].filter(Boolean).join(', ')
-  const rader: string[][] = [
-    ['Kunde', d.kundeNavn || '-', 'Kundenr.', d.kundeNummer || '-'],
-    ['Anlegg', d.anleggNavn || '-', 'Dato', norskDato(dato)],
-    ['Adresse', adresse || '-', 'Utført av', d.tekniker || '-'],
+
+  // Venstre side handler om kunden, høyre side om oss som har utført kontrollen
+  const venstre: [string, string][] = [
+    ['Kunde', d.kundeNavn || '-'],
+    ['Kundenr.', d.kundeNummer || '-'],
+    ['Anlegg', d.anleggNavn || '-'],
+    ['Adresse', adresse || '-'],
   ]
-  if (d.teknikerSertifikat) rader.push(['Sertifikat', d.teknikerSertifikat, 'Telefon', d.teknikerTelefon || '-'])
   if (d.kontaktNavn || d.kontaktTelefon || d.kontaktEpost) {
-    rader.push(['Kontaktperson', d.kontaktNavn || '-', 'Telefon', d.kontaktTelefon || '-'])
-    if (d.kontaktEpost) rader.push(['E-post', d.kontaktEpost, '', ''])
+    venstre.push(['Kontaktperson', d.kontaktNavn || '-'])
+    if (d.kontaktTelefon) venstre.push(['Telefon', d.kontaktTelefon])
+    if (d.kontaktEpost) venstre.push(['E-post', d.kontaktEpost])
   }
-  if (d.nesteKontroll) rader.push(['Neste kontroll', d.nesteKontroll.toUpperCase(), '', ''])
-  for (const [navn, verdi] of d.ekstra ?? []) rader.push([navn, verdi || '-', '', ''])
+
+  const hoyre: [string, string][] = [['Kontrollør', d.tekniker || '-']]
+  if (d.teknikerSertifikat) hoyre.push(['Sertifikat', d.teknikerSertifikat])
+  if (d.teknikerTelefon) hoyre.push(['Telefon', d.teknikerTelefon])
+  hoyre.push(['Kontrolldato', norskDato(dato)])
+  for (const [navn, verdi] of d.ekstra ?? []) hoyre.push([navn, verdi || '-'])
+
+  const rader: RowInput[] = []
+  for (let i = 0; i < Math.max(venstre.length, hoyre.length); i++) {
+    const v = venstre[i] ?? ['', '']
+    const h = hoyre[i] ?? ['', '']
+    rader.push([v[0], v[1], h[0], h[1]])
+  }
+  if (d.nesteKontroll) rader.push(['Neste kontroll', { content: d.nesteKontroll.toUpperCase(), colSpan: 3 }])
 
   // Bredde settes per kolonne, ikke per celle: ellers regner autoTable feil og kutter innhold
   autoTable(doc, {
@@ -116,19 +131,26 @@ export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
     margin: { left: MARG, right: MARG },
     theme: 'grid',
     styles: { fontSize: 9, cellPadding: 2.5, overflow: 'linebreak' },
+    headStyles: { fillColor: FARGE.bla, textColor: 255, fontSize: 8.5 },
     columnStyles: {
       0: { cellWidth: 30, fontStyle: 'bold', fillColor: [246, 246, 246] },
       1: { cellWidth: 60 },
       2: { cellWidth: 30, fontStyle: 'bold', fillColor: [246, 246, 246] },
       3: { cellWidth: 60 },
     },
+    head: [[{ content: 'Kunde og anlegg', colSpan: 2 }, { content: 'Kontrollen er utført av', colSpan: 2 }]],
     body: rader,
-    // “Neste kontroll” framheves i gult, som i de gamle rapportene
     didParseCell: (data) => {
-      if (data.section === 'body' && data.row.raw && (data.row.raw as string[])[0] === 'Neste kontroll') {
+      if (data.section !== 'body') return
+      const forste = (data.row.raw as unknown[])[0]
+      // “Neste kontroll” framheves i gult, som i de gamle rapportene
+      if (forste === 'Neste kontroll') {
         data.cell.styles.fillColor = [254, 249, 195]
         data.cell.styles.fontStyle = 'bold'
         data.cell.styles.textColor = [146, 100, 0]
+      } else if (!data.cell.text.join('')) {
+        // Tomme felt skal ikke se ut som en ledetekst som mangler verdi
+        data.cell.styles.fillColor = [255, 255, 255]
       }
     },
   })

@@ -493,7 +493,6 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         dato: kontrollDato,
         undertittel: 'Kontrollen er utført i henhold til gjeldende forebyggendeforskrift (FOB) og FG-790.',
         nesteKontroll: nesteKontroll.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' }),
-        ekstra: [['Standard', 'FG-790']],
       })
       doc.addPage()
       let yPos = 20
