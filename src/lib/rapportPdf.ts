@@ -138,9 +138,14 @@ export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
   }
   if (d.nesteKontroll) rader.push(['Neste kontroll', { content: d.nesteKontroll.toUpperCase(), colSpan: 3 }])
 
+  // Tabellen står nederst på siden, men må ikke vokse ned i sidefoten. Høyden anslås
+  // ut fra radtallet, med slark for adressen som gjerne bryter over to linjer.
+  const anslattHoyde = (rader.length + 1) * 9 + 6
+  const startY = Math.min(200, Math.max(120, 262 - anslattHoyde))
+
   // Bredde settes per kolonne, ikke per celle: ellers regner autoTable feil og kutter innhold
   autoTable(doc, {
-    startY: 200,
+    startY,
     margin: { left: MARG, right: MARG },
     theme: 'grid',
     styles: { fontSize: 9, cellPadding: 2.5, overflow: 'linebreak' },
@@ -201,15 +206,11 @@ export async function settSidefot(doc: jsPDF, valg: { merker?: boolean } = {}): 
     doc.setFontSize(8).setTextColor(115)
     doc.text(`Side ${i} av ${sider}`, bredde - MARG, y, { align: 'right' })
 
+    // Merkene står mellom firmateksten og sidetallet, på linje med tekstblokken.
+    // Ingen småtekst under dem – 5 punkt er uleselig uansett.
     if (i === 1) {
-      if (fg) {
-        doc.addImage(fg, 'PNG', bredde - 70, y + 1, 10, 10)
-        doc.setFontSize(5).setTextColor(115).text('FG-godkjent', bredde - 70, y)
-      }
-      if (noralarm) {
-        doc.addImage(noralarm, 'PNG', bredde - 50, y + 1, 20, 10)
-        doc.setFontSize(5).setTextColor(115).text('Medlem av', bredde - 50, y)
-      }
+      if (fg) doc.addImage(fg, 'PNG', 118, y - 2, 9, 9)
+      if (noralarm) doc.addImage(noralarm, 'PNG', 132, y - 2, 18, 9)
     }
     doc.setTextColor(0)
   }
