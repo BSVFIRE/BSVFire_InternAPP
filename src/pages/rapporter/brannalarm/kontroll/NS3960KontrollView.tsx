@@ -802,6 +802,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                                   <div className="ml-8">
                                     <AvvikBilder
                                       anleggId={anleggId}
+                                      merkelapp={navn}
                                       bilder={a.bilder ?? []}
                                       onEndre={bilder => updatePunkt(navn, { avvikListe: p.avvikListe.map((x, i) => i === idx ? { ...x, bilder } : x) })}
                                     />

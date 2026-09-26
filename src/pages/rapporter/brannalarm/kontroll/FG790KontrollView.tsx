@@ -663,6 +663,7 @@ export function FG790KontrollView({
                                   <Rad label="Bilder">
                                     <AvvikBilder
                                       anleggId={anleggId}
+                                      merkelapp={p.tittel}
                                       bilder={p.bilder ?? []}
                                       onEndre={bilder => updatePunkt(key, { bilder })}
                                     />

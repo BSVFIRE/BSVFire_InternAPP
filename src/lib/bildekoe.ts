@@ -111,6 +111,10 @@ export async function koSynkroniser(): Promise<{ lastetOpp: number; gjenstar: nu
         })
         if (regFeil) console.error('Bildet ble lastet opp, men kom ikke inn i bildebanken:', regFeil)
 
+        // Samme kopi til 99_Foto som bilder tatt med dekning får
+        const { kopierBildeTilDropbox } = await import('@/lib/bildeDropbox')
+        await kopierBildeTilDropbox(bilde.anleggId, bilde.storagePath.split('/').pop() ?? bilde.filnavn, bilde.blob)
+
         await koFjern(bilde.storagePath)
         lastetOpp++
       } catch (e) {

@@ -11,6 +11,7 @@
 import { supabase } from '@/lib/supabase'
 import { getOnlineStatus } from '@/lib/offline'
 import { koFjern, koHent, koHentAlle, koLeggTil } from '@/lib/bildekoe'
+import { kopierBildeTilDropbox } from '@/lib/bildeDropbox'
 
 /** Et avvik skal dokumenteres, ikke illustreres. To bilder holder, og rapporten forblir lett. */
 export const MAKS_BILDER_PER_AVVIK = 2
@@ -73,15 +74,29 @@ async function lastBitmap(fil: File): Promise<ImageBitmap | HTMLImageElement> {
 }
 
 /**
+ * Filnavn uten norske tegn: Foto_2026-09-26_Sloyfe_scannet_pa_sentraler_a1b2c3d4.jpg
+ * Merkelappen gjør at bildet er til å kjenne igjen både i bildebanken og i Dropbox.
+ */
+function bildefilnavn(merkelapp?: string): string {
+  const trygt = (t: string) => t
+    .replace(/[øØ]/g, 'o').replace(/[æÆ]/g, 'ae').replace(/[åÅ]/g, 'a')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '')
+  const dato = new Date().toISOString().slice(0, 10)
+  const merke = merkelapp?.trim() ? `_${trygt(merkelapp).slice(0, 40)}` : ''
+  return `Foto_${dato}${merke}_${crypto.randomUUID().slice(0, 8)}.jpg`
+}
+
+/**
  * Komprimerer og lagrer ett bilde. Stien bestemmes her, før opplastingen, slik at
  * avviket kan lagre den med én gang. Uten dekning går bildet i kø på enheten og
  * lastes opp når nettet er tilbake – kallet lykkes uansett.
  */
-export async function lastOppAnleggsbilde(anleggId: string, fil: File, beskrivelse?: string): Promise<string> {
+export async function lastOppAnleggsbilde(anleggId: string, fil: File, merkelapp?: string): Promise<string> {
   const blob = await komprimerBilde(fil)
-  const navn = `${Date.now()}_${crypto.randomUUID().slice(0, 8)}.jpg`
+  const navn = bildefilnavn(merkelapp)
   const storagePath = `anlegg/${anleggId}/bilder/${navn}`
-  const filnavn = beskrivelse?.trim() || navn
+  const filnavn = merkelapp?.trim() || navn
 
   if (!getOnlineStatus()) {
     await koLeggTil({ storagePath, anleggId, filnavn, blob })
@@ -110,6 +125,9 @@ export async function lastOppAnleggsbilde(anleggId: string, fil: File, beskrivel
     opplastet_av: user?.email ?? null,
   })
   if (regFeil) console.error('Bildet ble lastet opp, men kom ikke inn i bildebanken:', regFeil)
+
+  // Kopi til anleggets 99_Foto-mappe. Bildet er allerede trygt, så vi venter ikke.
+  void kopierBildeTilDropbox(anleggId, navn, blob)
 
   return storagePath
 }

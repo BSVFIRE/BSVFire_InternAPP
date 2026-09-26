@@ -11,10 +11,12 @@ import { MAKS_BILDER_PER_AVVIK, bildeUrler, lastOppAnleggsbilde } from '@/lib/bi
 import { koHent } from '@/lib/bildekoe'
 import { toast } from '@/lib/toast'
 
-export function AvvikBilder({ anleggId, bilder, onEndre, maks = MAKS_BILDER_PER_AVVIK }: {
+export function AvvikBilder({ anleggId, bilder, onEndre, merkelapp, maks = MAKS_BILDER_PER_AVVIK }: {
   anleggId: string
   bilder: string[]
   onEndre: (bilder: string[]) => void
+  /** Navnet på kontrollpunktet – blir en del av filnavnet, så bildet er til å kjenne igjen */
+  merkelapp?: string
   maks?: number
 }) {
   const [urler, setUrler] = useState<Record<string, string>>({})
@@ -46,7 +48,7 @@ export function AvvikBilder({ anleggId, bilder, onEndre, maks = MAKS_BILDER_PER_
     const nye: string[] = []
     try {
       for (const fil of valgte.slice(0, plass)) {
-        nye.push(await lastOppAnleggsbilde(anleggId, fil))
+        nye.push(await lastOppAnleggsbilde(anleggId, fil, merkelapp))
       }
       onEndre([...bilder, ...nye])
     } catch (e) {

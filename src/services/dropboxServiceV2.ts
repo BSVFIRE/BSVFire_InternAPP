@@ -339,6 +339,31 @@ export async function uploadKontrollrapportToDropbox(
   return uploadToDropbox(filePath, pdfBlob)
 }
 
+/**
+ * Laster opp et bilde til anleggets fotomappe (99_Foto).
+ *
+ * Bildet ligger allerede i Supabase – dette er kopien som gjør at bildene finnes
+ * der resten av anleggets dokumentasjon ligger. 'add' brukes med vilje: to bilder
+ * skal aldri kunne skrive over hverandre.
+ */
+export async function uploadFotoToDropbox(
+  kundeNummer: string,
+  kundeNavn: string,
+  anleggNavn: string,
+  fileName: string,
+  bilde: Blob
+): Promise<DropboxResponse> {
+  if (!kundeNummer) return { success: false, error: 'Kundenummer mangler' }
+  if (!kundeNavn) return { success: false, error: 'Kundenavn mangler' }
+  if (!anleggNavn) return { success: false, error: 'Anleggsnavn mangler' }
+
+  const trygt = (t: string) => t.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim()
+  const mappe = `/NY MAPPESTRUKTUR 2026/01_KUNDER/${kundeNummer}_${trygt(kundeNavn)}/02_Bygg/${trygt(anleggNavn)}/99_Foto`
+  await ensureDropboxFolderExists(mappe)
+
+  return uploadToDropbox(`${mappe}/${fileName}`, bilde, 'add')
+}
+
 /** Nytt navn på mappen. Anlegg som allerede bruker det gamle beholder det – se finnAdresselisteMappe. */
 export const ADRESSELISTE_MAPPE = '02_Adresseliste'
 export const ADRESSELISTE_MAPPE_GAMMEL = '02_Detektorliste'
