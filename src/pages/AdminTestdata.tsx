@@ -8,8 +8,9 @@
  */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Building2, CheckCircle2, ClipboardList, Copy, FlaskConical, Loader2, Trash2 } from 'lucide-react'
+import { AlertTriangle, Building2, CheckCircle2, Copy, FlaskConical, Loader2, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { Testprotokoll } from '@/components/Testprotokoll'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import {
@@ -228,15 +229,7 @@ export function AdminTestdata() {
         </div>
       )}
 
-      <div className="card">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2">
-          <ClipboardList className="w-4 h-4 text-gray-400" />Hva bør testes
-        </h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-          Sjekklisten ligger i <code className="text-xs bg-gray-100 dark:bg-dark-100 px-1.5 py-0.5 rounded">docs/testprotokoll.md</code> i
-          kodebasen – én liste per modul, med det som faktisk har gått galt før øverst.
-        </p>
-      </div>
+      <Testprotokoll />
 
       {bekreftSlett && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setBekreftSlett(false)}>
