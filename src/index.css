@@ -44,21 +44,37 @@
     @apply bg-white dark:bg-dark-50 border border-gray-200 dark:border-gray-800 rounded-lg p-4 sm:p-6 shadow-lg;
   }
   
-  /* Button Components */
+  /* Knapper.
+     Nye steder bruker <Button> i src/components/ui/Button.tsx. Disse klassene
+     finnes fortsatt i eldre sider, og er justert så de ser like ut som
+     komponenten – 44 px på mobil, 36 på skjerm, mellomrom mellom ikon og tekst.
+     Sekundærknappen har ramme uten fyll, som Button-variantens «outline». */
   .btn {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 min-h-[44px] flex items-center justify-center;
+    /* «flex» og ikke «inline-flex» med vilje: klassen har alltid vært blokknivå,
+       og en endring der ville gjort alenestående knapper smalere på sider jeg
+       ikke kan se. Bare farger, høyde og ikonavstand er justert. */
+    @apply flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors
+           min-h-[44px] sm:min-h-0 sm:h-9 sm:py-0
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-dark
+           disabled:opacity-50 disabled:pointer-events-none
+           [&>svg]:w-4 [&>svg]:h-4 [&>svg]:flex-shrink-0;
   }
-  
+
   .btn-primary {
-    @apply btn bg-primary hover:bg-primary-600 text-white focus:ring-primary-500;
+    @apply btn bg-primary text-white font-semibold hover:bg-primary-600 active:bg-primary-700;
   }
-  
+
   .btn-secondary {
-    @apply btn bg-gray-100 dark:bg-dark-100 hover:bg-gray-200 dark:hover:bg-dark-200 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700;
+    @apply btn border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-100;
   }
-  
+
   .btn-danger {
-    @apply btn bg-red-600 hover:bg-red-700 text-white focus:ring-red-500;
+    @apply btn bg-red-600 text-white font-semibold hover:bg-red-700 active:bg-red-800;
+  }
+
+  /* Brukt ett sted, sammen med btn-secondary */
+  .btn-sm {
+    @apply h-9 min-h-0 px-3;
   }
   
   /* Input Components */
