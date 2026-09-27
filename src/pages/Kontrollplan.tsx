@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { bekreft } from '@/lib/bekreft'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
-import { AlertCircle, Ban, Building2, CalendarDays, Check, ChevronRight, Clock, Plus, Search, Trash2, User, Users, X } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Ban, Building2, CalendarDays, Check, ChevronRight, Clock, Plus, Search, Trash2, User, Users, X } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 import { cn, isoUke, isoUkeAar, ukeDatoer } from '@/lib/utils'
@@ -58,6 +58,7 @@ export function Kontrollplan() {
   const [feil, setFeil] = useState<string | null>(null)
   const [valgte, setValgte] = useState<Set<string>>(new Set())
   const [lukkede, setLukkede] = useState<Set<string>>(new Set())
+  const [visUtenMaaned, setVisUtenMaaned] = useState(false)
   const [visEldrePlaner, setVisEldrePlaner] = useState(false)
   const [editor, setEditor] = useState<{ kundeId?: string; planId?: string } | null>(null)
   const sokRef = useRef<HTMLInputElement>(null)
@@ -143,6 +144,14 @@ export function Kontrollplan() {
   }), [anlegg])
 
   const iMnd = useMemo(() => anlegg.filter(a => a.kontroll_maaned === mnd), [anlegg, mnd])
+
+  // Anlegg uten kontrollmåned står ikke i noen måned, og forsvinner dermed ut av
+  // planen uten at noe sier fra. De med kontrolltyper er de som faktisk skal
+  // kontrolleres – de andre kan være prosjekter uten serviceavtale.
+  const utenMaaned = useMemo(
+    () => anlegg.filter(a => !a.kontroll_maaned?.trim() && (a.kontroll_type?.length ?? 0) > 0),
+    [anlegg],
+  )
   const teller = useMemo(() => {
     const t: Record<StatusKey, number> = { ikke_utfort: 0, utsatt: 0, planlagt: 0, utfort: 0, oppsagt: 0, ikke_kontrakt: 0 }
     for (const a of iMnd) t[statusKey(a.kontroll_status, a.kontroll_maaned)]++
@@ -218,6 +227,41 @@ export function Kontrollplan() {
         </div>
         <Button variant="primary" icon={<Plus />} onClick={() => setEditor({})}><span className="hidden sm:inline">Ny ukesplan</span></Button>
       </header>
+
+      {utenMaaned.length > 0 && (
+        <div className="card !py-3 bg-amber-50 dark:bg-amber-900/15 border-amber-200 dark:border-amber-900/40">
+          <button
+            type="button"
+            onClick={() => setVisUtenMaaned(v => !v)}
+            aria-expanded={visUtenMaaned}
+            className="w-full flex items-start gap-2 text-left"
+          >
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-medium text-amber-900 dark:text-amber-300">
+                {utenMaaned.length} anlegg mangler kontrollmåned
+              </span>
+              <span className="block text-xs text-amber-800/80 dark:text-amber-400/80">
+                De har kontrolltyper, men står ikke i noen måned – og kommer derfor aldri opp i planen.
+              </span>
+            </span>
+            <ChevronRight className={cn('w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0 transition-transform', visUtenMaaned && 'rotate-90')} />
+          </button>
+          {visUtenMaaned && (
+            <ul className="mt-2.5 pt-2.5 border-t border-amber-200 dark:border-amber-900/40 divide-y divide-amber-200/60 dark:divide-amber-900/30">
+              {utenMaaned.map(a => (
+                <li key={a.id}>
+                  <Link to={`/anlegg/${a.id}/rediger`} className="flex flex-wrap items-baseline gap-x-2 py-1.5 text-sm hover:underline">
+                    <span className="font-medium text-gray-900 dark:text-white">{a.anleggsnavn}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{a.kunde}</span>
+                    <span className="ml-auto text-xs text-amber-800 dark:text-amber-400">{a.kontroll_type?.join(', ')}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Årsstripe */}
       <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-1.5" role="tablist" aria-label="Måned">
