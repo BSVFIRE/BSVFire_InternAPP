@@ -21,7 +21,14 @@ interface AIAssistantProps {
 
 export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId }: AIAssistantProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [isMinimized, setIsMinimized] = useState(false)
+  // Skjuler du knappen, skal den bli borte – ikke dukke opp igjen ved neste sidebytte
+  const [isMinimized, setIsMinimized] = useState(() => {
+    try { return localStorage.getItem('ai_assistent_skjult') === 'ja' } catch { return false }
+  })
+
+  useEffect(() => {
+    try { localStorage.setItem('ai_assistent_skjult', isMinimized ? 'ja' : 'nei') } catch { /* full lagring skal ikke velte noe */ }
+  }, [isMinimized])
   const [activeTab, setActiveTab] = useState<'chat' | 'notes'>('chat')
   const [detectedKontrollId, setDetectedKontrollId] = useState<string | undefined>(propKontrollId)
   const [detectedAnleggId, setDetectedAnleggId] = useState<string | undefined>(propAnleggId)
@@ -320,8 +327,9 @@ export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId
       return (
         <button
           onClick={() => setIsMinimized(false)}
-          className="fixed bottom-6 right-0 z-50 p-2 bg-teal-500 hover:bg-teal-600 text-white rounded-l-lg shadow-lg transition-all"
+          className="fixed bottom-28 sm:bottom-6 right-0 z-30 p-2 bg-teal-500/80 hover:bg-teal-600 text-white rounded-l-lg shadow-lg transition-all"
           title="Vis AI-assistent"
+          aria-label="Vis AI-assistent"
         >
           <Sparkles className="w-5 h-5" />
         </button>
@@ -330,19 +338,23 @@ export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId
     
     // Full size button
     return (
-      <div className="fixed bottom-6 right-6 z-50 group">
+      // z-30 holder den under sidens egen bunnlinje (z-20 med egen bakgrunn er
+      // ikke nok – den må ikke ligge over «Fullfør og lag rapport»)
+      <div className="fixed bottom-28 sm:bottom-6 right-4 sm:right-6 z-30 group">
         <button
           onClick={() => setIsOpen(true)}
-          className="bg-teal-500 text-white p-4 rounded-full shadow-lg hover:bg-teal-600 transition-all flex items-center gap-2"
+          className="bg-teal-500 text-white p-3 sm:p-4 rounded-full shadow-lg hover:bg-teal-600 transition-all flex items-center gap-2"
           title="Åpne AI-assistent"
+          aria-label="Åpne AI-assistent"
         >
-          <Sparkles className="w-6 h-6" />
+          <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
         </button>
-        {/* Minimize button */}
+        {/* Skjul-knappen må være synlig på touch – der finnes ingen musepeker */}
         <button
           onClick={() => setIsMinimized(true)}
-          className="absolute -top-2 -left-2 w-6 h-6 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute -top-1.5 -left-1.5 w-7 h-7 sm:w-6 sm:h-6 bg-gray-700 hover:bg-gray-600 text-white rounded-full flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
           title="Skjul knapp"
+          aria-label="Skjul AI-assistenten"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -351,7 +363,7 @@ export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-96 h-[600px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl flex flex-col z-50 border border-gray-200 dark:border-gray-700">
+    <div className="fixed bottom-3 sm:bottom-6 right-3 sm:right-6 left-3 sm:left-auto w-auto sm:w-96 h-[75vh] sm:h-[600px] max-h-[calc(100vh-1.5rem)] bg-white dark:bg-gray-800 rounded-lg shadow-2xl flex flex-col z-50 border border-gray-200 dark:border-gray-700">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b dark:border-gray-700 bg-teal-500 text-white rounded-t-lg">
         <div className="flex items-center gap-2">
