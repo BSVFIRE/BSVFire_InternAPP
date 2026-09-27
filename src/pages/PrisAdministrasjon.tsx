@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Save, AlertCircle, DollarSign } from 'lucide-react'
+import { toast } from '@/lib/toast'
 
 interface PriceTier {
   min: number
@@ -75,7 +76,7 @@ export function PrisAdministrasjon() {
       await loadPricing()
     } catch (err) {
       console.error('Feil ved lagring:', err)
-      alert('Kunne ikke lagre priser')
+      toast.error('Kunne ikke lagre prisene', err)
     } finally {
       setSaving(null)
     }

@@ -3,6 +3,7 @@ import { User, Mail, Phone, Save, Loader2, Camera, Award, MessageCircle, Shield,
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { OutlookKobling } from '@/components/OutlookKobling'
+import { toast } from '@/lib/toast'
 
 interface AnsattProfil {
   id: string
@@ -99,10 +100,10 @@ export function Brukerprofil() {
       // Oppdater lokal state
       setProfil(prev => prev ? { ...prev, ...formData } : null)
       
-      alert('Profil oppdatert!')
+      toast.success('Profilen er oppdatert')
     } catch (error) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre endringer')
+      toast.error('Kunne ikke lagre endringene', error)
     } finally {
       setSaving(false)
     }

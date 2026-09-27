@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
 import { Plus, Search, User, Edit, Trash2, Phone, Mail, Building2, AlertCircle, ArrowLeft } from 'lucide-react'
+import { toast } from '@/lib/toast'
 
 const log = createLogger('EksternKontaktpersoner')
 
@@ -65,7 +66,7 @@ export function EksternKontaktpersoner() {
       await loadKontakter()
     } catch (error) {
       log.error('Feil ved sletting av ekstern kontaktperson', { error, kontaktId: id })
-      alert('Kunne ikke slette kontaktperson')
+      toast.error('Kunne ikke slette kontaktpersonen', error)
     }
   }
 
@@ -389,7 +390,7 @@ function KontaktForm({ kontakt, onSave, onCancel, returnToAnlegg }: KontaktFormP
       onSave()
     } catch (error) {
       log.error('Feil ved lagring av ekstern kontaktperson', { error, formData })
-      alert('Kunne ikke lagre kontaktperson')
+      toast.error('Kunne ikke lagre kontaktpersonen', error)
     } finally {
       setSaving(false)
     }

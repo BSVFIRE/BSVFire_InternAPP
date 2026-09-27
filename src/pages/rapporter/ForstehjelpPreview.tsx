@@ -1,5 +1,6 @@
 import { ArrowLeft, Download, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { toast } from '@/lib/toast'
 
 interface ForstehjelpPreviewProps {
   pdfBlob: Blob
@@ -32,11 +33,11 @@ export function ForstehjelpPreview({ pdfBlob, fileName, onBack, onSave }: Forste
       link.download = fileName
       link.click()
       
-      alert('Rapport generert og lagret!')
+      toast.success('Rapporten er generert og lagret')
       onBack()
     } catch (error) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre rapport')
+      toast.error('Kunne ikke lagre rapporten', error)
     } finally {
       setSaving(false)
     }

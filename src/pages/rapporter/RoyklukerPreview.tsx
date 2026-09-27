@@ -1,5 +1,6 @@
 import { ArrowLeft, Download } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { toast } from '@/lib/toast'
 
 interface RoyklukerPreviewProps {
   pdfBlob: Blob
@@ -32,11 +33,11 @@ export function RoyklukerPreview({ pdfBlob, fileName, onBack, onSave }: Roykluke
       link.download = fileName
       link.click()
       
-      alert('Rapport generert og lagret!')
+      toast.success('Rapporten er generert og lagret')
       onBack()
     } catch (error) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre rapport')
+      toast.error('Kunne ikke lagre rapporten', error)
     } finally {
       setSaving(false)
     }

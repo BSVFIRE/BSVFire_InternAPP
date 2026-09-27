@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
+import { toast } from '@/lib/toast'
 import { 
   CheckSquare, 
   Plus, 
@@ -153,7 +154,7 @@ export function KsHmsTiltak() {
 
   async function handleSave() {
     if (!formData.tittel.trim() || !formData.beskrivelse.trim()) {
-      alert('Tittel og beskrivelse er påkrevd')
+      toast.warning('Tittel og beskrivelse er påkrevd')
       return
     }
 
@@ -190,10 +191,11 @@ export function KsHmsTiltak() {
       }
 
       setShowModal(false)
+      toast.success(editingItem ? 'Tiltaket er oppdatert' : 'Tiltaket er lagret')
       await loadTiltak()
     } catch (error) {
       log.error('Feil ved lagring', { error })
-      alert('Kunne ikke lagre tiltak')
+      toast.error('Kunne ikke lagre tiltak', error)
     } finally {
       setSaving(false)
     }
@@ -209,10 +211,11 @@ export function KsHmsTiltak() {
         .eq('id', id)
       
       if (error) throw error
+      toast.success('Tiltaket er slettet')
       await loadTiltak()
     } catch (error) {
       log.error('Feil ved sletting', { error })
-      alert('Kunne ikke slette tiltak')
+      toast.error('Kunne ikke slette tiltak', error)
     }
   }
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Download, Mail, FileText, Search, Filter, Calendar, Building2, ArrowLeft, Star, Clock } from 'lucide-react'
+import { toast } from '@/lib/toast'
 
 interface Dokument {
   id: string
@@ -287,7 +288,7 @@ export function Nedlastinger() {
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Feil ved nedlasting:', error)
-      alert('Kunne ikke laste ned dokumentet')
+      toast.error('Kunne ikke laste ned dokumentet', error)
     }
   }
 

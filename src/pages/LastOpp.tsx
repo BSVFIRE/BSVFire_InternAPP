@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Upload, Building2, FileText, ArrowLeft, Loader2, CheckCircle, XCircle, AlertCircle, Cloud, Folder } from 'lucide-react'
 import { listAnleggDropboxFiles } from '@/services/dropboxServiceV2'
+import { toast } from '@/lib/toast'
 
 interface Kunde {
   id: string
@@ -166,7 +167,7 @@ export function LastOpp() {
     const pdfFiles = files.filter(file => file.type === 'application/pdf')
     
     if (pdfFiles.length !== files.length) {
-      alert('Kun PDF-filer er tillatt')
+      toast.warning('Kun PDF-filer er tillatt')
     }
     
     setSelectedFiles(pdfFiles)
@@ -178,12 +179,12 @@ export function LastOpp() {
 
   async function handleUpload() {
     if (!selectedAnlegg || selectedFiles.length === 0) {
-      alert('Velg anlegg og minst én fil')
+      toast.warning('Velg anlegg og minst én fil')
       return
     }
 
     if (dokumentType === 'Annet' && !customFilename.trim()) {
-      alert('Vennligst skriv inn et filnavn for "Annet"')
+      toast.warning('Skriv inn et filnavn for «Annet»')
       return
     }
 
@@ -280,7 +281,7 @@ export function LastOpp() {
       }
     } catch (error) {
       console.error('💥 Feil ved opplasting:', error)
-      alert('En feil oppstod under opplasting')
+      toast.error('Opplastingen feilet', error)
     } finally {
       setLoading(false)
     }

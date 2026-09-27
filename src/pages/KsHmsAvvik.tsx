@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
+import { toast } from '@/lib/toast'
 import { 
   XCircle, 
   Plus, 
@@ -215,7 +216,7 @@ export function KsHmsAvvik() {
 
   async function handleSave() {
     if (!formData.tittel.trim() || !formData.beskrivelse.trim()) {
-      alert('Tittel og beskrivelse er påkrevd')
+      toast.warning('Tittel og beskrivelse er påkrevd')
       return
     }
 
@@ -254,10 +255,11 @@ export function KsHmsAvvik() {
       }
 
       setShowModal(false)
+      toast.success(editingItem ? 'Avviket er oppdatert' : 'Avviket er lagret')
       await loadAvvik()
     } catch (error) {
       log.error('Feil ved lagring', { error })
-      alert('Kunne ikke lagre avvik')
+      toast.error('Kunne ikke lagre avvik', error)
     } finally {
       setSaving(false)
     }
@@ -273,10 +275,11 @@ export function KsHmsAvvik() {
         .eq('id', id)
       
       if (error) throw error
+      toast.success('Avviket er slettet')
       await loadAvvik()
     } catch (error) {
       log.error('Feil ved sletting', { error })
-      alert('Kunne ikke slette avvik')
+      toast.error('Kunne ikke slette avvik', error)
     }
   }
 

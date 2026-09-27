@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
+import { toast } from '@/lib/toast'
 import { 
   GraduationCap, 
   Plus, 
@@ -156,7 +157,7 @@ export function KsHmsOpplaering() {
 
   async function handleSave() {
     if (!formData.tittel.trim()) {
-      alert('Tittel er påkrevd')
+      toast.warning('Tittel er påkrevd')
       return
     }
 
@@ -197,10 +198,11 @@ export function KsHmsOpplaering() {
       }
 
       setShowModal(false)
+      toast.success(editingItem ? 'Opplæringen er oppdatert' : 'Opplæringen er lagret')
       await loadOpplaeringer()
     } catch (error) {
       log.error('Feil ved lagring', { error })
-      alert('Kunne ikke lagre opplæring')
+      toast.error('Kunne ikke lagre opplæring', error)
     } finally {
       setSaving(false)
     }
@@ -216,10 +218,11 @@ export function KsHmsOpplaering() {
         .eq('id', id)
       
       if (error) throw error
+      toast.success('Opplæringen er slettet')
       await loadOpplaeringer()
     } catch (error) {
       log.error('Feil ved sletting', { error })
-      alert('Kunne ikke slette opplæring')
+      toast.error('Kunne ikke slette opplæring', error)
     }
   }
 

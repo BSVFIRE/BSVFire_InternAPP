@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { FileText, Building2, Download, Mail, ArrowLeft, Loader2, Search, Filter, Calendar, Trash2 } from 'lucide-react'
+import { toast } from '@/lib/toast'
 
 interface Kunde {
   id: string
@@ -195,7 +196,7 @@ export function RapportOversikt() {
       }
     } catch (error) {
       console.error('Feil ved nedlasting:', error)
-      alert('Kunne ikke laste ned dokument')
+      toast.error('Kunne ikke laste ned dokumentet', error)
     }
   }
 
@@ -228,10 +229,10 @@ export function RapportOversikt() {
 
       // Oppdater lokal state
       setDokumenter(dokumenter.filter(d => d.id !== dokument.id))
-      alert('✅ Dokument slettet')
+      toast.success('Dokumentet er slettet')
     } catch (error) {
       console.error('Feil ved sletting av dokument:', error)
-      alert('❌ Kunne ikke slette dokument')
+      toast.error('Kunne ikke slette dokumentet', error)
     }
   }
 

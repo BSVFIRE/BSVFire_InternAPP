@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
+import { toast } from '@/lib/toast'
 import { 
   AlertTriangle, 
   Plus, 
@@ -242,7 +243,7 @@ export function KsHmsRisikovurderinger() {
 
   async function handleSave() {
     if (!formData.tittel.trim() || !formData.beskrivelse.trim()) {
-      alert('Tittel og beskrivelse er påkrevd')
+      toast.warning('Tittel og beskrivelse er påkrevd')
       return
     }
 
@@ -277,10 +278,11 @@ export function KsHmsRisikovurderinger() {
       }
 
       setShowModal(false)
+      toast.success(editingItem ? 'Risikovurderingen er oppdatert' : 'Risikovurderingen er lagret')
       await loadRisikovurderinger()
     } catch (error) {
       log.error('Feil ved lagring', { error })
-      alert('Kunne ikke lagre risikovurdering')
+      toast.error('Kunne ikke lagre risikovurdering', error)
     } finally {
       setSaving(false)
     }
@@ -296,10 +298,11 @@ export function KsHmsRisikovurderinger() {
         .eq('id', id)
       
       if (error) throw error
+      toast.success('Risikovurderingen er slettet')
       await loadRisikovurderinger()
     } catch (error) {
       log.error('Feil ved sletting', { error })
-      alert('Kunne ikke slette risikovurdering')
+      toast.error('Kunne ikke slette risikovurdering', error)
     }
   }
 

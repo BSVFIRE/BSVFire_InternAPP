@@ -4,6 +4,7 @@ import { createLogger } from '@/lib/logger'
 import { Inbox, Check, Eye, Building2, Calendar, User } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
+import { toast } from '@/lib/toast'
 
 const log = createLogger('Meldinger')
 
@@ -139,7 +140,7 @@ export function Meldinger() {
       ))
     } catch (error) {
       log.error('Feil ved markering som lest', { error, meldingId })
-      alert('Kunne ikke markere melding som lest')
+      toast.error('Kunne ikke markere meldingen som lest', error)
     }
   }
 

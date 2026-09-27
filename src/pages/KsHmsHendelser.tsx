@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
+import { toast } from '@/lib/toast'
 import { 
   AlertCircle, 
   Plus, 
@@ -217,7 +218,7 @@ export function KsHmsHendelser() {
 
   async function handleSave() {
     if (!formData.tittel.trim() || !formData.beskrivelse.trim()) {
-      alert('Tittel og beskrivelse er påkrevd')
+      toast.warning('Tittel og beskrivelse er påkrevd')
       return
     }
 
@@ -266,13 +267,14 @@ export function KsHmsHendelser() {
       }
 
       setShowModal(false)
+      toast.success(editingItem ? 'Hendelsen er oppdatert' : 'Hendelsen er lagret')
       console.log('Laster hendelser på nytt...')
       await loadHendelser()
       console.log('Lasting ferdig')
     } catch (error) {
       console.error('CATCH block error:', error)
       log.error('Feil ved lagring', { error })
-      alert('Kunne ikke lagre hendelse')
+      toast.error('Kunne ikke lagre hendelse', error)
     } finally {
       setSaving(false)
     }
@@ -288,10 +290,11 @@ export function KsHmsHendelser() {
         .eq('id', id)
       
       if (error) throw error
+      toast.success('Hendelsen er slettet')
       await loadHendelser()
     } catch (error) {
       log.error('Feil ved sletting', { error })
-      alert('Kunne ikke slette hendelse')
+      toast.error('Kunne ikke slette hendelse', error)
     }
   }
 
