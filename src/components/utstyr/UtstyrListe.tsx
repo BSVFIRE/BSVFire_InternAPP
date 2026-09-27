@@ -152,9 +152,9 @@ export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, sta
         <div className="flex gap-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-52">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Søk nr., plassering…" aria-label="Søk" className="input pl-9 !min-h-[38px] !h-[38px]" />
+            <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Søk nr., plassering…" aria-label="Søk" className="input pl-9 !min-h-[44px] !h-[44px] sm:!min-h-[38px] sm:!h-[38px]" />
           </div>
-          <Button variant={velgModus ? 'primary' : 'outline'} icon={<CheckSquare />} onClick={() => velgModus ? avsluttValg() : setVelgModus(true)} className="!h-[38px]"><span className="hidden sm:inline">{velgModus ? 'Ferdig' : 'Velg flere'}</span></Button>
+          <Button variant={velgModus ? 'primary' : 'outline'} icon={<CheckSquare />} onClick={() => velgModus ? avsluttValg() : setVelgModus(true)} className="!h-[44px] sm:!h-[38px]"><span className="hidden sm:inline">{velgModus ? 'Ferdig' : 'Velg flere'}</span></Button>
         </div>
       </div>
 
@@ -255,28 +255,33 @@ export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, sta
       )}
 
       {/* Legg til */}
-      <div className="card !p-3 flex flex-wrap items-center gap-2">
-        <span className="text-sm text-gray-700 dark:text-gray-300">Legg til</span>
-        <input type="number" min={1} max={50} value={antallNye} onChange={e => setAntallNye(Math.max(1, Math.min(50, Number(e.target.value) || 1)))} aria-label="Antall" className="input !h-[36px] !min-h-[36px] !py-0 w-20 text-center" />
-        <Button variant="primary" loading={leggerTil} onClick={leggTil}>{antallNye === 1 ? `ny ${enhetsnavn.entall}` : `nye ${enhetsnavn.flertall}`}</Button>
-        <span className="text-xs text-gray-500 dark:text-gray-400">Nummereres automatisk etter siste.</span>
+      <div className="card !p-3 space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-700 dark:text-gray-300">Legg til</span>
+          <input type="number" min={1} max={50} inputMode="numeric" value={antallNye} onChange={e => setAntallNye(Math.max(1, Math.min(50, Number(e.target.value) || 1)))} aria-label="Antall" className="input !h-[40px] !min-h-[40px] sm:!h-[36px] sm:!min-h-[36px] !py-0 w-16 text-center" />
+          <Button variant="primary" loading={leggerTil} onClick={leggTil} className="flex-1 sm:flex-none justify-center">{antallNye === 1 ? `ny ${enhetsnavn.entall}` : `nye ${enhetsnavn.flertall}`}</Button>
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400">Nummereres automatisk etter siste.</p>
       </div>
 
       {velgModus && (
-        <div className="fixed bottom-4 left-4 right-4 lg:left-[calc(var(--sidebar-w)+2rem)] z-20 flex justify-center pointer-events-none">
-          <div className="pointer-events-auto card !py-2 !px-3 shadow-lg border-primary/40 flex flex-wrap items-center gap-2">
+        <div
+          className="fixed left-3 right-3 sm:left-4 sm:right-4 lg:left-[calc(var(--sidebar-w)+2rem)] z-20 flex justify-center pointer-events-none"
+          style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+        >
+          <div className="pointer-events-auto card !py-2 !px-3 shadow-lg border-primary/40 flex flex-wrap items-center gap-2 max-w-full">
             <span className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums px-1">{valgte.size} valgt</span>
             {etasjeFelt?.valg && (
-              <select aria-label="Sett etasje" defaultValue="" disabled={valgte.size === 0} onChange={ev => { if (ev.target.value) { settPaaValgte({ etasje: ev.target.value } as Partial<T>); ev.target.value = '' } }} className="input !h-[34px] !min-h-[34px] !py-0 text-sm w-auto">
+              <select aria-label="Sett etasje" defaultValue="" disabled={valgte.size === 0} onChange={ev => { if (ev.target.value) { settPaaValgte({ etasje: ev.target.value } as Partial<T>); ev.target.value = '' } }} className="input !h-[40px] !min-h-[40px] sm:!h-[34px] sm:!min-h-[34px] !py-0 text-sm w-auto">
                 <option value="" disabled>Sett etasje…</option>
                 {etasjeFelt.valg.filter(Boolean).map(x => <option key={x} value={x}>{x}</option>)}
               </select>
             )}
-            <select aria-label="Sett status" defaultValue="" disabled={valgte.size === 0} onChange={ev => { if (ev.target.value) { settPaaValgte({ [statusKey]: [ev.target.value] } as Partial<T>); ev.target.value = '' } }} className="input !h-[34px] !min-h-[34px] !py-0 text-sm w-auto">
+            <select aria-label="Sett status" defaultValue="" disabled={valgte.size === 0} onChange={ev => { if (ev.target.value) { settPaaValgte({ [statusKey]: [ev.target.value] } as Partial<T>); ev.target.value = '' } }} className="input !h-[40px] !min-h-[40px] sm:!h-[34px] sm:!min-h-[34px] !py-0 text-sm w-auto">
               <option value="" disabled>Sett status…</option>
               {status.alle.map(x => <option key={x} value={x}>{x}</option>)}
             </select>
-            <Button variant="ghost" icon={<X />} onClick={avsluttValg} className="!h-[34px]">Ferdig</Button>
+            <Button variant="ghost" icon={<X />} onClick={avsluttValg} className="!h-[40px] sm:!h-[34px]">Ferdig</Button>
           </div>
         </div>
       )}

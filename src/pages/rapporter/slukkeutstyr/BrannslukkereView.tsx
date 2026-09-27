@@ -852,20 +852,20 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
 
       {/* Fullfør kontroll - Samlet seksjon */}
       <div className="card bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
-            <ClipboardCheck className="w-6 h-6 text-primary" />
+        <div className="flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/20 rounded-xl flex items-center justify-center flex-shrink-0">
+            <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Fullfør kontroll</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Sjekkliste før du genererer rapport</p>
+            <h2 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white">Fullfør kontroll</h2>
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Sjekkliste før du genererer rapport</p>
           </div>
         </div>
 
         {/* Sjekkliste */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6">
           {/* Status 1: Enheter kontrollert */}
-          <div className={`p-4 rounded-xl border-2 transition-all ${
+          <div className={`p-3 sm:p-4 rounded-xl border-2 transition-all ${
             slukkere.length > 0 && slukkere.every(s => s.status && s.status.length > 0)
               ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
               : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
@@ -890,7 +890,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
           </div>
 
           {/* Status 2: Evakueringsplan */}
-          <div className={`p-4 rounded-xl border-2 transition-all ${
+          <div className={`p-3 sm:p-4 rounded-xl border-2 transition-all ${
             evakueringsplanStatus 
               ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
               : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
@@ -915,7 +915,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
           </div>
 
           {/* Status 3: Dato valgt */}
-          <div className="p-4 rounded-xl border-2 bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700">
+          <div className="p-3 sm:p-4 rounded-xl border-2 bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-500 text-white">
                 ✓
@@ -931,7 +931,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
         </div>
 
         {/* Evakueringsplan dropdown */}
-        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+        <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
