@@ -321,7 +321,7 @@ export function FG790KontrollView({
 
   async function handleSave(silent = false) {
     if (!anleggId || !currentKontrollId) {
-      if (!silent) alert('Kan ikke lagre: Kontroll er ikke initialisert ennå.')
+      if (!silent) toast.warning('Kan ikke lagre ennå', 'Kontrollen er ikke ferdig opprettet. Prøv igjen om et øyeblikk.')
       return
     }
 

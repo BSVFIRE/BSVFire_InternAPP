@@ -5,6 +5,7 @@ import { NS3960KontrollView } from './kontroll/NS3960KontrollView'
 import { NS3960RapportView } from './kontroll/NS3960RapportView'
 import { FG790KontrollView } from './kontroll/FG790KontrollView'
 import { FG790RapportView } from './kontroll/FG790RapportView'
+import { toast } from '@/lib/toast'
 
 interface NyKontrollViewProps {
   anleggId: string
@@ -27,7 +28,7 @@ export function NyKontrollView({ anleggId, anleggsNavn, kundeNavn, onBack, start
 
   function handleStart() {
     if (!selectedType) {
-      alert('Velg kontrolltype først')
+      toast.warning('Velg kontrolltype først')
       return
     }
 

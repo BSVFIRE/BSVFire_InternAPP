@@ -8,6 +8,7 @@ import {
 import { formatDate } from '@/lib/utils'
 import { downloadAlarmoverforingPDF, getAlarmoverforingPDFBlob, previewAlarmoverforingPDF } from './tilbud/AlarmoverforingPDF'
 import { uploadTilbudToDropbox } from '@/services/dropboxServiceV2'
+import { toast } from '@/lib/toast'
 
 // Konstanter for prisberegning
 const FAST_PRIS_PER_MAANED = 400 // kr eks mva
@@ -173,7 +174,7 @@ export function TilbudAlarmoverforing() {
       await loadTilbud()
     } catch (error) {
       console.error('Feil ved sletting:', error)
-      alert('Kunne ikke slette alarmoverføring')
+      toast.error('Kunne ikke slette alarmoverføringen', error)
     }
   }
 
@@ -684,11 +685,11 @@ function AlarmoverforingForm({ tilbud, onSave, onCancel }: AlarmoverforingFormPr
     e.preventDefault()
     
     if (!formData.anlegg_id) {
-      alert('Vennligst velg et anlegg')
+      toast.warning('Velg et anlegg')
       return
     }
     if (!formData.alarm_type.trim()) {
-      alert('Vennligst fyll inn alarmtype')
+      toast.warning('Fyll inn alarmtype')
       return
     }
 
@@ -735,7 +736,7 @@ function AlarmoverforingForm({ tilbud, onSave, onCancel }: AlarmoverforingFormPr
       onSave()
     } catch (error) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre alarmoverføring')
+      toast.error('Kunne ikke lagre alarmoverføringen', error)
     } finally {
       setSaving(false)
     }
@@ -1259,7 +1260,7 @@ function AlarmoverforingDetails({ tilbud, onEdit, onClose, onStatusChange }: Ala
       await previewAlarmoverforingPDF(getPDFData())
     } catch (error) {
       console.error('Feil ved forhåndsvisning av PDF:', error)
-      alert('Kunne ikke vise PDF')
+      toast.error('Kunne ikke vise PDF-en', error)
     } finally {
       setGeneratingPDF(false)
     }
@@ -1271,7 +1272,7 @@ function AlarmoverforingDetails({ tilbud, onEdit, onClose, onStatusChange }: Ala
       await downloadAlarmoverforingPDF(getPDFData())
     } catch (error) {
       console.error('Feil ved generering av PDF:', error)
-      alert('Kunne ikke generere PDF')
+      toast.error('Kunne ikke lage PDF-en', error)
     } finally {
       setGeneratingPDF(false)
     }
@@ -1312,11 +1313,11 @@ function AlarmoverforingDetails({ tilbud, onEdit, onClose, onStatusChange }: Ala
 
       if (updateError) throw updateError
 
-      alert('PDF generert og lagret til Dropbox. Status satt til "Sendt".')
+      toast.success('PDF-en er lagret i Dropbox', 'Status er satt til «Sendt».')
       onStatusChange()
     } catch (error) {
       console.error('Feil ved sending av PDF:', error)
-      alert('Kunne ikke sende PDF: ' + (error instanceof Error ? error.message : 'Ukjent feil'))
+      toast.error('Kunne ikke sende PDF-en', error)
     } finally {
       setSendingPDF(false)
     }

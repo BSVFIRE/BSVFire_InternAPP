@@ -12,6 +12,7 @@ import { formatDate } from '@/lib/utils'
 import { Combobox } from '@/components/ui/Combobox'
 import { buildAnleggDropboxPath, listDropboxFolder, type DropboxEntry } from '@/services/dropboxServiceV2'
 import { ProsjektFramdrift } from '@/components/ProsjektFramdrift'
+import { toast } from '@/lib/toast'
 
 // Types
 interface Prosjekt {
@@ -549,7 +550,7 @@ function ProsjektForm({
     e.preventDefault()
     
     if (!formData.navn.trim()) {
-      alert('Prosjektnavn er påkrevd')
+      toast.warning('Prosjektnavn er påkrevd')
       return
     }
 
@@ -620,7 +621,7 @@ function ProsjektForm({
       onSave()
     } catch (error) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre prosjekt')
+      toast.error('Kunne ikke lagre prosjektet', error)
     } finally {
       setSaving(false)
     }

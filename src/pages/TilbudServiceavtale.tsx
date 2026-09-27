@@ -10,6 +10,7 @@ import { TilbudDetails } from './tilbud/TilbudDetails'
 import { StatusDropdown } from './tilbud/StatusDropdown'
 import { handleTilbudGodkjenning } from '@/lib/tilbudGodkjenning'
 import { KundenummerDialog } from '@/components/KundenummerDialog'
+import { toast } from '@/lib/toast'
 
 export interface ServiceavtaleTilbud {
   id: string
@@ -92,7 +93,7 @@ export function TilbudServiceavtale() {
       await loadTilbud()
     } catch (error) {
       console.error('Feil ved sletting:', error)
-      alert('Kunne ikke slette tilbud')
+      toast.error('Kunne ikke slette tilbudet', error)
     }
   }
 
@@ -114,7 +115,7 @@ export function TilbudServiceavtale() {
 
         // Sjekk at nødvendig informasjon er fylt ut
         if (!tilbudData.anlegg_navn) {
-          alert('Anleggsnavn må være fylt ut før tilbudet kan godkjennes.')
+          toast.warning('Anleggsnavn mangler', 'Det må fylles ut før tilbudet kan godkjennes.')
           throw new Error('Anleggsnavn mangler')
         }
 
@@ -155,7 +156,7 @@ export function TilbudServiceavtale() {
       })
       
       if (!result.success) {
-        alert(`Feil ved godkjenning: ${result.error}`)
+        toast.error('Kunne ikke godkjenne tilbudet', result.error)
         return
       }
 
@@ -168,29 +169,29 @@ export function TilbudServiceavtale() {
       if (error) throw error
 
       // Vis suksessmelding med detaljer
-      let melding = `✓ Tilbudet er godkjent!\n\n`
+      let melding = ''
       
       if (data.opprettKunde) {
         melding += `✓ Kunde opprettet: ${pendingGodkjenning.tilbud.kunde_navn}\n`
       } else if (data.eksisterendeKundeId) {
-        melding += `✓ Brukte eksisterende kunde\n`
+        melding += 'Brukte eksisterende kunde. '
       }
       if (!pendingGodkjenning.tilbud.anlegg_id) {
-        melding += `✓ Anlegg opprettet: ${pendingGodkjenning.tilbud.anlegg_navn}\n`
+        melding += `Anlegg opprettet: ${pendingGodkjenning.tilbud.anlegg_navn}. `
       }
       if (!pendingGodkjenning.tilbud.kontaktperson_id && pendingGodkjenning.tilbud.kontaktperson_navn) {
-        melding += `✓ Kontaktperson opprettet: ${pendingGodkjenning.tilbud.kontaktperson_navn}\n`
+        melding += `Kontaktperson opprettet: ${pendingGodkjenning.tilbud.kontaktperson_navn}. `
       }
-      melding += `✓ PDF lagret på anlegget\n`
+      melding += 'PDF lagret på anlegget. '
       if (result.dropbox_synced) {
-        melding += `✓ Dropbox-mapper opprettet`
+        melding += 'Dropbox-mapper opprettet.'
       }
       
-      alert(melding)
+      toast.success('Tilbudet er godkjent', melding)
       await loadTilbud()
     } catch (error) {
       console.error('Feil ved godkjenning:', error)
-      alert('Kunne ikke godkjenne tilbudet. Se konsoll for detaljer.')
+      toast.error('Kunne ikke godkjenne tilbudet', error)
     } finally {
       setShowKundenummerDialog(false)
       setPendingGodkjenning(null)

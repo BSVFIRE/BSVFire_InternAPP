@@ -3,6 +3,7 @@ import { ArrowLeft, Download, Cloud } from 'lucide-react'
 import { generateServicerapportPDF } from './ServicerapportPDF'
 import { BSV_LOGO } from '@/assets/logoBase64'
 import { isDropboxConfigured } from '@/services/dropboxServiceV2'
+import { toast } from '@/lib/toast'
 
 interface Servicerapport {
   id: string
@@ -42,19 +43,15 @@ export function ServicerapportPreview({ rapport, onBack }: ServicerapportPreview
       )
       
       if (result.success) {
-        let message = '✅ Servicerapport generert og lagret til anleggsdokumenter!'
-        
-        if (result.dropboxPath) {
-          message += `\n\n📁 Også lagret til Dropbox:\n${result.dropboxPath}`
-        } else if (result.dropboxError && saveToDropbox) {
-          message += `\n\n⚠️ Dropbox-feil: ${result.dropboxError}`
+        toast.success('Servicerapporten er lagret på anlegget', result.dropboxPath ? `Også lagret i Dropbox: ${result.dropboxPath}` : undefined)
+        // Dropbox-feil er verdt en egen melding – den har gått upåaktet hen før
+        if (result.dropboxError && saveToDropbox) {
+          toast.warning('Rapporten kom ikke til Dropbox', result.dropboxError)
         }
-        
-        alert(message)
       }
     } catch (error) {
       console.error('Feil ved generering av PDF:', error)
-      alert('Kunne ikke generere PDF')
+      toast.error('Kunne ikke lage PDF-en', error)
     } finally {
       setGenerating(false)
     }

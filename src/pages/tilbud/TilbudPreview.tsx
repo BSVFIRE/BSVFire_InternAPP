@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Download, Loader2 } from 'lucide-react'
 import { generateTilbudPDF } from './TilbudPDF'
+import { toast } from '@/lib/toast'
 
 interface TilbudPreviewProps {
   tilbudData: any
@@ -29,7 +30,7 @@ export function TilbudPreview({ tilbudData, onClose }: TilbudPreviewProps) {
       setPdfUrl(url)
     } catch (error) {
       console.error('Error generating PDF preview:', error)
-      alert('Kunne ikke generere forhåndsvisning')
+      toast.error('Kunne ikke lage forhåndsvisningen', error)
     } finally {
       setLoading(false)
     }

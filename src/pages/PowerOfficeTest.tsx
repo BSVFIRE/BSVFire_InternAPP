@@ -5,6 +5,7 @@
 
 import { useState } from 'react';
 import { powerofficeClient } from '../services/poweroffice/edge-client';
+import { toast } from '@/lib/toast';
 
 // Common units of measure
 const UNITS_OF_MEASURE = [
@@ -149,7 +150,7 @@ export default function PowerOfficeTest() {
       }
       
       if (patchOperations.length === 0) {
-        alert('Ingen endringer å lagre');
+        toast.info('Ingen endringer å lagre');
         setIsEditing(false);
         setSaving(false);
         return;
@@ -173,7 +174,7 @@ export default function PowerOfficeTest() {
       setSelectedCustomer(editedCustomer);
       setIsEditing(false);
       setEditedCustomer(null);
-      alert('✅ Kunde oppdatert i PowerOffice!');
+      toast.success('Kunden er oppdatert i PowerOffice');
     } catch (err: any) {
       console.error('Save error:', err);
       
@@ -189,7 +190,7 @@ export default function PowerOfficeTest() {
       setIsEditing(false);
       setEditedCustomer(null);
       
-      alert('⚠️ Kunne ikke lagre til PowerOffice API.\nEndringer lagret lokalt.\n\nFeil: ' + err.message);
+      toast.warning('Endringene er lagret lokalt', `PowerOffice svarte ikke: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -285,7 +286,7 @@ export default function PowerOfficeTest() {
         }
 
         if (patchOperations.length === 0) {
-          alert('Ingen endringer å lagre');
+          toast.info('Ingen endringer å lagre');
           setIsEditing(false);
           setSaving(false);
           return;
@@ -303,7 +304,7 @@ export default function PowerOfficeTest() {
         }
 
         setSelectedProduct(editedProduct);
-        alert('✅ Produkt oppdatert i PowerOffice!');
+        toast.success('Produktet er oppdatert i PowerOffice');
       } else {
         // Create new product
         const newProduct = await powerofficeClient.createProduct(editedProduct);
@@ -314,14 +315,14 @@ export default function PowerOfficeTest() {
         }
 
         setSelectedProduct(newProduct);
-        alert('✅ Nytt produkt opprettet i PowerOffice!');
+        toast.success('Nytt produkt er opprettet i PowerOffice');
       }
 
       setIsEditing(false);
       setEditedProduct(null);
     } catch (err: any) {
       console.error('Save error:', err);
-      alert('❌ Feil ved lagring: ' + err.message);
+      toast.error('Kunne ikke lagre', err);
     } finally {
       setSaving(false);
     }

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { GanttChart } from './GanttChart'
+import { toast } from '@/lib/toast'
 
 interface Milepel {
   id: string
@@ -245,7 +246,7 @@ export function ProsjektFramdrift({ prosjektId, teamMedlemmer, onUpdate }: Prosj
       loadMilepeler()
     } catch (error) {
       console.error('Feil ved opplasting:', error)
-      alert('Kunne ikke laste opp fil')
+      toast.error('Kunne ikke laste opp filen', error)
     } finally {
       setUploading(null)
     }

@@ -9,6 +9,7 @@ import { PricingSection } from './PricingSection'
 import { TilbudPreview } from './TilbudPreview'
 import { downloadTilbudPDF } from './TilbudPDF'
 import type { ServiceavtaleTilbud } from '../TilbudServiceavtale'
+import { toast } from '@/lib/toast'
 
 interface TilbudFormProps {
   tilbud: ServiceavtaleTilbud | null
@@ -124,7 +125,7 @@ export function TilbudForm({ tilbud, onSave, onCancel }: TilbudFormProps) {
     e.preventDefault()
     
     if (!formData.kunde_navn.trim()) {
-      alert('Kundenavn er påkrevd')
+      toast.warning('Kundenavn er påkrevd')
       return
     }
 
@@ -156,7 +157,7 @@ export function TilbudForm({ tilbud, onSave, onCancel }: TilbudFormProps) {
       onSave()
     } catch (error) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre tilbud')
+      toast.error('Kunne ikke lagre tilbudet', error)
     } finally {
       setSaving(false)
     }

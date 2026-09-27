@@ -4,6 +4,7 @@ import { PDFViewer } from '@react-pdf/renderer'
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 import { BSV_LOGO } from '@/assets/logoBase64'
 import { generateAlarmorganiseringPDF } from './AlarmorganiseringPDF'
+import { toast } from '@/lib/toast'
 
 interface AlarmorganiseringPreviewProps {
   data: any
@@ -334,7 +335,7 @@ export function AlarmorganiseringPreview({ data, onClose }: AlarmorganiseringPre
       await generateAlarmorganiseringPDF(data, false)
     } catch (error) {
       console.error('Feil ved nedlasting:', error)
-      alert('Feil ved nedlasting av PDF')
+      toast.error('Kunne ikke laste ned PDF-en', error)
     } finally {
       setDownloading(false)
     }
@@ -345,12 +346,12 @@ export function AlarmorganiseringPreview({ data, onClose }: AlarmorganiseringPre
     try {
       const result = await generateAlarmorganiseringPDF(data, true)
       if (result.success) {
-        alert(`PDF lagret som ${result.fileName}`)
+        toast.success('PDF-en er lagret', result.fileName)
         onClose()
       }
     } catch (error) {
       console.error('Feil ved lagring:', error)
-      alert('Feil ved lagring av PDF')
+      toast.error('Kunne ikke lagre PDF-en', error)
     } finally {
       setSaving(false)
     }

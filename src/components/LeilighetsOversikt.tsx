@@ -6,6 +6,7 @@ import {
   CheckCircle, XCircle, HelpCircle, Save, FileDown
 } from 'lucide-react'
 import jsPDF from 'jspdf'
+import { toast } from '@/lib/toast'
 
 interface Leilighet {
   id: string
@@ -142,7 +143,7 @@ export function LeilighetsOversikt({
       onUpdate?.()
     } catch (error) {
       console.error('Feil ved generering av leiligheter:', error)
-      alert('Kunne ikke generere leiligheter')
+      toast.error('Kunne ikke generere leilighetene', error)
     } finally {
       setSaving(false)
     }
@@ -274,7 +275,7 @@ export function LeilighetsOversikt({
       onUpdate?.()
     } catch (error) {
       console.error('Feil ved lagring av kontroller:', error)
-      alert('Kunne ikke lagre kontroller')
+      toast.error('Kunne ikke lagre kontrollene', error)
     } finally {
       setSaving(false)
     }

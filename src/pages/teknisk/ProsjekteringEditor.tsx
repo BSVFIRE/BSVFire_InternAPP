@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Save, FileText, AlertTriangle, Settings, Link2, CheckSquare, HelpCircle, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { toast } from '@/lib/toast'
 
 interface ProsjekteringEditorProps {
   prosjekteringId?: string
@@ -234,7 +235,7 @@ export function ProsjekteringEditor({ prosjekteringId, kundeId, anleggId, onBack
 
   async function handleSave() {
     if (!prosjektering.prosjekt_navn.trim()) {
-      alert('Prosjektnavn er påkrevd')
+      toast.warning('Prosjektnavn er påkrevd')
       return
     }
 
@@ -287,12 +288,12 @@ export function ProsjekteringEditor({ prosjekteringId, kundeId, anleggId, onBack
         }
       }
 
-      alert('Prosjektering lagret!')
+      toast.success('Prosjekteringen er lagret')
       if (!prosjekteringId) onBack()
 
     } catch (error: any) {
       console.error('Feil ved lagring:', error)
-      alert('Kunne ikke lagre: ' + (error?.message || 'Ukjent feil'))
+      toast.error('Kunne ikke lagre prosjekteringen', error)
     } finally {
       setSaving(false)
     }

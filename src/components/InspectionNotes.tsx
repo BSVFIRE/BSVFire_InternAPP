@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Mic, MicOff, MessageSquare, Sparkles, Save, Trash2, Volume2, X, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { toast } from '@/lib/toast'
 
 interface Note {
   id: string
@@ -122,7 +123,7 @@ export function InspectionNotes({ kontrollId, anleggId, onClose }: InspectionNot
       setIsRecording(true)
     } catch (error) {
       console.error('Feil ved oppstart av opptak:', error)
-      alert('Kunne ikke starte opptak. Sjekk mikrofontillatelser.')
+      toast.error('Kunne ikke starte opptak', 'Sjekk at nettleseren har tilgang til mikrofonen.')
     }
   }
 
@@ -174,7 +175,7 @@ export function InspectionNotes({ kontrollId, anleggId, onClose }: InspectionNot
       }
     } catch (error) {
       console.error('Whisper transcription error:', error)
-      alert('Kunne ikke transkribere lyd. Prøv å skrive manuelt.')
+      toast.error('Kunne ikke transkribere lyden', 'Skriv notatet manuelt i stedet.')
     } finally {
       setIsProcessing(false)
     }
@@ -182,7 +183,7 @@ export function InspectionNotes({ kontrollId, anleggId, onClose }: InspectionNot
 
   async function getAiSuggestion() {
     if (!currentNote.trim()) {
-      alert('Skriv noe først for å få AI-forslag')
+      toast.warning('Skriv noe først', 'AI-en trenger litt tekst å jobbe ut fra.')
       return
     }
 
@@ -256,7 +257,7 @@ export function InspectionNotes({ kontrollId, anleggId, onClose }: InspectionNot
       }
     } catch (error) {
       console.error('Feil ved lagring av notat:', error)
-      alert('Kunne ikke lagre notat')
+      toast.error('Kunne ikke lagre notatet', error)
     }
   }
 
@@ -274,7 +275,7 @@ export function InspectionNotes({ kontrollId, anleggId, onClose }: InspectionNot
       setNotes(prev => prev.filter(n => n.id !== noteId))
     } catch (error) {
       console.error('Feil ved sletting av notat:', error)
-      alert('Kunne ikke slette notat')
+      toast.error('Kunne ikke slette notatet', error)
     }
   }
 

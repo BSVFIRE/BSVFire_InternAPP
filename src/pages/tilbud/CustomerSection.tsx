@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { toast } from '@/lib/toast'
 import { Search, Building, ExternalLink, Loader2 } from 'lucide-react'
 import { 
   searchCompaniesByName, 
@@ -144,11 +145,11 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
       if (company) {
         fillFormFromCompany(company)
       } else {
-        alert('Fant ikke bedrift med dette organisasjonsnummeret')
+        toast.warning('Fant ingen bedrift', 'Sjekk organisasjonsnummeret.')
       }
     } catch (error) {
       console.error('Lookup error:', error)
-      alert('Kunne ikke hente bedriftsinformasjon')
+      toast.error('Kunne ikke hente bedriftsinformasjon', error)
     } finally {
       setLookingUp(false)
     }

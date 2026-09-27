@@ -184,7 +184,7 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
       return savedRapport
     } catch (error) {
       console.error('Feil ved lagring av servicerapport:', error)
-      alert('Kunne ikke lagre servicerapport')
+      toast.error('Kunne ikke lagre servicerapporten', error)
       throw error
     }
   }

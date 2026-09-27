@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Plus, Trash2, MessageSquare, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
+import { toast } from '@/lib/toast'
 
 interface Kommentar {
   id?: string
@@ -64,7 +65,7 @@ export function KommentarViewNodlys({ anleggId, kundeNavn: _kundeNavn, anleggNav
       setKommentarer(data || [])
     } catch (error) {
       console.error('Feil ved lasting av kommentarer:', error)
-      alert('Kunne ikke laste kommentarer')
+      toast.error('Kunne ikke laste kommentarene', error)
     } finally {
       setLoading(false)
     }
@@ -72,7 +73,7 @@ export function KommentarViewNodlys({ anleggId, kundeNavn: _kundeNavn, anleggNav
 
   async function leggTilKommentar() {
     if (!nyKommentar.trim()) {
-      alert('Skriv inn en kommentar først')
+      toast.warning('Skriv inn en kommentar først')
       return
     }
 
@@ -107,7 +108,7 @@ export function KommentarViewNodlys({ anleggId, kundeNavn: _kundeNavn, anleggNav
         feilmelding += 'Prøv igjen senere.'
       }
       
-      alert(feilmelding)
+      toast.error('Kunne ikke lagre kommentaren', feilmelding)
     }
   }
 
@@ -124,7 +125,7 @@ export function KommentarViewNodlys({ anleggId, kundeNavn: _kundeNavn, anleggNav
       setKommentarer(kommentarer.filter(k => k.id !== id))
     } catch (error) {
       console.error('Feil ved sletting:', error)
-      alert('Kunne ikke slette kommentar')
+      toast.error('Kunne ikke slette kommentaren', error)
     }
   }
 

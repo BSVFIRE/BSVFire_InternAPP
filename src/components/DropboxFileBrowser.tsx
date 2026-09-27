@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Folder, FileText, File, Download, Loader2, ExternalLink, ChevronRight, ChevronDown, RefreshCw, CheckSquare, Square } from 'lucide-react'
 import { listAnleggDropboxFiles, getDropboxDownloadLink, DropboxEntry, buildAnleggDropboxPath } from '@/services/dropboxServiceV2'
+import { toast } from '@/lib/toast'
 
 interface DropboxFileBrowserProps {
   isOpen: boolean
@@ -298,7 +299,7 @@ export function DropboxFileBrowser({ isOpen, onClose, kundeNummer, kundeNavn, an
     setDownloading(false)
     
     if (downloadedCount > 0) {
-      alert(`${downloadedCount} fil${downloadedCount !== 1 ? 'er' : ''} åpnet for nedlasting`)
+      toast.success(`${downloadedCount} fil${downloadedCount !== 1 ? 'er' : ''} åpnet for nedlasting`)
       clearSelection()
     }
   }

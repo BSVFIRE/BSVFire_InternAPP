@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Send, X, Loader2, Sparkles, MessageSquare, Mic, MicOff, Save, Trash2, Volume2, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { toast } from '@/lib/toast'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -214,7 +215,7 @@ export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId
       setIsRecording(true)
     } catch (error) {
       console.error('Feil ved oppstart av opptak:', error)
-      alert('Kunne ikke starte opptak. Sjekk mikrofontillatelser.')
+      toast.error('Kunne ikke starte opptak', 'Sjekk at nettleseren har tilgang til mikrofonen.')
     }
   }
 
@@ -233,7 +234,7 @@ export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId
 
   async function getAiSuggestion() {
     if (!currentNote.trim()) {
-      alert('Skriv noe først for å få AI-forslag')
+      toast.warning('Skriv noe først', 'AI-en trenger litt tekst å jobbe ut fra.')
       return
     }
 
@@ -299,7 +300,7 @@ export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId
       }
     } catch (error) {
       console.error('Feil ved lagring av notat:', error)
-      alert('Kunne ikke lagre notat')
+      toast.error('Kunne ikke lagre notatet', error)
     }
   }
 
@@ -317,7 +318,7 @@ export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId
       setNotes(prev => prev.filter(n => n.id !== noteId))
     } catch (error) {
       console.error('Feil ved sletting av notat:', error)
-      alert('Kunne ikke slette notat')
+      toast.error('Kunne ikke slette notatet', error)
     }
   }
 

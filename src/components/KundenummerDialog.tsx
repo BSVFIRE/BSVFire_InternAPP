@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Loader2, Building, Search, Check, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { toast } from '@/lib/toast'
 
 interface EksisterendeKunde {
   id: string
@@ -109,7 +110,7 @@ export function KundenummerDialog({
 
   function handleConfirm() {
     if (!kundenummer.trim()) {
-      alert('Kundenummer er påkrevd for Dropbox-synkronisering')
+      toast.warning('Kundenummer er påkrevd', 'Dropbox-mappene navngis etter kundenummeret.')
       return
     }
     

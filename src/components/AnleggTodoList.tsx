@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
 import { Plus, Check, X, Edit2, Trash2, Calendar, AlertCircle, User, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { toast } from '@/lib/toast'
 
 const log = createLogger('AnleggTodoList')
 
@@ -102,7 +103,7 @@ export function AnleggTodoList({ anleggId, onTodoChange }: AnleggTodoListProps) 
 
   async function opprettTodo() {
     if (!nyTodo.tittel.trim()) {
-      alert('Tittel er påkrevd')
+      toast.warning('Tittel er påkrevd')
       return
     }
 
@@ -135,7 +136,7 @@ export function AnleggTodoList({ anleggId, onTodoChange }: AnleggTodoListProps) 
       onTodoChange?.()
     } catch (error) {
       log.error('Feil ved opprettelse av todo', { error, todo: nyTodo })
-      alert('Kunne ikke opprette todo')
+      toast.error('Kunne ikke opprette oppgaven', error)
     }
   }
 
@@ -151,7 +152,7 @@ export function AnleggTodoList({ anleggId, onTodoChange }: AnleggTodoListProps) 
       onTodoChange?.()
     } catch (error) {
       log.error('Feil ved oppdatering av todo', { error, todoId: id, updates })
-      alert('Kunne ikke oppdatere todo')
+      toast.error('Kunne ikke oppdatere oppgaven', error)
     }
   }
 
@@ -169,7 +170,7 @@ export function AnleggTodoList({ anleggId, onTodoChange }: AnleggTodoListProps) 
       onTodoChange?.()
     } catch (error) {
       log.error('Feil ved sletting av todo', { error, todoId: id })
-      alert('Kunne ikke slette todo')
+      toast.error('Kunne ikke slette oppgaven', error)
     }
   }
 

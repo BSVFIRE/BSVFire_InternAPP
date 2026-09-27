@@ -374,7 +374,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
 
   async function generatePDF(preview: boolean = false) {
     if (!anleggData || !kontrollData) {
-      alert('Mangler data for å generere rapport')
+      toast.warning('Mangler data for å lage rapporten', 'Kontrollen eller anlegget er ikke lastet ferdig.')
       return
     }
 
@@ -1450,7 +1450,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
     } catch (error: any) {
       console.error('Feil ved generering av PDF:', error)
       console.error('Error stack:', error?.stack)
-      alert(`Kunne ikke generere PDF: ${error?.message || 'Ukjent feil'}. Sjekk console for detaljer.`)
+      toast.error('Kunne ikke lage PDF-en', error)
     } finally {
       setGenerating(false)
     }
@@ -1471,7 +1471,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       setShowSendRapportDialog(true)
     } catch (error) {
       console.error('Feil ved oppdatering av tjenestestatus:', error)
-      alert('Rapport lagret, men kunne ikke oppdatere status')
+      toast.warning('Rapporten er lagret', 'Men statusen på anlegget ble ikke oppdatert.')
       setShowFullfortDialog(false)
       setGenerating(false)
     }
@@ -1500,7 +1500,7 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
   }
 
   function handleTjenesteAvbryt() {
-    alert('Rapport generert og lagret! Kontroll fullført ✓')
+    toast.success('Rapporten er lagret', 'Kontrollen er satt som fullført.')
     onBack()
     setShowFullfortDialog(false)
     setGenerating(false)

@@ -4,6 +4,7 @@ import { Download, Upload, X, CheckCircle, AlertCircle, Loader2, FileSpreadsheet
 import * as XLSX from 'xlsx'
 import { createDropboxFolder, buildAnleggDropboxPath } from '@/services/dropboxServiceV2'
 import { ANLEGG_FOLDERS } from '@/services/dropboxFolderStructure'
+import { toast } from '@/lib/toast'
 
 interface Kunde {
   id: string
@@ -218,7 +219,7 @@ export function AnleggImport({ kunder, onClose, onImportComplete }: AnleggImport
         setStep('preview')
       } catch (error) {
         console.error('Feil ved lesing av fil:', error)
-        alert('Kunne ikke lese filen. Sjekk at det er en gyldig Excel-fil.')
+        toast.error('Kunne ikke lese filen', 'Sjekk at det er en gyldig Excel-fil.')
       }
     }
     reader.readAsArrayBuffer(file)

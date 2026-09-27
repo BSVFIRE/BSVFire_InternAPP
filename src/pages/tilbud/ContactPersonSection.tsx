@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Plus, Search, User } from 'lucide-react'
+import { toast } from '@/lib/toast'
 
 interface Kontaktperson {
   id: string
@@ -127,7 +128,7 @@ export function ContactPersonSection({ formData, setFormData }: ContactPersonSec
 
   async function handleCreateKontaktperson() {
     if (!newKontaktperson.navn.trim()) {
-      alert('Navn er påkrevd')
+      toast.warning('Navn er påkrevd')
       return
     }
 
@@ -157,7 +158,7 @@ export function ContactPersonSection({ formData, setFormData }: ContactPersonSec
       setNewKontaktperson({ navn: '', epost: '', telefon: '' })
     } catch (error) {
       console.error('Feil ved opprettelse av kontaktperson:', error)
-      alert('Kunne ikke opprette kontaktperson')
+      toast.error('Kunne ikke opprette kontaktpersonen', error)
     } finally {
       setSavingKontaktperson(false)
     }
