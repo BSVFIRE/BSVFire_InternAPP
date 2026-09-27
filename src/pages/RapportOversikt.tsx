@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { FileText, Building2, Download, Mail, ArrowLeft, Loader2, Search, Filter, Calendar, Trash2 } from 'lucide-react'
@@ -201,7 +202,7 @@ export function RapportOversikt() {
   }
 
   async function handleDelete(dokument: Dokument) {
-    if (!confirm(`Er du sikker på at du vil slette "${dokument.filnavn}"? Dette kan ikke angres.`)) {
+    if (!(await bekreft({ tittel: `Slette "${dokument.filnavn}"?`, tekst: `Dette kan ikke angres.`, bekreftTekst: 'Slett', fare: true }))) {
       return
     }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
 import { Plus, Check, X, Edit2, Trash2, Calendar, AlertCircle, User, ChevronDown, ChevronUp } from 'lucide-react'
@@ -157,7 +158,7 @@ export function AnleggTodoList({ anleggId, onTodoChange }: AnleggTodoListProps) 
   }
 
   async function slettTodo(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne oppgaven?')) return
+    if (!(await bekreft({ tittel: 'Slette denne oppgaven?', bekreftTekst: 'Slett', fare: true }))) return
 
     try {
       const { error } = await supabase

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Mic, MicOff, MessageSquare, Sparkles, Save, Trash2, Volume2, X, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -262,7 +263,7 @@ export function InspectionNotes({ kontrollId, anleggId, onClose }: InspectionNot
   }
 
   async function deleteNote(noteId: string) {
-    if (!confirm('Slett dette notatet?')) return
+    if (!(await bekreft({ tittel: 'Slett dette notatet?', bekreftTekst: 'Slett', fare: true }))) return
 
     try {
       const { error } = await supabase

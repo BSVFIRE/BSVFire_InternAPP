@@ -4,6 +4,7 @@
  * og indeksregulering kan kjøres på mange anlegg samtidig. Historikk skrives av databasetrigger.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronLeft, CheckSquare, History, MoreHorizontal, Percent, Search, Trash2, X } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
@@ -145,7 +146,7 @@ export function Priser() {
     setRader(prev => prev.map(x => x.anleggId === r.anleggId ? { ...x, pris: ny, sum: FAG.reduce((s, f) => s + (ny[f.key] ?? 0), 0), manglerFag: FAG.filter(f => x.kontrolltyper.includes(f.kontrolltype) && !(ny[f.key])).map(f => f.navn) } : x))
   }
   async function slettPris(r: Rad) {
-    if (!r.pris || !confirm(`Fjerne alle priser på ${r.anleggsnavn}?`)) return
+    if (!r.pris || !(await bekreft({ tittel: `Fjerne alle priser på ${r.anleggsnavn}?`, bekreftTekst: 'Fjern', fare: true }))) return
     const { error } = await db.from('priser_kundenummer').delete().eq('id', r.pris.id)
     if (error) { toast.error('Kunne ikke slette', error); return }
     toast.success('Priser fjernet'); last()
@@ -308,7 +309,7 @@ function IndeksDialog({ rader, onClose, onFerdig }: { rader: Rad[]; onClose: () 
 
   async function kjor() {
     if (!p) return
-    if (!confirm(`Indeksregulere ${rader.length} anlegg med ${p} %? Ny årssum blir ${kr(etterSum)} (fra ${kr(forSum)}). Endringene logges i prishistorikken.`)) return
+    if (!(await bekreft({ tittel: `Indeksregulere ${rader.length} anlegg med ${p} %?`, tekst: `Ny årssum blir ${kr(etterSum)} (fra ${kr(forSum)}). Endringene logges i prishistorikken.`, bekreftTekst: 'Fortsett' }))) return
     setJobber(true)
     let feilet = 0
     for (const r of rader) {

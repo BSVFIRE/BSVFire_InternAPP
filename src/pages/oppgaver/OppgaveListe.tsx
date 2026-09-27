@@ -3,6 +3,7 @@
  * Mine/Alle, chips (Åpne, Forfalt, Denne uken, Nye, Fullførte), søk (/), 25 om gangen.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, Edit, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
@@ -153,7 +154,7 @@ export default function OppgaveListe() {
     setRader(prev => prev.map(x => x.id === r.id ? { ...x, status: OPPGAVE_STATUSER.PAGAENDE } : x))
   }
   async function slett(r: Rad) {
-    if (!confirm(`Slette oppgaven «${r.tittel ?? r.type}»?`)) return
+    if (!(await bekreft({ tittel: `Slette oppgaven «${r.tittel ?? r.type}»?`, bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await db.from('oppgaver').delete().eq('id', r.id)
     if (error) { toast.error('Kunne ikke slette oppgave', error); return }
     toast.success('Oppgave slettet'); last()

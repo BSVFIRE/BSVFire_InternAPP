@@ -2,6 +2,7 @@
  * Oppgave – detaljside (/oppgaver/:id)
  */
 import { useCallback, useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertCircle, Building2, Check, ChevronLeft, ClipboardList, Edit, Mail, MoreHorizontal, Phone, RotateCcw, Share2, Trash2 } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
@@ -84,7 +85,7 @@ export default function OppgaveDetaljer() {
     loadAll()
   }
   async function slett() {
-    if (!oppgave || !confirm(`Slette oppgaven «${oppgave.tittel ?? oppgave.type}»?`)) return
+    if (!oppgave || !(await bekreft({ tittel: `Slette oppgaven «${oppgave.tittel ?? oppgave.type}»?`, bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await db.from('oppgaver').delete().eq('id', oppgave.id)
     if (error) { toast.error('Kunne ikke slette oppgave', error); return }
     toast.success('Oppgave slettet'); navigate('/oppgaver', { replace: true })

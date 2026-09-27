@@ -4,6 +4,7 @@
  * Dekningsstripen øverst viser hvor mange av hver type (fra Enheter) som er lagt inn i nettverket.
  */
 import { useEffect, useMemo, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { AlertTriangle, ArrowLeft, BatteryCharging, Check, Edit, MoreHorizontal, Network, Plus, Search, Trash2, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -61,7 +62,7 @@ export function NettverkView({ anleggId, anleggsNavn, nettverkListe, enheterData
   }, [noder, q])
 
   async function slett(n: Node) {
-    if (!confirm(`Slette node ${n.nettverk_id ?? ''} (${n.type ?? 'uten type'}${n.plassering ? `, ${n.plassering}` : ''})?`)) return
+    if (!(await bekreft({ tittel: `Slette node ${n.nettverk_id ?? ''} (${n.type ?? 'uten type'}${n.plassering ? `, ${n.plassering}` : ''})?`, bekreftTekst: 'Slett', fare: true }))) return
     if (!isOnline) { queueDelete('nettverk_brannalarm', n.id); toast.info('Sletting lagt i kø'); return }
     const { error } = await supabase.from('nettverk_brannalarm').delete().eq('id', n.id)
     if (error) { toast.error('Kunne ikke slette', error); return }

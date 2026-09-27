@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase } from '@/lib/supabase'
 import { Plus, Trash2, MessageSquare, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
@@ -112,7 +113,7 @@ export function KommentarViewBrannslukkere({ anleggId, kundeNavn: _kundeNavn, an
   }
 
   async function slettKommentar(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne kommentaren?')) return
+    if (!(await bekreft({ tittel: 'Slette denne kommentaren?', bekreftTekst: 'Slett', fare: true }))) return
 
     try {
       const { error } = await supabase

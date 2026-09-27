@@ -3,6 +3,7 @@
  * (forhåndsutfylte rader ut fra detektorer/meldere registrert på brannalarmanlegget).
  */
 import { useCallback, useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, Check, Copy, FileText, ListChecks, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -65,7 +66,7 @@ export function DetektorlisteView({ onBack, initialAnleggId, initialKundeId, ini
   useEffect(() => { last() }, [last])
 
   async function slett(l: Liste) {
-    if (!confirm(`Slette adresseliste rev. ${l.revisjon} (${l.antall} enheter)? Dette kan ikke angres.`)) return
+    if (!(await bekreft({ tittel: `Slette adresseliste rev. ${l.revisjon} (${l.antall} enheter)?`, tekst: `Dette kan ikke angres.`, bekreftTekst: 'Slett', fare: true }))) return
     const a = await supabase.from('detektor_items').delete().eq('detektorliste_id', l.id); if (a.error) { toast.error('Kunne ikke slette', a.error); return }
     const b = await supabase.from('detektorlister').delete().eq('id', l.id); if (b.error) { toast.error('Kunne ikke slette', b.error); return }
     toast.success('Adresseliste slettet'); last()

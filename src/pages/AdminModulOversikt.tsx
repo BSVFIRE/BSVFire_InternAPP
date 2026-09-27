@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { 
   Shield, 
   Users, 
@@ -87,7 +88,7 @@ export function AdminModulOversikt() {
   }
 
   const handleFjernAlleTilganger = async (ansattId: string) => {
-    if (!confirm('Er du sikker på at du vil fjerne alle tilganger for denne brukeren?')) return
+    if (!(await bekreft({ tittel: 'Fjerne alle tilganger for denne brukeren?', bekreftTekst: 'Fjern', fare: true }))) return
     setUpdating(`remove-${ansattId}`)
     await fjernAlleTilganger(ansattId)
     setUpdating(null)

@@ -5,6 +5,7 @@
  * Alle valg ligger i URL-en (m, f, type, tek, g, q) så tilbake-knappen virker.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { AlertCircle, Ban, Building2, CalendarDays, Check, ChevronRight, Clock, Plus, Search, Trash2, User, Users, X } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
@@ -107,7 +108,7 @@ export function Kontrollplan() {
   useEffect(() => { last() }, [last])
 
   async function slettUkesplan(p: Ukesplan) {
-    if (!confirm(`Slette ukesplanen for ${p.kunde}, uke ${p.uke_nummer} ${p.aar}${p.antallAnlegg ? ` (${p.antallAnlegg} anlegg)` : ''}? Dette kan ikke angres.`)) return
+    if (!(await bekreft({ tittel: `Slette ukesplanen for ${p.kunde}, uke ${p.uke_nummer} ${p.aar}${p.antallAnlegg ? ` (${p.antallAnlegg} anlegg)` : ''}?`, tekst: 'Dette kan ikke angres.', bekreftTekst: 'Slett', fare: true }))) return
     try {
       // Dager og teknikere peker på planen og må bort først
       const d = await db.from('ukesplan_dager').delete().eq('ukesplan_id', p.id)

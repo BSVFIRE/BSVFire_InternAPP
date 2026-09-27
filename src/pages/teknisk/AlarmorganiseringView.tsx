@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { ArrowLeft, Plus, Search, Pencil, Trash2, Bell, RefreshCw } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
@@ -127,7 +128,7 @@ export function AlarmorganiseringView({ onBack, initialAnleggId, initialKundeId,
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Er du sikker på at du vil slette denne alarmorganiseringen?')) {
+    if (!(await bekreft({ tittel: 'Slette denne alarmorganiseringen?', bekreftTekst: 'Slett', fare: true }))) {
       return
     }
 

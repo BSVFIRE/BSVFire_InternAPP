@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { lagForside, listeside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Save, Eye, ClipboardCheck, Droplets } from 'lucide-react'
@@ -244,7 +245,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   }
 
   async function deleteSlange(s: Brannslange) {
-    if (!confirm(`Slette slange ${s.slangenummer ?? ''}${s.plassering ? ` (${s.plassering})` : ''}?`)) return
+    if (!(await bekreft({ tittel: `Slette slange ${s.slangenummer ?? ''}${s.plassering ? ` (${s.plassering})` : ''}?`, bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await supabase.from('anleggsdata_brannslanger').delete().eq('id', s.id)
     if (error) { toast.error('Kunne ikke slette', error); return }
     setSlanger(prev => prev.filter(x => x.id !== s.id))

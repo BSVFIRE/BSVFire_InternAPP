@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase } from '../lib/supabase'
 import { toast } from '@/lib/toast'
 import { Calendar, Users, Plus, Clock, MapPin } from 'lucide-react'
@@ -66,7 +67,7 @@ export function Moter() {
   }
 
   const handleDeleteMote = async (moteId: string) => {
-    if (!confirm('Er du sikker på at du vil slette dette møtet?')) return
+    if (!(await bekreft({ tittel: 'Slette dette møtet?', bekreftTekst: 'Slett', fare: true }))) return
 
     try {
       const { error } = await supabase

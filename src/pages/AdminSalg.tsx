@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase, db } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import {
@@ -307,7 +308,7 @@ export function AdminSalg() {
   }
 
   async function slettLead(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne leaden?')) return
+    if (!(await bekreft({ tittel: 'Slette denne leaden?', bekreftTekst: 'Slett', fare: true }))) return
     
     try {
       const { error } = await supabase

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase } from '@/lib/supabase'
 import { 
   Calendar, X, FileText,
@@ -411,7 +412,7 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
   async function slettPlan() {
     if (!existingPlanId) return
     const antall = Object.values(dagPlaner).reduce((sum, l) => sum + l.length, 0)
-    if (!confirm(`Slette ukesplanen for uke ${week}, ${year}${antall ? ` med ${antall} anlegg` : ''}? Dette kan ikke angres.`)) return
+    if (!(await bekreft({ tittel: `Slette ukesplanen for uke ${week}, ${year}${antall ? ` med ${antall} anlegg` : ''}?`, tekst: 'Dette kan ikke angres.', bekreftTekst: 'Slett', fare: true }))) return
     setSaving(true)
     try {
       // Dager og teknikere først – tabellene peker på ukesplanen

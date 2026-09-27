@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
@@ -202,7 +203,7 @@ export function KsHmsTiltak() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Er du sikker på at du vil slette dette tiltaket?')) return
+    if (!(await bekreft({ tittel: 'Slette dette tiltaket?', bekreftTekst: 'Slett', fare: true }))) return
 
     try {
       const { error } = await supabase

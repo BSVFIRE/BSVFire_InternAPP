@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase } from '@/lib/supabase'
 import { 
   X, Building2, Plus, Trash2, 
@@ -100,7 +101,7 @@ export function LeilighetsOversikt({
   async function generateLeiligheter() {
     // Sjekk om det allerede finnes leiligheter
     if (leiligheter.length > 0) {
-      if (!confirm(`Det finnes allerede ${leiligheter.length} leiligheter. Vil du slette alle og starte på nytt?`)) {
+      if (!(await bekreft({ tittel: `Det finnes allerede ${leiligheter.length} leiligheter. Vil du slette alle og starte på nytt?`, bekreftTekst: 'Slett', fare: true }))) {
         return
       }
       // Slett eksisterende leiligheter (kontroller slettes automatisk pga CASCADE)
@@ -209,7 +210,7 @@ export function LeilighetsOversikt({
 
   // Slett leilighet
   async function deleteLeilighet(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne leiligheten og alle kontroller?')) return
+    if (!(await bekreft({ tittel: 'Slette denne leiligheten og alle kontroller?', bekreftTekst: 'Slett', fare: true }))) return
 
     try {
       const { error } = await supabase

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
@@ -54,7 +55,7 @@ export function EksternKontaktpersoner() {
   }
 
   async function deleteKontakt(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne kontaktpersonen?')) return
+    if (!(await bekreft({ tittel: 'Slette denne kontaktpersonen?', bekreftTekst: 'Slett', fare: true }))) return
 
     try {
       const { error } = await supabase

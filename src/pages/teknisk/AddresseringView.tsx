@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Cpu, ArrowLeft, Search, Plus, Trash2, Download, Copy, Check, Save, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from '@/lib/toast'
@@ -408,8 +409,8 @@ export function AddresseringView({ onBack }: AddresseringViewProps) {
     setEnheter([...enheter, ...newEnheter])
   }
 
-  function removeBase(baseNr: number) {
-    if (!confirm(`Er du sikker på at du vil fjerne Base ${baseNr.toString().padStart(2, '0')} og alle dens enheter?`)) {
+  async function removeBase(baseNr: number) {
+    if (!(await bekreft({ tittel: `Fjerne Base ${baseNr.toString().padStart(2, '0')}?`, tekst: 'Alle enhetene på basen fjernes.', bekreftTekst: 'Fjern', fare: true }))) {
       return
     }
     setEnheter(enheter.filter(e => e.baseNr !== baseNr))

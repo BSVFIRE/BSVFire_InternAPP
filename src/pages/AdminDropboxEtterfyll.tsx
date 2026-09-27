@@ -8,6 +8,7 @@
  * med modus «add» slik at Dropbox selv avviser en fil som finnes fra før.
  */
 import { useEffect, useMemo, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Check, ChevronLeft, UploadCloud, Loader2, RefreshCw, Search, SkipForward, X } from 'lucide-react'
 import { db, supabase } from '@/lib/supabase'
@@ -159,7 +160,7 @@ export function AdminDropboxEtterfyll() {
   async function lastOppManglende() {
     const kø = dokumenter.filter(d => tilstand[d.id]?.status === 'mangler')
     if (kø.length === 0) return
-    if (!confirm(`Laste opp ${kø.length} ${kø.length === 1 ? 'fil' : 'filer'} til Dropbox? Filer som allerede finnes røres ikke.`)) return
+    if (!(await bekreft({ tittel: `Laste opp ${kø.length} ${kø.length === 1 ? 'fil' : 'filer'} til Dropbox?`, tekst: 'Filer som allerede finnes røres ikke.', bekreftTekst: 'Last opp' }))) return
     setLasterOpp(true)
     let ok = 0, hoppet = 0, feil = 0
     try {

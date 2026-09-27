@@ -3,6 +3,7 @@
  * Header med handlinger (avslutt, kalender, rediger), beskrivelse + tilknyttede oppgaver og servicerapporter til venstre, fakta til høyre.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertCircle, Building2, Check, CheckSquare, ChevronLeft, Edit, FileText, MoreHorizontal, Share2, Trash2 } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
@@ -84,7 +85,7 @@ export default function OrdreDetaljer() {
     loadAll()
   }
   async function slett() {
-    if (!ordre || !confirm(`Slette ordre ${ordre.ordre_nummer}? Dette kan ikke angres.`)) return
+    if (!ordre || !(await bekreft({ tittel: `Slette ordre ${ordre.ordre_nummer}?`, tekst: `Dette kan ikke angres.`, bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await db.from('ordre').delete().eq('id', ordre.id)
     if (error) { toast.error('Kunne ikke slette ordre', error); return }
     toast.success('Ordre slettet'); navigate('/ordre', { replace: true })

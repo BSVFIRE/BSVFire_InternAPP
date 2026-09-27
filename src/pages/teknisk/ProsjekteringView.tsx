@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { ArrowLeft, Search, Plus, Edit, FileText, Trash2, Building2, Calendar, User } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from '@/lib/toast'
@@ -141,7 +142,7 @@ export function ProsjekteringView({ onBack, initialAnleggId, initialKundeId }: P
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne prosjekteringen? Dette kan ikke angres.')) {
+    if (!(await bekreft({ tittel: 'Slette denne prosjekteringen?', tekst: 'Dette kan ikke angres.', bekreftTekst: 'Slett', fare: true }))) {
       return
     }
 

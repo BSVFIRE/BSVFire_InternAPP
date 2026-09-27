@@ -3,6 +3,7 @@
  * Koble en blank etikett fra bilen, eller lag en ny som er koblet fra start.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Copy, Download, ExternalLink, Plus, QrCode, ScanLine, Unlink } from 'lucide-react'
 import { db } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -47,7 +48,7 @@ export function QrEtikettPanel({ anleggId, anleggsnavn }: { anleggId: string; an
   }
 
   async function frikoble(k: QrKode) {
-    if (!confirm(`Frikoble etikett ${k.kode}? Den kan da brukes på et annet anlegg. Kundens loggbok for dette anlegget påvirkes ikke.`)) return
+    if (!(await bekreft({ tittel: `Frikoble etikett ${k.kode}?`, tekst: `Den kan da brukes på et annet anlegg. Kundens loggbok for dette anlegget påvirkes ikke.`, bekreftTekst: 'Fjern', fare: true }))) return
     try { await frikobleKode(k.kode); toast.success(`Etikett ${k.kode} er frikoblet`); await last() }
     catch (err) { toast.error('Kunne ikke frikoble', err) }
   }

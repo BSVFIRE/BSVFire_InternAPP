@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Plus, Lightbulb, Edit, Building2, Eye, Save, Upload, FileSpreadsheet, ClipboardCheck, MoreHorizontal } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -244,7 +245,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
   async function deleteNodlys(id: string) {
     const enhet = nodlysListe.find(n => n.id === id)
-    if (!confirm(`Slette armatur ${enhet?.internnummer ?? ''}${enhet?.plassering ? ` (${enhet.plassering})` : ''}?`)) return
+    if (!(await bekreft({ tittel: `Slette armatur ${enhet?.internnummer ?? ''}${enhet?.plassering ? ` (${enhet.plassering})` : ''}?`, bekreftTekst: 'Slett', fare: true }))) return
     try {
       if (powersyncAktiv) {
         await slettNodlysLokalt([id])
@@ -317,7 +318,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   async function markerAlleKontrollert() {
     const ids = nodlysListe.filter(n => !n.kontrollert).map(n => n.id)
     if (ids.length === 0) return
-    if (!confirm(`Merke ${ids.length} armaturer som kontrollert?`)) return
+    if (!(await bekreft({ tittel: `Merke ${ids.length} armaturer som kontrollert?`, bekreftTekst: 'Fortsett' }))) return
     if (powersyncAktiv) {
       try { await oppdaterNodlysLokalt(ids, { kontrollert: true }) } catch (e) { toast.error('Kunne ikke oppdatere', e); return }
     } else {

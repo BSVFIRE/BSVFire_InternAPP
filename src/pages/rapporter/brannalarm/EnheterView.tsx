@@ -9,6 +9,7 @@
  *              {key}_har_avvik, {key}_avvik (JSON-array av tekster)
  */
 import { useEffect, useMemo, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { AlertTriangle, ArrowLeft, ArrowRightLeft, ListChecks as ListIkon, ArrowUpDown, BatteryCharging, BellRing, Blinds, Camera, Check, ChevronDown, CircleDot, Cpu, DoorOpen, Droplets, Eye, Fan, FileText, Flame, Hand, KeyRound, LayoutPanelTop, Link2, ListChecks, Lock, Minus, MoreHorizontal, Music, Plug, Plus, Radio, Ruler, ScanSearch, Search, StickyNote, Thermometer, Timer, Trash2, Volume2, Wind, X, Zap, type LucideIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -202,15 +203,15 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
     if (!ok) setEgne(forrige)
   }
   function oppdaterEgen(id: string, patch: Partial<Egendefinert>) { lagreEgne(egne.map(x => x.id === id ? { ...x, ...patch } : x)) }
-  function fjernEgen(x: Egendefinert) { if (!confirm(`Fjerne «${x.navn}» fra anlegget?`)) return; lagreEgne(egne.filter(y => y.id !== x.id)) }
+  async function fjernEgen(x: Egendefinert) { if (!(await bekreft({ tittel: `Fjerne «${x.navn}» fra anlegget?`, bekreftTekst: 'Fjern', fare: true }))) return; lagreEgne(egne.filter(y => y.id !== x.id)) }
   function nyEgen(navn: string, slag: 'enhet' | 'styring', kategori: string): string {
     const id = nyId()
     lagreEgne([...egne, { id, navn, slag, kategori: slag === 'styring' ? STYRING_KAT : kategori, typer: [], antall: 0, status: '', note: '', avvik: [] }])
     return id
   }
 
-  function fjernStyring(key: string, navn: string) {
-    if (!confirm(`Fjerne ${navn} fra anlegget?`)) return
+  async function fjernStyring(key: string, navn: string) {
+    if (!(await bekreft({ tittel: `Fjerne ${navn} fra anlegget?`, bekreftTekst: 'Fjern', fare: true }))) return
     lagreStyring(key, { aktiv: false, antall: 0, status: '', note: '', avvik: [] })
   }
 
@@ -236,8 +237,8 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
     const e = data[key]; const typer = e.typer.filter((_, i) => i !== idx)
     lagre(key, { ...e, typer, aktiv: typer.length > 0 })
   }
-  function fjernEnhet(key: string, navn: string) {
-    if (!confirm(`Fjerne ${navn} fra anlegget? Registrerte typer og antall slettes.`)) return
+  async function fjernEnhet(key: string, navn: string) {
+    if (!(await bekreft({ tittel: `Fjerne ${navn} fra anlegget?`, tekst: 'Registrerte typer og antall slettes.', bekreftTekst: 'Fjern', fare: true }))) return
     lagre(key, { aktiv: false, typer: [], note: '' })
   }
   function leggTil(key: string, type: string, antall: number, note: string) {
@@ -328,7 +329,7 @@ export function EnheterView({ anleggId, anleggsNavn, enheter, onBack, onSave }: 
               </table>
               <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
                 <span>{Object.keys(adresseliste.ukjenteTyper).length ? `Ikke telt: ${Object.entries(adresseliste.ukjenteTyper).map(([t, n]) => `${t} (${n})`).join(', ')}. ` : ''}Diff = adresseliste − enheter. Tallene i Enheter settes på modellraden; har typen flere modeller justeres den største.</span>
-                {avvikTeller > 0 && <button type="button" onClick={() => { if (confirm(`Sette ${avvikTeller} ${avvikTeller === 1 ? 'type' : 'typer'} til tallene fra adresselisten?`)) avstemming.filter(x => x.diff !== 0).forEach(x => settTotalt(x.key, x.iListe)) }} className="text-primary font-medium hover:underline">Bruk alle tall fra adresselisten</button>}
+                {avvikTeller > 0 && <button type="button" onClick={async () => { if (await bekreft({ tittel: `Sette ${avvikTeller} ${avvikTeller === 1 ? 'type' : 'typer'} til tallene fra adresselisten?`, bekreftTekst: 'Bruk tallene' })) avstemming.filter(x => x.diff !== 0).forEach(x => settTotalt(x.key, x.iListe)) }} className="text-primary font-medium hover:underline">Bruk alle tall fra adresselisten</button>}
               </div>
             </div>
           )}

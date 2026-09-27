@@ -3,6 +3,7 @@
  * Header med handlinger, anlegg og kunder til venstre, kontaktinfo og detaljer til høyre.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertCircle, Building2, ChevronLeft, Edit, Mail, MoreHorizontal, Phone, Plus, Share2, Star, Trash2, X } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
@@ -75,7 +76,7 @@ export default function KontaktDetaljer() {
     toast.success(`${kontakt.navn} er primærkontakt på ${a.navn}`); loadAll()
   }
   async function fjern(a: AnleggKobling) {
-    if (!kontakt || !confirm(`Fjerne ${kontakt.navn} fra ${a.navn}?`)) return
+    if (!kontakt || !(await bekreft({ tittel: `Fjerne ${kontakt.navn} fra ${a.navn}?`, bekreftTekst: 'Fjern', fare: true }))) return
     const { error } = await db.from('anlegg_kontaktpersoner').delete().eq('anlegg_id', a.anleggId).eq('kontaktperson_id', kontakt.id)
     if (error) { toast.error('Kunne ikke fjerne fra anlegget', error); return }
     toast.success(`Fjernet fra ${a.navn}`); loadAll()

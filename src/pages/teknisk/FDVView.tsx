@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { ArrowLeft, Upload, Search, FileText, Trash2, Download, Plus, X, Building2, Check, Settings, Edit2, ChevronDown, ChevronRight, ChevronUp } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/Button'
@@ -187,7 +188,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
   }
 
   async function handleDeleteDatablad(id: string, filUrl: string) {
-    if (!confirm('Er du sikker på at du vil slette dette databladet?')) return
+    if (!(await bekreft({ tittel: 'Slette dette databladet?', bekreftTekst: 'Slett', fare: true }))) return
     try {
       const urlParts = filUrl.split('/fdv-datablader/')
       if (urlParts.length > 1) await supabase.storage.from('fdv-datablader').remove([urlParts[1]])
@@ -359,7 +360,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
   }
 
   async function handleDeleteLeverandor(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne leverandøren?')) return
+    if (!(await bekreft({ tittel: 'Slette denne leverandøren?', bekreftTekst: 'Slett', fare: true }))) return
     try {
       const { error } = await supabase.from('fdv_leverandorer').delete().eq('id', id)
       if (error) throw error
@@ -370,7 +371,7 @@ export function FDVView({ onBack, initialAnleggId }: FDVViewProps) {
   }
 
   async function handleDeleteProdukttype(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne produkttypen?')) return
+    if (!(await bekreft({ tittel: 'Slette denne produkttypen?', bekreftTekst: 'Slett', fare: true }))) return
     try {
       const { error } = await supabase.from('fdv_produkttyper').delete().eq('id', id)
       if (error) throw error

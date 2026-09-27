@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase } from '@/lib/supabase'
 import { 
   KUNDE_FOLDERS,
@@ -289,7 +290,7 @@ export function AdminDropboxFolders() {
   }
 
   async function handleDisconnect() {
-    if (!confirm('Er du sikker på at du vil koble fra Dropbox?')) return
+    if (!(await bekreft({ tittel: 'Koble fra Dropbox?', bekreftTekst: 'Fjern', fare: true }))) return
     
     setLoading(true)
     try {

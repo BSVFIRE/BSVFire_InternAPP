@@ -10,6 +10,7 @@
  * Alle data hentes i én runde (Promise.all) i loadAll().
  */
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle, Building2, Check, CheckSquare, ChevronLeft, ClipboardList, Clock, Cloud, CloudOff,
@@ -885,7 +886,7 @@ function KontaktPanel({ anleggId, kontakter, onChanged, onLeggTil }: { anleggId:
     onChanged()
   }
   async function fjern(k: Kontakt) {
-    if (!confirm(`Fjerne ${k.navn} fra dette anlegget? Kontaktpersonen slettes ikke.`)) return
+    if (!(await bekreft({ tittel: `Fjerne ${k.navn} fra dette anlegget?`, tekst: `Kontaktpersonen slettes ikke.`, bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await db.from('anlegg_kontaktpersoner').delete().eq('anlegg_id', anleggId).eq('kontaktperson_id', k.id)
     if (error) { toast.error('Kunne ikke fjerne kontakt', error); return }
     onChanged()

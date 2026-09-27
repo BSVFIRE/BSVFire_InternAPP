@@ -3,6 +3,7 @@
  * og se hvilke koder som er koblet hvor.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Link } from 'react-router-dom'
 import { Download, Plus, QrCode, Search, Trash2 } from 'lucide-react'
 import { db } from '@/lib/supabase'
@@ -60,7 +61,7 @@ export function AdminQrKoder() {
 
   async function slettLedige(kodeliste: string[]) {
     if (kodeliste.length === 0) return
-    if (!confirm(`Slette ${kodeliste.length} ukoblede koder? Etiketter som allerede er printet med disse kodene blir ubrukelige.`)) return
+    if (!(await bekreft({ tittel: `Slette ${kodeliste.length} ukoblede koder?`, tekst: `Etiketter som allerede er printet med disse kodene blir ubrukelige.`, bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await db.from('anlegg_qr_koder').delete().in('kode', kodeliste).is('anlegg_id', null)
     if (error) { toast.error('Kunne ikke slette', error); return }
     toast.success(`${kodeliste.length} koder slettet`)

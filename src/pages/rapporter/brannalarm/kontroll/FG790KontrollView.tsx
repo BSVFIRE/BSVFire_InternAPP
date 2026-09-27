@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase } from '@/lib/supabase'
 import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, ClipboardCheck, MessageSquare, Minus, MoreHorizontal, Plus, X } from 'lucide-react'
 import { toast } from '@/lib/toast'
@@ -530,7 +531,7 @@ export function FG790KontrollView({
   async function tilbake() { if (hasUnsavedChanges) await handleSave(true); onBack() }
   async function fullfor() {
     if (!vurderingOk) { setVurderingMangler(true); setVisVurdering(true); toast.warning('Fyll ut kontrollørens vurdering (tabell 3.5.2-1) før du fullfører'); document.getElementById('fg-vurdering')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
-    if (gjenstar > 0 && !confirm(`${gjenstar} punkter er ikke vurdert. Fortsette til rapport likevel?`)) return
+    if (gjenstar > 0 && !(await bekreft({ tittel: `${gjenstar} punkter er ikke vurdert`, tekst: 'Vil du gå videre til rapporten likevel?', bekreftTekst: 'Fortsett' }))) return
     await handleSave(true)
     if (currentKontrollId && onShowRapport) onShowRapport(currentKontrollId)
   }

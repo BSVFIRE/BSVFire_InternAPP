@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Send, X, Loader2, Sparkles, MessageSquare, Mic, MicOff, Save, Trash2, Volume2, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { toast } from '@/lib/toast'
@@ -305,7 +306,7 @@ export function AIAssistant({ kontrollId: propKontrollId, anleggId: propAnleggId
   }
 
   async function deleteNote(noteId: string) {
-    if (!confirm('Slett dette notatet?')) return
+    if (!(await bekreft({ tittel: 'Slett dette notatet?', bekreftTekst: 'Slett', fare: true }))) return
 
     try {
       const { error } = await supabase

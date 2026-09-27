@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { useUendeligListe } from '@/hooks/useUendeligListe'
 import { ArrowDown, ArrowLeft, ArrowUp, Building2, Edit, Eye, FileText, Loader2, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'
 import { toast } from '@/lib/toast'
@@ -190,7 +191,7 @@ export function ServicerapportView({ onBack, initialAnleggId, initialOrdreId }: 
   }
 
   async function handleDeleteRapport(rapport: Servicerapport) {
-    if (!confirm(`Er du sikker på at du vil slette rapporten "${rapport.header}"?\n\nDenne handlingen kan ikke angres.`)) {
+    if (!(await bekreft({ tittel: `Slette rapporten "${rapport.header}"?`, tekst: `Denne handlingen kan ikke angres.`, bekreftTekst: 'Slett', fare: true }))) {
       return
     }
 

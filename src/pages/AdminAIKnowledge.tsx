@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Upload, FileText, CheckCircle, XCircle, Loader2, Info, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -202,7 +203,7 @@ export function AdminAIKnowledge() {
   }
 
   const deleteArticle = async (id: string) => {
-    if (!confirm('Er du sikker på at du vil slette denne artikkelen?')) return
+    if (!(await bekreft({ tittel: 'Slette denne artikkelen?', bekreftTekst: 'Slett', fare: true }))) return
 
     try {
       const { error } = await supabase

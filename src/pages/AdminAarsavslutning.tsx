@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase } from '@/lib/supabase'
 import { createLogger } from '@/lib/logger'
 import { pdf } from '@react-pdf/renderer'
@@ -638,7 +639,7 @@ export function AdminAarsavslutning() {
   }
 
   async function resetUtforteAnlegg() {
-    if (!confirm(`Er du sikker på at du vil resette ${utforteAnlegg.length} anlegg fra "Utført" til blank status?\n\nDette vil også nullstille tjenestestatus (Brannalarm, Nødlys, Slukkeutstyr, Røykluker, Ekstern).\n\nDette kan ikke angres!`)) {
+    if (!(await bekreft({ tittel: `Resette ${utforteAnlegg.length} anlegg fra "Utført" til blank status?`, tekst: `Dette vil også nullstille tjenestestatus (Brannalarm, Nødlys, Slukkeutstyr, Røykluker, Ekstern). Dette kan ikke angres!`, bekreftTekst: 'Resett', fare: true }))) {
       return
     }
 
@@ -691,7 +692,7 @@ export function AdminAarsavslutning() {
     if (stats.planlagt > 0) statusListe.push(`Planlagt (${stats.planlagt})`)
     if (stats.utsatt > 0) statusListe.push(`Utsatt (${stats.utsatt})`)
 
-    if (!confirm(`Er du sikker på at du vil resette ${andreStatusAnlegg.length} anlegg til blank status?\n\nDette gjelder:\n${statusListe.join('\n')}\n\nTjenestestatus vil IKKE endres.\n\nDette kan ikke angres!`)) {
+    if (!(await bekreft({ tittel: `Resette ${andreStatusAnlegg.length} anlegg til blank status?`, tekst: `Dette gjelder: ${statusListe.join(', ')}. Tjenestestatus endres ikke. Dette kan ikke angres.`, bekreftTekst: 'Resett', fare: true }))) {
       return
     }
 

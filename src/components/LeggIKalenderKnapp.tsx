@@ -3,6 +3,7 @@
  * Avtale-ID lagres på ordren (outlook_event_id) så den kan fjernes igjen.
  */
 import { useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { CalendarPlus, CalendarX, X } from 'lucide-react'
 import { db } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -32,7 +33,7 @@ export function LeggIKalenderKnapp(p: Props) {
 
   async function fjern() {
     if (!p.outlookEventId) return
-    if (!confirm('Fjerne avtalen fra Outlook-kalenderen?')) return
+    if (!(await bekreft({ tittel: 'Fjerne avtalen fra Outlook-kalenderen?', bekreftTekst: 'Fjern', fare: true }))) return
     setJobber(true)
     try {
       await slettAvtale(p.outlookEventId).catch(() => { /* allerede slettet i Outlook – rydd likevel */ })

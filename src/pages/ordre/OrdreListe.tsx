@@ -3,6 +3,7 @@
  * Mine/Alle, statuschips som teller, søk (/), 25 om gangen. Fullførte og fakturerte vises bare via chip.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, Edit, FileText, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
@@ -142,7 +143,7 @@ export default function OrdreListe() {
     else { const p = new URLSearchParams(params); p.set('sort', key); p.delete('dir'); setParams(p, { replace: true }) }
   }
   async function slett(r: Rad) {
-    if (!confirm(`Slette ordre ${r.ordre_nummer}? Dette kan ikke angres.`)) return
+    if (!(await bekreft({ tittel: `Slette ordre ${r.ordre_nummer}?`, tekst: `Dette kan ikke angres.`, bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await db.from('ordre').delete().eq('id', r.id)
     if (error) { toast.error('Kunne ikke slette ordre', error); return }
     toast.success(`Ordre ${r.ordre_nummer} slettet`); last()

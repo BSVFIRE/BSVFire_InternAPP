@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { toast } from '@/lib/toast'
 import { lagForside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
 import { supabase } from '@/lib/supabase'
@@ -240,7 +241,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
 
 
   async function markerAlleSjekkpunkter() {
-    if (!confirm('Vil du markere alle sjekkpunkter som utført?')) return
+    if (!(await bekreft({ tittel: 'Vil du markere alle sjekkpunkter som utført?', bekreftTekst: 'Fortsett' }))) return
 
     try {
       // Oppdater hver enhet med alle sjekkpunkter markert
@@ -289,7 +290,7 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
   }
 
   async function slettEnhet(e: ForstehjelpEnhet) {
-    if (!confirm(`Slette ${[e.internnummer, e.type, e.plassering].filter(Boolean).join(' · ') || 'enheten'}?`)) return
+    if (!(await bekreft({ tittel: `Slette ${[e.internnummer, e.type, e.plassering].filter(Boolean).join(' · ') || 'enheten'}?`, bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await supabase.from('anleggsdata_forstehjelp').delete().eq('id', e.id)
     if (error) { toast.error('Kunne ikke slette', error); return }
     setForstehjelpListe(prev => prev.filter(f => f.id !== e.id))

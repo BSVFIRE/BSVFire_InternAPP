@@ -6,6 +6,7 @@
  * kontrollskjemaet for én sentral. Kommentarer er en seksjon nederst.
  */
 import { useEffect, useMemo, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle, Check, ChevronDown, ChevronRight, Loader2, MessageSquare, MoreHorizontal,
@@ -140,7 +141,7 @@ export function SentralListe({ anleggId, kundeNavn, anleggNavn, onApneSentral, o
 
   async function slettSentral(s: Sentral) {
     const antall = (lukerPer.get(s.id) ?? []).length
-    if (!confirm(`Slette ${sentralNavn(s)}${antall ? ` og ${antall} ${antall === 1 ? 'luke' : 'luker'}` : ''}? Dette kan ikke angres.`)) return
+    if (!(await bekreft({ tittel: `Slette ${sentralNavn(s)}${antall ? ` og ${antall} ${antall === 1 ? 'luke' : 'luker'}` : ''}?`, tekst: 'Dette kan ikke angres.', bekreftTekst: 'Slett', fare: true }))) return
     if (antall > 0) {
       const { error } = await supabase.from('roykluke_luker').delete().eq('sentral_id', s.id)
       if (error) { toast.error('Kunne ikke slette lukene', error); return }
@@ -172,7 +173,7 @@ export function SentralListe({ anleggId, kundeNavn, anleggNavn, onApneSentral, o
   }
 
   async function slettLuke(l: Luke) {
-    if (!confirm(`Slette luken${l.plassering ? ` «${l.plassering}»` : ''}?`)) return
+    if (!(await bekreft({ tittel: `Slette luken${l.plassering ? ` «${l.plassering}»` : ''}?`, bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await supabase.from('roykluke_luker').delete().eq('id', l.id)
     if (error) { toast.error('Kunne ikke slette luken', error); return }
     setLuker(prev => prev.filter(x => x.id !== l.id))
@@ -191,7 +192,7 @@ export function SentralListe({ anleggId, kundeNavn, anleggNavn, onApneSentral, o
   }
 
   async function slettKommentar(id: string) {
-    if (!confirm('Slette kommentaren?')) return
+    if (!(await bekreft({ tittel: 'Slette kommentaren?', bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await supabase.from('kommentar_roykluker').delete().eq('id', id)
     if (error) { toast.error('Kunne ikke slette kommentaren', error); return }
     setKommentarer(prev => prev.filter(k => k.id !== id))

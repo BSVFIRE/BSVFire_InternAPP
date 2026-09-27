@@ -6,6 +6,7 @@
  * 25 rader om gangen; raden er klikkbar, Rediger/··· ved hover.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle, AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Calendar, Edit, Loader2,
@@ -230,7 +231,7 @@ export default function AnleggListe() {
   }
 
   async function slett(a: Rad) {
-    if (!confirm(`Slette «${a.anleggsnavn}»? Kontrolldata, notater og dokumentkoblinger slettes. Dette kan ikke angres.`)) return
+    if (!(await bekreft({ tittel: `Slette «${a.anleggsnavn}»?`, tekst: `Kontrolldata, notater og dokumentkoblinger slettes. Dette kan ikke angres.`, bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await db.from('anlegg').delete().eq('id', a.id)
     if (error) { toast.error(error.code === '23503' ? 'Kan ikke slette: anlegget har tilknyttede data' : 'Kunne ikke slette', error); return }
     toast.success(`«${a.anleggsnavn}» slettet`)

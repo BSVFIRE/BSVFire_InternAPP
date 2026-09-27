@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase } from '@/lib/supabase'
 import { 
   Plus, Trash2, Edit2, Save, 
@@ -254,7 +255,7 @@ export function ProsjektFramdrift({ prosjektId, teamMedlemmer, onUpdate }: Prosj
 
   // Slett dokument
   async function deleteDocument(docId: string, filUrl: string) {
-    if (!confirm('Er du sikker på at du vil slette dette dokumentet?')) return
+    if (!(await bekreft({ tittel: 'Slette dette dokumentet?', bekreftTekst: 'Slett', fare: true }))) return
     
     try {
       // Slett fra database
@@ -358,7 +359,7 @@ export function ProsjektFramdrift({ prosjektId, teamMedlemmer, onUpdate }: Prosj
   }
 
   async function deleteMilepel(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne milepælen?')) return
+    if (!(await bekreft({ tittel: 'Slette denne milepælen?', bekreftTekst: 'Slett', fare: true }))) return
     
     try {
       const { error } = await supabase

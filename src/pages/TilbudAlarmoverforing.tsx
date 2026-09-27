@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { supabase } from '@/lib/supabase'
 import { 
   Plus, Search, Building, Edit, Trash2, Eye, 
@@ -162,7 +163,7 @@ export function TilbudAlarmoverforing() {
   }
 
   async function deleteTilbud(id: string) {
-    if (!confirm('Er du sikker på at du vil slette denne alarmoverføringen?')) return
+    if (!(await bekreft({ tittel: 'Slette denne alarmoverføringen?', bekreftTekst: 'Slett', fare: true }))) return
 
     try {
       const { error } = await supabase
@@ -1279,7 +1280,7 @@ function AlarmoverforingDetails({ tilbud, onEdit, onClose, onStatusChange }: Ala
   }
 
   async function handleSendPDF() {
-    if (!confirm('Dette vil generere PDF, lagre den til Dropbox og sette status til "Sendt". Fortsette?')) {
+    if (!(await bekreft({ tittel: 'Dette vil generere PDF, lagre den til Dropbox og sette status til "Sendt". Fortsette?', bekreftTekst: 'Fortsett' }))) {
       return
     }
 

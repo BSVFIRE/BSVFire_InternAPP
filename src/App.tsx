@@ -9,6 +9,7 @@ import { useScrollToInput } from './hooks/useKeyboardHeight'
 import { OfflineIndicator } from './components/OfflineIndicator'
 import { AIAssistant } from './components/AIAssistant'
 import { Toaster } from 'sonner'
+import { Bekreftelser } from '@/lib/bekreft'
 
 // Eager-loaded (trengs med en gang)
 import { Login } from './pages/Login'
@@ -204,6 +205,7 @@ function App() {
         </Routes>
         <OfflineIndicator />
         <AIAssistant />
+        <Bekreftelser />
         <Toaster
           theme={theme}
           position="top-right"

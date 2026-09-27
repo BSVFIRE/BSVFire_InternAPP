@@ -4,6 +4,7 @@
  * FG790- og NS3960-kontroll i egen kolonne (med avvikstekstene, ikke bare kommentaren).
  */
 import { useEffect, useMemo, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { AlertTriangle, ArrowLeft, Check, ClipboardCheck, FileText, MoreHorizontal, Play, Plus, Send, Trash2, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
@@ -73,7 +74,7 @@ export function KontrollOversiktView({ anleggId, anleggsNavn, onBack, onStartNy,
   }
 
   async function slettUtkast(k: Kontroll) {
-    if (!confirm(`Slette ${k.type}-utkastet fra ${formatDate(k.dato)}? Dette kan ikke angres.`)) return
+    if (!(await bekreft({ tittel: `Slette ${k.type}-utkastet fra ${formatDate(k.dato)}?`, tekst: `Dette kan ikke angres.`, bekreftTekst: 'Slett', fare: true }))) return
     setSletter(k.id)
     try {
       if (k.type === 'NS3960') { const r = await supabase.from('ns3960_kontrollpunkter').delete().eq('kontroll_id', k.id); if (r.error) throw r.error }

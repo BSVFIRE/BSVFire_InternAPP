@@ -5,6 +5,7 @@
  * og «utført per type» redigeres på anleggets side (AnleggDetaljer), ikke her.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertCircle, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
@@ -91,8 +92,8 @@ export default function AnleggRediger() {
     setFeil(f => { const n = { ...f }; for (const k of Object.keys(patch) as (keyof AnleggSkjemaVerdier)[]) delete n[k]; return n })
   }, [])
 
-  function avbryt() {
-    if (endret && !confirm('Du har ulagrede endringer. Forkaste dem?')) return
+  async function avbryt() {
+    if (endret && !(await bekreft({ tittel: 'Forkaste endringene?', tekst: 'Du har endringer som ikke er lagret.', bekreftTekst: 'Forkast', fare: true }))) return
     navigate(`/anlegg/${id}`)
   }
 
@@ -134,7 +135,7 @@ export default function AnleggRediger() {
   async function slett() {
     if (!id || !original) return
     const navn = original.anleggsnavn ?? 'anlegget'
-    if (!confirm(`Slette «${navn}»?\n\nKontrolldata, notater og dokumentkoblinger slettes. Ordre og oppgaver beholdes. Dette kan ikke angres.`)) return
+    if (!(await bekreft({ tittel: `Slette «${navn}»?`, tekst: `Kontrolldata, notater og dokumentkoblinger slettes. Ordre og oppgaver beholdes. Dette kan ikke angres.`, bekreftTekst: 'Slett', fare: true }))) return
     if (prompt(`Skriv «SLETT» for å bekrefte sletting av ${navn}:`) !== 'SLETT') return
     setLagrer(true)
     const { error } = await db.from('anlegg').delete().eq('id', id)

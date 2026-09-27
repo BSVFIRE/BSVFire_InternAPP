@@ -2,6 +2,7 @@
  * Rediger kunde (/kunder/:id/rediger)
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertCircle, ChevronLeft } from 'lucide-react'
 import { db, type Tables } from '@/lib/supabase'
@@ -56,8 +57,8 @@ export default function KundeRediger() {
     setFeil(f => { const n = { ...f }; for (const k of Object.keys(patch) as (keyof KundeSkjemaVerdier)[]) delete n[k]; return n })
   }, [])
 
-  function avbryt() {
-    if (endret && !confirm('Du har ulagrede endringer. Forkaste dem?')) return
+  async function avbryt() {
+    if (endret && !(await bekreft({ tittel: 'Forkaste endringene?', tekst: 'Du har endringer som ikke er lagret.', bekreftTekst: 'Forkast', fare: true }))) return
     navigate(`/kunder/${id}`)
   }
 

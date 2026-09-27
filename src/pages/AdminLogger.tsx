@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { bekreft } from '@/lib/bekreft'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
@@ -202,7 +203,7 @@ export function AdminLogger() {
   }
 
   async function ryddOpp() {
-    if (!confirm('Slette gamle logger? Dette kan ikke angres.')) return
+    if (!(await bekreft({ tittel: 'Slette gamle logger?', tekst: 'Dette kan ikke angres.', bekreftTekst: 'Slett', fare: true }))) return
     const { error } = await supabase.rpc('cleanup_old_logs')
     if (error) { toast.error('Kunne ikke slette logger', error.message); return }
     toast.success('Gamle logger er slettet')
