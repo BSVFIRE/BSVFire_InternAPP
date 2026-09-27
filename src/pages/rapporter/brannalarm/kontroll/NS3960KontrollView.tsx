@@ -711,7 +711,7 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
   }
 
   return (
-    <div className="space-y-4 pb-28">
+    <div className="space-y-4 pb-36 sm:pb-28">
       <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
         <button type="button" onClick={tilbake} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Brannalarm</button>
         <span className="hidden sm:inline">/</span><span className="hidden sm:inline text-gray-900 dark:text-white truncate">{anleggsNavn}</span>
@@ -758,8 +758,8 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
               <button type="button" onClick={() => toggleCategory(kategori)} aria-expanded={!lukket} className="flex items-center gap-2 flex-1 min-w-0 text-left">
                 <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', !lukket && 'rotate-90')} />
                 <span className="font-semibold text-gray-900 dark:text-white truncate">{kategori}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{ferdig} av {punkter.length}</span>
-                {ferdig === punkter.length && <Check className="w-4 h-4 text-green-600 dark:text-green-400" strokeWidth={3} />}
+                <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums flex-shrink-0">{ferdig} av {punkter.length}</span>
+                {ferdig === punkter.length && <Check className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" strokeWidth={3} />}
               </button>
               <DropdownMenu trigger={open => <IconButton variant="ghost" label="Handlinger for kategorien" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
                 <MenuItem icon={<Check />} onSelect={() => markAllInCategory(kategori, 'Kontrollert')}>Merk alle som kontrollert</MenuItem>
@@ -783,27 +783,33 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
                             <span className={cn('block text-sm leading-snug', p.status ? 'text-gray-700 dark:text-gray-300' : 'text-gray-900 dark:text-white font-medium')}>{navn}</span>
                             {(harDetaljer && !erApen) && <span className="block text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{p.avvik ? `${p.avvikListe.filter(a => a.beskrivelse.trim()).length || p.avvikListe.length} avvik${p.avvikListe[0]?.beskrivelse ? `: ${p.avvikListe[0].beskrivelse}` : ''}` : ''}{p.avvik && p.kommentar ? ' · ' : ''}{p.kommentar ? `Kommentar: ${p.kommentar}` : ''}</span>}
                           </span>
+                          {p.kommentar
+                            ? <MessageSquare className="w-4 h-4 text-primary ml-auto mt-0.5 flex-shrink-0 sm:hidden" />
+                            : <ChevronDown className={cn('w-4 h-4 text-gray-400 ml-auto mt-0.5 flex-shrink-0 sm:hidden transition-transform', erApen && 'rotate-180')} />}
                         </button>
-                        <div className="flex items-center gap-1.5 flex-shrink-0 pl-8 sm:pl-0">
-                          <button type="button" onClick={() => settStatus(navn, 'Kontrollert')} aria-pressed={p.status === 'Kontrollert'} className={cn('h-9 px-3.5 rounded-lg text-sm font-semibold border inline-flex items-center gap-1', p.status === 'Kontrollert' ? 'bg-green-500 border-green-500 text-white' : 'border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20')}><Check className="w-3.5 h-3.5" strokeWidth={3} />Kontrollert</button>
-                          <button type="button" onClick={() => settStatus(navn, 'Ikke aktuell')} aria-pressed={p.status === 'Ikke aktuell'} title="Ikke aktuell" className={cn('h-9 px-2.5 rounded-lg text-xs border', p.status === 'Ikke aktuell' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>N/A</button>
-                          <button type="button" onClick={() => settStatus(navn, 'Ikke tilkomst')} aria-pressed={p.status === 'Ikke tilkomst'} title="Ikke tilkomst" className={cn('h-9 px-2.5 rounded-lg text-xs border whitespace-nowrap', p.status === 'Ikke tilkomst' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>Ikke tilkomst</button>
-                          <button type="button" onClick={() => toggleAvvik(navn)} aria-pressed={p.avvik} title="Avvik" className={cn('h-9 px-2.5 rounded-lg text-xs border inline-flex items-center gap-1', p.avvik ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-orange-400 hover:text-orange-600')}><AlertTriangle className="w-3.5 h-3.5" />{p.avvik ? p.avvikListe.length : 'Avvik'}</button>
-                          <IconButton variant="ghost" label={erApen ? 'Skjul detaljer' : 'Kommentar og detaljer'} icon={p.kommentar ? <MessageSquare className="text-primary" /> : <ChevronDown className={cn('transition-transform', erApen && 'rotate-180')} />} onClick={() => setApent(erApen ? null : navn)} className="w-8 h-8" />
+                        {/* På mobil: «Kontrollert» over hele bredden – det er svaret ni av ti
+                            ganger og fortjener et stort mål. De tre andre deler linjen under.
+                            På skjerm fra sm og opp står alle fem på én linje som før. */}
+                        <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center sm:gap-1.5 sm:flex-shrink-0">
+                          <button type="button" onClick={() => settStatus(navn, 'Kontrollert')} aria-pressed={p.status === 'Kontrollert'} className={cn('col-span-3 h-11 sm:h-9 px-3.5 rounded-lg text-sm font-semibold border inline-flex items-center justify-center gap-1', p.status === 'Kontrollert' ? 'bg-green-500 border-green-500 text-white' : 'border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20')}><Check className="w-3.5 h-3.5" strokeWidth={3} />Kontrollert</button>
+                          <button type="button" onClick={() => settStatus(navn, 'Ikke aktuell')} aria-pressed={p.status === 'Ikke aktuell'} title="Ikke aktuell" className={cn('h-11 sm:h-9 px-2.5 rounded-lg text-xs border', p.status === 'Ikke aktuell' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>N/A</button>
+                          <button type="button" onClick={() => settStatus(navn, 'Ikke tilkomst')} aria-pressed={p.status === 'Ikke tilkomst'} title="Ikke tilkomst" className={cn('h-11 sm:h-9 px-2.5 rounded-lg text-xs border whitespace-nowrap', p.status === 'Ikke tilkomst' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>Ikke tilkomst</button>
+                          <button type="button" onClick={() => toggleAvvik(navn)} aria-pressed={p.avvik} title="Avvik" className={cn('h-11 sm:h-9 px-2.5 rounded-lg text-xs border inline-flex items-center justify-center gap-1', p.avvik ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-orange-400 hover:text-orange-600')}><AlertTriangle className="w-3.5 h-3.5" />{p.avvik ? p.avvikListe.length : 'Avvik'}</button>
+                          <IconButton variant="ghost" label={erApen ? 'Skjul detaljer' : 'Kommentar og detaljer'} icon={p.kommentar ? <MessageSquare className="text-primary" /> : <ChevronDown className={cn('transition-transform', erApen && 'rotate-180')} />} onClick={() => setApent(erApen ? null : navn)} className="hidden sm:inline-flex w-8 h-8" />
                         </div>
                       </div>
                       {erApen && (
-                        <div className="mt-2 ml-8 space-y-2">
+                        <div className="mt-2 ml-0 sm:ml-8 space-y-2">
                           {p.avvik && (
                             <div className="space-y-1.5">
                               {p.avvikListe.map((a, idx) => (
                                 <div key={a.id} className="space-y-1.5">
                                   <div className="flex items-center gap-2">
                                     <span className="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-semibold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
-                                    <input value={a.beskrivelse} onChange={e => updatePunkt(navn, { avvikListe: p.avvikListe.map((x, i) => i === idx ? { ...x, beskrivelse: e.target.value } : x) })} placeholder="Beskriv avviket …" autoFocus={!a.beskrivelse && idx === p.avvikListe.length - 1} className="input !h-[36px] !min-h-[36px] !py-0 text-sm flex-1" />
+                                    <input value={a.beskrivelse} onChange={e => updatePunkt(navn, { avvikListe: p.avvikListe.map((x, i) => i === idx ? { ...x, beskrivelse: e.target.value } : x) })} placeholder="Beskriv avviket …" autoFocus={!a.beskrivelse && idx === p.avvikListe.length - 1} className="input !h-[44px] !min-h-[44px] sm:!h-[36px] sm:!min-h-[36px] !py-0 text-sm flex-1" />
                                     <IconButton variant="ghost" label="Fjern avvik" icon={<X />} onClick={() => { const l = p.avvikListe.filter((_, i) => i !== idx); updatePunkt(navn, { avvikListe: l, avvik: l.length > 0 }) }} className="w-8 h-8 hover:!text-red-500" />
                                   </div>
-                                  <div className="ml-8">
+                                  <div className="ml-0 sm:ml-8">
                                     <AvvikBilder
                                       anleggId={anleggId}
                                       merkelapp={navn}
@@ -837,10 +843,10 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-dark-100">
             <button type="button" onClick={() => toggleCategory('__styringer')} aria-expanded={!collapsedCategories.has('__styringer')} className="flex items-center gap-2 flex-1 min-w-0 text-left">
               <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', !collapsedCategories.has('__styringer') && 'rotate-90')} />
-              <span className="font-semibold text-gray-900 dark:text-white">Styringer på anlegget</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{styringerVurdert} av {styringerTotalt}</span>
-              {styringerVurdert === styringerTotalt && <Check className="w-4 h-4 text-green-600 dark:text-green-400" strokeWidth={3} />}
-              {styringerAvvik > 0 && <span className="text-xs text-orange-600 dark:text-orange-400">· {styringerAvvik} avvik</span>}
+              <span className="font-semibold text-gray-900 dark:text-white truncate">Styringer</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums flex-shrink-0">{styringerVurdert} av {styringerTotalt}</span>
+              {styringerVurdert === styringerTotalt && <Check className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" strokeWidth={3} />}
+              {styringerAvvik > 0 && <span className="text-xs text-orange-600 dark:text-orange-400 flex-shrink-0">· {styringerAvvik} avvik</span>}
             </button>
             <DropdownMenu trigger={open => <IconButton variant="ghost" label="Handlinger" icon={<MoreHorizontal />} aria-expanded={open} className="w-8 h-8" />}>
               <MenuItem icon={<Check />} onSelect={() => { aktiveStyringer.forEach(x => { if (!styr[x.key].status) lagreStyring(x.key, { ...styr[x.key], status: 'Kontrollert' }) }); egneStyringer.forEach(x => { if (!x.status) lagreEgenStyring(x.id, { aktiv: true, antall: x.antall, status: 'Kontrollert', note: x.note, avvik: x.avvik }) }) }}>Merk resten som kontrollert</MenuItem>
@@ -891,10 +897,18 @@ export function NS3960KontrollView({ anleggId, anleggsNavn: initialAnleggsNavn, 
       </section>
 
       {/* Bunnlinje */}
-      <div className="fixed bottom-0 left-0 right-0 lg:left-[var(--sidebar-w)] z-20 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-gray-800 px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
-        <span className="text-sm text-gray-500 dark:text-gray-400 mr-auto tabular-nums">{gjenstar > 0 ? `${gjenstar} punkter gjenstår` : 'Alle punkter vurdert'}{styringerTotalt - styringerVurdert > 0 ? ` · ${styringerTotalt - styringerVurdert} styringer` : ''}{avvikPunkter + styringerAvvik ? ` · ${avvikPunkter + styringerAvvik} avvik` : ''}</span>
-        <Button variant="ghost" loading={saving} disabled={!hasUnsavedChanges} onClick={handleSave}><span className="hidden sm:inline">Lagre nå</span><span className="sm:hidden">Lagre</span></Button>
-        <Button variant="primary" icon={<ClipboardCheck />} loading={saving} onClick={handleComplete}>Fullfør og lag rapport</Button>
+      <div
+        className="fixed bottom-0 left-0 right-0 lg:left-[var(--sidebar-w)] z-20 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-gray-800 px-4 sm:px-6 lg:px-8 pt-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3"
+        style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 sm:mr-auto tabular-nums">{gjenstar > 0 ? `${gjenstar} punkter gjenstår` : 'Alle punkter vurdert'}{styringerTotalt - styringerVurdert > 0 ? ` · ${styringerTotalt - styringerVurdert} styringer` : ''}{avvikPunkter + styringerAvvik ? ` · ${avvikPunkter + styringerAvvik} avvik` : ''}</span>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Button variant="ghost" loading={saving} disabled={!hasUnsavedChanges} onClick={handleSave}>Lagre</Button>
+          <Button variant="primary" icon={<ClipboardCheck />} loading={saving} onClick={handleComplete} className="flex-1 sm:flex-none justify-center">
+            <span className="hidden xs:inline">Fullfør og lag rapport</span>
+            <span className="xs:hidden">Fullfør</span>
+          </Button>
+        </div>
       </div>
     </div>
   )
