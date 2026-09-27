@@ -1,5 +1,5 @@
-import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
-import { BSV_LOGO } from '@/assets/logoBase64'
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+import { Forside, Sidefot } from '@/lib/rapportPdfReact'
 
 interface DetektorItem {
   adresse: string
@@ -167,114 +167,25 @@ export function DetektorlistePDF({
 
   return (
     <Document>
-      {/* Side 1: Forside med informasjon */}
-      <Page size="A4" style={styles.page}>
-        {/* Logo */}
-        <View style={styles.header}>
-          <Image
-            src={BSV_LOGO}
-            style={styles.logo}
-          />
-          <View style={styles.divider} />
-        </View>
-
-        <Text style={styles.title}>Adresseliste</Text>
-        <Text style={styles.subtitle}>Revisjon {revisjon}</Text>
-
-        {/* Kunde og anlegg informasjon */}
-        <View style={styles.infoSection}>
-          <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 10 }}>
-            Anleggsinformasjon
-          </Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Kunde:</Text>
-            <Text style={styles.infoValue}>{kundeNavn}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Anlegg:</Text>
-            <Text style={styles.infoValue}>{anleggNavn}</Text>
-          </View>
-          {anleggAdresse && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Adresse:</Text>
-              <Text style={styles.infoValue}>{anleggAdresse}</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.divider} />
-
-        {/* Kontrollinformasjon */}
-        <View style={styles.infoSection}>
-          <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 10 }}>
-            Kontrollinformasjon
-          </Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Dato:</Text>
-            <Text style={styles.infoValue}>
-              {new Date(dato).toLocaleDateString('nb-NO')}
-            </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Servicetekniker:</Text>
-            <Text style={styles.infoValue}>{servicetekniker}</Text>
-          </View>
-          {kontaktperson && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Kontaktperson:</Text>
-              <Text style={styles.infoValue}>{kontaktperson}</Text>
-            </View>
-          )}
-          {mobil && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Mobil:</Text>
-              <Text style={styles.infoValue}>{mobil}</Text>
-            </View>
-          )}
-          {epost && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>E-post:</Text>
-              <Text style={styles.infoValue}>{epost}</Text>
-            </View>
-          )}
-        </View>
-
-        {annet && (
-          <>
-            <View style={styles.divider} />
-            <View style={styles.infoSection}>
-              <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 10 }}>
-                Merknader
-              </Text>
-              <Text style={styles.infoValue}>{annet}</Text>
-            </View>
-          </>
-        )}
-
-        {/* Oppsummering */}
-        <View style={styles.divider} />
-        <View style={styles.infoSection}>
-          <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 10 }}>
-            Oppsummering
-          </Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Antall enheter:</Text>
-            <Text style={styles.infoValue}>{sortedDetektorer.length}</Text>
-          </View>
-          {Object.entries(typeSummary)
-            .sort(([, a], [, b]) => b - a)
-            .map(([type, count]) => (
-              <View key={type} style={styles.infoRow}>
-                <Text style={styles.infoLabel}>{type}:</Text>
-                <Text style={styles.infoValue}>{count}</Text>
-              </View>
-            ))}
-        </View>
-
-        <Text style={styles.footer}>
-          BSV Fire - Adresseliste - Side 1
-        </Text>
-      </Page>
+      <Forside
+        tittel="Adresseliste"
+        anleggNavn={anleggNavn}
+        undertittel={`Adresseliste for brannalarmanlegget, revisjon ${revisjon}.`}
+        venstre={[
+          { navn: 'Kunde', verdi: kundeNavn },
+          { navn: 'Anlegg', verdi: anleggNavn },
+          ...(anleggAdresse ? [{ navn: 'Adresse', verdi: anleggAdresse }] : []),
+          ...(kontaktperson ? [{ navn: 'Kontaktperson', verdi: kontaktperson }] : []),
+          ...(mobil ? [{ navn: 'Telefon', verdi: mobil }] : []),
+          ...(epost ? [{ navn: 'E-post', verdi: epost }] : []),
+        ]}
+        hoyre={[
+          { navn: 'Utført av', verdi: servicetekniker },
+          { navn: 'Dato', verdi: new Date(dato).toLocaleDateString('nb-NO') },
+          { navn: 'Revisjon', verdi: revisjon },
+          { navn: 'Antall enheter', verdi: String(sortedDetektorer.length) },
+        ]}
+      />
 
       {/* Side 2+: Adresseliste - Chunk per 25 rader for å sikre header på hver side */}
       {Array.from({ length: Math.ceil(sortedDetektorer.length / 25) }, (_, pageIndex) => {
@@ -286,13 +197,34 @@ export function DetektorlistePDF({
           <Page key={`page-${pageIndex}`} size="A4" style={styles.page}>
             {/* Header */}
             <View style={{ marginBottom: 20 }}>
-              <Text style={{ fontSize: 16, fontWeight: 'bold' }}>
-                Adresseliste - {kundeNavn} - {anleggNavn}
+              <Text style={{ fontSize: 16, fontFamily: 'Helvetica-Bold' }}>
+                Adresseliste – {anleggNavn}
               </Text>
               <Text style={{ fontSize: 10, color: '#666', marginTop: 5 }}>
-                Revisjon {revisjon} - {new Date(dato).toLocaleDateString('nb-NO')}
+                Revisjon {revisjon} · {new Date(dato).toLocaleDateString('nb-NO')}
               </Text>
             </View>
+
+            {/* Oppsummering og merknader sto på forsiden før; de hører til innholdet */}
+            {pageIndex === 0 && (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', marginBottom: 6 }}>Oppsummering</Text>
+                <Text style={{ fontSize: 9, color: '#333', marginBottom: 2 }}>
+                  {sortedDetektorer.length} enheter totalt
+                </Text>
+                {Object.entries(typeSummary)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([type, count]) => (
+                    <Text key={type} style={{ fontSize: 9, color: '#333' }}>{type}: {count}</Text>
+                  ))}
+                {annet ? (
+                  <>
+                    <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', marginTop: 10, marginBottom: 4 }}>Merknader</Text>
+                    <Text style={{ fontSize: 9, color: '#333' }}>{annet}</Text>
+                  </>
+                ) : null}
+              </View>
+            )}
 
             {/* Table Header */}
             <View style={styles.tableHeader}>
@@ -324,13 +256,7 @@ export function DetektorlistePDF({
               )
             })}
 
-            <Text
-              style={styles.footer}
-              render={({ pageNumber, totalPages }) =>
-                `BSV Fire - Adresseliste - Side ${pageNumber} av ${totalPages}`
-              }
-              fixed
-            />
+            <Sidefot />
           </Page>
         )
       })}

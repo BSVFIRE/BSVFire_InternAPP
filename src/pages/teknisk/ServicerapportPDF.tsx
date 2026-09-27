@@ -1,6 +1,6 @@
 import { pdf } from '@react-pdf/renderer'
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
-import { BSV_LOGO } from '@/assets/logoBase64'
+import { Forside, Sidefot } from '@/lib/rapportPdfReact'
 
 interface Servicerapport {
   id: string
@@ -140,57 +140,26 @@ interface ServicerapportPDFDocumentProps {
 function ServicerapportPDFDocument({ rapport, imageDataUrls = [] }: ServicerapportPDFDocumentProps) {
   return (
     <Document>
+      <Forside
+        tittel="Servicerapport"
+        anleggNavn={rapport.anlegg_navn || 'Ikke tilknyttet anlegg'}
+        undertittel={rapport.header}
+        venstre={[
+          { navn: 'Anlegg', verdi: rapport.anlegg_navn || 'Ikke tilknyttet anlegg' },
+        ]}
+        hoyre={[
+          { navn: 'Utført av', verdi: rapport.tekniker_navn },
+          { navn: 'Dato', verdi: new Date(rapport.rapport_dato).toLocaleDateString('nb-NO') },
+          { navn: 'Rapport-id', verdi: rapport.id.substring(0, 8) },
+        ]}
+      />
+
       <Page size="A4" style={styles.page}>
-        {/* Header with Logo */}
-        <View style={styles.header}>
-          <Image src={BSV_LOGO} style={styles.logo} />
-          <Text style={styles.mainTitle}>Servicerapport</Text>
-          <Text style={styles.title}>{rapport.header}</Text>
-        </View>
-
-        {/* Info Section */}
-        <View style={styles.infoSection}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Anlegg:</Text>
-            <Text style={styles.infoValue}>{rapport.anlegg_navn || 'Ikke tilknyttet anlegg'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Dato:</Text>
-            <Text style={styles.infoValue}>
-              {new Date(rapport.rapport_dato).toLocaleDateString('nb-NO')}
-            </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Tekniker:</Text>
-            <Text style={styles.infoValue}>{rapport.tekniker_navn}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Rapport ID:</Text>
-            <Text style={styles.infoValue}>{rapport.id.substring(0, 8)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        {/* Content Section */}
         <View style={styles.contentSection}>
           <Text style={styles.contentTitle}>Rapportinnhold</Text>
           <Text style={styles.contentText}>{rapport.rapport_innhold}</Text>
         </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerCompany}>Brannteknisk Service og Vedlikehold AS</Text>
-          <Text style={styles.footerInfo}>
-            Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600
-          </Text>
-          <Text style={styles.footerInfo}>
-            Adresse: Sælenveien 44, 5151 Straumsgrend
-          </Text>
-          <Text style={{ fontSize: 7, color: '#999', marginTop: 5 }}>
-            Generert: {new Date().toLocaleDateString('nb-NO')} {new Date().toLocaleTimeString('nb-NO')}
-          </Text>
-        </View>
+        <Sidefot />
       </Page>
 
       {/* Image Pages - 4 bilder per side */}
@@ -205,19 +174,14 @@ function ServicerapportPDFDocument({ rapport, imageDataUrls = [] }: Servicerappo
           
           return (
             <Page key={`image-page-${pageIndex}`} size="A4" style={styles.imagePage}>
-              {/* Header */}
-              <View style={styles.header}>
-                <Image src={BSV_LOGO} style={styles.logo} />
-                <Text style={styles.mainTitle}>Servicerapport - Bilder</Text>
-                <Text style={styles.title}>{rapport.header}</Text>
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 16, fontFamily: 'Helvetica-Bold' }}>Bilder</Text>
                 {totalPages > 1 && (
-                  <Text style={{ fontSize: 9, color: '#666', marginTop: 5 }}>
-                    Side {pageIndex + 1} av {totalPages}
+                  <Text style={{ fontSize: 9, color: '#666', marginTop: 4 }}>
+                    Del {pageIndex + 1} av {totalPages}
                   </Text>
                 )}
               </View>
-
-              <View style={styles.divider} />
 
               {/* Images Grid */}
               <View style={styles.imageGrid}>
@@ -239,19 +203,7 @@ function ServicerapportPDFDocument({ rapport, imageDataUrls = [] }: Servicerappo
                 })}
               </View>
 
-              {/* Footer */}
-              <View style={styles.footer}>
-                <Text style={styles.footerCompany}>Brannteknisk Service og Vedlikehold AS</Text>
-                <Text style={styles.footerInfo}>
-                  Org.nr: 921044879 | E-post: mail@bsvfire.no | Telefon: 900 46 600
-                </Text>
-                <Text style={styles.footerInfo}>
-                  Adresse: Sælenveien 44, 5151 Straumsgrend
-                </Text>
-                <Text style={{ fontSize: 7, color: '#999', marginTop: 5 }}>
-                  Generert: {new Date().toLocaleDateString('nb-NO')} {new Date().toLocaleTimeString('nb-NO')}
-                </Text>
-              </View>
+              <Sidefot />
             </Page>
           )
         })
