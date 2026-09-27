@@ -1240,29 +1240,31 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="space-y-4 pb-28 sm:pb-6">
+      <div className="flex items-center gap-2">
         <button
+          type="button"
           onClick={onCancel}
-          className="p-2 text-gray-400 hover:text-white hover:bg-dark-100 rounded-lg transition-colors"
+          aria-label="Tilbake til listen"
+          className="p-2 -ml-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white truncate">
             {nodlys ? 'Rediger nødlysenhet' : 'Ny nødlysenhet'}
           </h1>
-          <p className="text-gray-400">
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
             {nodlys ? 'Oppdater nødlysinformasjon' : 'Registrer ny nødlysarmatur'}
           </p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="card space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <form onSubmit={handleSubmit} className="card space-y-4 sm:space-y-6">
+        <div className="grid grid-cols-2 gap-3 sm:gap-6">
           {/* Internnummer */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Internnummer
               {!nodlys && nesteInternnummer && (
                 <span className="ml-2 text-xs text-green-400">
@@ -1273,6 +1275,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
             <input
               type="text"
               value={formData.internnummer}
+              inputMode="numeric"
               onChange={(e) => setFormData({ ...formData, internnummer: e.target.value })}
               className="input"
               placeholder={nesteInternnummer ? `Foreslått: ${nesteInternnummer}` : "F.eks. 1, 2, 3, etc."}
@@ -1281,12 +1284,13 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
 
           {/* Armatur ID */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Armatur ID
             </label>
             <input
               type="text"
               value={formData.amatur_id}
+              inputMode="numeric"
               onChange={(e) => setFormData({ ...formData, amatur_id: e.target.value })}
               className="input"
               placeholder="Armatur-identifikator"
@@ -1294,8 +1298,8 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
           </div>
 
           {/* Plassering */}
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Plassering
             </label>
             <input
@@ -1309,7 +1313,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
 
           {/* Fordeling */}
           <div className="relative">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Fordeling
             </label>
             <input
@@ -1350,7 +1354,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
 
           {/* Kurs */}
           <div className="relative">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Kurs
             </label>
             <input
@@ -1391,8 +1395,8 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
 
           {/* Bygg */}
           <div>
-            <label htmlFor="nodlys-bygg" className="block text-sm font-medium text-gray-300 mb-2">
-              Bygg <span className="text-gray-500 font-normal">(valgfritt)</span>
+            <label htmlFor="nodlys-bygg" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Bygg <span className="text-gray-400 dark:text-gray-500 font-normal">(valgfritt)</span>
             </label>
             <input
               id="nodlys-bygg"
@@ -1408,7 +1412,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
 
           {/* Etasje */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Etasje
             </label>
             <select
@@ -1425,7 +1429,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
 
           {/* Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Type
             </label>
             <select
@@ -1442,7 +1446,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
 
           {/* Produsent */}
           <div className="relative">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Produsent
             </label>
             <input
@@ -1483,7 +1487,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
 
           {/* Batteritype */}
           <div>
-            <label htmlFor="nodlys-batteri" className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="nodlys-batteri" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Batteritype
             </label>
             <input
@@ -1500,7 +1504,7 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
 
           {/* Status */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Status
             </label>
             <select
@@ -1516,8 +1520,8 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
           </div>
 
           {/* Notat */}
-          <div className="md:col-span-2">
-            <label htmlFor="nodlys-notat" className="block text-sm font-medium text-gray-300 mb-2">
+          <div className="col-span-2">
+            <label htmlFor="nodlys-notat" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Notat
             </label>
             <textarea
@@ -1531,34 +1535,29 @@ function NodlysForm({ nodlys, anleggId, onSave, onCancel }: NodlysFormProps) {
           </div>
 
           {/* Kontrollert */}
-          <div className="md:col-span-2">
-            <label className="flex items-center gap-2 cursor-pointer">
+          <div className="col-span-2">
+            <label className="flex items-center gap-2.5 cursor-pointer min-h-[44px]">
               <input
                 type="checkbox"
                 checked={formData.kontrollert}
                 onChange={(e) => setFormData({ ...formData, kontrollert: e.target.checked })}
-                className="w-4 h-4 text-primary bg-dark-100 border-gray-700 rounded focus:ring-primary focus:ring-2"
+                className="w-5 h-5 text-primary rounded border-gray-300 dark:border-gray-700 focus:ring-primary focus:ring-2"
               />
-              <span className="text-sm font-medium text-gray-300">Kontrollert</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Kontrollert</span>
             </label>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 pt-4 border-t border-gray-800">
-          <button
-            type="submit"
-            disabled={saving}
-            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Lagrer...' : nodlys ? 'Oppdater' : 'Opprett'}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="btn-secondary"
-          >
-            Avbryt
-          </button>
+        {/* På mobil ligger knappene fast nederst. Skjemaet er ti felt langt, og
+            teknikeren skal ikke måtte bla til bunns for å lagre. */}
+        <div
+          className="fixed bottom-0 left-0 right-0 z-20 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-gray-800 px-4 pt-2.5 flex items-center gap-2 sm:static sm:bg-transparent sm:border-0 sm:border-t sm:px-0 sm:pt-4 sm:pb-0 sm:gap-3"
+          style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom, 0px))' }}
+        >
+          <Button type="button" onClick={onCancel} className="sm:order-2">Avbryt</Button>
+          <Button type="submit" variant="primary" size="md" loading={saving} className="flex-1 sm:flex-none sm:order-1 justify-center">
+            {nodlys ? 'Oppdater' : 'Opprett'}
+          </Button>
         </div>
       </form>
     </div>
