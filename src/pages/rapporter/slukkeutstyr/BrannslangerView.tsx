@@ -328,9 +328,9 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       yPos += 12
       
       // Status-seksjon
-      const boxWidth = 43
+      const boxWidth = 41   // fire bokser med 2 mm mellomrom fyller 170 mm
       const boxHeight = 22
-      let xPos = 17
+      let xPos = 20
       
       // Totalt
       doc.setDrawColor(200, 200, 200)
@@ -390,11 +390,11 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(60, 60, 60)
-      doc.text('Trykktest', 17, yPos)
+      doc.text('Trykktest', 20, yPos)
       yPos += 5
       
-      xPos = 17
-      const wideBoxWidth = 58
+      xPos = 20
+      const wideBoxWidth = 55.3   // tre bokser med 2 mm mellomrom fyller 170 mm
       
       // Trykktest ved kontroll
       doc.setFillColor(240, 253, 244)
@@ -450,12 +450,12 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         doc.setFontSize(14)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(0, 0, 0)
-        doc.text('Tilleggsinformasjon', 17, yPos)
+        doc.text('Tilleggsinformasjon', 20, yPos)
         yPos += 7
 
         doc.setFontSize(10)
         doc.setFont('helvetica', 'normal')
-        doc.text(`Evakueringsplaner: ${evakPlan.status}`, 17, yPos)
+        doc.text(`Evakueringsplaner: ${evakPlan.status}`, 20, yPos)
       }
 
       // Liggende side: ti kolonner får ikke plass på 170 mm

@@ -75,6 +75,32 @@ const brannklasseAlternativer = [
   'A', 'AB', 'ABC', 'ABF', 'B', 'AF'
 ]
 
+/**
+ * Levetiden til et apparat før det må byttes: ti år for pulver og CO2 (ABC, B),
+ * fem år for skum og vann (A, AB, ABF, AF). Regnes fra siste service om den
+ * finnes, ellers fra produksjonsåret.
+ *
+ * Regelen sto tidligere i tre kopier – på skjermen, i merkelappen og i tellingen.
+ */
+function levetid(klasse: string | null | undefined): number {
+  const k = klasse || ''
+  if (k.includes('ABC') || k === 'B') return 10
+  if (['AB', 'ABF', 'A', 'AF'].includes(k)) return 5
+  return 0
+}
+
+type Levetidsstatus = 'utgatt' | 'byttes' | null
+
+function levetidsstatus(s: Pick<Brannslukker, 'brannklasse' | 'service' | 'produksjonsaar'>, aar: number): Levetidsstatus {
+  const ref = parseInt(s.service || '0') || parseInt(s.produksjonsaar || '0')
+  const grense = levetid(s.brannklasse)
+  if (!ref || !grense) return null
+  const alder = aar - ref
+  if (alder >= grense) return 'utgatt'
+  if (alder === grense - 1) return 'byttes'
+  return null
+}
+
 const STATUS_DEF: StatusDef = {
   alle: statusAlternativer,
   ok: new Set(['OK', 'OK Byttet', 'Byttet ved kontroll']),
@@ -312,6 +338,15 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
         s.status?.some(st => !['OK', 'OK Byttet', 'Byttet ved kontroll', 'Ikke funnet', 'Ikke tilkomst'].includes(st))
       ).length
 
+      // Levetid: hva som ble byttet nå, hva som må byttes neste år, og hva som alt har gått ut.
+      // Kunden bruker disse tallene til å budsjettere, så de skal stå i rapporten.
+      const aar = new Date().getFullYear()
+      const byttetVedKontroll = slukkere.filter(s =>
+        s.status?.includes('Byttet ved kontroll') || s.status?.includes('OK Byttet')
+      ).length
+      const byttesNeste = slukkere.filter(s => levetidsstatus(s, aar) === 'byttes').length
+      const maaByttes = slukkere.filter(s => levetidsstatus(s, aar) === 'utgatt').length
+
       // Statistikk - Profesjonell layout
       doc.setFillColor(41, 128, 185)
       doc.rect(20, yPos, 170, 8, 'F')
@@ -323,9 +358,9 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       yPos += 12
       
       // Status-seksjon
-      const boxWidth = 43
+      const boxWidth = 41   // fire bokser med 2 mm mellomrom fyller 170 mm
       const boxHeight = 22
-      let xPos = 17
+      let xPos = 20
       
       // Totalt
       doc.setDrawColor(200, 200, 200)
@@ -379,7 +414,32 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(100, 100, 100)
       doc.text('AVVIK', xPos + boxWidth/2, yPos + 18, { align: 'center' })
-      
+
+      // Levetid
+      yPos += boxHeight + 6
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(60, 60, 60)
+      doc.text('Levetid', 20, yPos)
+      yPos += 5
+
+      xPos = 20
+      const bredBoks = 55.3
+      const levetidsbokser: [number, string, [number, number, number], [number, number, number]][] = [
+        [byttetVedKontroll, 'BYTTET VED KONTROLL', [240, 253, 244], [22, 163, 74]],
+        [byttesNeste, 'BYTTES VED NESTE', [254, 249, 195], [202, 138, 4]],
+        [maaByttes, 'MÅ BYTTES NÅ', [254, 242, 242], [220, 38, 38]],
+      ]
+      for (const [tall, merkelapp, bakgrunn, farge] of levetidsbokser) {
+        doc.setFillColor(...bakgrunn)
+        doc.rect(xPos, yPos, bredBoks, boxHeight, 'FD')
+        doc.setFontSize(24).setFont('helvetica', 'bold').setTextColor(...farge)
+        doc.text(tall.toString(), xPos + bredBoks / 2, yPos + 12, { align: 'center' })
+        doc.setFontSize(7).setFont('helvetica', 'normal').setTextColor(100, 100, 100)
+        doc.text(merkelapp, xPos + bredBoks / 2, yPos + 18, { align: 'center' })
+        xPos += bredBoks + 2
+      }
+
       doc.setTextColor(0, 0, 0)
       yPos += boxHeight + 8
 
@@ -396,12 +456,12 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
         doc.setFontSize(14)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(0, 0, 0)
-        doc.text('Tilleggsinformasjon', 17, yPos)
+        doc.text('Tilleggsinformasjon', 20, yPos)
         yPos += 7
 
         doc.setFontSize(10)
         doc.setFont('helvetica', 'normal')
-        doc.text(`Evakueringsplaner: ${evakPlan.status}`, 17, yPos)
+        doc.text(`Evakueringsplaner: ${evakPlan.status}`, 20, yPos)
       }
 
       // Liggende side: ti kolonner får ikke plass på 170 mm
@@ -737,63 +797,13 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
     s.status?.some(st => !['OK', 'OK Byttet', 'Byttet ved kontroll', 'Ikke funnet', 'Ikke tilkomst'].includes(st))
   ).length
   
-  // Beregn utgått basert på brannklasse og produksjonsår/service
-  const utgaatt = slukkere.filter(s => {
-    // Bruk service-år hvis det finnes, ellers produksjonsår
-    const serviceAar = parseInt(s.service || '0')
-    const prodAar = parseInt(s.produksjonsaar || '0')
-    const referanseAar = serviceAar > 0 ? serviceAar : prodAar
-    
-    if (!referanseAar || referanseAar === 0) return false
-    
-    const alder = currentYear - referanseAar
-    const klasse = s.brannklasse || ''
-    
-    // ABC eller B: Utgått etter 10 år
-    if (klasse.includes('ABC') || klasse === 'B') {
-      return alder >= 10
-    }
-    // AB, ABF, A, AF: Utgått etter 5 år
-    if (['AB', 'ABF', 'A', 'AF'].includes(klasse)) {
-      return alder >= 5
-    }
-    
-    return false
-  }).length
-  
-  // Beregn "Byttes neste kontroll"
-  const byttesNesteKontroll = slukkere.filter(s => {
-    // Bruk service-år hvis det finnes, ellers produksjonsår
-    const serviceAar = parseInt(s.service || '0')
-    const prodAar = parseInt(s.produksjonsaar || '0')
-    const referanseAar = serviceAar > 0 ? serviceAar : prodAar
-    
-    if (!referanseAar || referanseAar === 0) return false
-    
-    const alder = currentYear - referanseAar
-    const klasse = s.brannklasse || ''
-    
-    // ABC eller B: Byttes ved 9 år
-    if (klasse.includes('ABC') || klasse === 'B') {
-      return alder === 9
-    }
-    // AB, ABF, A, AF: Byttes ved 4 år
-    if (['AB', 'ABF', 'A', 'AF'].includes(klasse)) {
-      return alder === 4
-    }
-    
-    return false
-  }).length
+  const utgaatt = slukkere.filter(s => levetidsstatus(s, currentYear) === 'utgatt').length
+  const byttesNesteKontroll = slukkere.filter(s => levetidsstatus(s, currentYear) === 'byttes').length
 
   const utgaattMerke = (x: Brannslukker) => {
-    const serviceAar = parseInt(x.service || '0'); const prodAar = parseInt(x.produksjonsaar || '0')
-    const ref = serviceAar > 0 ? serviceAar : prodAar
-    if (!ref) return null
-    const alder = currentYear - ref; const klasse = x.brannklasse || ''
-    const grense = klasse.includes('ABC') || klasse === 'B' ? 10 : ['AB', 'ABF', 'A', 'AF'].includes(klasse) ? 5 : 0
-    if (!grense) return null
-    if (alder >= grense) return { tekst: 'Utgått', tone: 'r' as const }
-    if (alder === grense - 1) return { tekst: 'Byttes neste', tone: 'y' as const }
+    const status = levetidsstatus(x, currentYear)
+    if (status === 'utgatt') return { tekst: 'Utgått', tone: 'r' as const }
+    if (status === 'byttes') return { tekst: 'Byttes neste', tone: 'y' as const }
     return null
   }
   const kontrollerte = slukkere.filter(x => x.status && x.status.length > 0).length
