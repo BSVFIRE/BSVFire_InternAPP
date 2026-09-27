@@ -421,12 +421,12 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         doc.setDrawColor(220, 220, 220)
         doc.setLineWidth(0.3)
         doc.setFillColor(250, 250, 250)
-        doc.rect(17, yPos - 2, 176, boksHoyde, 'FD')
+        doc.rect(20, yPos - 2, 170, boksHoyde, 'FD')
         
         doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(41, 128, 185)
-        doc.text('Teknisk informasjon', 20, yPos + 4)
+        doc.text('Teknisk informasjon', 25, yPos + 4)
         
         doc.setFontSize(9)
         doc.setFont('helvetica', 'normal')
@@ -436,43 +436,84 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         if (brannalarmData.leverandor) {
           doc.setFont('helvetica', 'bold')
           doc.setTextColor(80, 80, 80)
-          doc.text('Leverandør', 20, tekniskY)
+          doc.text('Leverandør', 25, tekniskY)
           doc.setFont('helvetica', 'normal')
           doc.setTextColor(0, 0, 0)
-          doc.text(brannalarmData.leverandor, 55, tekniskY)
+          doc.text(brannalarmData.leverandor, 60, tekniskY)
           tekniskY += 6
         }
         if (brannalarmData.sentraltype) {
           doc.setFont('helvetica', 'bold')
           doc.setTextColor(80, 80, 80)
-          doc.text('Sentraltype', 20, tekniskY)
+          doc.text('Sentraltype', 25, tekniskY)
           doc.setFont('helvetica', 'normal')
           doc.setTextColor(0, 0, 0)
-          doc.text(brannalarmData.sentraltype, 55, tekniskY)
+          doc.text(brannalarmData.sentraltype, 60, tekniskY)
         }
         
         yPos += boksHoyde + 5
       }
 
+      // Nettverket hører til beskrivelsen av anlegget, sammen med leverandør og
+      // sentraltype – ikke blant kontrollresultatene lenger bak i rapporten.
+      if (nettverk.length > 0) {
+        if (yPos > 250) {
+          doc.addPage()
+          yPos = 20
+        }
+
+        doc.setFontSize(14)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Nettverk', 20, yPos)
+        yPos += 7
+
+        const nettverkRows = nettverk.map(n => {
+          // Sjekk om batteri ikke er aktuelt (eksplisitt flagg)
+          const batterIkkeAktuelt = n.batteri_ikke_aktuelt === true
+          
+          return [
+            n.nettverk_id != null ? String(n.nettverk_id) : '-',
+            n.plassering || '-',
+            n.type || '-',
+            n.sw_id || '-',
+            batterIkkeAktuelt ? 'N/A' : (n.spenning ? `${n.spenning}V` : '-'),
+            batterIkkeAktuelt ? 'N/A' : (n.ah ? `${n.ah}Ah` : '-'),
+            batterIkkeAktuelt ? 'N/A' : (batteriInfo(n.batterialder).tekst || '-')
+          ]
+        })
+
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Nettverk', 'Plassering', 'Type', 'SW-versjon', 'Spenning', 'Ah', 'Batteri montert']],
+          body: nettverkRows,
+          theme: 'grid',
+          headStyles: { fillColor: [41, 128, 185] },
+          styles: { fontSize: 8 },
+          margin: { left: 20, right: 20, bottom: 25 }
+        })
+
+        yPos = (doc as any).lastAutoTable.finalY + 10
+      }
+
       // Merknader - egen boks
       if (kontrollData.merknader) {
-        const merknadLines = doc.splitTextToSize(kontrollData.merknader, 165)
+        const merknadLines = doc.splitTextToSize(kontrollData.merknader, 160)
         const merknadHoyde = 10 + (merknadLines.length * 4)
         
         doc.setDrawColor(220, 220, 220)
         doc.setLineWidth(0.3)
         doc.setFillColor(250, 250, 250)
-        doc.rect(17, yPos - 2, 176, merknadHoyde, 'FD')
+        doc.rect(20, yPos - 2, 170, merknadHoyde, 'FD')
         
         doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(41, 128, 185)
-        doc.text('Generell kommentar', 20, yPos + 4)
+        doc.text('Generell kommentar', 25, yPos + 4)
         
         doc.setFontSize(9)
         doc.setFont('helvetica', 'normal')
         doc.setTextColor(0, 0, 0)
-        doc.text(merknadLines, 20, yPos + 10)
+        doc.text(merknadLines, 25, yPos + 10)
         
         yPos += merknadHoyde + 5
       }
@@ -480,23 +521,23 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       // Feil registrert - egen boks med rød markering
       if (kontrollData.har_feil) {
         const feilTekst = kontrollData.feil_kommentar || 'Ja'
-        const feilLines = doc.splitTextToSize(feilTekst, 165)
+        const feilLines = doc.splitTextToSize(feilTekst, 160)
         const feilHoyde = 10 + (feilLines.length * 4)
         
         doc.setDrawColor(220, 53, 69)
         doc.setLineWidth(0.5)
         doc.setFillColor(255, 245, 245)
-        doc.rect(17, yPos - 2, 176, feilHoyde, 'FD')
+        doc.rect(20, yPos - 2, 170, feilHoyde, 'FD')
         
         doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(220, 53, 69)
-        doc.text('Feil registrert ved ankomst', 20, yPos + 4)
+        doc.text('Feil registrert ved ankomst', 25, yPos + 4)
         
         doc.setFontSize(9)
         doc.setFont('helvetica', 'normal')
         doc.setTextColor(0, 0, 0)
-        doc.text(feilLines, 20, yPos + 10)
+        doc.text(feilLines, 25, yPos + 10)
         
         yPos += feilHoyde + 5
       }
@@ -504,23 +545,23 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
       // Utkoblinger - egen boks med oransje markering
       if (kontrollData.har_utkoblinger) {
         const utkoblingTekst = kontrollData.utkobling_kommentar || 'Ja'
-        const utkoblingLines = doc.splitTextToSize(utkoblingTekst, 165)
+        const utkoblingLines = doc.splitTextToSize(utkoblingTekst, 160)
         const utkoblingHoyde = 10 + (utkoblingLines.length * 4)
         
         doc.setDrawColor(255, 152, 0)
         doc.setLineWidth(0.5)
         doc.setFillColor(255, 250, 240)
-        doc.rect(17, yPos - 2, 176, utkoblingHoyde, 'FD')
+        doc.rect(20, yPos - 2, 170, utkoblingHoyde, 'FD')
         
         doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(255, 152, 0)
-        doc.text('Utkoblinger registrert ved ankomst', 20, yPos + 4)
+        doc.text('Utkoblinger registrert ved ankomst', 25, yPos + 4)
         
         doc.setFontSize(9)
         doc.setFont('helvetica', 'normal')
         doc.setTextColor(0, 0, 0)
-        doc.text(utkoblingLines, 20, yPos + 10)
+        doc.text(utkoblingLines, 25, yPos + 10)
         
         yPos += utkoblingHoyde + 5
       }
@@ -687,46 +728,6 @@ export function FG790RapportView({ kontrollId, anleggId, kundeNavn, onBack }: FG
         yPos += 8
       }
 
-      // Nettverk
-      console.log('Nettverk i PDF:', nettverk)
-      if (nettverk.length > 0) {
-        if (yPos > 250) {
-          doc.addPage()
-          yPos = 20
-        }
-
-        doc.setFontSize(14)
-        doc.setFont('helvetica', 'bold')
-        doc.text('Nettverk', 20, yPos)
-        yPos += 7
-
-        const nettverkRows = nettverk.map(n => {
-          // Sjekk om batteri ikke er aktuelt (eksplisitt flagg)
-          const batterIkkeAktuelt = n.batteri_ikke_aktuelt === true
-          
-          return [
-            n.nettverk_id != null ? String(n.nettverk_id) : '-',
-            n.plassering || '-',
-            n.type || '-',
-            n.sw_id || '-',
-            batterIkkeAktuelt ? 'N/A' : (n.spenning ? `${n.spenning}V` : '-'),
-            batterIkkeAktuelt ? 'N/A' : (n.ah ? `${n.ah}Ah` : '-'),
-            batterIkkeAktuelt ? 'N/A' : (batteriInfo(n.batterialder).tekst || '-')
-          ]
-        })
-
-        autoTable(doc, {
-          startY: yPos,
-          head: [['Nettverk', 'Plassering', 'Type', 'SW-versjon', 'Spenning', 'Ah', 'Batteri montert']],
-          body: nettverkRows,
-          theme: 'grid',
-          headStyles: { fillColor: [41, 128, 185] },
-          styles: { fontSize: 8 },
-          margin: { left: 20, right: 20, bottom: 25 }
-        })
-
-        yPos = (doc as any).lastAutoTable.finalY + 10
-      }
 
       // Poeng-oppsummering før kontrollpunkter
       const totalPoengTrekk = kontrollpunkter.reduce((sum, p) => 
