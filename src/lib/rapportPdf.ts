@@ -176,6 +176,36 @@ export async function lagForside(doc: jsPDF, d: Forsidedata): Promise<number> {
 }
 
 /**
+ * Ny liggende side for en lang utstyrsliste. Stående A4 gir 170 mm innhold, som er
+ * for lite til ti kolonner – plassering og modell blir da kuttet eller brutt.
+ * Liggende gir 257 mm.
+ *
+ * Returnerer y-posisjonen tabellen skal starte på.
+ */
+export async function listeside(doc: jsPDF, tittel: string): Promise<number> {
+  doc.addPage('a4', 'landscape')
+  let y = 20
+
+  const logo = await lastBilde('/bsv-logo.png')
+  if (logo) {
+    doc.addImage(logo, 'PNG', MARG, y, 40, 15)
+    y += 20
+  } else {
+    doc.setFontSize(16).setFont('helvetica', 'bold').setTextColor(...FARGE.bla)
+    doc.text('BSV FIRE', MARG, y)
+    doc.setTextColor(0)
+    y += 10
+  }
+
+  doc.setFontSize(14).setFont('helvetica', 'bold').setTextColor(0)
+  doc.text(tittel, MARG, y)
+  return y + 5
+}
+
+/** Bredden som er til rådighet på en liggende side, innenfor margene. */
+export const LISTEBREDDE = 257
+
+/**
  * Sidefot med firmaopplysninger og sidetall på alle sider. Kalles helt til slutt,
  * etter at alt innholdet er lagt inn – sidetallet trenger å vite hvor mange sider det ble.
  *

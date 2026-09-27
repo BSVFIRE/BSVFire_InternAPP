@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { lagForside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
+import { lagForside, listeside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Save, Eye, ClipboardCheck, Droplets } from 'lucide-react'
 import { toast } from '@/lib/toast'
@@ -458,9 +458,8 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
         doc.text(`Evakueringsplaner: ${evakPlan.status}`, 17, yPos)
       }
 
-      // Ny side for tabell
-      doc.addPage()
-      yPos = 20
+      // Liggende side: ti kolonner får ikke plass på 170 mm
+      yPos = await listeside(doc, 'BRANNSLANGELISTE')
 
       // Sorter etter slangenummer
       const sortedForPdf = [...slanger].sort((a, b) => {
@@ -495,15 +494,28 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
             return s.type_avvik.join(', ')
           })()
         ]),
-        styles: { fontSize: 8 },
+        styles: { fontSize: 8, cellPadding: 1.5, overflow: 'linebreak' },
         headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 8 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { left: 20, right: 20, bottom: 30 },
+        margin: { left: 20, right: 20, bottom: 25 },
+        // Summen er 224 av 257 mm; resten går til Status, som kan ha flere avvik
+        columnStyles: {
+          0: { cellWidth: 14 },  // Nr
+          1: { cellWidth: 48 },  // Plassering
+          2: { cellWidth: 20 },  // Etasje
+          3: { cellWidth: 32 },  // Produsent
+          4: { cellWidth: 34 },  // Modell
+          5: { cellWidth: 16 },  // Klasse
+          6: { cellWidth: 14 },  // År
+          7: { cellWidth: 22 },  // Siste
+          8: { cellWidth: 24 },  // Trykktest
+          9: { cellWidth: 'auto' },  // Status
+        },
       })
 
       // Kommentarer seksjon - på ny side hvis det finnes kommentarer
       if (kommentarer && kommentarer.length > 0) {
-        doc.addPage()
+        doc.addPage('a4', 'portrait')
         yPos = 20
 
         // Kommentarer header med bakgrunn

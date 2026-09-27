@@ -16,7 +16,7 @@ import { KontrolldatoVelger } from '@/components/KontrolldatoVelger'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
 import { Combobox } from '@/components/ui/Combobox'
 import { toast } from '@/lib/toast'
-import { lagForside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
+import { lagForside, listeside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { NodlysListe } from './nodlys/NodlysListe'
@@ -612,35 +612,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
         yPos += 10
       }
 
-      // Ny side for nødlysliste – liggende, så alle kolonnene får plass
-      doc.addPage('a4', 'landscape')
-      yPos = 20
-
-      // Logo på side 2
-      try {
-        const logoImg = new Image()
-        logoImg.src = '/bsv-logo.png'
-        await new Promise((resolve, reject) => {
-          logoImg.onload = resolve
-          logoImg.onerror = reject
-        })
-        doc.addImage(logoImg, 'PNG', 20, yPos, 40, 15)
-        yPos += 20
-      } catch (error) {
-        console.error('Kunne ikke laste logo:', error)
-        doc.setFontSize(16)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(41, 128, 185)
-        doc.text('BSV FIRE', 20, yPos)
-        doc.setTextColor(0)
-        yPos += 10
-      }
-
-      // Nødlysliste (tabell) - Sortert etter armatur_id
-      doc.setFontSize(14)
-      doc.setFont('helvetica', 'bold')
-      doc.text('NØDLYSLISTE', 20, yPos)
-      yPos += 5
+      // Liggende side, som i de andre utstyrslistene
+      yPos = await listeside(doc, 'NØDLYSLISTE')
 
       // Sorter etter armatur_id (numerisk)
       const harBygg = nodlysListe.some(n => n.bygg)

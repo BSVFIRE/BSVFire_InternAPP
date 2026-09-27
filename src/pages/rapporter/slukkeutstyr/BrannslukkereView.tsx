@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { lagForside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
+import { lagForside, listeside, rapportFilnavn, settSidefot } from '@/lib/rapportPdf'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Save, Shield, Eye, ClipboardCheck, Calculator } from 'lucide-react'
 import { toast } from '@/lib/toast'
@@ -404,9 +404,8 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
         doc.text(`Evakueringsplaner: ${evakPlan.status}`, 17, yPos)
       }
 
-      // Ny side for tabell
-      doc.addPage()
-      yPos = 20
+      // Liggende side: ti kolonner får ikke plass på 170 mm
+      yPos = await listeside(doc, 'BRANNSLUKKERLISTE')
 
       // Sorter etter apparat_nr
       const sortedForPdf = [...slukkere].sort((a, b) => {
@@ -434,27 +433,28 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
             ? s.status.join(', ') 
             : 'OK'
         ]),
-        styles: { fontSize: 7 },
-        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 7 },
+        styles: { fontSize: 8, cellPadding: 1.5, overflow: 'linebreak' },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 8 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { left: 20, right: 20, bottom: 30 },
+        margin: { left: 20, right: 20, bottom: 25 },
+        // Summen er 224 av 257 mm; resten går til Status, som kan ha flere avvik
         columnStyles: {
-          0: { cellWidth: 12 },  // Nr
-          1: { cellWidth: 28 },  // Plassering
-          2: { cellWidth: 16 },  // Etasje
-          3: { cellWidth: 20 },  // Produsent (krympet)
-          4: { cellWidth: 22 },  // Modell
-          5: { cellWidth: 14 },  // Klasse (krympet)
+          0: { cellWidth: 14 },  // Nr
+          1: { cellWidth: 48 },  // Plassering
+          2: { cellWidth: 20 },  // Etasje
+          3: { cellWidth: 32 },  // Produsent
+          4: { cellWidth: 34 },  // Modell
+          5: { cellWidth: 16 },  // Klasse
           6: { cellWidth: 14 },  // År
-          7: { cellWidth: 16 },  // Service
-          8: { cellWidth: 22 },  // Siste kontroll
+          7: { cellWidth: 20 },  // Service
+          8: { cellWidth: 26 },  // Siste kontroll
           9: { cellWidth: 'auto' },  // Status
         },
       })
 
       // Kommentarer seksjon - på ny side hvis det finnes kommentarer
       if (kommentarer && kommentarer.length > 0) {
-        doc.addPage()
+        doc.addPage('a4', 'portrait')
         yPos = 20
 
         // Kommentarer header med bakgrunn

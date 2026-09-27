@@ -475,10 +475,14 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
           yPos = 20
         }
 
-        doc.setFontSize(14)
+        // Samme stil som boksetitlene rundt: dette er en del av den tekniske
+        // beskrivelsen, ikke et nytt kapittel på linje med «Enheter» og «Styringer»
+        doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
-        doc.text('Nettverk', 20, yPos)
-        yPos += 7
+        doc.setTextColor(41, 128, 185)
+        doc.text('Nettverk', 25, yPos + 2)
+        doc.setTextColor(0)
+        yPos += 6
 
         const nettverkRows = nettverk.map(n => [
           n.nettverk_id != null ? String(n.nettverk_id) : '-',
