@@ -34,9 +34,18 @@ export function DropdownMenu({ trigger, children, align = 'right', className }: 
       const knapp = ref.current?.getBoundingClientRect()
       if (!knapp) return
       const hoyde = menyRef.current?.offsetHeight ?? 220
+      const bredde = menyRef.current?.offsetWidth ?? 220
       const under = window.innerHeight - knapp.bottom
       const top = under < hoyde + 8 && knapp.top > hoyde + 8 ? knapp.top - hoyde - 6 : knapp.bottom + 6
-      setPlass(align === 'right' ? { top, right: Math.max(8, window.innerWidth - knapp.right) } : { top, left: Math.max(8, knapp.left) })
+
+      // Menyen justeres mot knappen, men skal aldri havne utenfor skjermen. Står
+      // knappen nær venstre kant, ville en høyrejustert meny på 220 px stukket ut
+      // på den andre siden – det er den feilen dette hindrer.
+      const marg = 8
+      const maksForskyvning = Math.max(marg, window.innerWidth - bredde - marg)
+      setPlass(align === 'right'
+        ? { top, right: Math.min(Math.max(marg, window.innerWidth - knapp.right), maksForskyvning) }
+        : { top, left: Math.min(Math.max(marg, knapp.left), maksForskyvning) })
     }
     plasser()
     window.addEventListener('scroll', plasser, true)
@@ -74,7 +83,7 @@ export function DropdownMenu({ trigger, children, align = 'right', className }: 
           <div
             ref={menyRef}
             role="menu"
-            style={{ position: 'fixed', top: plass?.top ?? -9999, left: plass?.left, right: plass?.right, visibility: plass ? 'visible' : 'hidden' }}
+            style={{ position: 'fixed', top: plass?.top ?? -9999, left: plass?.left, right: plass?.right, maxWidth: 'calc(100vw - 16px)', visibility: plass ? 'visible' : 'hidden' }}
             className="min-w-[220px] max-h-[70vh] overflow-y-auto rounded-lg bg-white dark:bg-dark-50 border border-gray-200 dark:border-gray-800 shadow-xl p-1.5 z-50"
           >
             {children}
