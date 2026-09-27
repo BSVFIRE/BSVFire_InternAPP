@@ -186,10 +186,10 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
                   <button type="button" onClick={() => toggleGruppe(key)} aria-expanded={apen} className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-dark-100 text-left">
                     {velgModus && <input type="checkbox" checked={g.rader.every(r => valgte.has(r.id))} onChange={() => toggleValgteIds(g.rader.map(r => r.id))} onClick={ev => ev.stopPropagation()} aria-label="Velg alle i etasjen" className="w-4 h-4 rounded text-primary focus:ring-primary" />}
                     <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', apen && 'rotate-90')} />
-                    <span className="font-semibold text-gray-900 dark:text-white">{g.etasje || 'Uten etasje'}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{g.kontrollert} av {g.totalt}</span>
-                    {g.kontrollert === g.totalt && <Check className="w-4 h-4 text-green-600 dark:text-green-400" strokeWidth={3} />}
-                    <span className="ml-auto text-xs text-gray-400 tabular-nums">{g.rader.length} vist</span>
+                    <span className="font-semibold text-gray-900 dark:text-white truncate">{g.etasje || 'Uten etasje'}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums flex-shrink-0">{g.kontrollert} av {g.totalt}</span>
+                    {g.kontrollert === g.totalt && <Check className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" strokeWidth={3} />}
+                    <span className="ml-auto text-xs text-gray-400 tabular-nums flex-shrink-0 hidden xs:inline">{g.rader.length} vist</span>
                   </button>
                   {apen && (
                     <>
@@ -225,17 +225,20 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
                         </tbody>
                       </table>
 
-                      {/* Mobil/nettbrett: én kompakt rad per armatur med statusknapper */}
+                      {/* Mobil/nettbrett: statusknappene står på egen linje, ellers blir
+                          det ikke plass til både plassering og en knapp du kan treffe */}
                       <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
                         {g.rader.map(e => (
-                          <div key={e.id} onClick={velgModus ? () => toggleValgt(e.id) : undefined} className={cn('flex items-center gap-2.5 px-3 py-2.5', !e.kontrollert && 'bg-yellow-50/40 dark:bg-yellow-900/5', velgModus && valgte.has(e.id) && 'bg-primary/10')}>
-                            {velgModus ? <input type="checkbox" checked={valgte.has(e.id)} onChange={() => toggleValgt(e.id)} onClick={ev => ev.stopPropagation()} aria-label="Velg" className="w-[18px] h-[18px] rounded text-primary focus:ring-primary flex-shrink-0" /> : <Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} />}
-                            <button type="button" onClick={velgModus ? undefined : () => onRediger(e)} className="flex-1 min-w-0 text-left">
-                              <span className="block font-semibold text-gray-900 dark:text-white truncate"><span className="text-gray-400 font-mono text-xs mr-1.5">{e.internnummer ?? '–'}</span>{e.plassering || <span className="text-gray-400 font-normal">Uten plassering</span>}</span>
-                              <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[e.amatur_id ? `Armatur ${e.amatur_id}` : null, e.type, e.kurs ? `Kurs ${e.kurs}` : null, e.fordeling, e.batteritype].filter(Boolean).join(' · ') || 'Trykk for å fylle ut'}</span>
-                              {e.notat && <span className="block text-xs text-amber-700 dark:text-amber-400 truncate">{e.notat}</span>}
-                            </button>
-                            {!velgModus && <StatusKnapper e={e} kompakt onVelg={s => settStatus(e, s)} onSlett={() => onSlett(e)} />}
+                          <div key={e.id} onClick={velgModus ? () => toggleValgt(e.id) : undefined} className={cn('px-3 py-2.5 space-y-2', !e.kontrollert && 'bg-yellow-50/40 dark:bg-yellow-900/5', velgModus && valgte.has(e.id) && 'bg-primary/10')}>
+                            <div className="flex items-center gap-2.5">
+                              {velgModus ? <input type="checkbox" checked={valgte.has(e.id)} onChange={() => toggleValgt(e.id)} onClick={ev => ev.stopPropagation()} aria-label="Velg" className="w-[18px] h-[18px] rounded text-primary focus:ring-primary flex-shrink-0" /> : <Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} />}
+                              <button type="button" onClick={velgModus ? undefined : () => onRediger(e)} className="flex-1 min-w-0 text-left">
+                                <span className="block font-semibold text-gray-900 dark:text-white truncate"><span className="text-gray-400 font-mono text-xs mr-1.5">{e.internnummer ?? '–'}</span>{e.plassering || <span className="text-gray-400 font-normal">Uten plassering</span>}</span>
+                                <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[e.amatur_id ? `Armatur ${e.amatur_id}` : null, e.type, e.kurs ? `Kurs ${e.kurs}` : null, e.fordeling, e.batteritype].filter(Boolean).join(' · ') || 'Trykk for å fylle ut'}</span>
+                                {e.notat && <span className="block text-xs text-amber-700 dark:text-amber-400 truncate">{e.notat}</span>}
+                              </button>
+                            </div>
+                            {!velgModus && <div onClick={ev => ev.stopPropagation()}><StatusKnapper e={e} kompakt onVelg={s => settStatus(e, s)} onSlett={() => onSlett(e)} /></div>}
                           </div>
                         ))}
                       </div>
@@ -348,23 +351,26 @@ function Kontrollert({ e, lagrer, onClick }: { e: NodlysEnhet; lagrer: boolean; 
 /** OK som stor knapp, valgt status som pille, øvrige statuser i meny. */
 function StatusKnapper({ e, kompakt, onVelg, onSlett }: { e: NodlysEnhet; kompakt?: boolean; onVelg: (s: string) => void; onSlett?: () => void }) {
   const harStatus = Boolean(e.status)
+  // På mobil («kompakt») er 32 px for lite å treffe. OK-knappen tar resten av
+  // bredden, resten er 44 px høye.
+  const h = kompakt ? 'h-11' : 'h-8'
   return (
-    <div className="flex items-center gap-1.5 flex-shrink-0">
+    <div className={cn('flex items-center gap-1.5', kompakt ? 'w-full' : 'flex-shrink-0')}>
       {harStatus && e.status !== 'OK' ? (
         <>
-          <span className={cn('inline-flex items-center px-2 h-8 rounded-full text-xs font-semibold border whitespace-nowrap', STATUS_FARGE[e.status!] ?? 'bg-gray-100 text-gray-700 border-gray-300')}>{e.status}</span>
+          <span className={cn('inline-flex items-center px-2 rounded-full text-xs font-semibold border whitespace-nowrap', kompakt ? 'h-9' : 'h-8', STATUS_FARGE[e.status!] ?? 'bg-gray-100 text-gray-700 border-gray-300')}>{e.status}</span>
           {/* Avviket er rettet på stedet – ett klikk for å sette OK */}
-          <button type="button" onClick={() => onVelg('OK')} title="Avviket er rettet – sett OK" aria-label="Sett OK" className="h-8 w-8 rounded-lg border border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 inline-flex items-center justify-center flex-shrink-0">
+          <button type="button" onClick={() => onVelg('OK')} title="Avviket er rettet – sett OK" aria-label="Sett OK" className={cn('rounded-lg border border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 inline-flex items-center justify-center flex-shrink-0', kompakt ? 'h-11 w-11' : 'h-8 w-8')}>
             <Check className="w-4 h-4" strokeWidth={3} />
           </button>
         </>
       ) : (
-        <button type="button" onClick={() => onVelg('OK')} aria-pressed={e.status === 'OK'} className={cn('h-8 px-3 rounded-lg text-sm font-semibold border transition-colors inline-flex items-center gap-1', e.status === 'OK' ? 'bg-green-500 border-green-500 text-white' : 'border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20')}><Check className="w-3.5 h-3.5" strokeWidth={3} />OK</button>
+        <button type="button" onClick={() => onVelg('OK')} aria-pressed={e.status === 'OK'} className={cn('px-3 rounded-lg text-sm font-semibold border transition-colors inline-flex items-center justify-center gap-1', h, kompakt && 'flex-1', e.status === 'OK' ? 'bg-green-500 border-green-500 text-white' : 'border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20')}><Check className="w-3.5 h-3.5" strokeWidth={3} />OK</button>
       )}
       {!kompakt && !harStatus && NODLYS_STATUSER.filter(s => s !== 'OK' && s !== 'Utskiftet').map(s => (
         <button key={s} type="button" onClick={() => onVelg(s)} className="h-8 px-2 rounded-lg text-xs border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-red-400 hover:text-red-600 dark:hover:text-red-400 whitespace-nowrap">{s}</button>
       ))}
-      <DropdownMenu trigger={open => <IconButton variant="ghost" label="Flere statuser" icon={kompakt ? <MoreHorizontal /> : <ChevronDown />} aria-expanded={open} className="w-8 h-8" />}>
+      <DropdownMenu trigger={open => <IconButton variant="ghost" label="Flere statuser" icon={kompakt ? <MoreHorizontal /> : <ChevronDown />} aria-expanded={open} className={kompakt ? 'w-11 h-11 flex-shrink-0' : 'w-8 h-8'} />}>
         {NODLYS_STATUSER.map(s => <MenuItem key={s} icon={s === e.status ? <Check /> : undefined} onSelect={() => onVelg(s)}>{s}</MenuItem>)}
         {e.status && <><MenuSeparator /><MenuItem icon={<X />} onSelect={() => onVelg('')}>Fjern status</MenuItem></>}
         {onSlett && <><MenuSeparator /><MenuItem icon={<Trash2 />} danger onSelect={onSlett}>Slett armatur…</MenuItem></>}

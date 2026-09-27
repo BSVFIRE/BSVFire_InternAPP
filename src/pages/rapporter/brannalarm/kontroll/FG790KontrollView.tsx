@@ -538,7 +538,7 @@ export function FG790KontrollView({
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div>
 
   return (
-    <div className="space-y-4 pb-28">
+    <div className="space-y-4 pb-36 sm:pb-28">
       <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
         <button type="button" onClick={tilbake} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white min-h-[44px] sm:min-h-0"><ArrowLeft className="w-4 h-4" />Brannalarm</button>
         <span className="hidden sm:inline">/</span><span className="hidden sm:inline text-gray-900 dark:text-white truncate">{anleggsNavn}</span>
@@ -621,13 +621,18 @@ export function FG790KontrollView({
                                 <span className={cn('block text-sm leading-snug', p.status ? 'text-gray-700 dark:text-gray-300' : 'text-gray-900 dark:text-white font-medium')}>{p.tittel}</span>
                                 <span className="block text-[11px] text-gray-400 mt-0.5 truncate">{ref && ref !== '--' ? `NS 3960: ${ref}` : ''}{!erApen && harAvvik ? `${ref && ref !== '--' ? ' · ' : ''}${p.avvik_type}${p.feilkode ? ` · ${p.feilkode}` : ''}${trekk ? ` · −${trekk.toFixed(1)} p` : ''}` : ''}{!erApen && !harAvvik && p.ag_verdi ? `${ref && ref !== '--' ? ' · ' : ''}${p.ag_verdi}` : ''}{!erApen && p.kommentar ? ' · kommentar' : ''}</span>
                               </span>
+                              {p.kommentar
+                                ? <MessageSquare className="w-4 h-4 text-primary ml-auto mt-0.5 flex-shrink-0 sm:hidden" />
+                                : <ChevronDown className={cn('w-4 h-4 text-gray-400 ml-auto mt-0.5 flex-shrink-0 sm:hidden transition-transform', erApen && 'rotate-180')} />}
                             </button>
-                            <div className="flex items-center gap-1.5 flex-shrink-0 pl-8 sm:pl-0">
-                              <button type="button" onClick={() => settStatus(key, 'Kontrollert')} aria-pressed={p.status === 'Kontrollert'} className={cn('h-9 px-3.5 rounded-lg text-sm font-semibold border inline-flex items-center gap-1', p.status === 'Kontrollert' ? 'bg-green-500 border-green-500 text-white' : 'border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20')}><Check className="w-3.5 h-3.5" strokeWidth={3} />Kontrollert</button>
-                              <button type="button" onClick={() => settStatus(key, 'Ikke aktuell')} aria-pressed={p.status === 'Ikke aktuell'} title="Ikke aktuell" className={cn('h-9 px-2.5 rounded-lg text-xs border', p.status === 'Ikke aktuell' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>N/A</button>
-                              <button type="button" onClick={() => settStatus(key, 'Ikke tilkomst')} aria-pressed={p.status === 'Ikke tilkomst'} title="Ikke tilkomst" className={cn('h-9 px-2.5 rounded-lg text-xs border whitespace-nowrap', p.status === 'Ikke tilkomst' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>Ikke tilkomst</button>
-                              <button type="button" onClick={() => toggleAvvik(key)} aria-pressed={harAvvik} title="Avvik / merknad" className={cn('h-9 px-2.5 rounded-lg text-xs border inline-flex items-center gap-1', harAvvik ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-orange-400 hover:text-orange-600')}><AlertTriangle className="w-3.5 h-3.5" />{harAvvik ? (p.antall_avvik > 1 ? p.antall_avvik : '') : 'Avvik'}</button>
-                              <IconButton variant="ghost" label={erApen ? 'Skjul detaljer' : 'Detaljer'} icon={p.kommentar ? <MessageSquare className="text-primary" /> : <ChevronDown className={cn('transition-transform', erApen && 'rotate-180')} />} onClick={() => setApent(erApen ? null : key)} className="w-8 h-8" />
+                            {/* Mobil: «Kontrollert» over hele bredden, de tre andre på linjen under.
+                                Fra sm og opp står alle fem på én linje, som før. */}
+                            <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center sm:gap-1.5 sm:flex-shrink-0">
+                              <button type="button" onClick={() => settStatus(key, 'Kontrollert')} aria-pressed={p.status === 'Kontrollert'} className={cn('col-span-3 h-11 sm:h-9 px-3.5 rounded-lg text-sm font-semibold border inline-flex items-center justify-center gap-1', p.status === 'Kontrollert' ? 'bg-green-500 border-green-500 text-white' : 'border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20')}><Check className="w-3.5 h-3.5" strokeWidth={3} />Kontrollert</button>
+                              <button type="button" onClick={() => settStatus(key, 'Ikke aktuell')} aria-pressed={p.status === 'Ikke aktuell'} title="Ikke aktuell" className={cn('h-11 sm:h-9 px-2.5 rounded-lg text-xs border', p.status === 'Ikke aktuell' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>N/A</button>
+                              <button type="button" onClick={() => settStatus(key, 'Ikke tilkomst')} aria-pressed={p.status === 'Ikke tilkomst'} title="Ikke tilkomst" className={cn('h-11 sm:h-9 px-2.5 rounded-lg text-xs border whitespace-nowrap', p.status === 'Ikke tilkomst' ? 'bg-gray-500 border-gray-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400')}>Ikke tilkomst</button>
+                              <button type="button" onClick={() => toggleAvvik(key)} aria-pressed={harAvvik} title="Avvik / merknad" className={cn('h-11 sm:h-9 px-2.5 rounded-lg text-xs border inline-flex items-center justify-center gap-1', harAvvik ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-orange-400 hover:text-orange-600')}><AlertTriangle className="w-3.5 h-3.5" />{harAvvik ? (p.antall_avvik > 1 ? p.antall_avvik : '') : 'Avvik'}</button>
+                              <IconButton variant="ghost" label={erApen ? 'Skjul detaljer' : 'Detaljer'} icon={p.kommentar ? <MessageSquare className="text-primary" /> : <ChevronDown className={cn('transition-transform', erApen && 'rotate-180')} />} onClick={() => setApent(erApen ? null : key)} className="hidden sm:inline-flex w-8 h-8" />
                             </div>
                           </div>
 
@@ -760,10 +765,18 @@ export function FG790KontrollView({
         )}
       </section>
 
-      <div className="fixed bottom-0 left-0 right-0 lg:left-[var(--sidebar-w)] z-20 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-gray-800 px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
-        <span className="text-sm text-gray-500 dark:text-gray-400 mr-auto tabular-nums">{gjenstar > 0 ? `${gjenstar} punkter gjenstår` : 'Alle punkter vurdert'}{styringerTotalt - styringerVurdert > 0 ? ` · ${styringerTotalt - styringerVurdert} styringer` : ''}{avvikPunkter + styringerAvvik ? ` · ${avvikPunkter + styringerAvvik} avvik` : ''}{!vurderingOk ? ' · vurdering mangler' : ''}</span>
-        <Button variant="ghost" loading={saving} disabled={!hasUnsavedChanges} onClick={() => handleSave(false)}><span className="hidden sm:inline">Lagre nå</span><span className="sm:hidden">Lagre</span></Button>
-        <Button variant="primary" icon={<ClipboardCheck />} loading={saving} onClick={fullfor}>Fullfør og lag rapport</Button>
+      <div
+        className="fixed bottom-0 left-0 right-0 lg:left-[var(--sidebar-w)] z-20 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-gray-800 px-4 sm:px-6 lg:px-8 pt-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3"
+        style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 sm:mr-auto tabular-nums">{gjenstar > 0 ? `${gjenstar} punkter gjenstår` : 'Alle punkter vurdert'}{styringerTotalt - styringerVurdert > 0 ? ` · ${styringerTotalt - styringerVurdert} styringer` : ''}{avvikPunkter + styringerAvvik ? ` · ${avvikPunkter + styringerAvvik} avvik` : ''}{!vurderingOk ? ' · vurdering mangler' : ''}</span>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Button variant="ghost" loading={saving} disabled={!hasUnsavedChanges} onClick={() => handleSave(false)}>Lagre</Button>
+          <Button variant="primary" icon={<ClipboardCheck />} loading={saving} onClick={fullfor} className="flex-1 sm:flex-none justify-center">
+            <span className="hidden xs:inline">Fullfør og lag rapport</span>
+            <span className="xs:hidden">Fullfør</span>
+          </Button>
+        </div>
       </div>
     </div>
   )
