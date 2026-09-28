@@ -96,7 +96,11 @@ export async function lastOppAnleggsbilde(anleggId: string, fil: File, merkelapp
   const blob = await komprimerBilde(fil)
   const navn = bildefilnavn(merkelapp)
   const storagePath = `anlegg/${anleggId}/bilder/${navn}`
-  const filnavn = merkelapp?.trim() || navn
+  // Filnavnet må være det genererte, ikke merkelappen. `dokumenter` har en unik
+  // nøkkel på (anlegg_id, filnavn), og to bilder på samme avvik deler merkelapp –
+  // da ble bilde nummer to avvist og forsvant fra bildebanken uten at noe stoppet.
+  // Det genererte navnet inneholder både dato og merkelapp, så det er like lesbart.
+  const filnavn = navn
 
   if (!getOnlineStatus()) {
     await koLeggTil({ storagePath, anleggId, filnavn, blob })
