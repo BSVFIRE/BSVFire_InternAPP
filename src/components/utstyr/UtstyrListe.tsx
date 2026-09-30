@@ -177,7 +177,7 @@ export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, sta
             </button>
             {apen && (
               <>
-                <table className="hidden lg:table w-full text-sm">
+                <table className="hidden lg:mus:table w-full text-sm">
                   <thead className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     <tr className="border-b border-gray-200 dark:border-gray-800">
                       <th className="w-8"></th>
@@ -212,7 +212,7 @@ export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, sta
                   </tbody>
                 </table>
 
-                <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                <div className="lg:mus:hidden divide-y divide-gray-100 dark:divide-gray-800">
                   {g.rader.map(r => {
                     const m = merke?.(r)
                     const plassering = String((r as Record<string, unknown>).plassering ?? '')

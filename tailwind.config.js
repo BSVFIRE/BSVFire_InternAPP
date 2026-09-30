@@ -13,6 +13,10 @@ export default {
       'lg': '1024px',
       'xl': '1280px',
       '2xl': '1536px',
+      // Skiller mus fra finger. En iPad i landskap er bredere enn lg, men har
+      // ingen musepeker – da skal den ha kortvisningen og ikke tabellen med
+      // 30 piksler høye celler. Stables med breddene: «lg:mus:table».
+      'mus': { 'raw': '(pointer: fine)' },
     },
     extend: {
       colors: {

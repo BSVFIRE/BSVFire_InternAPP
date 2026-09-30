@@ -2,7 +2,7 @@
  * Nødlysliste for kontroll i felt.
  * Fremdrift øverst, chips (Gjenstår / Kontrollert / Avvik / Alle), gruppert på bygg → etasje,
  * statusknapper rett i raden (OK = ett trykk, resten i meny). Hver endring lagres med en gang.
- * Feltene redigeres i raden på PC (klikk), på mobil via «Rediger»-skjemaet.
+ * Feltene redigeres i raden med mus; på berøringsskjerm folder kortet seg ut med feltene.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Check, CheckSquare, ChevronDown, ChevronRight, Edit, Loader2, MoreHorizontal, Search, Trash2, X } from 'lucide-react'
@@ -42,6 +42,14 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
   const [q, setQ] = useState('')
   const [lukkede, setLukkede] = useState<Set<string>>(new Set())
   const [redigerer, setRedigerer] = useState<{ id: string; felt: Felt } | null>(null)
+  /** Kortet som er foldet ut for redigering på berøringsskjerm */
+  const [apentKort, setApentKort] = useState<string | null>(null)
+  /**
+   * Armaturer du nettopp har endret blir stående selv om de ikke lenger passer
+   * filteret. Uten dette forsvant raden i det du satte status under «Gjenstår»,
+   * alt under hoppet oppover, og neste trykk traff feil armatur.
+   */
+  const [nyligEndret, setNyligEndret] = useState<Set<string>>(new Set())
   const [velgModus, setVelgModus] = useState(false)
   const [valgte, setValgte] = useState<Set<string>>(new Set())
   const [bekreftSlett, setBekreftSlett] = useState(false)
@@ -53,6 +61,9 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
     avvik: enheter.filter(e => AVVIK_STATUSER.has(e.status ?? '')).length,
     alle: enheter.length,
   }), [enheter])
+
+  // Bytter du filter, er det filteret som gjelder – da slipper vi de nylig endrede
+  useEffect(() => { setNyligEndret(new Set()) }, [chip])
 
   // Startvisning: «Gjenstår» når kontrollen er i gang, «Alle» når den er (nesten) ferdig – velges én gang når listen er lastet
   const [startValgt, setStartValgt] = useState(false)
@@ -70,9 +81,13 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
   const grupper = useMemo<ByggGruppe[]>(() => {
     const s = q.trim().toLowerCase()
     const liste = enheter.filter(e => {
-      if (chip === 'gjenstar' && e.kontrollert) return false
-      if (chip === 'kontrollert' && !e.kontrollert) return false
-      if (chip === 'avvik' && !AVVIK_STATUSER.has(e.status ?? '')) return false
+      // Nettopp endret: står igjen selv om den ikke lenger passer chipen. Søket
+      // gjelder fortsatt – der er det du som styrer hva du vil se.
+      if (!nyligEndret.has(e.id)) {
+        if (chip === 'gjenstar' && e.kontrollert) return false
+        if (chip === 'kontrollert' && !e.kontrollert) return false
+        if (chip === 'avvik' && !AVVIK_STATUSER.has(e.status ?? '')) return false
+      }
       if (!s) return true
       return [e.internnummer, e.amatur_id, e.plassering, e.fordeling, e.kurs, e.bygg, e.etasje, e.type, e.produsent, e.status, e.batteritype, e.notat].some(v => v?.toLowerCase().includes(s))
     })
@@ -99,7 +114,7 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
         })),
       }
     })
-  }, [enheter, chip, q, harBygg])
+  }, [enheter, chip, q, harBygg, nyligEndret])
 
   const forslag = useMemo(() => ({
     fordeling: unike(enheter.map(e => e.fordeling)),
@@ -109,10 +124,13 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
     batteritype: unike([...BATTERITYPER, ...enheter.map(e => e.batteritype)]),
   }), [enheter])
 
+  function behold(id: string) { setNyligEndret(prev => new Set(prev).add(id)) }
   function settStatus(e: NodlysEnhet, status: string) {
+    behold(e.id)
     onEndre(e.id, { status, kontrollert: true })
   }
   function toggleKontrollert(e: NodlysEnhet) {
+    behold(e.id)
     onEndre(e.id, { kontrollert: !e.kontrollert })
   }
   function toggleGruppe(k: string) { setLukkede(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n }) }
@@ -194,7 +212,7 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
                   {apen && (
                     <>
                       {/* PC: tabell med redigerbare celler */}
-                      <table className="hidden lg:table w-full text-sm">
+                      <table className="hidden lg:mus:table w-full text-sm">
                         <thead className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
                           <tr className="border-b border-gray-200 dark:border-gray-800">
                             <th className="w-8"></th>
@@ -227,18 +245,40 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
 
                       {/* Mobil/nettbrett: statusknappene står på egen linje, ellers blir
                           det ikke plass til både plassering og en knapp du kan treffe */}
-                      <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                      <div className="lg:mus:hidden divide-y divide-gray-100 dark:divide-gray-800">
                         {g.rader.map(e => (
                           <div key={e.id} onClick={velgModus ? () => toggleValgt(e.id) : undefined} className={cn('px-3 py-2.5 space-y-2', !e.kontrollert && 'bg-yellow-50/40 dark:bg-yellow-900/5', velgModus && valgte.has(e.id) && 'bg-primary/10')}>
                             <div className="flex items-center gap-2.5">
                               {velgModus ? <input type="checkbox" checked={valgte.has(e.id)} onChange={() => toggleValgt(e.id)} onClick={ev => ev.stopPropagation()} aria-label="Velg" className="w-[18px] h-[18px] rounded text-primary focus:ring-primary flex-shrink-0" /> : <Kontrollert e={e} lagrer={lagrer.has(e.id)} onClick={() => toggleKontrollert(e)} />}
-                              <button type="button" onClick={velgModus ? undefined : () => onRediger(e)} className="flex-1 min-w-0 text-left">
+                              <button type="button" onClick={velgModus ? undefined : () => setApentKort(k => k === e.id ? null : e.id)} aria-expanded={apentKort === e.id} className="flex-1 min-w-0 text-left">
                                 <span className="block font-semibold text-gray-900 dark:text-white truncate"><span className="text-gray-400 font-mono text-xs mr-1.5">{e.internnummer ?? '–'}</span>{e.plassering || <span className="text-gray-400 font-normal">Uten plassering</span>}</span>
                                 <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{[e.amatur_id ? `Armatur ${e.amatur_id}` : null, e.type, e.kurs ? `Kurs ${e.kurs}` : null, e.fordeling, e.batteritype].filter(Boolean).join(' · ') || 'Trykk for å fylle ut'}</span>
                                 {e.notat && <span className="block text-xs text-amber-700 dark:text-amber-400 truncate">{e.notat}</span>}
                               </button>
+                              {!velgModus && <ChevronRight className={cn('w-4 h-4 text-gray-400 flex-shrink-0 transition-transform', apentKort === e.id && 'rotate-90')} />}
                             </div>
                             {!velgModus && <div onClick={ev => ev.stopPropagation()}><StatusKnapper e={e} kompakt onVelg={s => settStatus(e, s)} onSlett={() => onSlett(e)} /></div>}
+                            {!velgModus && apentKort === e.id && (
+                              /* Hele raden kan rettes her. Å måtte åpne skjemaet for å endre
+                                 «kurs» var for tungt når man står med nettbrettet i hånden. */
+                              <div className="grid grid-cols-2 gap-2 pt-1" onClick={ev => ev.stopPropagation()}>
+                                <TouchFelt navn="Nr." verdi={e.internnummer ?? ''} onLagre={v => onEndre(e.id, { internnummer: v || null })} />
+                                <TouchFelt navn="Armatur" verdi={e.amatur_id ?? ''} onLagre={v => onEndre(e.id, { amatur_id: v || null })} />
+                                <TouchFelt navn="Plassering" verdi={e.plassering ?? ''} full onLagre={v => onEndre(e.id, { plassering: v || null })} />
+                                <TouchFelt navn="Fordeling" verdi={e.fordeling ?? ''} forslag={forslag.fordeling} onLagre={v => onEndre(e.id, { fordeling: v || null })} />
+                                <TouchFelt navn="Kurs" verdi={e.kurs ?? ''} forslag={forslag.kurs} onLagre={v => onEndre(e.id, { kurs: v || null })} />
+                                {harBygg && <TouchFelt navn="Bygg" verdi={e.bygg ?? ''} forslag={forslag.bygg} onLagre={v => onEndre(e.id, { bygg: v || null })} />}
+                                <TouchFelt navn="Etasje" verdi={e.etasje ?? ''} valg={ETASJER} onLagre={v => onEndre(e.id, { etasje: v || null })} />
+                                <TouchFelt navn="Type" verdi={e.type ?? ''} valg={NODLYS_TYPER} onLagre={v => onEndre(e.id, { type: v || null })} />
+                                <TouchFelt navn="Produsent" verdi={e.produsent ?? ''} forslag={forslag.produsent} onLagre={v => onEndre(e.id, { produsent: v || null })} />
+                                <TouchFelt navn="Batteri" verdi={e.batteritype ?? ''} valg={BATTERITYPER} onLagre={v => onEndre(e.id, { batteritype: v || null })} />
+                                <TouchFelt navn="Notat" verdi={e.notat ?? ''} full onLagre={v => onEndre(e.id, { notat: v || null })} />
+                                <div className="col-span-2 flex items-center justify-between pt-0.5">
+                                  <button type="button" onClick={() => onRediger(e)} className="text-sm text-primary">Åpne hele skjemaet</button>
+                                  <button type="button" onClick={() => setApentKort(null)} className="text-sm text-gray-500 dark:text-gray-400 px-2 py-1">Lukk</button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -376,6 +416,52 @@ function StatusKnapper({ e, kompakt, onVelg, onSlett }: { e: NodlysEnhet; kompak
         {onSlett && <><MenuSeparator /><MenuItem icon={<Trash2 />} danger onSelect={onSlett}>Slett armatur…</MenuItem></>}
       </DropdownMenu>
     </div>
+  )
+}
+
+/**
+ * Felt i det utfoldede kortet. 44 piksler høyt, som er minstemålet for å treffe
+ * med en finger – tabellcellene ved siden av er 30 og laget for mus.
+ *
+ * Lagrer ved blur og ved valg i nedtrekk, ikke ved hvert tastetrykk.
+ */
+function TouchFelt({ navn, verdi, valg, forslag, full, onLagre }: {
+  navn: string
+  verdi: string
+  valg?: readonly string[]
+  forslag?: string[]
+  full?: boolean
+  onLagre: (v: string) => void
+}) {
+  const [v, setV] = useState(verdi)
+  const listeId = useRef(`tf-${Math.random().toString(36).slice(2, 8)}`).current
+  useEffect(() => setV(verdi), [verdi])
+
+  return (
+    <label className={cn('text-xs text-gray-500 dark:text-gray-400 space-y-0.5', full && 'col-span-2')}>
+      <span>{navn}</span>
+      {valg ? (
+        <select
+          value={v}
+          onChange={ev => { setV(ev.target.value); onLagre(ev.target.value) }}
+          className="input !h-[44px] !min-h-[44px] !py-0 text-sm"
+        >
+          <option value="">–</option>
+          {valg.map(x => <option key={x} value={x}>{x}</option>)}
+        </select>
+      ) : (
+        <>
+          <input
+            value={v}
+            onChange={ev => setV(ev.target.value)}
+            onBlur={() => { if (v !== verdi) onLagre(v) }}
+            list={forslag?.length ? listeId : undefined}
+            className="input !h-[44px] !min-h-[44px] !py-0 text-sm"
+          />
+          {forslag?.length ? <datalist id={listeId}>{forslag.map(x => <option key={x} value={x} />)}</datalist> : null}
+        </>
+      )}
+    </label>
   )
 }
 
