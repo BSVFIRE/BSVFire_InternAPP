@@ -21,7 +21,7 @@ import { lagForside, listeside, rapportFilnavn, settSidefot } from '@/lib/rappor
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { NodlysListe } from './nodlys/NodlysListe'
-import { BATTERITYPER, type NodlysEnhet } from './nodlys/typer'
+import { BATTERITYPER, PDF_SORTERINGER, sorterForPdf, type NodlysEnhet, type PdfSortering } from './nodlys/typer'
 import { powersyncAktiv } from '@/lib/powersync/db'
 import { leggTilNodlysLokalt, oppdaterNodlysLokalt, slettNodlysLokalt, useNodlysLokal } from '@/lib/powersync/nodlys'
 
@@ -84,6 +84,19 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   const [pendingPdfSave, setPendingPdfSave] = useState<{ mode: 'save' | 'download'; doc: any; fileName: string } | null>(null)
   const [dropboxAvailable, setDropboxAvailable] = useState(false)
   const [kontrolldato, setKontrolldato] = useState<Date>(new Date())
+  // Rekkefølgen i rapporten er en smakssak, og den samme teknikeren vil som regel
+  // ha den likt hver gang – derfor huskes valget på enheten.
+  const [pdfSortering, setPdfSortering] = useState<PdfSortering>(() => {
+    try {
+      const lagret = localStorage.getItem('nodlys_pdf_sortering')
+      return PDF_SORTERINGER.some(x => x.verdi === lagret) ? lagret as PdfSortering : 'armatur'
+    } catch {
+      return 'armatur'
+    }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('nodlys_pdf_sortering', pdfSortering) } catch { /* full lagring skal ikke stoppe kontrollen */ }
+  }, [pdfSortering])
   const [lagrer, setLagrer] = useState<Set<string>>(new Set())
   const [visVelger, setVisVelger] = useState(!state?.anleggId)
 
@@ -616,13 +629,8 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
       // Liggende side, som i de andre utstyrslistene
       yPos = await listeside(doc, 'NØDLYSLISTE')
 
-      // Sorter etter armatur_id (numerisk)
       const harBygg = nodlysListe.some(n => n.bygg)
-      const sortedNodlysForPdf = [...nodlysListe].sort((a, b) => {
-        const numA = parseInt(a.amatur_id || '0') || 0
-        const numB = parseInt(b.amatur_id || '0') || 0
-        return numA - numB
-      })
+      const sortedNodlysForPdf = sorterForPdf(nodlysListe, pdfSortering)
 
       autoTable(doc, {
         startY: yPos,
@@ -1076,6 +1084,13 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
                 </select>
               </div>
               <KontrolldatoVelger kontrolldato={kontrolldato} onDatoChange={setKontrolldato} label="Kontrolldato" />
+              <div className="space-y-1.5">
+                <label htmlFor="pdf-sortering" className="block text-sm font-medium text-gray-900 dark:text-white">Rekkefølge i rapporten</label>
+                <select id="pdf-sortering" value={pdfSortering} onChange={e => setPdfSortering(e.target.value as PdfSortering)} className="input">
+                  {PDF_SORTERINGER.map(x => <option key={x.verdi} value={x.verdi}>{x.navn}</option>)}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Gjelder armaturlisten. Valget huskes til neste gang.</p>
+              </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
               <Button variant="primary" size="md" icon={<Save />} loading={loading} disabled={nodlysListe.length === 0} onClick={() => genererPDF('save')} className="sm:flex-1">Generer rapport</Button>

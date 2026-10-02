@@ -48,3 +48,62 @@ export function byggSortNokkel(a: string, b: string): number {
   if (!b) return -1
   return a.localeCompare(b, 'nb-NO', { numeric: true })
 }
+
+/**
+ * Rekkefølgen på armaturene i rapporten.
+ *
+ * Hvilken som er riktig avhenger av hvem som leser: elektrikeren vil gjerne ha
+ * dem etter armaturnummer, driftslederen etter etasje, og den som skal utbedre
+ * vil ha avvikene først. Derfor velges det per rapport.
+ */
+export const PDF_SORTERINGER = [
+  { verdi: 'armatur', navn: 'Armaturnummer' },
+  { verdi: 'etasje', navn: 'Etasje, så armaturnummer' },
+  { verdi: 'type', navn: 'Type, så armaturnummer' },
+  { verdi: 'avvik', navn: 'Avvik først' },
+] as const
+
+export type PdfSortering = typeof PDF_SORTERINGER[number]['verdi']
+
+/** Armaturnummer stigende. Brukes alene og som sekundærnøkkel for de andre. */
+function armaturNokkel(a: NodlysEnhet, b: NodlysEnhet): number {
+  const tall = (v: string | null) => {
+    const n = parseInt(v ?? '', 10)
+    return Number.isNaN(n) ? Number.MAX_SAFE_INTEGER : n
+  }
+  return tall(a.amatur_id) - tall(b.amatur_id)
+    || (a.amatur_id ?? '').localeCompare(b.amatur_id ?? '', 'nb-NO', { numeric: true })
+    || (a.internnummer ?? '').localeCompare(b.internnummer ?? '', 'nb-NO', { numeric: true })
+}
+
+/** Sorterer en kopi av listen. Rører ikke originalen. */
+export function sorterForPdf(liste: NodlysEnhet[], sortering: PdfSortering): NodlysEnhet[] {
+  const kopi = [...liste]
+  switch (sortering) {
+    case 'etasje':
+      return kopi.sort((a, b) =>
+        byggSortNokkel(a.bygg ?? '', b.bygg ?? '')
+        || etasjeSortNokkel(a.etasje ?? null) - etasjeSortNokkel(b.etasje ?? null)
+        || armaturNokkel(a, b))
+    case 'type':
+      // Tomme typer sist, ellers alfabetisk
+      return kopi.sort((a, b) =>
+        ((a.type ?? '') ? 0 : 1) - ((b.type ?? '') ? 0 : 1)
+        || (a.type ?? '').localeCompare(b.type ?? '', 'nb-NO')
+        || armaturNokkel(a, b))
+    case 'avvik':
+      // Avvik først, så ukontrollerte, så resten
+      return kopi.sort((a, b) =>
+        avvikRang(a) - avvikRang(b)
+        || (a.status ?? '').localeCompare(b.status ?? '', 'nb-NO')
+        || armaturNokkel(a, b))
+    default:
+      return kopi.sort(armaturNokkel)
+  }
+}
+
+function avvikRang(e: NodlysEnhet): number {
+  if (AVVIK_STATUSER.has(e.status ?? '')) return 0
+  if (!e.kontrollert) return 1
+  return 2
+}
