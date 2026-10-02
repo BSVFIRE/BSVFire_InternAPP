@@ -381,12 +381,43 @@ function ByggVelger({ verdi, eksisterende, onChange, onAvbryt, placeholder, disa
   )
 }
 
+/**
+ * Haken til venstre i raden.
+ *
+ * Sirkelen er 24 piksler – fint å se på, altfor lite å treffe. Knappen rundt har
+ * derfor polstring som utvides til 44 piksler uten mus, med tilsvarende negativ
+ * marg så raden ikke blir høyere av det.
+ *
+ * Den slår også om med én gang du trykker, uten å vente på lagringen. Med
+ * PowerSync går veien om den lokale databasen og en spørring som kjører på nytt;
+ * det tar et øyeblikk, og i mellomtiden så knappen ut som om trykket ikke hadde
+ * registrert seg. Da trykker man en gang til – og angrer det man nettopp gjorde.
+ */
 function Kontrollert({ e, lagrer, onClick }: { e: NodlysEnhet; lagrer: boolean; onClick: () => void }) {
-  if (lagrer) return <span className="w-6 h-6 flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-primary" /></span>
+  const [optimistisk, setOptimistisk] = useState<boolean | null>(null)
+  const vist = optimistisk ?? Boolean(e.kontrollert)
+
+  useEffect(() => {
+    if (optimistisk === null) return
+    // Lagringen er bekreftet – slipp den midlertidige verdien
+    if (optimistisk === Boolean(e.kontrollert)) { setOptimistisk(null); return }
+    // Kom svaret aldri, skal knappen vise sannheten fra databasen igjen
+    const t = setTimeout(() => setOptimistisk(null), 4000)
+    return () => clearTimeout(t)
+  }, [optimistisk, e.kontrollert])
+
   return (
-    <button type="button" onClick={onClick} aria-pressed={Boolean(e.kontrollert)} aria-label={e.kontrollert ? 'Kontrollert – trykk for å angre' : 'Merk som kontrollert'} title={e.kontrollert ? 'Kontrollert' : 'Ikke kontrollert'}
-      className={cn('w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors', e.kontrollert ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 dark:border-gray-600 hover:border-green-500')}>
-      {e.kontrollert && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+    <button
+      type="button"
+      onClick={() => { setOptimistisk(!vist); onClick() }}
+      aria-pressed={vist}
+      aria-label={vist ? 'Kontrollert – trykk for å angre' : 'Merk som kontrollert'}
+      title={vist ? 'Kontrollert' : 'Ikke kontrollert'}
+      className="flex items-center justify-center flex-shrink-0 p-2.5 -m-2.5 mus:p-0 mus:m-0"
+    >
+      <span className={cn('w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors', vist ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 dark:border-gray-600 hover:border-green-500')}>
+        {lagrer ? <Loader2 className={cn('w-3.5 h-3.5 animate-spin', vist ? 'text-white' : 'text-primary')} /> : vist ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : null}
+      </span>
     </button>
   )
 }
