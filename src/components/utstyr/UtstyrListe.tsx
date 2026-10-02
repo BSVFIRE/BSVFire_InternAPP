@@ -6,6 +6,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Check, CheckSquare, ChevronDown, ChevronRight, Loader2, MoreHorizontal, Search, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useGrovPeker } from '@/hooks/usePeker'
+import { FeltDialog } from './FeltDialog'
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 
@@ -190,13 +192,16 @@ export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, sta
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                     {g.rader.map(r => {
                       const m = merke?.(r)
+                      // Vises i den forstørrede ruten, så du ser hvilket apparat du redigerer
+                      const radNavn = [String(r[nummerKey] ?? ''), String((r as Record<string, unknown>).plassering ?? '')]
+                        .filter(Boolean).join(' · ') || `Uten nummer`
                       return (
                         <tr key={r.id} className={cn('group', kontrollert(r) ? '' : 'bg-yellow-50/40 dark:bg-yellow-900/5')}>
                           <td className="pl-3">{velgModus ? <input type="checkbox" checked={valgte.has(r.id)} onChange={() => toggleValgt(r.id)} aria-label="Velg" className="w-[18px] h-[18px] rounded text-primary focus:ring-primary" /> : <Kontrollert ok={kontrollert(r)} avvik={harAvvik(r)} lagrer={lagrer.has(r.id)} />}</td>
-                          <td className="px-1 py-1"><Celle rad={r} felt={{ key: nummerKey, navn: 'Nr.' }} aktiv={redigerer?.id === r.id && redigerer.felt === nummerKey} onStart={() => setRedigerer({ id: r.id, felt: nummerKey })} onLagre={(v, videre) => { if (String(r[nummerKey] ?? '') !== v) onEndre(r.id, { [nummerKey]: v || null } as Partial<T>); videre ? nesteRad(r.id, nummerKey) : setRedigerer(null) }} onAvbryt={() => setRedigerer(null)} klasse="font-mono" /></td>
+                          <td className="px-1 py-1"><Celle rad={r} felt={{ key: nummerKey, navn: 'Nr.' }} radNavn={radNavn} aktiv={redigerer?.id === r.id && redigerer.felt === nummerKey} onStart={() => setRedigerer({ id: r.id, felt: nummerKey })} onLagre={(v, videre) => { if (String(r[nummerKey] ?? '') !== v) onEndre(r.id, { [nummerKey]: v || null } as Partial<T>); videre ? nesteRad(r.id, nummerKey) : setRedigerer(null) }} onAvbryt={() => setRedigerer(null)} klasse="font-mono" /></td>
                           {felter.map(f => (
                             <td key={f.key} className="px-1 py-1">
-                              <Celle rad={r} felt={f} forslag={forslag[f.key]} aktiv={redigerer?.id === r.id && redigerer.felt === f.key} onStart={() => setRedigerer({ id: r.id, felt: f.key })} onLagre={(v, videre) => { if (String(r[f.key] ?? '') !== v) onEndre(r.id, { [f.key]: v || null } as Partial<T>); videre ? nesteRad(r.id, f.key) : setRedigerer(null) }} onAvbryt={() => setRedigerer(null)} />
+                              <Celle rad={r} felt={f} forslag={forslag[f.key]} radNavn={radNavn} aktiv={redigerer?.id === r.id && redigerer.felt === f.key} onStart={() => setRedigerer({ id: r.id, felt: f.key })} onLagre={(v, videre) => { if (String(r[f.key] ?? '') !== v) onEndre(r.id, { [f.key]: v || null } as Partial<T>); videre ? nesteRad(r.id, f.key) : setRedigerer(null) }} onAvbryt={() => setRedigerer(null)} />
                             </td>
                           ))}
                           <td className="px-2 py-1"><div className="flex items-center gap-1.5 flex-wrap"><StatusKnapper valgt={statuser(r)} def={status} onVelg={s => settStatus(r, s)} onNullstill={() => onEndre(r.id, { [statusKey]: [] } as Partial<T>)} />{m && <MerkePille m={m} />}</div></td>
@@ -324,12 +329,16 @@ function MerkePille({ m }: { m: Merke }) {
   return <span className={cn('px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap', t)}>{m.tekst}</span>
 }
 
-function Celle<T>({ rad, felt, aktiv, forslag, onStart, onLagre, onAvbryt, klasse }: {
-  rad: T; felt: FeltDef<T>; aktiv: boolean; forslag?: string[]; onStart: () => void; onLagre: (verdi: string, videre: boolean) => void; onAvbryt: () => void; klasse?: string
+function Celle<T>({ rad, felt, aktiv, forslag, radNavn, onStart, onLagre, onAvbryt, klasse }: {
+  rad: T; felt: FeltDef<T>; aktiv: boolean; forslag?: string[]
+  /** Hvilken enhet raden gjelder – vises i den forstørrede ruten på berøringsskjerm */
+  radNavn?: string
+  onStart: () => void; onLagre: (verdi: string, videre: boolean) => void; onAvbryt: () => void; klasse?: string
 }) {
   const verdi = String(rad[felt.key] ?? '')
   const [v, setV] = useState(verdi)
   const ref = useRef<HTMLInputElement | HTMLSelectElement>(null)
+  const grovPeker = useGrovPeker()
   const ferdig = useRef(false)
   useEffect(() => { if (aktiv) { ferdig.current = false; setV(verdi); setTimeout(() => ref.current?.focus({ preventScroll: true }), 0) } }, [aktiv, verdi])
   const lagre = (val: string, videre: boolean) => { if (ferdig.current) return; ferdig.current = true; onLagre(val, videre) }
@@ -340,9 +349,28 @@ function Celle<T>({ rad, felt, aktiv, forslag, onStart, onLagre, onAvbryt, klass
     const utdatert = felt.type === 'aar' && verdi && Number(verdi) < naa
     return (
       <span className="flex items-center gap-1">
-        <button type="button" onClick={onStart} className={cn('flex-1 text-left px-1.5 py-1 rounded hover:bg-gray-100 dark:hover:bg-dark-100 truncate', klasse, verdi ? (utdatert ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-900 dark:text-white') : 'text-gray-300 dark:text-gray-600')} title={verdi || 'Klikk for å redigere'}>{verdi || '–'}</button>
-        {felt.type === 'aar' && verdi !== String(naa) && <button type="button" onClick={() => onLagre(String(naa), false)} title={`Sett ${naa}`} className="w-6 h-6 rounded text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center justify-center flex-shrink-0"><Check className="w-3.5 h-3.5" /></button>}
+        {/* Raden er høyere uten mus, så cellen lar seg treffe med en finger */}
+        <button type="button" onClick={onStart} className={cn('flex-1 text-left px-1.5 py-2.5 mus:py-1 rounded hover:bg-gray-100 dark:hover:bg-dark-100 truncate', klasse, verdi ? (utdatert ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-900 dark:text-white') : 'text-gray-300 dark:text-gray-600')} title={verdi || 'Klikk for å redigere'}>{verdi || '–'}</button>
+        {felt.type === 'aar' && verdi !== String(naa) && <button type="button" onClick={() => onLagre(String(naa), false)} title={`Sett ${naa}`} className="w-9 h-9 mus:w-6 mus:h-6 rounded text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center justify-center flex-shrink-0"><Check className="w-3.5 h-3.5" /></button>}
       </span>
+    )
+  }
+
+  // Med finger: forstørret rute i stedet for en celle på 30 piksler
+  if (grovPeker) {
+    return (
+      <>
+        <span className="block px-1.5 py-2.5 truncate text-gray-900 dark:text-white">{verdi || '–'}</span>
+        <FeltDialog
+          tittel={felt.navn}
+          undertittel={radNavn ?? ''}
+          verdi={verdi}
+          valg={felt.type === 'select' ? felt.valg : undefined}
+          forslag={felt.type === 'valgEllerTekst' ? [...(felt.valg ?? []), ...(forslag ?? [])] : forslag}
+          onLagre={(val, videre) => { setV(val); lagre(val, videre) }}
+          onAvbryt={avbryt}
+        />
+      </>
     )
   }
   const felles = {

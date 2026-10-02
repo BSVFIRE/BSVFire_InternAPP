@@ -5,11 +5,11 @@
  * Feltene redigeres i raden: lite felt med mus, forstørret rute med finger.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, CheckSquare, ChevronDown, ChevronRight, Edit, Loader2, MoreHorizontal, Search, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { useGrovPeker } from '@/hooks/usePeker'
+import { FeltDialog } from '@/components/utstyr/FeltDialog'
 import { IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { AVVIK_STATUSER, BATTERITYPER, ETASJER, NODLYS_STATUSER, NODLYS_TYPER, STATUS_FARGE, byggSortNokkel, etasjeSortNokkel, type NodlysEnhet } from './typer'
@@ -525,100 +525,6 @@ function lesHusket(anleggId: string): Husket {
 
 function skrivHusket(anleggId: string, h: Husket) {
   try { localStorage.setItem(huskeNokkel(anleggId), JSON.stringify(h)) } catch { /* full lagring skal ikke stoppe kontrollen */ }
-}
-
-/**
- * Feltredigering forstørret – det som kommer opp når du trykker på en celle med
- * fingeren. Tabellen beholdes fordi oversikten er verdt mye i liggende nettbrett,
- * men en celle på 30 piksler lar seg ikke treffe eller skrive i.
- *
- * Skriftstørrelsen er 16 px med vilje: er feltet mindre, zoomer iOS inn på siden
- * av seg selv når det får fokus, og da sitter du igjen med en forskjøvet tabell.
- */
-function FeltDialog({ tittel, undertittel, verdi, valg, forslag, onLagre, onAvbryt }: {
-  tittel: string
-  undertittel: string
-  verdi: string
-  valg?: readonly string[]
-  forslag?: string[]
-  onLagre: (verdi: string, videre: boolean) => void
-  onAvbryt: () => void
-}) {
-  const [v, setV] = useState(verdi)
-  const ref = useRef<HTMLInputElement>(null)
-
-  useEffect(() => { setTimeout(() => ref.current?.focus(), 50) }, [])
-  useEffect(() => {
-    function tast(e: KeyboardEvent) { if (e.key === 'Escape') onAvbryt() }
-    document.addEventListener('keydown', tast)
-    return () => document.removeEventListener('keydown', tast)
-  }, [onAvbryt])
-
-  return createPortal(
-    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center p-3 sm:p-4" onClick={onAvbryt} role="presentation">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${tittel} for ${undertittel}`}
-        onClick={e => e.stopPropagation()}
-        className="card w-full sm:max-w-md space-y-3"
-        style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      >
-        <div>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">{tittel}</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{undertittel}</p>
-        </div>
-
-        {valg ? (
-          <div className="grid grid-cols-3 gap-2">
-            {['', ...valg].map(x => (
-              <button
-                key={x || '–'}
-                type="button"
-                onClick={() => onLagre(x, false)}
-                className={cn('h-12 rounded-lg border text-sm', x === v
-                  ? 'border-primary bg-primary/10 text-primary font-semibold'
-                  : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300')}
-              >
-                {x || '–'}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <>
-            <input
-              ref={ref}
-              value={v}
-              onChange={e => setV(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onLagre(v, true) } }}
-              className="input !h-12 !min-h-12 text-base"
-            />
-            {forslag && forslag.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {forslag.slice(0, 12).map(x => (
-                  <button
-                    key={x}
-                    type="button"
-                    onClick={() => onLagre(x, false)}
-                    className="h-9 px-3 rounded-full border border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300"
-                  >
-                    {x}
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        <div className="flex items-center gap-2 pt-1">
-          <Button onClick={onAvbryt} className="justify-center">Avbryt</Button>
-          <Button variant="primary" onClick={() => onLagre(v, false)} className="flex-1 justify-center">Lagre</Button>
-          <Button onClick={() => onLagre(v, true)} className="justify-center whitespace-nowrap">Neste rad</Button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  )
 }
 
 /** Redigerbar celle: klikk → input (med forslag for fordeling/kurs/produsent, nedtrekk for etasje/type). Enter = lagre og gå til neste rad. */
