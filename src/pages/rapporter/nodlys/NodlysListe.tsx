@@ -9,12 +9,15 @@ import { AlertTriangle, Check, CheckSquare, ChevronDown, ChevronRight, Edit, Loa
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { useGrovPeker } from '@/hooks/usePeker'
+import { lesVisning, skrivVisning, visningsNokkel } from '@/lib/huskVisning'
 import { FeltDialog } from '@/components/utstyr/FeltDialog'
 import { IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { AVVIK_STATUSER, BATTERITYPER, ETASJER, NODLYS_STATUSER, NODLYS_TYPER, STATUS_FARGE, byggSortNokkel, etasjeSortNokkel, type NodlysEnhet } from './typer'
 
 type Chip = 'gjenstar' | 'kontrollert' | 'avvik' | 'alle'
+const CHIPS: readonly string[] = ['gjenstar', 'kontrollert', 'avvik', 'alle']
+function erChip(v: string | undefined): v is Chip { return v != null && CHIPS.includes(v) }
 type Felt = 'internnummer' | 'amatur_id' | 'fordeling' | 'kurs' | 'bygg' | 'etasje' | 'plassering' | 'produsent' | 'type' | 'batteritype' | 'notat'
 const FELTER: { key: Felt; navn: string; bredde: string }[] = [
   { key: 'internnummer', navn: 'Nr.', bredde: 'w-16' },
@@ -45,14 +48,13 @@ export function NodlysListe({ anleggId, enheter, lagrer, onEndre, onEndreFlere, 
 }) {
   // Listen avmonteres når du går til forhåndsvisningen. Uten dette sto alle
   // byggene åpne igjen når du kom tilbake, og du måtte finne fram på nytt.
-  const husket = useRef(lesHusket(anleggId)).current
-  const [chip, setChip] = useState<Chip>(husket.chip ?? 'gjenstar')
+  const nokkel = visningsNokkel('nodlys', anleggId)
+  const husket = useRef(lesVisning(nokkel)).current
+  const [chip, setChip] = useState<Chip>(erChip(husket.chip) ? husket.chip : 'gjenstar')
   const [q, setQ] = useState('')
   const [lukkede, setLukkede] = useState<Set<string>>(new Set(husket.lukkede))
 
-  useEffect(() => {
-    skrivHusket(anleggId, { chip, lukkede: [...lukkede] })
-  }, [anleggId, chip, lukkede])
+  useEffect(() => { skrivVisning(nokkel, { chip, lukkede: [...lukkede] }) }, [nokkel, chip, lukkede])
   const [redigerer, setRedigerer] = useState<{ id: string; felt: Felt } | null>(null)
   /** Kortet som er foldet ut for redigering på berøringsskjerm */
   const [apentKort, setApentKort] = useState<string | null>(null)
@@ -78,7 +80,7 @@ export function NodlysListe({ anleggId, enheter, lagrer, onEndre, onEndreFlere, 
   useEffect(() => { setNyligEndret(new Set()) }, [chip])
 
   // Startvisning: «Gjenstår» når kontrollen er i gang, «Alle» når den er (nesten) ferdig – velges én gang når listen er lastet
-  const [startValgt, setStartValgt] = useState(Boolean(husket.chip))
+  const [startValgt, setStartValgt] = useState(erChip(husket.chip))
   useEffect(() => {
     if (startValgt || teller.alle === 0) return
     setStartValgt(true)
@@ -506,25 +508,6 @@ function TouchFelt({ navn, verdi, valg, forslag, full, onLagre }: {
       )}
     </label>
   )
-}
-
-interface Husket { chip?: Chip; lukkede: string[] }
-
-function huskeNokkel(anleggId: string) { return `nodlys_visning_${anleggId}` }
-
-function lesHusket(anleggId: string): Husket {
-  try {
-    const rå = localStorage.getItem(huskeNokkel(anleggId))
-    if (!rå) return { lukkede: [] }
-    const x = JSON.parse(rå) as Husket
-    return { chip: x.chip, lukkede: Array.isArray(x.lukkede) ? x.lukkede : [] }
-  } catch {
-    return { lukkede: [] }
-  }
-}
-
-function skrivHusket(anleggId: string, h: Husket) {
-  try { localStorage.setItem(huskeNokkel(anleggId), JSON.stringify(h)) } catch { /* full lagring skal ikke stoppe kontrollen */ }
 }
 
 /** Redigerbar celle: klikk → input (med forslag for fordeling/kurs/produsent, nedtrekk for etasje/type). Enter = lagre og gå til neste rad. */

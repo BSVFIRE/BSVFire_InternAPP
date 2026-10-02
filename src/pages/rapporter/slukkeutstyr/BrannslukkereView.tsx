@@ -833,6 +833,7 @@ export function BrannslukkereView({ anleggId, kundeNavn, anleggNavn, onBack }: B
 
       {loading && slukkere.length === 0 ? <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div> : (
         <UtstyrListe<Brannslukker>
+          anleggId={anleggId}
           rader={slukkere}
           nummerKey="apparat_nr"
           felter={FELTER}

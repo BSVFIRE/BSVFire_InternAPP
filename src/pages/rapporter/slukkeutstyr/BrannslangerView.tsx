@@ -839,6 +839,7 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
 
       {loading && slanger.length === 0 ? <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div> : (
         <UtstyrListe<Brannslange>
+          anleggId={anleggId}
           rader={slanger}
           nummerKey="slangenummer"
           felter={FELTER}

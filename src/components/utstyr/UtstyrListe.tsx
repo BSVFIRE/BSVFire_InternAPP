@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Check, CheckSquare, ChevronDown, ChevronRight, Loader2, MoreHorizontal, Search, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useGrovPeker } from '@/hooks/usePeker'
+import { lesVisning, skrivVisning, visningsNokkel } from '@/lib/huskVisning'
 import { FeltDialog } from './FeltDialog'
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
@@ -38,7 +39,9 @@ export interface StatusDef {
 
 export interface Merke { tekst: string; tone: 'r' | 'y' | 'g' }
 
-export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, status, statusKey, lagrer, onEndre, onEndreFlere, onSlett, onLeggTil, merke, ekstra, enhetsnavn }: {
+export function UtstyrListe<T extends UtstyrRad>({ anleggId, rader, nummerKey, felter, status, statusKey, lagrer, onEndre, onEndreFlere, onSlett, onLeggTil, merke, ekstra, enhetsnavn }: {
+  /** Brukes til å huske hvilke etasjer som står åpne, per anlegg og modul */
+  anleggId: string
   rader: T[]
   nummerKey: keyof T & string
   felter: FeltDef<T>[]
@@ -56,9 +59,17 @@ export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, sta
   enhetsnavn: { entall: string; flertall: string }
 }) {
   type Chip = 'gjenstar' | 'kontrollert' | 'avvik' | 'alle'
-  const [chip, setChip] = useState<Chip>('gjenstar')
+  const CHIPS: readonly string[] = ['gjenstar', 'kontrollert', 'avvik', 'alle']
+  // Listen avmonteres når du går til forhåndsvisningen – uten dette sto alle
+  // etasjene åpne igjen når du kom tilbake
+  const nokkel = visningsNokkel(enhetsnavn.entall, anleggId)
+  const husket = useRef(lesVisning(nokkel)).current
+  const huskedeChip = husket.chip && CHIPS.includes(husket.chip) ? husket.chip as Chip : undefined
+  const [chip, setChip] = useState<Chip>(huskedeChip ?? 'gjenstar')
   const [q, setQ] = useState('')
-  const [lukkede, setLukkede] = useState<Set<string>>(new Set())
+  const [lukkede, setLukkede] = useState<Set<string>>(new Set(husket.lukkede))
+
+  useEffect(() => { skrivVisning(nokkel, { chip, lukkede: [...lukkede] }) }, [nokkel, chip, lukkede])
   const [redigerer, setRedigerer] = useState<{ id: string; felt: string } | null>(null)
   const [velgModus, setVelgModus] = useState(false)
   const [valgte, setValgte] = useState<Set<string>>(new Set())
@@ -77,7 +88,7 @@ export function UtstyrListe<T extends UtstyrRad>({ rader, nummerKey, felter, sta
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [rader])
   // Startvisning: «Gjenstår» når kontrollen er i gang, «Alle» når den er (nesten) ferdig – velges én gang når listen er lastet
-  const [startValgt, setStartValgt] = useState(false)
+  const [startValgt, setStartValgt] = useState(Boolean(huskedeChip))
   useEffect(() => {
     if (startValgt || teller.alle === 0) return
     setStartValgt(true)
