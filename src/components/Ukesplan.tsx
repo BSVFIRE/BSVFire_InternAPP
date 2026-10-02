@@ -10,6 +10,20 @@ import { createDropboxFolder, uploadToDropbox } from '@/services/dropboxServiceV
 import { toast } from '@/lib/toast'
 import { Combobox } from '@/components/ui/Combobox'
 
+/** Kontaktperson på et anlegg, slik den vises i ukesplanen kunden får. */
+interface Kontakt {
+  navn: string | null
+  rolle: string | null
+  telefon: string | null
+  epost: string | null
+  primar: boolean
+}
+
+/** Navn og adresser settes rett inn i HTML – de kan inneholde & og < */
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 interface Kunde {
   id: string
   navn: string
@@ -534,8 +548,38 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
     }
   }
 
+  /**
+   * Kontaktpersonene på anleggene i planen, slik kunden kan se over at de stemmer.
+   * Hentes først når PDF-en lages – de trengs ikke mens man setter opp uken.
+   */
+  async function hentKontakter(anleggIds: string[]): Promise<Record<string, Kontakt[]>> {
+    if (anleggIds.length === 0) return {}
+    const { data, error } = await supabase
+      .from('kontaktpersoner')
+      .select('navn, rolle, telefon, epost, anlegg_kontaktpersoner!inner(primar, anlegg_id)')
+      .in('anlegg_kontaktpersoner.anlegg_id', anleggIds)
+    if (error) {
+      // Mangler kontaktene skal resten av planen likevel komme ut
+      console.error('Kunne ikke hente kontaktpersoner:', error)
+      toast.warning('Fikk ikke hentet kontaktpersonene', 'Planen lages uten dem.')
+      return {}
+    }
+
+    const per: Record<string, Kontakt[]> = {}
+    for (const k of data ?? []) {
+      const koblinger = (k as unknown as { anlegg_kontaktpersoner: { primar: boolean | null; anlegg_id: string }[] }).anlegg_kontaktpersoner ?? []
+      for (const kobling of koblinger) {
+        (per[kobling.anlegg_id] ??= []).push({
+          navn: k.navn, rolle: k.rolle, telefon: k.telefon, epost: k.epost, primar: Boolean(kobling.primar),
+        })
+      }
+    }
+    for (const liste of Object.values(per)) liste.sort((a, b) => Number(b.primar) - Number(a.primar))
+    return per
+  }
+
   // Vis forhåndsvisning
-  function showPdfPreview() {
+  async function showPdfPreview() {
     if (!selectedKundeId || Object.keys(dagPlaner).length === 0) {
       toast.warning('Legg til minst ett anlegg før du genererer PDF')
       return
@@ -543,8 +587,11 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
     
     const kunde = kunder.find(k => k.id === selectedKundeId)
     if (!kunde) return
-    
-    const html = generatePdfHtml(kunde)
+
+    const anleggIds = Object.values(dagPlaner).flat().map(a => a.anlegg_id).filter(Boolean)
+    const kontakter = await hentKontakter(anleggIds)
+
+    const html = generatePdfHtml(kunde, kontakter)
     setPreviewHtml(html)
     setShowPreview(true)
   }
@@ -603,7 +650,7 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
     }
   }
 
-  function generatePdfHtml(kunde: Kunde): string {
+  function generatePdfHtml(kunde: Kunde, kontakter: Record<string, Kontakt[]>): string {
     const sortedDays = Object.keys(dagPlaner).map(Number).sort()
     
     let daysHtml = ''
@@ -614,11 +661,18 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
       let anleggRows = ''
       for (const a of anleggListe) {
         const kontrollTyper = a.anlegg?.kontroll_type?.join(', ') || '-'
+        // Kontaktpersonene står under adressen, så kunden kan se over at de stemmer
+        const liste = kontakter[a.anlegg_id] ?? []
+        const kontaktHtml = liste.length > 0
+          ? liste.map(k => `<span style="display: block; color: #374151; font-size: 12px;">${esc([k.navn, k.rolle && `(${k.rolle})`].filter(Boolean).join(' '))}${[k.telefon, k.epost].filter(Boolean).length ? ` · ${esc([k.telefon, k.epost].filter(Boolean).join(' · '))}` : ''}</span>`).join('')
+          : '<span style="display: block; color: #9ca3af; font-size: 12px; font-style: italic;">Ingen kontaktperson registrert</span>'
         anleggRows += `
           <tr>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
               <strong>${a.anlegg?.anleggsnavn || 'Ukjent'}</strong><br>
               <span style="color: #6b7280; font-size: 13px;">${a.anlegg?.adresse || ''} ${a.anlegg?.postnummer || ''} ${a.anlegg?.poststed || ''}</span>
+              <span style="display: block; margin-top: 6px; color: #6b7280; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;">Kontaktperson</span>
+              ${kontaktHtml}
             </td>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">
               ${a.estimert_oppstart?.slice(0, 5) || '-'}
