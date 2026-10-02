@@ -355,7 +355,10 @@ export default function AnleggDetaljer() {
             <StatusVelger anlegg={anlegg} onChanged={loadAll} />
           </div>
           <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-sm text-gray-500 dark:text-gray-400">
-            <span className="inline-flex items-center gap-1.5"><Building2 className="w-4 h-4" />{kundeNavn}</span>
+            {/* Kunden er veien til de andre anleggene deres – den vanligste neste handlingen */}
+            {anlegg.kundenr
+              ? <Link to={`/kunder/${anlegg.kundenr}`} className="inline-flex items-center gap-1.5 hover:text-gray-900 dark:hover:text-white hover:underline"><Building2 className="w-4 h-4" />{kundeNavn}</Link>
+              : <span className="inline-flex items-center gap-1.5"><Building2 className="w-4 h-4" />{kundeNavn}</span>}
             {adresse && <><span className="text-gray-300 dark:text-gray-700">·</span><span className="inline-flex items-center gap-1.5"><MapPin className="w-4 h-4" />{adresse}</span></>}
             {kundeNummer && <><span className="text-gray-300 dark:text-gray-700">·</span><span>Kundenr. {kundeNummer}</span></>}
           </div>
