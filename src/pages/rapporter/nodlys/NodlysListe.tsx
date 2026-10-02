@@ -31,7 +31,9 @@ const FELTER: { key: Felt; navn: string; bredde: string }[] = [
 ]
 const FELTNAVN = Object.fromEntries(FELTER.map(f => [f.key, f.navn])) as Record<Felt, string>
 
-export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, onSlettFlere, onRediger }: {
+export function NodlysListe({ anleggId, enheter, lagrer, onEndre, onEndreFlere, onSlett, onSlettFlere, onRediger }: {
+  /** Brukes til å huske hvilke grupper som står åpne, per anlegg */
+  anleggId: string
   enheter: NodlysEnhet[]
   /** id-er som lagres akkurat nå */
   lagrer: Set<string>
@@ -41,9 +43,16 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
   onSlettFlere: (ids: string[]) => Promise<void>
   onRediger: (enhet: NodlysEnhet) => void
 }) {
-  const [chip, setChip] = useState<Chip>('gjenstar')
+  // Listen avmonteres når du går til forhåndsvisningen. Uten dette sto alle
+  // byggene åpne igjen når du kom tilbake, og du måtte finne fram på nytt.
+  const husket = useRef(lesHusket(anleggId)).current
+  const [chip, setChip] = useState<Chip>(husket.chip ?? 'gjenstar')
   const [q, setQ] = useState('')
-  const [lukkede, setLukkede] = useState<Set<string>>(new Set())
+  const [lukkede, setLukkede] = useState<Set<string>>(new Set(husket.lukkede))
+
+  useEffect(() => {
+    skrivHusket(anleggId, { chip, lukkede: [...lukkede] })
+  }, [anleggId, chip, lukkede])
   const [redigerer, setRedigerer] = useState<{ id: string; felt: Felt } | null>(null)
   /** Kortet som er foldet ut for redigering på berøringsskjerm */
   const [apentKort, setApentKort] = useState<string | null>(null)
@@ -69,7 +78,7 @@ export function NodlysListe({ enheter, lagrer, onEndre, onEndreFlere, onSlett, o
   useEffect(() => { setNyligEndret(new Set()) }, [chip])
 
   // Startvisning: «Gjenstår» når kontrollen er i gang, «Alle» når den er (nesten) ferdig – velges én gang når listen er lastet
-  const [startValgt, setStartValgt] = useState(false)
+  const [startValgt, setStartValgt] = useState(Boolean(husket.chip))
   useEffect(() => {
     if (startValgt || teller.alle === 0) return
     setStartValgt(true)
@@ -497,6 +506,25 @@ function TouchFelt({ navn, verdi, valg, forslag, full, onLagre }: {
       )}
     </label>
   )
+}
+
+interface Husket { chip?: Chip; lukkede: string[] }
+
+function huskeNokkel(anleggId: string) { return `nodlys_visning_${anleggId}` }
+
+function lesHusket(anleggId: string): Husket {
+  try {
+    const rå = localStorage.getItem(huskeNokkel(anleggId))
+    if (!rå) return { lukkede: [] }
+    const x = JSON.parse(rå) as Husket
+    return { chip: x.chip, lukkede: Array.isArray(x.lukkede) ? x.lukkede : [] }
+  } catch {
+    return { lukkede: [] }
+  }
+}
+
+function skrivHusket(anleggId: string, h: Husket) {
+  try { localStorage.setItem(huskeNokkel(anleggId), JSON.stringify(h)) } catch { /* full lagring skal ikke stoppe kontrollen */ }
 }
 
 /**

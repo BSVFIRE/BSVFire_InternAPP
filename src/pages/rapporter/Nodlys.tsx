@@ -1052,6 +1052,7 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
 
           {loading && nodlysListe.length === 0 ? <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" /></div> : (
             <NodlysListe
+              anleggId={selectedAnlegg}
               enheter={nodlysListe}
               lagrer={lagrer}
               onEndre={lagreEndring}
