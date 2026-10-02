@@ -975,7 +975,11 @@ export function Forstehjelp({ onBack, fromAnlegg }: ForstehjelpProps) {
       {/* SendRapport Dialog */}
       <SendRapportDialog
         isOpen={showSendRapportDialog}
-        onCancel={() => setShowSendRapportDialog(false)}
+        onCancel={() => {
+          // Rapporten er lagret – da er anlegget stedet man skal videre
+          setShowSendRapportDialog(false)
+          if (selectedAnlegg) navigate(`/anlegg/${selectedAnlegg}`)
+        }}
         onConfirm={() => {
           setShowSendRapportDialog(false)
           navigate('/send-rapporter', { state: { anleggId: selectedAnlegg, kundeId: kundeId || selectedKunde } })

@@ -727,10 +727,12 @@ export function BrannslangerView({ anleggId, kundeNavn, anleggNavn, onBack }: Br
   }
 
   function handleSendRapportCancel() {
-    // Lukk dialogen uten å navigere
+    // «Nei, ikke nå»: rapporten er lagret, og da er anlegget stedet man skal
+    // videre – ikke kontrollskjemaet man nettopp ble ferdig med.
     setShowSendRapportDialog(false)
     setPendingPdfSave(null)
     setLoading(false)
+    if (anleggId) navigate(`/anlegg/${anleggId}`)
   }
 
   function handleTjenesteAvbryt() {

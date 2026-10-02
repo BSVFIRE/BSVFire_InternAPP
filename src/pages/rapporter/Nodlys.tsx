@@ -386,10 +386,12 @@ export function Nodlys({ onBack, fromAnlegg }: NodlysProps) {
   }
 
   function handleSendRapportCancel() {
-    // Lukk dialogen uten å navigere
+    // «Nei, ikke nå»: rapporten er lagret, og da er anlegget stedet man skal
+    // videre – ikke kontrollskjemaet man nettopp ble ferdig med.
     setShowSendRapportDialog(false)
     setPendingPdfSave(null)
     setLoading(false)
+    if (selectedAnlegg) navigate(`/anlegg/${selectedAnlegg}`)
   }
 
   function handleTjenesteAvbryt() {

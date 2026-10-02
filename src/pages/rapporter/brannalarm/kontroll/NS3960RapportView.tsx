@@ -1479,9 +1479,11 @@ export function NS3960RapportView({ kontrollId, anleggId, kundeNavn, onBack }: N
   }
 
   function handleSendRapportCancel() {
-    // Lukk dialogen uten å navigere
+    // «Nei, ikke nå»: rapporten er lagret, og da er anlegget stedet man skal
+    // videre – ikke kontrollskjemaet man nettopp ble ferdig med.
     setShowSendRapportDialog(false)
     setGenerating(false)
+    if (anleggId) navigate(`/anlegg/${anleggId}`)
   }
 
   function handleTjenesteAvbryt() {
