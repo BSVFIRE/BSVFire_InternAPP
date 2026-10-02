@@ -15,7 +15,6 @@ interface Kontakt {
   navn: string | null
   rolle: string | null
   telefon: string | null
-  epost: string | null
   primar: boolean
 }
 
@@ -556,7 +555,7 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
     if (anleggIds.length === 0) return {}
     const { data, error } = await supabase
       .from('kontaktpersoner')
-      .select('navn, rolle, telefon, epost, anlegg_kontaktpersoner!inner(primar, anlegg_id)')
+      .select('navn, rolle, telefon, anlegg_kontaktpersoner!inner(primar, anlegg_id)')
       .in('anlegg_kontaktpersoner.anlegg_id', anleggIds)
     if (error) {
       // Mangler kontaktene skal resten av planen likevel komme ut
@@ -570,7 +569,7 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
       const koblinger = (k as unknown as { anlegg_kontaktpersoner: { primar: boolean | null; anlegg_id: string }[] }).anlegg_kontaktpersoner ?? []
       for (const kobling of koblinger) {
         (per[kobling.anlegg_id] ??= []).push({
-          navn: k.navn, rolle: k.rolle, telefon: k.telefon, epost: k.epost, primar: Boolean(kobling.primar),
+          navn: k.navn, rolle: k.rolle, telefon: k.telefon, primar: Boolean(kobling.primar),
         })
       }
     }
@@ -664,7 +663,7 @@ export function UkesplanEditor({ kundeId, editPlanId, onClose, onSave }: Ukespla
         // Kontaktpersonene står under adressen, så kunden kan se over at de stemmer
         const liste = kontakter[a.anlegg_id] ?? []
         const kontaktHtml = liste.length > 0
-          ? liste.map(k => `<span style="display: block; color: #374151; font-size: 12px;">${esc([k.navn, k.rolle && `(${k.rolle})`].filter(Boolean).join(' '))}${[k.telefon, k.epost].filter(Boolean).length ? ` · ${esc([k.telefon, k.epost].filter(Boolean).join(' · '))}` : ''}</span>`).join('')
+          ? liste.map(k => `<span style="display: block; color: #374151; font-size: 12px;">${esc([k.navn, k.rolle && `(${k.rolle})`].filter(Boolean).join(' '))}${k.telefon ? ` · ${esc(k.telefon)}` : ''}</span>`).join('')
           : '<span style="display: block; color: #9ca3af; font-size: 12px; font-style: italic;">Ingen kontaktperson registrert</span>'
         anleggRows += `
           <tr>
