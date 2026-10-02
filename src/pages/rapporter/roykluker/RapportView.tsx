@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { TjenesteFullfortDialog } from '@/components/TjenesteFullfortDialog'
 import { checkDropboxStatus, uploadKontrollrapportToDropbox } from '@/services/dropboxServiceV2'
 import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
+import { PdfForhandsvisning } from '@/components/PdfForhandsvisning'
 import { lagRoyklukeRapport } from './rapport'
 import type { Luke, Sentral } from './typer'
 
@@ -147,8 +148,8 @@ export function RapportView({ anleggId, kundeNavn, anleggNavn, onTilbake }: {
       {lager && <div className="card py-12 text-center text-sm text-gray-500 inline-flex items-center justify-center gap-2 w-full"><Loader2 className="w-4 h-4 animate-spin" />Lager rapporten…</div>}
       {feil && <div className="card bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900 text-sm text-red-700 dark:text-red-400">{feil}</div>}
       {pdf && (
-        <div className="card !p-0 overflow-hidden">
-          <iframe src={pdf.url} title="Kontrollrapport røykventilasjon" className="w-full h-[70vh] border-0" />
+        <div className="card !p-3 overflow-y-auto max-h-[75vh] bg-gray-200 dark:bg-dark-100">
+          <PdfForhandsvisning blob={pdf.blob} />
         </div>
       )}
 

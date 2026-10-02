@@ -1,6 +1,7 @@
 import { ArrowLeft, FileText } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from '@/lib/toast'
+import { PdfForhandsvisning } from '@/components/PdfForhandsvisning'
 
 interface BrannslangerPreviewProps {
   pdfBlob: Blob
@@ -74,17 +75,9 @@ export function BrannslangerPreview({ pdfBlob, fileName, onBack, onSave }: Brann
           </div>
         </div>
 
-        {/* PDF Viewer */}
-        <div className="bg-gray-500 rounded-lg overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
-          {pdfUrl && (
-            <iframe
-              src={pdfUrl}
-              width="100%"
-              height="100%"
-              style={{ border: 'none' }}
-              title="PDF Forhåndsvisning"
-            />
-          )}
+        {/* Sidene tegnes selv. En iframe viser bare side 1 i Safari på iPad. */}
+        <div className="rounded-lg bg-gray-200 dark:bg-dark-100 p-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 140px)' }}>
+          <PdfForhandsvisning blob={pdfBlob} />
         </div>
       </div>
     </div>

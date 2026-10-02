@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, Download, Loader2 } from 'lucide-react'
 import { generateTilbudPDF } from './TilbudPDF'
 import { toast } from '@/lib/toast'
+import { PdfForhandsvisning } from '@/components/PdfForhandsvisning'
 
 interface TilbudPreviewProps {
   tilbudData: any
@@ -10,6 +11,8 @@ interface TilbudPreviewProps {
 
 export function TilbudPreview({ tilbudData, onClose }: TilbudPreviewProps) {
   const [pdfUrl, setPdfUrl] = useState<string>('')
+  // Visningen trenger selve blobben; URL-en brukes fortsatt til nedlasting
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -25,9 +28,9 @@ export function TilbudPreview({ tilbudData, onClose }: TilbudPreviewProps) {
     try {
       setLoading(true)
       const doc = await generateTilbudPDF(tilbudData)
-      const pdfBlob = doc.output('blob')
-      const url = URL.createObjectURL(pdfBlob)
-      setPdfUrl(url)
+      const blob = doc.output('blob')
+      setPdfBlob(blob)
+      setPdfUrl(URL.createObjectURL(blob))
     } catch (error) {
       console.error('Error generating PDF preview:', error)
       toast.error('Kunne ikke lage forhåndsvisningen', error)
@@ -76,12 +79,10 @@ export function TilbudPreview({ tilbudData, onClose }: TilbudPreviewProps) {
                 <p className="text-gray-500 dark:text-gray-400">Genererer forhåndsvisning...</p>
               </div>
             </div>
-          ) : pdfUrl ? (
-            <iframe
-              src={pdfUrl}
-              className="w-full h-full border-0"
-              title="PDF Preview"
-            />
+          ) : pdfBlob ? (
+            <div className="h-full overflow-y-auto p-3 bg-gray-200 dark:bg-dark-100">
+              <PdfForhandsvisning blob={pdfBlob} />
+            </div>
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-gray-500 dark:text-gray-400">Kunne ikke laste forhåndsvisning</p>
