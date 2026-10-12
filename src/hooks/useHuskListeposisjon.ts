@@ -52,19 +52,28 @@ export function useHuskListeposisjon(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nokkel, klar, visAntall])
 
-  // Skriv underveis, så posisjonen finnes også om fanen lukkes brått
+  /*
+   * Posisjonen føres med underveis, ikke leses ved opprydding.
+   *
+   * Når React fjerner listen fra siden blir dokumentet kort, og nettleseren
+   * klemmer window.scrollY til 0. Leste vi den i opprydningen, lagret vi null –
+   * og listen hoppet til toppen selv om alt annet virket.
+   */
+  const sisteY = useRef(0)
   useEffect(() => {
     if (!nokkel) return
+    sisteY.current = window.scrollY
     let timer: number | undefined
     function lagre() {
+      sisteY.current = window.scrollY
       window.clearTimeout(timer)
-      timer = window.setTimeout(() => skriv(nokkel, { y: window.scrollY, visAntall }), 150)
+      timer = window.setTimeout(() => skriv(nokkel, { y: sisteY.current, visAntall }), 150)
     }
     window.addEventListener('scroll', lagre, { passive: true })
     return () => {
       window.clearTimeout(timer)
       window.removeEventListener('scroll', lagre)
-      skriv(nokkel, { y: window.scrollY, visAntall })
+      skriv(nokkel, { y: sisteY.current, visAntall })
     }
   }, [nokkel, visAntall])
 }
