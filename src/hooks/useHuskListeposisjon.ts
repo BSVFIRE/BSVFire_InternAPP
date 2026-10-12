@@ -1,0 +1,92 @@
+/**
+ * Husker hvor i en lang liste du var, og hvor mange rader som var lastet.
+ *
+ * Lister som laster flere rader etter hvert som du ruller, starter på nytt når du
+ * går inn på en rad og tilbake igjen: både rulleposisjonen og de ekstra radene er
+ * borte. På en liste med flere hundre anlegg betyr det at du må finne fram på nytt
+ * hver gang du har sett på ett av dem.
+ *
+ * Nøkkelen bør inneholde filtrene (gjerne URL-ens søkestreng), slik at posisjonen
+ * fra ett filter ikke gjenopprettes i et annet.
+ *
+ * sessionStorage og ikke localStorage: dette gjelder økten du er i nå. Kommer du
+ * tilbake i morgen, skal listen starte på toppen.
+ */
+import { useEffect, useRef } from 'react'
+
+interface Posisjon { y: number; visAntall: number }
+
+/** Eldre enn dette regnes som en ny økt, ikke «tilbake fra et anlegg». */
+const MAKS_ALDER_MS = 30 * 60 * 1000
+
+export function useHuskListeposisjon(
+  nokkel: string,
+  visAntall: number,
+  setVisAntall: (n: number) => void,
+  /** Settes når radene faktisk er tegnet – ellers er det ingenting å rulle til */
+  klar: boolean,
+) {
+  const lagret = useRef<Posisjon | null>(null)
+  // 'venter' → 'rader' (antallet er bedt om) → 'ferdig' (rullet, eller ingenting å gjøre)
+  const steg = useRef<'venter' | 'rader' | 'ferdig'>('venter')
+
+  useEffect(() => { if (nokkel) lagret.current = les(nokkel) }, [nokkel])
+
+  /*
+   * Gjenopprettingen må skje i to trinn, og først når dataene er på plass.
+   * Listene nullstiller antallet synlige rader idet dataene kommer inn – skrev vi
+   * antallet før det, ville det blitt overskrevet med én gang.
+   */
+  useEffect(() => {
+    if (!nokkel || !klar || steg.current === 'ferdig') return
+    const p = lagret.current
+    if (!p?.y) { steg.current = 'ferdig'; return }
+
+    if (steg.current === 'venter') {
+      steg.current = 'rader'
+      if (p.visAntall > visAntall) { setVisAntall(p.visAntall); return }
+    }
+    // Radene er bedt om. Vent to bilder, så de har fått høyde, før vi ruller.
+    steg.current = 'ferdig'
+    requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: p.y })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nokkel, klar, visAntall])
+
+  // Skriv underveis, så posisjonen finnes også om fanen lukkes brått
+  useEffect(() => {
+    if (!nokkel) return
+    let timer: number | undefined
+    function lagre() {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => skriv(nokkel, { y: window.scrollY, visAntall }), 150)
+    }
+    window.addEventListener('scroll', lagre, { passive: true })
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('scroll', lagre)
+      skriv(nokkel, { y: window.scrollY, visAntall })
+    }
+  }, [nokkel, visAntall])
+}
+
+function nokkelFor(nokkel: string) { return `listeposisjon_${nokkel}` }
+
+function les(nokkel: string): Posisjon | null {
+  try {
+    const rå = sessionStorage.getItem(nokkelFor(nokkel))
+    if (!rå) return null
+    const x = JSON.parse(rå) as Posisjon & { tid?: number }
+    if (!x.tid || Date.now() - x.tid > MAKS_ALDER_MS) return null
+    return { y: Number(x.y) || 0, visAntall: Number(x.visAntall) || 0 }
+  } catch {
+    return null
+  }
+}
+
+function skriv(nokkel: string, p: Posisjon) {
+  try {
+    sessionStorage.setItem(nokkelFor(nokkel), JSON.stringify({ ...p, tid: Date.now() }))
+  } catch {
+    // Full lagring skal ikke stoppe navigeringen
+  }
+}

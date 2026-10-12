@@ -109,7 +109,7 @@ export default function KundeListe() {
     })
   }, [grunnlag, q, chip, enMndSiden, sort, dir])
 
-  const { synlig, merRef, harMer, visAntall, visFlere } = useUendeligListe(filtrert, SIDE)
+  const { synlig, merRef, harMer, visAntall, visFlere } = useUendeligListe(filtrert, SIDE, { nokkel: `kunder_${params.toString()}`, klar: !loading && filtrert.length > 0 })
   const harFilter = Boolean(q || chip !== 'alle' || skjulte)
 
   function sorterPa(key: SortKey) {

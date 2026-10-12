@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils'
 import { createLogger } from '@/lib/logger'
 import { IKKE_KONTRAKT, IKKE_KONTRAKT_TEKST, erIkkeKontrakt, ANLEGG_STATUSER, KONTROLLTYPER, MAANEDER, MAANED_ORDER } from '@/lib/constants'
 import { useCurrentAnsatt } from '@/hooks/useCurrentAnsatt'
+import { useHuskListeposisjon } from '@/hooks/useHuskListeposisjon'
 import { Button, IconButton } from '@/components/ui/Button'
 import { DropdownMenu, MenuItem, MenuSeparator } from '@/components/ui/DropdownMenu'
 import { AnleggImport } from '@/components/AnleggImport'
@@ -204,6 +205,10 @@ export default function AnleggListe() {
   }, [grunnlag, q, chip, mnd, type, mine, ansatt?.id, sort, dir, denneMnd])
 
   const synlig = filtrert.slice(0, visAntall)
+
+  // Tilbake fra et anlegg: samme sted i listen, og like mange rader lastet.
+  // Nøkkelen inkluderer filtrene, så posisjonen fra ett filter ikke brukes i et annet.
+  useHuskListeposisjon(`anlegg_${params.toString()}`, visAntall, setVisAntall, !loading && synlig.length > 0)
 
   // Laster flere rader automatisk når bunnen av listen kommer til syne
   const merRef = useRef<HTMLDivElement>(null)

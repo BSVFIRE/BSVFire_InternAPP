@@ -129,7 +129,7 @@ export default function KontaktListe() {
     })
   }, [rader, q, chip, sort, dir])
 
-  const { synlig, merRef, harMer, visAntall, visFlere } = useUendeligListe(filtrert, SIDE)
+  const { synlig, merRef, harMer, visAntall, visFlere } = useUendeligListe(filtrert, SIDE, { nokkel: `kontakter_${params.toString()}`, klar: !loading && filtrert.length > 0 })
   const harFilter = Boolean(q || chip !== 'alle')
 
   function sorterPa(key: SortKey) {

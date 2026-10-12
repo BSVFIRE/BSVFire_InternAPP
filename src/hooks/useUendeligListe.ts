@@ -6,10 +6,15 @@
  *   {harMer && <div ref={merRef}>Laster flere …</div>}
  *
  * Antallet nullstilles når listen endrer seg (nytt filter eller søk).
+ *
+ * `husk` gjør at posisjonen og antallet hentes tilbake når du kommer tilbake fra
+ * en rad. Nøkkelen bør inneholde filtrene, slik at ett filter ikke arver
+ * posisjonen fra et annet.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useHuskListeposisjon } from './useHuskListeposisjon'
 
-export function useUendeligListe<T>(rader: T[], side = 25) {
+export function useUendeligListe<T>(rader: T[], side = 25, husk?: { nokkel: string; klar: boolean }) {
   const [visAntall, setVisAntall] = useState(side)
   const merRef = useRef<HTMLDivElement>(null)
   const antall = rader.length
@@ -25,6 +30,9 @@ export function useUendeligListe<T>(rader: T[], side = 25) {
     obs.observe(el)
     return () => obs.disconnect()
   }, [harMer, visAntall, side])
+
+  // Tilbake fra en rad: samme sted i listen, og like mange rader lastet
+  useHuskListeposisjon(husk?.nokkel ?? '', visAntall, setVisAntall, Boolean(husk?.klar))
 
   const synlig = useMemo(() => rader.slice(0, visAntall), [rader, visAntall])
   return { synlig, merRef, harMer, visAntall: Math.min(visAntall, antall), visFlere: () => setVisAntall(n => n + side) }
