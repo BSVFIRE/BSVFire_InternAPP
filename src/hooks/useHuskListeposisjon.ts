@@ -60,12 +60,27 @@ export function useHuskListeposisjon(
    * og listen hoppet til toppen selv om alt annet virket.
    */
   const sisteY = useRef(0)
+  /*
+   * Har brukeren faktisk rullet i denne monteringen? I utviklingsmodus monterer
+   * React alt to ganger, og opprydningen etter den første ville ellers skrevet
+   * y = 0 over posisjonen vi nettopp skulle hente fram.
+   */
+  const harRullet = useRef(false)
   useEffect(() => {
     if (!nokkel) return
     sisteY.current = window.scrollY
     let timer: number | undefined
     function lagre() {
-      sisteY.current = window.scrollY
+      const y = window.scrollY
+      /*
+       * Når listen fjernes fra siden kollapser dokumentet, og nettleseren utløser
+       * en scroll-hendelse med y = 0. Den ser ut som om du rullet til toppen, og
+       * ødela posisjonen vi nettopp hadde. Er siden blitt for kort til å romme
+       * posisjonen vi sto i, er det en kollaps og ikke en bevegelse.
+       */
+      if (y === 0 && sisteY.current > 0 && document.documentElement.scrollHeight < sisteY.current) return
+      sisteY.current = y
+      harRullet.current = true
       window.clearTimeout(timer)
       timer = window.setTimeout(() => skriv(nokkel, { y: sisteY.current, visAntall }), 150)
     }
@@ -73,6 +88,7 @@ export function useHuskListeposisjon(
     return () => {
       window.clearTimeout(timer)
       window.removeEventListener('scroll', lagre)
+      if (!harRullet.current) return
       skriv(nokkel, { y: sisteY.current, visAntall })
     }
   }, [nokkel, visAntall])
