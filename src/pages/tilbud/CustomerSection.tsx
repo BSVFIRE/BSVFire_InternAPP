@@ -144,6 +144,8 @@ export function CustomerSection({ formData, setFormData }: CustomerSectionProps)
       const company = await getCompanyByOrgNumber(orgNumberLookup)
       if (company) {
         fillFormFromCompany(company)
+      } else if (orgNumberLookup.replace(/\D/g, '').length !== 9) {
+        toast.warning('Organisasjonsnummeret må ha ni siffer')
       } else {
         toast.warning('Fant ingen bedrift', 'Sjekk organisasjonsnummeret.')
       }

@@ -97,14 +97,14 @@ export async function getCompanyByOrgNumber(
     return null
   }
 
-  try {
-    // Remove spaces and non-numeric characters
-    const cleanOrgNumber = orgNumber.replace(/\D/g, '')
-    
-    if (cleanOrgNumber.length !== 9) {
-      throw new Error('Organization number must be 9 digits')
-    }
+  // Et nummer med feil lengde er noe brukeren skrev, ikke en feil i systemet.
+  // Det ble tidligere kastet som en Error og logget to ganger i systemloggen.
+  const cleanOrgNumber = orgNumber.replace(/\D/g, '')
+  if (cleanOrgNumber.length !== 9) {
+    return null
+  }
 
+  try {
     const url = `${BRREG_API_BASE}/enheter/${cleanOrgNumber}`
     const response = await fetch(url)
     

@@ -11,10 +11,22 @@ interface State {
   error: Error | null
 }
 
-function erUtdatertChunk(error: Error): boolean {
+/**
+ * Etter en deploy peker en åpen fane på chunk-filer som ikke finnes lenger.
+ * Netlify svarer med index.html, og importen feiler.
+ *
+ * «reading 'default'» kommer fra React.lazy. Henter importen et navngitt eksport –
+ * `lazy(() => import('./X').then(m => ({ default: m.X })))` – heter egenskapen
+ * noe annet, og da er komponentstakken det eneste holdepunktet: feilen oppsto
+ * inne i en Lazy-grense mens en modul ble lastet.
+ */
+function erUtdatertChunk(error: Error, komponentstakk?: string | null): boolean {
   const t = `${error.name} ${error.message}`
-  // «reading 'default'» kommer fra React.lazy når den dynamiske importen aldri ble lastet
-  return /is not a valid JavaScript MIME type|Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module|ChunkLoadError|Cannot read properties of undefined \(reading 'default'\)|undefined is not an object \(evaluating '[^']*\.default'\)/.test(t)
+  if (/is not a valid JavaScript MIME type|Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module|ChunkLoadError|Cannot read properties of undefined \(reading 'default'\)|undefined is not an object \(evaluating '[^']*\.default'\)/.test(t)) {
+    return true
+  }
+  const lesteFraTom = /Cannot read properties of undefined \(reading '\w+'\)|undefined is not an object/.test(t)
+  return lesteFraTom && Boolean(komponentstakk?.includes('Lazy'))
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -30,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Etter en deploy peker en åpen fane på chunk-filer som ikke finnes lenger. Da svarer
     // Netlify med index.html, og importen feiler på MIME-type. Last siden på nytt én gang.
-    if (erUtdatertChunk(error)) {
+    if (erUtdatertChunk(error, errorInfo.componentStack)) {
       try {
         if (!sessionStorage.getItem('fc_chunk_reload')) {
           sessionStorage.setItem('fc_chunk_reload', String(Date.now()))
@@ -38,6 +50,10 @@ export class ErrorBoundary extends Component<Props, State> {
           return
         }
       } catch { /* sessionStorage utilgjengelig */ }
+      // Dette skjer ved hver deploy og er ikke en feil i koden. Logges den, drukner
+      // den de feilene som faktisk stopper arbeid.
+      console.warn('Utdatert chunk etter deploy – siden lastes på nytt', error.message)
+      return
     }
     // Log error to database
     logger.error('React Error Boundary caught error', {

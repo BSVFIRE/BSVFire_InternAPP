@@ -10,11 +10,15 @@ import { logger } from './logger'
  * - «Script error.» uten fil: cross-origin (nettleserutvidelser)
  * - ResizeObserver-advarsel fra nettleseren ved layout-endringer
  * - «Load failed» / NetworkError / avbrutt modul-import: mobil uten dekning eller dev-server som restartes
+ * - utdaterte chunk-filer: en åpen fane etter en deploy, håndtert av ErrorBoundary
  */
 export function erStoy(melding: unknown, filnavn?: string): boolean {
   if (typeof melding !== 'string') return false
   if (melding.includes('ResizeObserver loop')) return true
   if (melding.trim() === 'Script error.' && !filnavn) return true
+  // Samme feil ble logget to ganger: her og i ErrorBoundary. Begge er støy etter
+  // en deploy, og de skjulte feil som faktisk stoppet arbeid.
+  if (/is not a valid JavaScript MIME type|Failed to fetch dynamically imported module|error loading dynamically imported module|ChunkLoadError/.test(melding)) return true
   return /TypeError: (Load failed|NetworkError when attempting to fetch resource|Failed to fetch|Importing a module script failed)|^Load failed$|^Failed to fetch$/.test(melding)
 }
 
