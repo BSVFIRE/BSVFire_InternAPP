@@ -139,6 +139,7 @@ export default function AnleggDetaljer() {
   const tabParam = searchParams.get('tab')
   const tab: Tab = tabParam === 'dokumenter' ? 'dokumenter' : tabParam === 'bilder' ? 'bilder' : tabParam === 'avvik' ? 'avvik' : 'oversikt'
 
+  const { ansatt } = useCurrentAnsatt()
   const [anlegg, setAnlegg] = useState<AnleggRow | null>(null)
   const [kontakter, setKontakter] = useState<Kontakt[]>([])
   const [notater, setNotater] = useState<Notat[]>([])
@@ -411,7 +412,9 @@ export default function AnleggDetaljer() {
                     : erIkkeKontrakt(anlegg.kontroll_maaned) ? IKKE_KONTRAKT_TEKST : anlegg.kontroll_maaned ? `Kontrollmåned ${anlegg.kontroll_maaned}` : 'Kontrollmåned ikke satt'}
                   onClick={k.rapportType
                     ? () => navigate('/rapporter', { state: { kundeId: anlegg.kundenr, anleggId: anlegg.id, rapportType: k.rapportType } })
-                    : undefined}
+                    // «Ekstern» har ingen kontrollmodul – arbeidet gjøres av noen andre.
+                    // Da må den kunne hukes av her, ellers står den som ikke utført for alltid.
+                    : () => settFullfortManuelt(k.navn, k.fullfortKey, !anlegg[k.fullfortKey])}
                 />
               )
             })}
@@ -525,6 +528,28 @@ export default function AnleggDetaljer() {
       )}
     </div>
   )
+
+  /**
+   * Setter en tjeneste som utført uten at det finnes en rapport å gå via.
+   * Gjelder «Ekstern», der arbeidet er utført av en underleverandør.
+   */
+  async function settFullfortManuelt(navn: string, felt: keyof Tables<'anlegg'>, tilUtfort: boolean) {
+    if (!anlegg) return
+    const ok = await bekreft(tilUtfort
+      ? { tittel: `Sette ${navn.toLowerCase()} som utført?`, tekst: 'Brukes når arbeidet er gjort av en underleverandør, og det ikke finnes en kontroll i systemet.', bekreftTekst: 'Sett som utført' }
+      : { tittel: `Fjerne «utført» på ${navn.toLowerCase()}?`, bekreftTekst: 'Fjern', fare: true })
+    if (!ok) return
+
+    const { error } = await db.from('anlegg').update({
+      [felt]: tilUtfort,
+      sist_oppdatert: new Date().toISOString(),
+      status_oppdatert_av: ansatt?.id ?? null,
+      status_oppdatert_av_navn: ansatt?.navn ?? null,
+    }).eq('id', anlegg.id)
+    if (error) { toast.error(`Kunne ikke oppdatere ${navn.toLowerCase()}`, error); return }
+    toast.success(tilUtfort ? `${navn} er satt som utført` : `«Utført» er fjernet på ${navn.toLowerCase()}`)
+    loadAll()
+  }
 
   async function apneDokument(d: Dokument) {
     const { data, error } = await supabase.storage.from('anlegg.dokumenter').createSignedUrl(d.storagePath, 60 * 60)
